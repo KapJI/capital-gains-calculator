@@ -1,0 +1,4 @@
+*.aux
+*.log
+.DS_Store
+.mypy_cache/

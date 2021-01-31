@@ -1,0 +1,99 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=3cm]{geometry}
+\setlength{\parindent}{0pt} %--don't indent paragraphs
+\begin{document}
+\centerline{\Large\bfseries Capital Gains Tax Calculations for \VAR{ tax_year }-\VAR{ ("{:02d}".format((tax_year + 1) % 100)) }}
+
+\BLOCK{ set total_proceeds = namespace(value=Decimal(0)) }
+\BLOCK{ set total_gain = namespace(value=Decimal(0)) }
+\BLOCK{ set total_loss = namespace(value=Decimal(0)) }
+\BLOCK{ set acquisition_count = namespace(value=0) }
+\BLOCK{ set disposal_count = namespace(value=0) }
+
+\BLOCK{ for date_index, symbol_dict in calculation_log.items() }
+
+\section*{\VAR{ date_from_index(date_index).strftime("%d %B %Y") }}
+\BLOCK{ for symbol, entries in symbol_dict.items() }
+\BLOCK{ if symbol.startswith("sell$") }
+    \BLOCK{ set symbol = symbol[5:] }
+    \BLOCK{ set is_disposal = True }
+\BLOCK{ else }
+    \BLOCK{ set symbol = symbol[4:] }
+    \BLOCK{ set is_disposal = False }
+\BLOCK{ endif }
+\BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
+\BLOCK{ if is_disposal }
+    \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount"), 2) }
+    \BLOCK{ set total_proceeds.value = total_proceeds.value + overall_disposed }
+    \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
+    \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
+    \subsection*{Disposal \VAR{ disposal_count.value }: \VAR{ overall_quantity } shares of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }}
+    \BLOCK{ if overall_gain > 0 -}
+        Chargeable \textbf{gain} is £\VAR{ "{:,}".format(overall_gain) }
+
+        \BLOCK{ set total_gain.value = total_gain.value + overall_gain }
+        Capital gain to date is £\VAR{ "{:,}".format(total_gain.value) }
+    \BLOCK{ else }
+        Chargeable \textbf{loss} is £\VAR{ "{:,}".format(-overall_gain) }
+
+        \BLOCK{ set total_loss.value = total_loss.value - overall_gain }
+        Capital loss to date is £\VAR{ "{:,}".format(total_loss.value) }
+    \BLOCK{ endif }
+\BLOCK{ else }
+    \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
+    \BLOCK{ if overall_quantity > 0 }
+        \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
+        \subsection*{Acquisition \VAR{ acquisition_count.value }: \VAR{ overall_quantity } shares of \VAR{ symbol } for £\VAR{ "{:,}".format(acquisition_cost) }}
+    \BLOCK{ else }
+        \subsection*{Management fee for \VAR{ symbol } of £\VAR{ "{:,}".format(acquisition_cost) }}
+    \BLOCK{ endif}
+\BLOCK{ endif }
+
+\begin{enumerate}
+\BLOCK{ for entry in entries }
+\item \textbf{\VAR{ entry.rule_type.name.replace("_", " ") }}. Quantity: \VAR{ entry.quantity },
+\BLOCK{ if is_disposal }
+    \BLOCK{ if entry.quantity < overall_quantity }
+        disposal proceeds: £\VAR{ "{:,}".format(round_decimal(entry.amount, 2)) },
+    \BLOCK{ endif }
+    allowable
+    \BLOCK{ if entry.rule_type.name == "BED_AND_BREAKFAST" }
+        cost on \VAR{ date_from_index(entry.bed_and_breakfast_date_index).strftime("%d %b %Y") }:
+    \BLOCK{ else }
+        cost:
+    \BLOCK{ endif }
+    £\VAR{ "{:,}".format(round_decimal(entry.allowable_cost, 2)) },
+    \BLOCK{ if entry.gain > 0}
+        gain: £\VAR{ "{:,}".format(round_decimal(entry.gain, 2)) }.
+    \BLOCK{ else }
+        loss: £\VAR{ "{:,}".format(round_decimal(-entry.gain, 2)) }.
+    \BLOCK{ endif }
+\BLOCK{ else }
+    actual cost: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2)) }.
+\BLOCK{ endif}
+
+\BLOCK{ if is_disposal }
+    Number of shares left in the pool:
+\BLOCK{ else }
+    Number of shares in the pool:
+\BLOCK{ endif }
+\VAR{ entry.new_quantity }\BLOCK{ if entry.new_quantity > 0 },
+new pool cost: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2)) }\BLOCK{ endif }.
+
+\BLOCK{ endfor}
+\end{enumerate}
+
+\BLOCK{ endfor }
+
+\BLOCK{ endfor }
+
+\section*{Overall}
+\subsection*{Number of acquisitions: \VAR{ acquisition_count.value }}
+\subsection*{Number of disposals: \VAR{ disposal_count.value }}
+\subsection*{Total disposal proceeds: £\VAR{ "{:,}".format(total_proceeds.value) }}
+\subsection*{Total capital gain before loss: £\VAR{ "{:,}".format(total_gain.value) }}
+\subsection*{Total capital loss: £\VAR{ "{:,}".format(total_loss.value) }}
+\subsection*{Total capital gain after loss: £\VAR{ "{:,}".format(total_gain.value - total_loss.value) }}
+
+\end{document}
