@@ -1,4 +1,4 @@
-"Transactions  for account XXXX-5159 as of 01/23/2021 14:29:39 ET"
+"Transactions  for account XXXX-1234 as of 01/23/2021 14:29:39 ET"
 "Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount",
 "03/06/2020","Sell","FOO","FOO INC","90","$33","$5","$2965",
 "03/06/2020","Buy","FOO","FOO INC","90","$32","$5","-$2885",
@@ -9,5 +9,5 @@
 "03/03/2020","Buy","FOO","FOO INC","50","$27","$5","-$1355",
 "03/03/2020","Sell","FOO","FOO INC","100","$26","$5","$2595",
 "03/02/2020","Buy","FOO","FOO INC","100","$25","$6","-$2506",
-"03/01/2016","MoneyLink Transfer","","Tfr FIRST REPUBLIC BAN, RUSLAN SAYFUTDIN","","","","$10000.00",
+"03/01/2016","MoneyLink Transfer","","Tfr BANK","","","","$10000.00",
 Transactions Total,"","","","","","",
