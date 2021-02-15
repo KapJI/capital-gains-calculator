@@ -3,17 +3,15 @@
 import csv
 import datetime
 import decimal
-import itertools
-import math
 import os
-import sys
 import subprocess
+import sys
 import tempfile
-import jinja2
 from decimal import Decimal
 from enum import Enum
-from typing import List, Dict, Tuple
+from typing import Dict, List, Tuple
 
+import jinja2
 
 # First year of tax year
 tax_year = 2019
@@ -266,7 +264,7 @@ def add_to_list(
 
 def read_broker_transactions() -> List[BrokerTransaction]:
     with open(transactions_file) as csv_file:
-        lines = [l for l in csv.reader(csv_file)]
+        lines = [line for line in csv.reader(csv_file)]
         lines = lines[2:-1]
         transactions = [BrokerTransaction(row) for row in lines]
         transactions.reverse()
@@ -275,7 +273,7 @@ def read_broker_transactions() -> List[BrokerTransaction]:
 
 def read_gbp_prices_history() -> None:
     with open(gbp_history_file) as csv_file:
-        lines = [l for l in csv.reader(csv_file)]
+        lines = [line for line in csv.reader(csv_file)]
         lines = lines[1:]
         for row in lines:
             assert len(row) == 2
@@ -285,7 +283,7 @@ def read_gbp_prices_history() -> None:
 
 def read_initial_prices() -> None:
     with open(initial_prices_file) as csv_file:
-        lines = [l for l in csv.reader(csv_file)]
+        lines = [line for line in csv.reader(csv_file)]
         lines = lines[1:]
         for row in lines:
             entry = InitialPricesEntry(row)
@@ -525,7 +523,6 @@ def process_disposal(
     disposal_price = proceeds_amount / disposal_quantity
     current_quantity, current_amount = portfolio[symbol]
     assert disposal_quantity <= current_quantity
-    current_date = date_from_index(date_index)
     chargeable_gain = Decimal(0)
     calculation_entries = []
     # Same day rule is first
@@ -551,7 +548,11 @@ def process_disposal(
             same_day_gain = same_day_proceeds - same_day_allowable_cost
             chargeable_gain += same_day_gain
             # print(
-            #     f"SAME DAY, quantity {available_quantity}, gain {same_day_gain}, disposal price {disposal_price}, acquisition price {acquisition_price}"
+            #     f"SAME DAY"
+            #     f", quantity {available_quantity}"
+            #     f", gain {same_day_gain}
+            #     f", disposal price {disposal_price}"
+            #     f", acquisition price {acquisition_price}"
             # )
             disposal_quantity -= available_quantity
             proceeds_amount -= available_quantity * disposal_price
@@ -596,7 +597,9 @@ def process_disposal(
                 if acquisition_quantity - bed_and_breakfast_quantity == 0:
                     continue
                 print(
-                    f"WARNING: Bed and breakfasting for {symbol}. Disposed on {date_from_index(date_index)} and acquired again on {date_from_index(search_index)}"
+                    f"WARNING: Bed and breakfasting for {symbol}."
+                    f" Disposed on {date_from_index(date_index)}"
+                    f" and acquired again on {date_from_index(search_index)}"
                 )
                 available_quantity = min(
                     disposal_quantity, acquisition_quantity - bed_and_breakfast_quantity
@@ -611,7 +614,11 @@ def process_disposal(
                 )
                 chargeable_gain += bed_and_breakfast_gain
                 # print(
-                #     f"BED & BREAKFAST, quantity {available_quantity}, gain {bed_and_breakfast_gain}, disposal price {disposal_price}, acquisition price {acquisition_price}"
+                #     f"BED & BREAKFAST"
+                #     f", quantity {available_quantity}"
+                #     f", gain {bed_and_breakfast_gain}"
+                #     f", disposal price {disposal_price}"
+                #     f", acquisition price {acquisition_price}"
                 # )
                 disposal_quantity -= acquisition_quantity
                 proceeds_amount -= available_quantity * disposal_price
@@ -649,7 +656,11 @@ def process_disposal(
         )
         chargeable_gain += proceeds_amount - allowable_cost
         # print(
-        #     f"SECTION 104, quantity {disposal_quantity}, gain {proceeds_amount - allowable_cost}, proceeds amount {proceeds_amount}, allowable cost {allowable_cost}"
+        #     f"SECTION 104"
+        #     f", quantity {disposal_quantity}"
+        #     f", gain {proceeds_amount - allowable_cost}"
+        #     f", proceeds amount {proceeds_amount}"
+        #     f", allowable cost {allowable_cost}"
         # )
         current_quantity -= disposal_quantity
         current_amount -= allowable_cost
@@ -676,8 +687,7 @@ def process_disposal(
 
 
 def calculate_capital_gain(
-    acquisition_list: HmrcTransactionLog,
-    disposal_list: HmrcTransactionLog,
+    acquisition_list: HmrcTransactionLog, disposal_list: HmrcTransactionLog,
 ) -> CalculationLog:
     begin_index = date_to_index(internal_start_date)
     tax_year_start_index = date_to_index(tax_year_start_date)
@@ -706,7 +716,6 @@ def calculate_capital_gain(
                     calculation_log[date_index][f"buy${symbol}"] = calculation_entries
         if date_index in disposal_list:
             for symbol in disposal_list[date_index]:
-                current_date = date_from_index(date_index)
                 transaction_capital_gain, calculation_entries = process_disposal(
                     acquisition_list,
                     disposal_list,
@@ -724,7 +733,9 @@ def calculate_capital_gain(
                     )
                     transaction_quantity = disposal_list[date_index][symbol][0]
                     # print(
-                    #     f"DISPOSAL on {date_from_index(date_index)} of {symbol}, quantity {transaction_quantity}: capital gain: ${round_decimal(transaction_capital_gain, 2)}"
+                    #     f"DISPOSAL on {date_from_index(date_index)} of {symbol}"
+                    #     f", quantity {transaction_quantity}: "
+                    #     f"capital gain: ${round_decimal(transaction_capital_gain, 2)}"
                     # )
                     calculated_quantity = 0
                     calculated_proceeds = Decimal(0)
@@ -775,11 +786,11 @@ def render_calculations(calculation_log: CalculationLog) -> None:
     print("Generate calculations report")
     current_directory = os.path.abspath(".")
     latex_template_env = jinja2.Environment(
-        block_start_string="\BLOCK{",
+        block_start_string="\\BLOCK{",
         block_end_string="}",
-        variable_start_string="\VAR{",
+        variable_start_string="\\VAR{",
         variable_end_string="}",
-        comment_start_string="\#{",
+        comment_start_string="\\#{",
         comment_end_string="}",
         line_statement_prefix="%%",
         line_comment_prefix="%#",
