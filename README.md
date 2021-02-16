@@ -1,4 +1,5 @@
 # UK capital gains calculator
+
 [![CI](https://github.com/KapJI/capital_gains_calculator/workflows/CI/badge.svg)](https://github.com/KapJI/capital_gains_calculator/actions)
 
 Calculate capital gains tax by transaction history exported from Schwab and generate PDF report with calculations. Automatically convert all prices to GBP and apply HMRC rules to calculate capital gains tax: "same day" rule, "bed and breakfast" rule, section 104 holding.
