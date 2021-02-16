@@ -5,6 +5,8 @@ from decimal import Decimal
 from enum import Enum
 from typing import Dict, List
 
+from dates import DateIndex
+
 
 class BrokerTransaction:
     def __init__(self, row: List[str]):
@@ -149,4 +151,4 @@ class CalculationEntry:
         )
 
 
-CalculationLog = Dict[int, Dict[str, List[CalculationEntry]]]
+CalculationLog = Dict[DateIndex, Dict[str, List[CalculationEntry]]]
