@@ -3,15 +3,20 @@
 import csv
 import datetime
 import decimal
-import os
-import subprocess
 import sys
-import tempfile
 from decimal import Decimal
-from enum import Enum
 from typing import Dict, List, Tuple
 
-import jinja2
+import render_latex
+from misc import round_decimal
+from model import (
+    ActionType,
+    BrokerTransaction,
+    CalculationEntry,
+    CalculationLog,
+    InitialPricesEntry,
+    RuleType,
+)
 
 # First year of tax year
 tax_year = 2019
@@ -25,8 +30,6 @@ transactions_file = "transactions.csv"
 gbp_history_file = "GBP_USD_monthly_history.csv"
 # Initial vesting and spin-off prices
 initial_prices_file = "initial_prices.csv"
-# Latex template for calculations report
-calculations_template_file = "template.tex"
 
 # 6 April
 tax_year_start_date = datetime.date(tax_year, 4, 6)
@@ -39,152 +42,6 @@ HmrcTransactionLog = Dict[int, Dict[str, Tuple[int, Decimal, Decimal]]]
 gbp_history: Dict[int, Decimal] = {}
 fb_history: Dict[int, Decimal] = {}
 initial_prices: Dict[int, Dict[str, Decimal]] = {}
-
-
-class BrokerTransaction:
-    def __init__(self, row: List[str]):
-        assert len(row) == 9
-        assert row[8] == "", "should be empty"
-        as_of_str = " as of "
-        if as_of_str in row[0]:
-            index = row[0].find(as_of_str) + len(as_of_str)
-            date_str = row[0][index:]
-        else:
-            date_str = row[0]
-        self.date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
-        self.action = row[1]
-        self.symbol = row[2]
-        self.description = row[3]
-        self.quantity = int(row[4]) if row[4] != "" else None
-        self.price = Decimal(row[5].replace("$", "")) if row[5] != "" else None
-        self.fees = Decimal(row[6].replace("$", "")) if row[6] != "" else Decimal(0)
-        self.amount = Decimal(row[7].replace("$", "")) if row[7] != "" else None
-
-    def __str__(self) -> str:
-        result = f'date: {self.date}, action: "{self.action}"'
-        if self.symbol:
-            result += f", symbol: {self.symbol}"
-        if self.description:
-            result += f', description: "{self.description}"'
-        if self.quantity:
-            result += f", quantity: {self.quantity}"
-        if self.price:
-            result += f", price: {self.price}"
-        if self.fees:
-            result += f", fees: {self.fees}"
-        if self.amount:
-            result += f", amount: {self.amount}"
-        return result
-
-
-class ActionType(Enum):
-    BUY = 1
-    SELL = 2
-    TRANSFER = 3
-    STOCK_ACTIVITY = 4
-    DIVIDEND = 5
-    TAX = 6
-    FEE = 7
-    ADJUSTMENT = 8
-    CAPITAL_GAIN = 9
-    SPIN_OFF = 10
-    INTEREST = 11
-
-    @staticmethod
-    def from_str(label: str):
-        if label == "Buy":
-            return ActionType.BUY
-        elif label == "Sell":
-            return ActionType.SELL
-        elif label in [
-            "MoneyLink Transfer",
-            "Misc Cash Entry",
-            "Service Fee",
-            "Wire Funds",
-            "Funds Received",
-            "Journal",
-            "Cash In Lieu",
-        ]:
-            return ActionType.TRANSFER
-        elif label == "Stock Plan Activity":
-            return ActionType.STOCK_ACTIVITY
-        elif label in ["Qualified Dividend", "Cash Dividend"]:
-            return ActionType.DIVIDEND
-        elif label in ["NRA Tax Adj", "NRA Withholding", "Foreign Tax Paid"]:
-            return ActionType.TAX
-        elif label == "ADR Mgmt Fee":
-            return ActionType.FEE
-        elif label in ["Adjustment", "IRS Withhold Adj"]:
-            return ActionType.ADJUSTMENT
-        elif label in ["Short Term Cap Gain", "Long Term Cap Gain"]:
-            return ActionType.CAPITAL_GAIN
-        elif label == "Spin-off":
-            return ActionType.SPIN_OFF
-        elif label == "Credit Interest":
-            return ActionType.INTEREST
-        else:
-            raise Exception(f"Unknown action: {label}")
-
-
-class InitialPricesEntry:
-    def __init__(self, row: List[str]):
-        assert len(row) == 3
-        # date,symbol,price
-        self.date = self._parse_date(row[0])
-        self.symbol = row[1]
-        self.price = Decimal(row[2])
-
-    @staticmethod
-    def _parse_date(date_str: str) -> datetime.date:
-        return datetime.datetime.strptime(date_str, "%b %d, %Y").date()
-
-    def __str__(self) -> str:
-        return f"date: {self.date}, symbol: {self.symbol}, price: {self.price}"
-
-
-class RuleType(Enum):
-    SECTION_104 = 1
-    SAME_DAY = 2
-    BED_AND_BREAKFAST = 3
-
-
-class CalculationEntry:
-    def __init__(
-        self,
-        rule_type: RuleType,
-        quantity: int,
-        amount: Decimal,
-        fees: Decimal,
-        new_quantity: int,
-        new_pool_cost: Decimal,
-        gain: Decimal = Decimal(0),
-        allowable_cost: Decimal = Decimal(0),
-        bed_and_breakfast_date_index: int = 0,
-    ):
-        self.rule_type = rule_type
-        self.quantity = quantity
-        self.amount = amount
-        self.allowable_cost = allowable_cost
-        self.fees = fees
-        self.gain = gain
-        self.new_quantity = new_quantity
-        self.new_pool_cost = new_pool_cost
-        self.bed_and_breakfast_date_index = bed_and_breakfast_date_index
-        if amount >= 0:
-            assert gain == amount - allowable_cost
-
-    def __str__(self) -> str:
-        return (
-            f"{self.rule_type.name.replace('_', ' ')}, "
-            f"quantity: {self.quantity}, "
-            f"disposal proceeds: {self.amount}, "
-            f"allowable cost: {self.allowable_cost}, "
-            f"fees: {self.fees}, "
-            f"gain: {self.gain}"
-        )
-
-
-CalculationLog = Dict[int, Dict[str, List[CalculationEntry]]]
 
 
 def gbp_price(date: datetime.date) -> Decimal:
@@ -204,12 +61,6 @@ def get_initial_price(date: datetime.date, symbol: str) -> Decimal:
         return initial_prices[date_index][symbol]
     else:
         raise Exception(f"No {symbol} price for {date}")
-
-
-def round_decimal(value: Decimal, digits: int = 0) -> Decimal:
-    with decimal.localcontext() as ctx:
-        ctx.rounding = decimal.ROUND_HALF_UP
-        return Decimal(round(value, digits))
 
 
 def convert_to_gbp(amount: Decimal, date: datetime.date) -> Decimal:
@@ -687,7 +538,8 @@ def process_disposal(
 
 
 def calculate_capital_gain(
-    acquisition_list: HmrcTransactionLog, disposal_list: HmrcTransactionLog,
+    acquisition_list: HmrcTransactionLog,
+    disposal_list: HmrcTransactionLog,
 ) -> CalculationLog:
     begin_index = date_to_index(internal_start_date)
     tax_year_start_index = date_to_index(tax_year_start_date)
@@ -782,50 +634,6 @@ def calculate_capital_gain(
     return calculation_log
 
 
-def render_calculations(calculation_log: CalculationLog) -> None:
-    print("Generate calculations report")
-    current_directory = os.path.abspath(".")
-    latex_template_env = jinja2.Environment(
-        block_start_string="\\BLOCK{",
-        block_end_string="}",
-        variable_start_string="\\VAR{",
-        variable_end_string="}",
-        comment_start_string="\\#{",
-        comment_end_string="}",
-        line_statement_prefix="%%",
-        line_comment_prefix="%#",
-        trim_blocks=True,
-        autoescape=False,
-        loader=jinja2.FileSystemLoader(current_directory),
-    )
-    template = latex_template_env.get_template(calculations_template_file)
-    output_text = template.render(
-        calculation_log=calculation_log,
-        tax_year=tax_year,
-        date_from_index=date_from_index,
-        round_decimal=round_decimal,
-        Decimal=Decimal,
-    )
-    generated_file_fd, generated_file = tempfile.mkstemp(suffix=".tex")
-    os.write(generated_file_fd, output_text.encode())
-    os.close(generated_file_fd)
-    output_filename = "calculations"
-    subprocess.run(
-        [
-            "pdflatex",
-            f"-output-directory={current_directory}",
-            f"-jobname={output_filename}",
-            "-interaction=batchmode",
-            generated_file,
-        ],
-        check=True,
-        stdout=subprocess.DEVNULL,
-    )
-    os.remove(generated_file)
-    os.remove(f"{output_filename}.log")
-    os.remove(f"{output_filename}.aux")
-
-
 def main() -> int:
     # Throw exception on accidental float usage
     decimal.getcontext().traps[decimal.FloatOperation] = True
@@ -841,7 +649,9 @@ def main() -> int:
     acquisition_list, disposal_list = convert_to_hmrc_transactions(broker_transactions)
     # Second pass calculates capital gain tax for the given tax year
     calculation_log = calculate_capital_gain(acquisition_list, disposal_list)
-    render_calculations(calculation_log)
+    render_latex.render_calculations(
+        calculation_log, tax_year=tax_year, date_from_index=date_from_index
+    )
     print("All done!")
 
     return 0
