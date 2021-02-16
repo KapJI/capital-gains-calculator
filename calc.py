@@ -8,12 +8,14 @@ from decimal import Decimal
 from typing import Dict, List, Tuple
 
 import render_latex
+from dates import date_from_index, date_to_index, internal_start_date, is_date
 from misc import round_decimal
 from model import (
     ActionType,
     BrokerTransaction,
     CalculationEntry,
     CalculationLog,
+    DateIndex,
     InitialPricesEntry,
     RuleType,
 )
@@ -36,11 +38,10 @@ tax_year_start_date = datetime.date(tax_year, 4, 6)
 # 5 April
 tax_year_end_date = datetime.date(tax_year + 1, 4, 5)
 # For mapping of dates to int
-internal_start_date = datetime.date(2010, 1, 1)
 HmrcTransactionLog = Dict[int, Dict[str, Tuple[int, Decimal, Decimal]]]
 
 gbp_history: Dict[int, Decimal] = {}
-initial_prices: Dict[int, Dict[str, Decimal]] = {}
+initial_prices: Dict[DateIndex, Dict[str, Decimal]] = {}
 
 
 def gbp_price(date: datetime.date) -> Decimal:
@@ -64,22 +65,6 @@ def get_initial_price(date: datetime.date, symbol: str) -> Decimal:
 
 def convert_to_gbp(amount: Decimal, date: datetime.date) -> Decimal:
     return amount / gbp_price(date)
-
-
-def date_to_index(date: datetime.date) -> int:
-    assert is_date(date)
-    return (date - internal_start_date).days
-
-
-def date_from_index(date_index: int) -> datetime.date:
-    return internal_start_date + datetime.timedelta(days=date_index)
-
-
-def is_date(date: datetime.date) -> bool:
-    if isinstance(date, datetime.date) and not isinstance(date, datetime.datetime):
-        return True
-    else:
-        raise Exception(f'should be datetime.date: {type(date)} "{date}"')
 
 
 def date_in_tax_year(date: datetime.date) -> bool:
