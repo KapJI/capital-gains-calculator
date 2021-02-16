@@ -40,7 +40,6 @@ internal_start_date = datetime.date(2010, 1, 1)
 HmrcTransactionLog = Dict[int, Dict[str, Tuple[int, Decimal, Decimal]]]
 
 gbp_history: Dict[int, Decimal] = {}
-fb_history: Dict[int, Decimal] = {}
 initial_prices: Dict[int, Dict[str, Decimal]] = {}
 
 
