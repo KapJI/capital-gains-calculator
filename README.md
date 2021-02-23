@@ -26,7 +26,7 @@ pip3 install jinja2
 
 ## Disclaimer
 
-Please be aware that I'm not a tax adviser so use this data on your own risk.
+Please be aware that I'm not a tax adviser so use this data at your own risk.
 
 ## Contribute
 
