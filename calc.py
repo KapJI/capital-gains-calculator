@@ -34,10 +34,10 @@ from parsers import (
 )
 
 # First year of tax year
-tax_year = 2019
-# Allowance is £12000 for 2019/20
+tax_year = 2020
+# Allowance for 2020/21
 # https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances#tax-free-allowances-for-capital-gains-tax
-capital_gain_allowance = 12000
+capital_gain_allowance = 12300
 # Schwab transactions
 transactions_file = "transactions.csv"
 # Montly GBP/USD history from
