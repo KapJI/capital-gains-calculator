@@ -22,7 +22,7 @@ class BrokerTransaction:
         self.action = row[1]
         self.symbol = row[2]
         self.description = row[3]
-        self.quantity = int(row[4]) if row[4] != "" else None
+        self.quantity = Decimal(row[4]) if row[4] != "" else None
         self.price = Decimal(row[5].replace("$", "")) if row[5] != "" else None
         self.fees = Decimal(row[6].replace("$", "")) if row[6] != "" else Decimal(0)
         self.amount = Decimal(row[7].replace("$", "")) if row[7] != "" else None
@@ -119,10 +119,10 @@ class CalculationEntry:
     def __init__(
         self,
         rule_type: RuleType,
-        quantity: int,
+        quantity: Decimal,
         amount: Decimal,
         fees: Decimal,
-        new_quantity: int,
+        new_quantity: Decimal,
         new_pool_cost: Decimal,
         gain: Decimal = Decimal(0),
         allowable_cost: Decimal = Decimal(0),
