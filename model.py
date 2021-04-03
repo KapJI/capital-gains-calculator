@@ -3,9 +3,10 @@
 import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from dates import DateIndex
+from misc import round_decimal
 
 
 class ActionType(Enum):
@@ -111,3 +112,52 @@ class CalculationEntry:
 
 
 CalculationLog = Dict[DateIndex, Dict[str, List[CalculationEntry]]]
+
+
+class CapitalGainsReport:
+    def __init__(
+        self,
+        tax_year: int,
+        portfolio: Dict[str, Tuple[Decimal, Decimal]],
+        disposal_count: int,
+        disposal_proceeds: Decimal,
+        allowable_costs: Decimal,
+        capital_gain: Decimal,
+        capital_loss: Decimal,
+        capital_gain_allowance: Optional[Decimal],
+        calculation_log: CalculationLog,
+    ):
+        self.tax_year = tax_year
+        self.portfolio = portfolio
+        self.disposal_count = disposal_count
+        self.disposal_proceeds = disposal_proceeds
+        self.allowable_costs = allowable_costs
+        self.capital_gain = capital_gain
+        self.capital_loss = capital_loss
+        self.capital_gain_allowance = capital_gain_allowance
+        self.calculation_log = calculation_log
+
+    def total_gain(self):
+        return self.capital_gain + self.capital_loss
+
+    def taxable_gain(self):
+        assert self.capital_gain_allowance is not None
+        return max(Decimal(0), self.total_gain() - self.capital_gain_allowance)
+
+    def __str__(self):
+        s = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year:\n"
+        for symbol, (quantity, amount) in self.portfolio.items():
+            if quantity > 0:
+                s += f"  {symbol}: {round_decimal(quantity, 2)}, £{round_decimal(amount, 2)}\n"
+        s += f"For tax year {self.tax_year}/{self.tax_year + 1}:\n"
+        s += f"Number of disposals: {self.disposal_count}\n"
+        s += f"Disposal proceeds: £{self.disposal_proceeds}\n"
+        s += f"Allowable costs: £{self.allowable_costs}\n"
+        s += f"Capital gain: £{self.capital_gain}\n"
+        s += f"Capital loss: £{-self.capital_loss}\n"
+        s += f"Total capital gain: £{self.total_gain()}\n"
+        if self.capital_gain_allowance is not None:
+            s += f"Taxable capital gain: £{self.taxable_gain()}\n"
+        else:
+            s += "WARNING: Missing allowance for this tax year\n"
+        return s

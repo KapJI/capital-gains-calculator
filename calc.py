@@ -25,6 +25,7 @@ from model import (
     BrokerTransaction,
     CalculationEntry,
     CalculationLog,
+    CapitalGainsReport,
     DateIndex,
     RuleType,
 )
@@ -562,7 +563,7 @@ def process_disposal(
 def calculate_capital_gain(
     acquisition_list: HmrcTransactionLog,
     disposal_list: HmrcTransactionLog,
-) -> CalculationLog:
+) -> CapitalGainsReport:
     begin_index = date_to_index(internal_start_date)
     tax_year_start_index = date_to_index(tax_year_start_date)
     end_index = date_to_index(tax_year_end_date)
@@ -633,33 +634,18 @@ def calculate_capital_gain(
                     else:
                         capital_loss += transaction_capital_gain
     print("\nSecond pass completed")
-    print(f"Portfolio at the end of {tax_year}/{tax_year + 1} tax year:")
-    for symbol in portfolio:
-        quantity, amount = portfolio[symbol]
-        if quantity > 0:
-            print(
-                f"  {symbol}: {round_decimal(quantity, 2)}, £{round_decimal(amount, 2)}"
-            )
-    disposal_proceeds = round_decimal(disposal_proceeds, 2)
-    allowable_costs = round_decimal(allowable_costs, 2)
-    capital_gain = round_decimal(capital_gain, 2)
-    capital_loss = round_decimal(capital_loss, 2)
-    print(f"For tax year {tax_year}/{tax_year + 1}:")
-    print(f"Number of disposals: {disposal_count}")
-    print(f"Disposal proceeds: £{disposal_proceeds}")
-    print(f"Allowable costs: £{allowable_costs}")
-    print(f"Capital gain: £{capital_gain}")
-    print(f"Capital loss: £{-capital_loss}")
-    print(f"Total capital gain: £{capital_gain + capital_loss}")
-    if tax_year in capital_gain_allowances:
-        allowance = capital_gain_allowances[tax_year]
-        print(
-            f"Taxable capital gain: £{max(Decimal(0), capital_gain + capital_loss - allowance)}"
-        )
-    else:
-        print("WARNING: Missing allowance for this tax year")
-    print("")
-    return calculation_log
+    allowance = capital_gain_allowances.get(tax_year)
+    return CapitalGainsReport(
+        tax_year,
+        portfolio,
+        disposal_count,
+        round_decimal(disposal_proceeds, 2),
+        round_decimal(allowable_costs, 2),
+        round_decimal(capital_gain, 2),
+        round_decimal(capital_loss, 2),
+        Decimal(allowance) if allowance is not None else None,
+        calculation_log,
+    )
 
 
 def main() -> int:
@@ -677,9 +663,10 @@ def main() -> int:
     # taxes on dividends and interest.
     acquisition_list, disposal_list = convert_to_hmrc_transactions(broker_transactions)
     # Second pass calculates capital gain tax for the given tax year
-    calculation_log = calculate_capital_gain(acquisition_list, disposal_list)
+    report = calculate_capital_gain(acquisition_list, disposal_list)
+    print(report)
     render_latex.render_calculations(
-        calculation_log, tax_year=tax_year, date_from_index=date_from_index
+        report.calculation_log, tax_year=tax_year, date_from_index=date_from_index
     )
     print("All done!")
 
