@@ -3,29 +3,31 @@
 import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dates import DateIndex
 
 
 class BrokerTransaction:
-    def __init__(self, row: List[str]):
-        assert len(row) == 9
-        assert row[8] == "", "should be empty"
-        as_of_str = " as of "
-        if as_of_str in row[0]:
-            index = row[0].find(as_of_str) + len(as_of_str)
-            date_str = row[0][index:]
-        else:
-            date_str = row[0]
-        self.date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
-        self.action = row[1]
-        self.symbol = row[2]
-        self.description = row[3]
-        self.quantity = Decimal(row[4]) if row[4] != "" else None
-        self.price = Decimal(row[5].replace("$", "")) if row[5] != "" else None
-        self.fees = Decimal(row[6].replace("$", "")) if row[6] != "" else Decimal(0)
-        self.amount = Decimal(row[7].replace("$", "")) if row[7] != "" else None
+    def __init__(
+        self,
+        date: datetime.date,
+        action: str,
+        symbol: str,
+        description: str,
+        quantity: Optional[Decimal],
+        price: Optional[Decimal],
+        fees: Decimal,
+        amount: Optional[Decimal],
+    ):
+        self.date = date
+        self.action = action
+        self.symbol = symbol
+        self.description = description
+        self.quantity = quantity
+        self.price = price
+        self.fees = fees
+        self.amount = amount
 
     def __str__(self) -> str:
         result = f'date: {self.date}, action: "{self.action}"'
@@ -91,22 +93,6 @@ class ActionType(Enum):
             return ActionType.INTEREST
         else:
             raise Exception(f"Unknown action: {label}")
-
-
-class InitialPricesEntry:
-    def __init__(self, row: List[str]):
-        assert len(row) == 3
-        # date,symbol,price
-        self.date = self._parse_date(row[0])
-        self.symbol = row[1]
-        self.price = Decimal(row[2])
-
-    @staticmethod
-    def _parse_date(date_str: str) -> datetime.date:
-        return datetime.datetime.strptime(date_str, "%b %d, %Y").date()
-
-    def __str__(self) -> str:
-        return f"date: {self.date}, symbol: {self.symbol}, price: {self.price}"
 
 
 class RuleType(Enum):

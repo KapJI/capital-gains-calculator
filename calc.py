@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import csv
 import datetime
 import decimal
 import sys
@@ -16,8 +15,12 @@ from model import (
     CalculationEntry,
     CalculationLog,
     DateIndex,
-    InitialPricesEntry,
     RuleType,
+)
+from parsers import (
+    read_broker_transactions,
+    read_gbp_prices_history,
+    read_initial_prices,
 )
 
 # First year of tax year
@@ -95,37 +98,6 @@ def add_to_list(
         current_amount + amount,
         current_fees + fees,
     )
-
-
-def read_broker_transactions() -> List[BrokerTransaction]:
-    with open(transactions_file) as csv_file:
-        lines = [line for line in csv.reader(csv_file)]
-        lines = lines[2:-1]
-        transactions = [BrokerTransaction(row) for row in lines]
-        transactions.reverse()
-        return transactions
-
-
-def read_gbp_prices_history() -> None:
-    with open(gbp_history_file) as csv_file:
-        lines = [line for line in csv.reader(csv_file)]
-        lines = lines[1:]
-        for row in lines:
-            assert len(row) == 2
-            price_date = datetime.datetime.strptime(row[0], "%m/%Y").date()
-            gbp_history[date_to_index(price_date)] = Decimal(row[1])
-
-
-def read_initial_prices() -> None:
-    with open(initial_prices_file) as csv_file:
-        lines = [line for line in csv.reader(csv_file)]
-        lines = lines[1:]
-        for row in lines:
-            entry = InitialPricesEntry(row)
-            date_index = date_to_index(entry.date)
-            if date_index not in initial_prices:
-                initial_prices[date_index] = {}
-            initial_prices[date_index][entry.symbol] = entry.price
 
 
 def add_acquisition(
@@ -624,9 +596,10 @@ def main() -> int:
     # Throw exception on accidental float usage
     decimal.getcontext().traps[decimal.FloatOperation] = True
     # Read data from input files
-    broker_transactions = read_broker_transactions()
-    read_gbp_prices_history()
-    read_initial_prices()
+    broker_transactions = read_broker_transactions(transactions_file)
+    global gbp_history, initial_prices
+    gbp_history = read_gbp_prices_history(gbp_history_file)
+    initial_prices = read_initial_prices(initial_prices_file)
     # First pass converts broker transactions to HMRC transactions.
     # This means applying same day rule and collapsing all transactions with
     # same type in the same day.
