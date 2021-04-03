@@ -6,12 +6,11 @@ import tempfile
 from decimal import Decimal
 
 import jinja2
-
 from misc import round_decimal
 from model import CalculationLog
 
 # Latex template for calculations report
-calculations_template_file = "template.tex"
+calculations_template_file = "template.tex.j2"
 
 
 def render_calculations(
