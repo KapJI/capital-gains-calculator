@@ -8,6 +8,7 @@ from dates import date_to_index
 from exceptions import UnexpectedColumnCountError
 from model import BrokerTransaction, DateIndex
 from schwab import read_schwab_transactions
+from trading212 import read_trading212_transactions
 
 
 class InitialPricesEntry:
@@ -27,9 +28,12 @@ class InitialPricesEntry:
         return f"date: {self.date}, symbol: {self.symbol}, price: {self.price}"
 
 
-def read_broker_transactions(schwab_transactions_file: str) -> List[BrokerTransaction]:
+def read_broker_transactions(
+    schwab_transactions_file: str, trading212_transactions_folder: str
+) -> List[BrokerTransaction]:
     reader_transactions = [
         read_schwab_transactions(schwab_transactions_file),
+        read_trading212_transactions(trading212_transactions_folder),
     ]
     # flatten list
     transactions = [
