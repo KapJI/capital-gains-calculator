@@ -57,7 +57,7 @@ class SchwabTransaction(BrokerTransaction):
         date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
         self.raw_action = row[1]
         action = action_from_str(self.raw_action)
-        symbol = row[2]
+        symbol = row[2] if row[2] != "" else None
         description = row[3]
         quantity = Decimal(row[4]) if row[4] != "" else None
         price = Decimal(row[5].replace("$", "")) if row[5] != "" else None

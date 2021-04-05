@@ -65,7 +65,7 @@ class Trading212Transaction(BrokerTransaction):
         date = self.datetime.date()
         self.raw_action = row["Action"]
         action = action_from_str(self.raw_action, filename)
-        symbol = row["Ticker"]
+        symbol = row["Ticker"] if row["Ticker"] != "" else None
         description = row["Name"]
         quantity = decimal_or_none(row["No. of shares"])
         self.price_foreign = decimal_or_none(row["Price / share"])

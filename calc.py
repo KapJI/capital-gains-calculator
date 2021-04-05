@@ -228,6 +228,8 @@ class CapitalGainsCalculator:
                 transaction.fees = -transaction.amount
                 transaction.quantity = Decimal(0)
                 gbp_fees = self.converter.to_gbp_for(transaction.fees, transaction)
+                if transaction.symbol is None:
+                    raise SymbolMissingError(transaction)
                 CapitalGainsCalculator.add_to_list(
                     acquisition_list,
                     date_to_index(transaction.date),
