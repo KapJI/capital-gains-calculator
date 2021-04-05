@@ -38,7 +38,7 @@ tax_year_start_date = datetime.date(tax_year, 4, 6)
 # 5 April
 tax_year_end_date = datetime.date(tax_year + 1, 4, 5)
 # For mapping of dates to int
-HmrcTransactionLog = Dict[int, Dict[str, Tuple[int, Decimal, Decimal]]]
+HmrcTransactionLog = Dict[int, Dict[str, Tuple[Decimal, Decimal, Decimal]]]
 
 gbp_history: Dict[int, Decimal] = {}
 initial_prices: Dict[DateIndex, Dict[str, Decimal]] = {}
@@ -80,7 +80,7 @@ def add_to_list(
     current_list: HmrcTransactionLog,
     date_index: int,
     symbol: str,
-    quantity: int,
+    quantity: Decimal,
     amount: Decimal,
     fees: Decimal,
 ) -> None:
@@ -88,7 +88,7 @@ def add_to_list(
     if date_index not in current_list:
         current_list[date_index] = {}
     if symbol not in current_list[date_index]:
-        current_list[date_index][symbol] = (0, Decimal(0), Decimal(0))
+        current_list[date_index][symbol] = (Decimal(0), Decimal(0), Decimal(0))
     current_quantity, current_amount, current_fees = current_list[date_index][symbol]
     current_list[date_index][symbol] = (
         current_quantity + quantity,
@@ -129,7 +129,7 @@ def read_initial_prices() -> None:
 
 
 def add_acquisition(
-    portfolio: Dict[str, int],
+    portfolio: Dict[str, Decimal],
     acquisition_list: HmrcTransactionLog,
     transaction: BrokerTransaction,
 ) -> None:
@@ -166,7 +166,7 @@ def add_acquisition(
 
 
 def add_disposal(
-    portfolio: Dict[str, int],
+    portfolio: Dict[str, Decimal],
     disposal_list: HmrcTransactionLog,
     transaction: BrokerTransaction,
 ) -> None:
@@ -211,7 +211,7 @@ def convert_to_hmrc_transactions(
     dividends_tax = Decimal(0)
     interest = Decimal(0)
     total_sells = Decimal(0)
-    portfolio: Dict[str, int] = {}
+    portfolio: Dict[str, Decimal] = {}
     acquisition_list: HmrcTransactionLog = {}
     disposal_list: HmrcTransactionLog = {}
 
@@ -236,7 +236,7 @@ def convert_to_hmrc_transactions(
             assert transaction.amount is not None
             balance += transaction.amount
             transaction.fees = -transaction.amount
-            transaction.quantity = 0
+            transaction.quantity = Decimal(0)
             gbp_fees = convert_to_gbp(transaction.fees, transaction.date)
             add_to_list(
                 acquisition_list,
@@ -268,7 +268,7 @@ def convert_to_hmrc_transactions(
     print("First pass completed")
     print("Final portfolio:")
     for stock, quantity in portfolio.items():
-        print(f"  {stock}: {quantity}")
+        print(f"  {stock}: {round_decimal(quantity, 2)}")
     print(f"Final balance: ${balance}")
     print(f"Dividends: £{round_decimal(dividends, 2)}")
     print(f"Dividend taxes: £{round_decimal(-dividends_tax, 2)}")
@@ -281,7 +281,7 @@ def convert_to_hmrc_transactions(
 def process_acquisition(
     acquisition_list: HmrcTransactionLog,
     bed_and_breakfast_list: HmrcTransactionLog,
-    portfolio: Dict[str, Tuple[int, Decimal]],
+    portfolio: Dict[str, Tuple[Decimal, Decimal]],
     symbol: str,
     date_index: int,
 ) -> List[CalculationEntry]:
@@ -290,14 +290,14 @@ def process_acquisition(
     ][symbol]
     original_acquisition_amount = acquisition_amount
     if symbol not in portfolio:
-        portfolio[symbol] = (0, Decimal(0))
+        portfolio[symbol] = (Decimal(0), Decimal(0))
     current_quantity, current_amount = portfolio[symbol]
     calculation_entries = []
 
     # Management fee transaction can have 0 quantity
     assert acquisition_quantity >= 0
     assert acquisition_amount > 0
-    bed_and_breakfast_quantity = 0
+    bed_and_breakfast_quantity = Decimal(0)
     bed_and_breakfast_amount = Decimal(0)
     if acquisition_quantity > 0:
         acquisition_price = acquisition_amount / acquisition_quantity
@@ -348,7 +348,7 @@ def process_disposal(
     acquisition_list: HmrcTransactionLog,
     disposal_list: HmrcTransactionLog,
     bed_and_breakfast_list: HmrcTransactionLog,
-    portfolio: Dict[str, Tuple[int, Decimal]],
+    portfolio: Dict[str, Tuple[Decimal, Decimal]],
     symbol: str,
     date_index: int,
 ) -> Tuple[Decimal, List[CalculationEntry]]:
@@ -365,7 +365,7 @@ def process_disposal(
         same_day_quantity, same_day_amount, same_day_fees = acquisition_list[
             date_index
         ][symbol]
-        bed_and_breakfast_quantity = 0
+        bed_and_breakfast_quantity = Decimal(0)
         if has_key(bed_and_breakfast_list, date_index, symbol):
             (
                 bed_and_breakfast_quantity,
@@ -419,7 +419,7 @@ def process_disposal(
                     acquisition_amount,
                     acquisition_fees,
                 ) = acquisition_list[search_index][symbol]
-                bed_and_breakfast_quantity = 0
+                bed_and_breakfast_quantity = Decimal(0)
                 if has_key(bed_and_breakfast_list, search_index, symbol):
                     (
                         bed_and_breakfast_quantity,
@@ -534,7 +534,7 @@ def calculate_capital_gain(
     capital_gain = Decimal(0)
     capital_loss = Decimal(0)
     bed_and_breakfast_list: HmrcTransactionLog = {}
-    portfolio: Dict[str, Tuple[int, Decimal]] = {}
+    portfolio: Dict[str, Tuple[Decimal, Decimal]] = {}
     calculation_log: CalculationLog = {}
     for date_index in range(begin_index, end_index + 1):
         if date_index in acquisition_list:
@@ -573,7 +573,7 @@ def calculate_capital_gain(
                     #     f", quantity {transaction_quantity}: "
                     #     f"capital gain: ${round_decimal(transaction_capital_gain, 2)}"
                     # )
-                    calculated_quantity = 0
+                    calculated_quantity = Decimal(0)
                     calculated_proceeds = Decimal(0)
                     calculated_gain = Decimal(0)
                     for entry in calculation_entries:
@@ -599,7 +599,9 @@ def calculate_capital_gain(
     for symbol in portfolio:
         quantity, amount = portfolio[symbol]
         if quantity > 0:
-            print(f"  {symbol}: {quantity}, £{round_decimal(amount, 2)}")
+            print(
+                f"  {symbol}: {round_decimal(quantity, 2)}, £{round_decimal(amount, 2)}"
+            )
     disposal_proceeds = round_decimal(disposal_proceeds, 2)
     allowable_costs = round_decimal(allowable_costs, 2)
     capital_gain = round_decimal(capital_gain, 2)
