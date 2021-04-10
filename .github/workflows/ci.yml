@@ -32,9 +32,5 @@ jobs:
         uses: github/super-linter@v3
         env:
           VALIDATE_ALL_CODEBASE: false
-          VALIDATE_LATEX: false # template.tex is not tex, but a template with Python code
-          VALIDATE_PYTHON_ISORT: false # because black and isort are inconsistent
-          VALIDATE_PYTHON_BLACK: false # because local black and black are different
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
