@@ -4,12 +4,14 @@ from decimal import Decimal
 from typing import Dict, List
 
 from dates import date_to_index
+from exceptions import ParsingError, UnexpectedColumnCountError
 from model import BrokerTransaction, DateIndex
 
 
 class InitialPricesEntry:
-    def __init__(self, row: List[str]):
-        assert len(row) == 3
+    def __init__(self, row: List[str], file: str):
+        if len(row) != 3:
+            raise UnexpectedColumnCountError(row, 3, file)
         # date,symbol,price
         self.date = self._parse_date(row[0])
         self.symbol = row[1]
@@ -24,8 +26,11 @@ class InitialPricesEntry:
 
 
 class SchwabTransaction(BrokerTransaction):
-    def __init__(self, row: List[str]):
-        assert len(row) == 9
+    def __init__(self, row: List[str], file: str):
+        if len(row) != 9:
+            raise UnexpectedColumnCountError(row, 9, file)
+        if row[8] != "":
+            raise ParsingError(file, "Column 9 should be empty")
         assert row[8] == "", "should be empty"
         as_of_str = " as of "
         if as_of_str in row[0]:
@@ -50,7 +55,7 @@ def read_broker_transactions(transactions_file: str) -> List[BrokerTransaction]:
     with open(transactions_file) as csv_file:
         lines = [line for line in csv.reader(csv_file)]
         lines = lines[2:-1]
-        transactions = [SchwabTransaction(row) for row in lines]
+        transactions = [SchwabTransaction(row, transactions_file) for row in lines]
         transactions.reverse()
         return list(transactions)
 
@@ -61,7 +66,8 @@ def read_gbp_prices_history(gbp_history_file: str) -> Dict[int, Decimal]:
         lines = [line for line in csv.reader(csv_file)]
         lines = lines[1:]
         for row in lines:
-            assert len(row) == 2
+            if len(row) != 2:
+                raise UnexpectedColumnCountError(row, 2, gbp_history_file)
             price_date = datetime.datetime.strptime(row[0], "%m/%Y").date()
             gbp_history[date_to_index(price_date)] = Decimal(row[1])
     return gbp_history
@@ -75,7 +81,7 @@ def read_initial_prices(
         lines = [line for line in csv.reader(csv_file)]
         lines = lines[1:]
         for row in lines:
-            entry = InitialPricesEntry(row)
+            entry = InitialPricesEntry(row, initial_prices_file)
             date_index = date_to_index(entry.date)
             if date_index not in initial_prices:
                 initial_prices[date_index] = {}
