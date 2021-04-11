@@ -8,6 +8,16 @@ from typing import Dict, List, Tuple
 
 import render_latex
 from dates import date_from_index, date_to_index, internal_start_date, is_date
+from exceptions import (
+    AmountMissingError,
+    CalculatedAmountDiscrepancy,
+    CalculationError,
+    ExchangeRateMissingError,
+    InvalidTransactionError,
+    PriceMissingError,
+    QuantityNotPositiveError,
+    SymbolMissingError,
+)
 from misc import round_decimal
 from model import (
     ActionType,
@@ -54,7 +64,7 @@ def gbp_price(date: datetime.date) -> Decimal:
     if index in gbp_history:
         return gbp_history[index]
     else:
-        raise Exception(f"No GBP/USD price for {date}")
+        raise ExchangeRateMissingError("USD", date)
 
 
 def get_initial_price(date: datetime.date, symbol: str) -> Decimal:
@@ -63,7 +73,7 @@ def get_initial_price(date: datetime.date, symbol: str) -> Decimal:
     if date_index in initial_prices and symbol in initial_prices[date_index]:
         return initial_prices[date_index][symbol]
     else:
-        raise Exception(f"No {symbol} price for {date}")
+        raise ExchangeRateMissingError(symbol, date)
 
 
 def convert_to_gbp(amount: Decimal, date: datetime.date) -> Decimal:
@@ -107,9 +117,10 @@ def add_acquisition(
 ) -> None:
     symbol = transaction.symbol
     quantity = transaction.quantity
-    assert symbol != ""
-    assert quantity is not None
-    assert quantity > 0
+    if symbol is None:
+        raise SymbolMissingError(transaction)
+    if quantity is None or quantity <= 0:
+        raise QuantityNotPositiveError(transaction)
     # This is basically only for data validation
     if symbol in portfolio:
         portfolio[symbol] += quantity
@@ -120,13 +131,16 @@ def add_acquisition(
     if action_type in [ActionType.STOCK_ACTIVITY, ActionType.SPIN_OFF]:
         amount = quantity * get_initial_price(transaction.date, symbol)
     else:
-        assert transaction.amount is not None
-        assert transaction.price is not None
+        if transaction.amount is None:
+            raise AmountMissingError(transaction)
+        if transaction.price is None:
+            raise PriceMissingError(transaction)
         calculated_amount = round_decimal(
             quantity * transaction.price + transaction.fees, 2
         )
+        if transaction.amount != -calculated_amount:
+            raise CalculatedAmountDiscrepancy(transaction, -calculated_amount)
         amount = -transaction.amount
-        assert calculated_amount == amount, f"{calculated_amount} != {amount}"
     add_to_list(
         acquisition_list,
         date_to_index(transaction.date),
@@ -144,23 +158,34 @@ def add_disposal(
 ) -> None:
     symbol = transaction.symbol
     quantity = transaction.quantity
-    assert symbol != ""
-    assert symbol in portfolio, "reversed order?"
-    assert quantity is not None
-    assert quantity > 0
-    assert portfolio[symbol] >= quantity
+    if symbol is None:
+        raise SymbolMissingError(transaction)
+    if symbol not in portfolio:
+        raise InvalidTransactionError(
+            transaction, "Tried to sell not owned symbol, reversed order?"
+        )
+    if quantity is None or quantity <= 0:
+        raise QuantityNotPositiveError(transaction)
+    if portfolio[symbol] < quantity:
+        raise InvalidTransactionError(
+            transaction,
+            f"Tried to sell more than the available balance({portfolio[symbol]})",
+        )
     # This is basically only for data validation
     portfolio[symbol] -= quantity
     if portfolio[symbol] == 0:
         del portfolio[symbol]
     # Add to disposal_list to apply same day rule
-    assert transaction.amount is not None
-    assert transaction.price is not None
+    if transaction.amount is None:
+        raise AmountMissingError(transaction)
+    if transaction.price is None:
+        raise PriceMissingError(transaction)
     amount = transaction.amount
     calculated_amount = round_decimal(
         quantity * transaction.price - transaction.fees, 2
     )
-    assert calculated_amount == amount, f"{calculated_amount} != {amount}"
+    if amount != calculated_amount:
+        raise CalculatedAmountDiscrepancy(transaction, calculated_amount)
     add_to_list(
         disposal_list,
         date_to_index(transaction.date),
@@ -187,25 +212,28 @@ def convert_to_hmrc_transactions(
     acquisition_list: HmrcTransactionLog = {}
     disposal_list: HmrcTransactionLog = {}
 
-    for transaction in transactions:
-        assert balance >= 0, "balance can't be negative"
+    for i, transaction in enumerate(transactions):
         action_type = ActionType.from_str(transaction.action)
         if action_type is ActionType.TRANSFER:
-            assert transaction.amount is not None
+            if transaction.amount is None:
+                raise AmountMissingError(transaction)
             balance += transaction.amount
         elif action_type is ActionType.BUY:
-            assert transaction.amount is not None
+            if transaction.amount is None:
+                raise AmountMissingError(transaction)
             balance += transaction.amount
             add_acquisition(portfolio, acquisition_list, transaction)
         elif action_type is ActionType.SELL:
-            assert transaction.amount is not None
+            if transaction.amount is None:
+                raise AmountMissingError(transaction)
             balance += transaction.amount
             add_disposal(portfolio, disposal_list, transaction)
             # TODO: cleanup
             if date_in_tax_year(transaction.date):
                 total_sells += convert_to_gbp(transaction.amount, transaction.date)
         elif action_type is ActionType.FEE:
-            assert transaction.amount is not None
+            if transaction.amount is None:
+                raise AmountMissingError(transaction)
             balance += transaction.amount
             transaction.fees = -transaction.amount
             transaction.quantity = Decimal(0)
@@ -221,22 +249,33 @@ def convert_to_hmrc_transactions(
         elif action_type in [ActionType.STOCK_ACTIVITY, ActionType.SPIN_OFF]:
             add_acquisition(portfolio, acquisition_list, transaction)
         elif action_type in [ActionType.DIVIDEND, ActionType.CAPITAL_GAIN]:
-            assert transaction.amount is not None
+            if transaction.amount is None:
+                raise AmountMissingError(transaction)
             balance += transaction.amount
             if date_in_tax_year(transaction.date):
                 dividends += convert_to_gbp(transaction.amount, transaction.date)
         elif action_type in [ActionType.TAX, ActionType.ADJUSTMENT]:
-            assert transaction.amount is not None
+            if transaction.amount is None:
+                raise AmountMissingError(transaction)
             balance += transaction.amount
             if date_in_tax_year(transaction.date):
                 dividends_tax += convert_to_gbp(transaction.amount, transaction.date)
         elif action_type is ActionType.INTEREST:
-            assert transaction.amount is not None
+            if transaction.amount is None:
+                raise AmountMissingError(transaction)
             balance += transaction.amount
             if date_in_tax_year(transaction.date):
                 interest += convert_to_gbp(transaction.amount, transaction.date)
         else:
-            raise Exception(f"Action not processed: {action_type}")
+            raise InvalidTransactionError(
+                transaction, f"Action not processed({action_type})"
+            )
+        if balance < 0:
+            msg = f"Reached a negative balance({balance})"
+            msg += " after processing the following transactions:\n"
+            msg += "\n".join(map(str, transactions[: i + 1]))
+            raise CalculationError(msg)
+
     print("First pass completed")
     print("Final portfolio:")
     for stock, quantity in portfolio.items():
