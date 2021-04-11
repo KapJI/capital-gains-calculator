@@ -34,10 +34,18 @@ from parsers import (
 )
 
 # First year of tax year
-tax_year = 2019
-# Allowance is £12000 for 2019/20
+tax_year = 2020
+# Allowances
 # https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances#tax-free-allowances-for-capital-gains-tax
-capital_gain_allowance = 12000
+capital_gain_allowances = {
+    2014: 11000,
+    2015: 11100,
+    2016: 11100,
+    2017: 11300,
+    2018: 11700,
+    2019: 12000,
+    2020: 12300,
+}
 # Schwab transactions
 transactions_file = "transactions.csv"
 # Montly GBP/USD history from
@@ -624,9 +632,13 @@ def calculate_capital_gain(
     print(f"Capital gain: £{capital_gain}")
     print(f"Capital loss: £{-capital_loss}")
     print(f"Total capital gain: £{capital_gain + capital_loss}")
-    print(
-        f"Taxable capital gain: £{max(Decimal(0), capital_gain + capital_loss - capital_gain_allowance)}"
-    )
+    if tax_year in capital_gain_allowances:
+        allowance = capital_gain_allowances[tax_year]
+        print(
+            f"Taxable capital gain: £{max(Decimal(0), capital_gain + capital_loss - allowance)}"
+        )
+    else:
+        print("WARNING: Missing allowance for this tax year")
     print("")
     return calculation_log
 
