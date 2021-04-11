@@ -1,11 +1,13 @@
 import csv
 import datetime
+import operator
 from decimal import Decimal
 from typing import Dict, List
 
 from dates import date_to_index
-from exceptions import ParsingError, UnexpectedColumnCountError
+from exceptions import UnexpectedColumnCountError
 from model import BrokerTransaction, DateIndex
+from schwab import read_schwab_transactions
 
 
 class InitialPricesEntry:
@@ -25,39 +27,18 @@ class InitialPricesEntry:
         return f"date: {self.date}, symbol: {self.symbol}, price: {self.price}"
 
 
-class SchwabTransaction(BrokerTransaction):
-    def __init__(self, row: List[str], file: str):
-        if len(row) != 9:
-            raise UnexpectedColumnCountError(row, 9, file)
-        if row[8] != "":
-            raise ParsingError(file, "Column 9 should be empty")
-        assert row[8] == "", "should be empty"
-        as_of_str = " as of "
-        if as_of_str in row[0]:
-            index = row[0].find(as_of_str) + len(as_of_str)
-            date_str = row[0][index:]
-        else:
-            date_str = row[0]
-        date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
-        action = row[1]
-        symbol = row[2]
-        description = row[3]
-        quantity = Decimal(row[4]) if row[4] != "" else None
-        price = Decimal(row[5].replace("$", "")) if row[5] != "" else None
-        fees = Decimal(row[6].replace("$", "")) if row[6] != "" else Decimal(0)
-        amount = Decimal(row[7].replace("$", "")) if row[7] != "" else None
-        super().__init__(
-            date, action, symbol, description, quantity, price, fees, amount
-        )
-
-
-def read_broker_transactions(transactions_file: str) -> List[BrokerTransaction]:
-    with open(transactions_file) as csv_file:
-        lines = [line for line in csv.reader(csv_file)]
-        lines = lines[2:-1]
-        transactions = [SchwabTransaction(row, transactions_file) for row in lines]
-        transactions.reverse()
-        return list(transactions)
+def read_broker_transactions(schwab_transactions_file: str) -> List[BrokerTransaction]:
+    reader_transactions = [
+        read_schwab_transactions(schwab_transactions_file),
+    ]
+    # flatten list
+    transactions = [
+        transaction
+        for transactions in reader_transactions
+        for transaction in transactions
+    ]
+    transactions.sort(key=operator.attrgetter("date"))
+    return transactions
 
 
 def read_gbp_prices_history(gbp_history_file: str) -> Dict[int, Decimal]:
