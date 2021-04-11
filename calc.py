@@ -38,7 +38,6 @@ tax_year = 2020
 # Allowances
 # https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances#tax-free-allowances-for-capital-gains-tax
 capital_gain_allowances = {
-    2013: 12000,
     2014: 11000,
     2015: 11100,
     2016: 11100,
