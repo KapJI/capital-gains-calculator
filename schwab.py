@@ -7,7 +7,7 @@ from exceptions import ParsingError, UnexpectedColumnCountError
 from model import ActionType, BrokerTransaction
 
 
-def action_from_str(label: str):
+def action_from_str(label: str) -> ActionType:
     if label == "Buy":
         return ActionType.BUY
     elif label == "Sell":
