@@ -19,7 +19,7 @@ pip3 install jinja2
 ## Usage
 
 - Change constants on the top of `calc.py`, e.g. tax year, allowance, filenames.
-- `transactions.csv`: the exported transaction history from Schwab since the beginning. Or at least since you first acquired the shares, which you were holding during the tax year. You can probably convert transactions from other brokers to Schwab format.
+- `schwab_transactions.csv`: the exported transaction history from Schwab since the beginning. Or at least since you first acquired the shares, which you were holding during the tax year. You can probably convert transactions from other brokers to Schwab format.
 - `GBP_USD_monthly_history.csv`: monthly GBP/USD prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).
 - `initial_prices.csv`: stock prices in USD at the moment of vesting, split, etc.
 - Run `python3 calc.py`

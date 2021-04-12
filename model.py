@@ -8,17 +8,33 @@ from typing import Dict, List, Optional
 from dates import DateIndex
 
 
+class ActionType(Enum):
+    BUY = 1
+    SELL = 2
+    TRANSFER = 3
+    STOCK_ACTIVITY = 4
+    DIVIDEND = 5
+    TAX = 6
+    FEE = 7
+    ADJUSTMENT = 8
+    CAPITAL_GAIN = 9
+    SPIN_OFF = 10
+    INTEREST = 11
+
+
 class BrokerTransaction:
     def __init__(
         self,
         date: datetime.date,
-        action: str,
+        action: ActionType,
         symbol: str,
         description: str,
         quantity: Optional[Decimal],
         price: Optional[Decimal],
         fees: Decimal,
         amount: Optional[Decimal],
+        currency: str,
+        broker: str,
     ):
         self.date = date
         self.action = action
@@ -28,6 +44,8 @@ class BrokerTransaction:
         self.price = price
         self.fees = fees
         self.amount = amount
+        self.currency = currency
+        self.broker = broker
 
     def __str__(self) -> str:
         result = f'date: {self.date}, action: "{self.action}"'
@@ -43,56 +61,11 @@ class BrokerTransaction:
             result += f", fees: {self.fees}"
         if self.amount:
             result += f", amount: {self.amount}"
+        if self.currency:
+            result += f", currency: {self.currency}"
+        if self.broker:
+            result += f", broker: {self.broker}"
         return result
-
-
-class ActionType(Enum):
-    BUY = 1
-    SELL = 2
-    TRANSFER = 3
-    STOCK_ACTIVITY = 4
-    DIVIDEND = 5
-    TAX = 6
-    FEE = 7
-    ADJUSTMENT = 8
-    CAPITAL_GAIN = 9
-    SPIN_OFF = 10
-    INTEREST = 11
-
-    @staticmethod
-    def from_str(label: str):
-        if label == "Buy":
-            return ActionType.BUY
-        elif label == "Sell":
-            return ActionType.SELL
-        elif label in [
-            "MoneyLink Transfer",
-            "Misc Cash Entry",
-            "Service Fee",
-            "Wire Funds",
-            "Funds Received",
-            "Journal",
-            "Cash In Lieu",
-        ]:
-            return ActionType.TRANSFER
-        elif label == "Stock Plan Activity":
-            return ActionType.STOCK_ACTIVITY
-        elif label in ["Qualified Dividend", "Cash Dividend"]:
-            return ActionType.DIVIDEND
-        elif label in ["NRA Tax Adj", "NRA Withholding", "Foreign Tax Paid"]:
-            return ActionType.TAX
-        elif label == "ADR Mgmt Fee":
-            return ActionType.FEE
-        elif label in ["Adjustment", "IRS Withhold Adj"]:
-            return ActionType.ADJUSTMENT
-        elif label in ["Short Term Cap Gain", "Long Term Cap Gain"]:
-            return ActionType.CAPITAL_GAIN
-        elif label == "Spin-off":
-            return ActionType.SPIN_OFF
-        elif label == "Credit Interest":
-            return ActionType.INTEREST
-        else:
-            raise Exception(f"Unknown action: {label}")
 
 
 class RuleType(Enum):
