@@ -226,7 +226,7 @@ def test_run_with_example_files():
     assert result.stderr == b"", "Run with example files generated errors"
     with open("tests/test_run_with_example_files_output.txt", "r") as file:
         expected = file.read()
-    assert result.stdout.decode('utf-8') == expected, (
+    assert result.stdout.decode("utf-8") == expected, (
         "Run with example files generated unexpected outputs, if you added new features update the test with:\n"
         + " python calc.py --report '' --schwab schwab_transactions.csv --trading212 trading212/"
         + " > tests/test_run_with_example_files_output.txt"
