@@ -8,17 +8,18 @@ from decimal import Decimal
 from typing import Dict, List, Tuple
 
 import render_latex
+from currency_converter import CurrencyConverter
 from dates import date_from_index, date_to_index, internal_start_date, is_date
 from exceptions import (
     AmountMissingError,
     CalculatedAmountDiscrepancy,
     CalculationError,
-    ExchangeRateMissingError,
     InvalidTransactionError,
     PriceMissingError,
     QuantityNotPositiveError,
     SymbolMissingError,
 )
+from initial_prices import InitialPrices
 from misc import round_decimal
 from model import (
     ActionType,
@@ -26,7 +27,6 @@ from model import (
     CalculationEntry,
     CalculationLog,
     CapitalGainsReport,
-    DateIndex,
     RuleType,
 )
 from parsers import (
@@ -65,36 +65,8 @@ tax_year_end_date = datetime.date(tax_year + 1, 4, 5)
 # For mapping of dates to int
 HmrcTransactionLog = Dict[int, Dict[str, Tuple[Decimal, Decimal, Decimal]]]
 
-gbp_history: Dict[int, Decimal] = {}
-initial_prices: Dict[DateIndex, Dict[str, Decimal]] = {}
-
-
-def gbp_price(date: datetime.date) -> Decimal:
-    assert is_date(date)
-    # Set day to 1 to get monthly price
-    index = date_to_index(date.replace(day=1))
-    if index in gbp_history:
-        return gbp_history[index]
-    else:
-        raise ExchangeRateMissingError("USD", date)
-
-
-def get_initial_price(date: datetime.date, symbol: str) -> Decimal:
-    assert is_date(date)
-    date_index = date_to_index(date)
-    if date_index in initial_prices and symbol in initial_prices[date_index]:
-        return initial_prices[date_index][symbol]
-    else:
-        raise ExchangeRateMissingError(symbol, date)
-
-
-def convert_to_gbp(amount: Decimal, currency: str, date: datetime.date) -> Decimal:
-    if currency == "USD":
-        return amount / gbp_price(date)
-    elif currency == "GBP":
-        return amount
-    else:
-        raise ExchangeRateMissingError(currency, date)
+converter: CurrencyConverter
+initial_prices: InitialPrices
 
 
 def date_in_tax_year(date: datetime.date) -> bool:
@@ -145,7 +117,7 @@ def add_acquisition(
         portfolio[symbol] = quantity
     # Add to acquisition_list to apply same day rule
     if transaction.action in [ActionType.STOCK_ACTIVITY, ActionType.SPIN_OFF]:
-        amount = quantity * get_initial_price(transaction.date, symbol)
+        amount = quantity * initial_prices.get(transaction.date, symbol)
     else:
         if transaction.amount is None:
             raise AmountMissingError(transaction)
@@ -162,8 +134,8 @@ def add_acquisition(
         date_to_index(transaction.date),
         symbol,
         quantity,
-        convert_to_gbp(amount, transaction.currency, transaction.date),
-        convert_to_gbp(transaction.fees, transaction.currency, transaction.date),
+        converter.to_gbp_for(amount, transaction),
+        converter.to_gbp_for(transaction.fees, transaction),
     )
 
 
@@ -207,8 +179,8 @@ def add_disposal(
         date_to_index(transaction.date),
         symbol,
         quantity,
-        convert_to_gbp(amount, transaction.currency, transaction.date),
-        convert_to_gbp(transaction.fees, transaction.currency, transaction.date),
+        converter.to_gbp_for(amount, transaction),
+        converter.to_gbp_for(transaction.fees, transaction),
     )
 
 
@@ -247,18 +219,14 @@ def convert_to_hmrc_transactions(
             add_disposal(portfolio, disposal_list, transaction)
             # TODO: cleanup
             if date_in_tax_year(transaction.date):
-                total_sells += convert_to_gbp(
-                    transaction.amount, transaction.currency, transaction.date
-                )
+                total_sells += converter.to_gbp_for(transaction.amount, transaction)
         elif transaction.action is ActionType.FEE:
             if transaction.amount is None:
                 raise AmountMissingError(transaction)
             new_balance += transaction.amount
             transaction.fees = -transaction.amount
             transaction.quantity = Decimal(0)
-            gbp_fees = convert_to_gbp(
-                transaction.fees, transaction.currency, transaction.date
-            )
+            gbp_fees = converter.to_gbp_for(transaction.fees, transaction)
             add_to_list(
                 acquisition_list,
                 date_to_index(transaction.date),
@@ -274,25 +242,19 @@ def convert_to_hmrc_transactions(
                 raise AmountMissingError(transaction)
             new_balance += transaction.amount
             if date_in_tax_year(transaction.date):
-                dividends += convert_to_gbp(
-                    transaction.amount, transaction.currency, transaction.date
-                )
+                dividends += converter.to_gbp_for(transaction.amount, transaction)
         elif transaction.action in [ActionType.TAX, ActionType.ADJUSTMENT]:
             if transaction.amount is None:
                 raise AmountMissingError(transaction)
             new_balance += transaction.amount
             if date_in_tax_year(transaction.date):
-                dividends_tax += convert_to_gbp(
-                    transaction.amount, transaction.currency, transaction.date
-                )
+                dividends_tax += converter.to_gbp_for(transaction.amount, transaction)
         elif transaction.action is ActionType.INTEREST:
             if transaction.amount is None:
                 raise AmountMissingError(transaction)
             new_balance += transaction.amount
             if date_in_tax_year(transaction.date):
-                interest += convert_to_gbp(
-                    transaction.amount, transaction.currency, transaction.date
-                )
+                interest += converter.to_gbp_for(transaction.amount, transaction)
         else:
             raise InvalidTransactionError(
                 transaction, f"Action not processed({transaction.action})"
@@ -657,9 +619,9 @@ def main() -> int:
     broker_transactions = read_broker_transactions(
         schwab_transactions_file, trading212_transactions_folder
     )
-    global gbp_history, initial_prices
-    gbp_history = read_gbp_prices_history(gbp_history_file)
-    initial_prices = read_initial_prices(initial_prices_file)
+    global converter, initial_prices
+    converter = CurrencyConverter(read_gbp_prices_history(gbp_history_file))
+    initial_prices = InitialPrices(read_initial_prices(initial_prices_file))
     # First pass converts broker transactions to HMRC transactions.
     # This means applying same day rule and collapsing all transactions with
     # same type in the same day.
