@@ -50,6 +50,8 @@ capital_gain_allowances = {
 }
 # Schwab transactions
 schwab_transactions_file = "schwab_transactions.csv"
+# Trading212 folder
+trading212_transactions_folder = "trading212"
 # Montly GBP/USD history from
 # https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat
 gbp_history_file = "GBP_USD_monthly_history.csv"
@@ -652,7 +654,9 @@ def main() -> int:
     # Throw exception on accidental float usage
     decimal.getcontext().traps[decimal.FloatOperation] = True
     # Read data from input files
-    broker_transactions = read_broker_transactions(schwab_transactions_file)
+    broker_transactions = read_broker_transactions(
+        schwab_transactions_file, trading212_transactions_folder
+    )
     global gbp_history, initial_prices
     gbp_history = read_gbp_prices_history(gbp_history_file)
     initial_prices = read_initial_prices(initial_prices_file)
