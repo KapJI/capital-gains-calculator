@@ -14,7 +14,7 @@ calculations_template_file = "template.tex.j2"
 
 
 def render_calculations(
-    calculation_log: CalculationLog, tax_year: int, date_from_index
+    calculation_log: CalculationLog, tax_year: int, date_from_index, output_file: str
 ) -> None:
     print("Generate calculations report")
     current_directory = os.path.abspath(".")
@@ -57,3 +57,4 @@ def render_calculations(
     os.remove(generated_file)
     os.remove(f"{output_filename}.log")
     os.remove(f"{output_filename}.aux")
+    os.rename(output_filename + ".pdf", output_file)

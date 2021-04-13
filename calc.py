@@ -655,11 +655,13 @@ def main() -> int:
     # Second pass calculates capital gain tax for the given tax year
     report = calculator.calculate_capital_gain(acquisition_list, disposal_list)
     print(report)
-    render_latex.render_calculations(
-        report.calculation_log,
-        tax_year=report.tax_year,
-        date_from_index=date_from_index,
-    )
+    if args.report:
+        render_latex.render_calculations(
+            report.calculation_log,
+            tax_year=report.tax_year,
+            date_from_index=date_from_index,
+            output_file=args.report,
+        )
     print("All done!")
 
     return 0

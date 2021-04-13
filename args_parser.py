@@ -17,6 +17,7 @@ def create_parser() -> argparse.ArgumentParser:
     default_gbp_history_file = "GBP_USD_monthly_history.csv"
     # Initial vesting and spin-off prices
     default_initial_prices_file = "initial_prices.csv"
+    default_pdf_report = "calculations.pdf"
 
     parser = argparse.ArgumentParser(
         description="Calculate capital gains from stock transactions.",
@@ -54,5 +55,12 @@ def create_parser() -> argparse.ArgumentParser:
         default=default_initial_prices_file,
         nargs="?",
         help="file cointaining stock prices in USD at the moment of vesting, split, etc.",
+    )
+    parser.add_argument(
+        "--report",
+        type=str,
+        default=default_pdf_report,
+        nargs="?",
+        help="where to save the generated pdf report",
     )
     return parser
