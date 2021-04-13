@@ -18,12 +18,12 @@ pip3 install jinja2
 
 ## Usage
 
-- Change constants on the top of `calc.py`, e.g. tax year, allowance, filenames.
 - `schwab_transactions.csv`: the exported transaction history from Schwab since the beginning. Or at least since you first acquired the shares, which you were holding during the tax year. You can probably convert transactions from other brokers to Schwab format.
 - `trading212/`: the exported transaction history from Trading212 since the beginning. Or at least since you first acquired the shares, which you were holding during the tax year. You can put several files here since Trading212 limit the statements to 1 year periods.
 - `GBP_USD_monthly_history.csv`: monthly GBP/USD prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).
 - `initial_prices.csv`: stock prices in USD at the moment of vesting, split, etc.
 - Run `python3 calc.py --tax_year 2020 --schwab schwab_transactions.csv --trading212 trading212/` (you can omit the brokers you don't use)
+- Use `python3 calc.py --help` for more details/options.
 
 ## Disclaimer
 
