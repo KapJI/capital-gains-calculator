@@ -58,7 +58,7 @@ def has_key(transactions: HmrcTransactionLog, date_index: int, symbol: str) -> b
 class CapitalGainsCalculator:
     # Allowances
     # https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances#tax-free-allowances-for-capital-gains-tax
-    CAPITAL_GAIN_ALLOWANCES = {
+    CAPITAL_GAIN_ALLOWANCES: Dict[int, int] = {
         2014: 11000,
         2015: 11100,
         2016: 11100,
