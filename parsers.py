@@ -2,7 +2,7 @@ import csv
 import datetime
 import operator
 from decimal import Decimal
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dates import date_to_index
 from exceptions import UnexpectedColumnCountError
@@ -29,18 +29,18 @@ class InitialPricesEntry:
 
 
 def read_broker_transactions(
-    schwab_transactions_file: str, trading212_transactions_folder: str
+    schwab_transactions_file: Optional[str],
+    trading212_transactions_folder: Optional[str],
 ) -> List[BrokerTransaction]:
-    reader_transactions = [
-        read_schwab_transactions(schwab_transactions_file),
-        read_trading212_transactions(trading212_transactions_folder),
-    ]
-    # flatten list
-    transactions = [
-        transaction
-        for transactions in reader_transactions
-        for transaction in transactions
-    ]
+    transactions = []
+    if schwab_transactions_file is not None:
+        transactions += read_schwab_transactions(schwab_transactions_file)
+    else:
+        print("WARNING: No schwab file provided")
+    if trading212_transactions_folder is not None:
+        transactions += read_trading212_transactions(trading212_transactions_folder)
+    else:
+        print("WARNING: No trading212 folder provided")
     transactions.sort(key=operator.attrgetter("date"))
     return transactions
 
