@@ -1,4 +1,5 @@
 import datetime
+import subprocess
 from decimal import Decimal
 from typing import Dict, List, Optional
 
@@ -207,3 +208,16 @@ def test_basic(
     report = get_report(calculator, broker_transactions)
     print(report)
     assert report.total_gain() == round_decimal(Decimal(expected), 2)
+
+
+# runs the script and verifies it doesn't fail
+def test_run_with_example_files():
+    args = [
+        "--schwab",
+        "schwab_transactions.csv",
+        "--trading212",
+        "trading212/",
+        "--report",
+        "",
+    ]
+    subprocess.run(["python", "calc.py"] + args, check=True)
