@@ -23,7 +23,7 @@ pip3 install jinja2
 - `trading212/`: the exported transaction history from Trading212 since the beginning. Or at least since you first acquired the shares, which you were holding during the tax year. You can put several files here since Trading212 limit the statements to 1 year periods.
 - `GBP_USD_monthly_history.csv`: monthly GBP/USD prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).
 - `initial_prices.csv`: stock prices in USD at the moment of vesting, split, etc.
-- Run `python3 calc.py`
+- Run `python3 calc.py --tax_year 2020 --schwab schwab_transactions.csv --trading212 trading212/` (you can omit the brokers you don't use)
 
 ## Disclaimer
 

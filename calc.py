@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Dict, List, Tuple
 
 import render_latex
+from args_parser import create_parser
 from currency_converter import CurrencyConverter
 from dates import date_from_index, date_to_index, internal_start_date, is_date
 from exceptions import (
@@ -34,18 +35,6 @@ from parsers import (
     read_gbp_prices_history,
     read_initial_prices,
 )
-
-# First year of tax year
-tax_year = 2020
-# Schwab transactions
-schwab_transactions_file = "schwab_transactions.csv"
-# Trading212 folder
-trading212_transactions_folder = "trading212"
-# Montly GBP/USD history from
-# https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat
-gbp_history_file = "GBP_USD_monthly_history.csv"
-# Initial vesting and spin-off prices
-initial_prices_file = "initial_prices.csv"
 
 # For mapping of dates to int
 HmrcTransactionLog = Dict[int, Dict[str, Tuple[Decimal, Decimal, Decimal]]]
@@ -645,14 +634,14 @@ class CapitalGainsCalculator:
 def main() -> int:
     # Throw exception on accidental float usage
     decimal.getcontext().traps[decimal.FloatOperation] = True
-    # Read data from input files
-    broker_transactions = read_broker_transactions(
-        schwab_transactions_file, trading212_transactions_folder
-    )
-    converter = CurrencyConverter(read_gbp_prices_history(gbp_history_file))
-    initial_prices = InitialPrices(read_initial_prices(initial_prices_file))
+    args = create_parser().parse_args()
 
-    calculator = CapitalGainsCalculator(tax_year, converter, initial_prices)
+    # Read data from input files
+    broker_transactions = read_broker_transactions(args.schwab, args.trading212)
+    converter = CurrencyConverter(read_gbp_prices_history(args.gbp_history))
+    initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
+
+    calculator = CapitalGainsCalculator(args.tax_year, converter, initial_prices)
     # First pass converts broker transactions to HMRC transactions.
     # This means applying same day rule and collapsing all transactions with
     # same type in the same day.
