@@ -13,7 +13,7 @@ Calculate capital gains tax by transaction history exported from Schwab/Trading2
 On Mac:
 ```shell
 brew install --cask mactex-no-gui
-pip3 install jinja2
+pip install -r requirements.txt
 ```
 
 ## Usage
@@ -24,6 +24,13 @@ pip3 install jinja2
 - `initial_prices.csv`: stock prices in USD at the moment of vesting, split, etc.
 - Run `python3 calc.py --tax_year 2020 --schwab schwab_transactions.csv --trading212 trading212/` (you can omit the brokers you don't use)
 - Use `python3 calc.py --help` for more details/options.
+
+## Testing
+
+```shell
+pip install pytest
+pytest
+```
 
 ## Disclaimer
 

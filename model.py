@@ -28,7 +28,7 @@ class BrokerTransaction:
         self,
         date: datetime.date,
         action: ActionType,
-        symbol: str,
+        symbol: Optional[str],
         description: str,
         quantity: Optional[Decimal],
         price: Optional[Decimal],

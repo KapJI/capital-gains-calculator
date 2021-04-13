@@ -1,0 +1,29 @@
+Parsing trading212/from_2020-09-11_to_2021-04-02.csv
+First pass completed
+Final portfolio:
+  GE: 1.00
+  NVDA: 1.00
+Final balance:
+  Charles Schwab: 10403.00 (USD)
+  Trading212: 33391.30 (GBP)
+Dividends: £0.10
+Dividend taxes: £0.00
+Interest: £0.00
+Disposal proceeds: £32453.25
+
+WARNING: Bed and breakfasting for FOO. Disposed on 2020-03-03 and acquired again on 2020-03-06
+
+Second pass completed
+Portfolio at the end of 2020/2021 tax year:
+  GE: 1.00, £8.07
+  NVDA: 1.00, £401.01
+For tax year 2020/2021:
+Number of disposals: 1
+Disposal proceeds: £32453.25
+Allowable costs: £7661.05
+Capital gain: £24792.20
+Capital loss: £0.00
+Total capital gain: £24792.20
+Taxable capital gain: £12492.20
+
+All done!
