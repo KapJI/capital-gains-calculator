@@ -1,4 +1,5 @@
 import datetime
+import os
 import subprocess
 from decimal import Decimal
 from typing import Dict, List, Optional
@@ -213,6 +214,8 @@ def test_basic(
 # runs the script and verifies it doesn't fail
 def test_run_with_example_files():
     args = [
+        "--tax_year",
+        "2020",
         "--schwab",
         "schwab_transactions.csv",
         "--trading212",
@@ -220,14 +223,14 @@ def test_run_with_example_files():
         "--report",
         "",
     ]
-    result = subprocess.run(
-        ["python", "calc.py"] + args, check=True, capture_output=True
-    )
+    cmd = ["python", "calc.py"] + args
+    result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"
-    with open("tests/test_run_with_example_files_output.txt", "r") as file:
+    expected_file = os.path.join("tests", "test_run_with_example_files_output.txt")
+    with open(expected_file, "r") as file:
         expected = file.read()
+    cmd_str = " ".join([param if param else "''" for param in cmd])
     assert result.stdout.decode("utf-8") == expected, (
         "Run with example files generated unexpected outputs, if you added new features update the test with:\n"
-        + " python calc.py --report '' --schwab schwab_transactions.csv --trading212 trading212/"
-        + " > tests/test_run_with_example_files_output.txt"
+        + f"{cmd_str} > {expected_file}"
     )
