@@ -1,16 +1,17 @@
 import datetime
+from decimal import Decimal
 import os
 import subprocess
-from decimal import Decimal
 from typing import Dict, List, Optional
 
 import pytest
-from calc import CapitalGainsCalculator
-from currency_converter import CurrencyConverter
-from dates import date_to_index
-from initial_prices import InitialPrices
-from misc import round_decimal
-from model import ActionType, BrokerTransaction
+
+from cgt_calc.currency_converter import CurrencyConverter
+from cgt_calc.dates import date_to_index
+from cgt_calc.initial_prices import InitialPrices
+from cgt_calc.main import CapitalGainsCalculator
+from cgt_calc.misc import round_decimal
+from cgt_calc.model import ActionType, BrokerTransaction
 
 
 def get_report(calculator, broker_transactions):
@@ -213,17 +214,19 @@ def test_basic(
 
 # runs the script and verifies it doesn't fail
 def test_run_with_example_files():
-    args = [
+    cmd = [
+        "poetry",
+        "run",
+        "cgt-calc",
         "--tax_year",
         "2020",
         "--schwab",
-        "schwab_transactions.csv",
+        "tests/test_data/schwab_transactions.csv",
         "--trading212",
-        "trading212/",
+        "tests/test_data/trading212/",
         "--report",
         "",
     ]
-    cmd = ["python", "calc.py"] + args
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"
     expected_file = os.path.join("tests", "test_run_with_example_files_output.txt")

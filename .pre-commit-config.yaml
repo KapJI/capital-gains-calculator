@@ -1,0 +1,53 @@
+repos:
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v3.4.0
+      hooks:
+          - id: check-added-large-files
+          - id: check-yaml
+          - id: end-of-file-fixer
+          - id: trailing-whitespace
+    - repo: local
+      hooks:
+          - id: black
+            name: black
+            entry: poetry run black
+            language: system
+            types: [python]
+            require_serial: true
+          - id: isort
+            name: isort
+            entry: poetry run isort
+            language: system
+            types: [python]
+            require_serial: true
+          - id: mypy
+            name: mypy
+            entry: poetry run mypy
+            language: system
+            types: [python]
+          - id: flake8
+            name: flake8
+            entry: poetry run flake8
+            language: system
+            types: [python]
+          - id: pylint
+            name: pylint
+            entry: poetry run pylint
+            language: system
+            types: [python]
+          - id: pytest
+            name: pytest
+            language: system
+            entry: poetry run pytest
+            pass_filenames: false
+            always_run: true
+          - id: codespell
+            name: codespell
+            entry: poetry run codespell
+            language: system
+            pass_filenames: false
+            always_run: true
+    - repo: https://github.com/pre-commit/mirrors-prettier
+      rev: v2.2.1
+      hooks:
+          - id: prettier

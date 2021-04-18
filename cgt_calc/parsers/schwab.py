@@ -3,8 +3,8 @@ import datetime
 from decimal import Decimal
 from typing import List
 
-from exceptions import ParsingError, UnexpectedColumnCountError
-from model import ActionType, BrokerTransaction
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.model import ActionType, BrokerTransaction
 
 
 def action_from_str(label: str) -> ActionType:

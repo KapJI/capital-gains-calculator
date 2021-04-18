@@ -1,4 +1,4 @@
-Parsing trading212/from_2020-09-11_to_2021-04-02.csv
+Parsing tests/test_data/trading212/from_2020-09-11_to_2021-04-02.csv
 First pass completed
 Final portfolio:
   GE: 1.00

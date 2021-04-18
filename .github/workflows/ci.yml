@@ -3,47 +3,33 @@ name: CI
 on:
   push:
     branches:
-      - '*'
-    tags:
-      - '*'
-  pull_request:
-    branches:
       - main
+  pull_request:
 
-###############
-# Set the Job #
-###############
 jobs:
-  build:
-    name: lint-and-test
+  pre-commit:
+    name: Pre-commit
+    strategy:
+      matrix:
+        python-version: [3.8]
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Code
+      - name: Check out the repository
         uses: actions/checkout@v2
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
         with:
-          # Full git history is needed to get a proper list of changed files within `super-linter`
-          fetch-depth: 0
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2.1.0
+        with:
+          poetry-version: 1.1.5
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        run: poetry install
 
-      ################################
-      # Run Linter against code base #
-      ################################
-      - name: Lint Code Base
-        uses: github/super-linter@v3
-        env:
-          VALIDATE_ALL_CODEBASE: false
-          DEFAULT_BRANCH: main
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      ################################
-      # Run pytest #
-      ################################
-      - name: Test with pytest
+      - name: Run pre-commit on all files
         run: |
-          pytest
+          poetry run pre-commit run --all-files --show-diff-on-failure --color=always
