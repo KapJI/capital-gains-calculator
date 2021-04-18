@@ -5,8 +5,8 @@ from decimal import Decimal
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
-from dates import DateIndex
-from misc import round_decimal
+from .dates import DateIndex
+from .misc import round_decimal
 
 
 class ActionType(Enum):
@@ -84,21 +84,23 @@ class CalculationEntry:
         fees: Decimal,
         new_quantity: Decimal,
         new_pool_cost: Decimal,
-        gain: Decimal = Decimal(0),
-        allowable_cost: Decimal = Decimal(0),
+        gain: Optional[Decimal] = None,
+        allowable_cost: Optional[Decimal] = None,
         bed_and_breakfast_date_index: int = 0,
     ):
         self.rule_type = rule_type
         self.quantity = quantity
         self.amount = amount
-        self.allowable_cost = allowable_cost
+        self.allowable_cost = (
+            allowable_cost if allowable_cost is not None else Decimal(0)
+        )
         self.fees = fees
-        self.gain = gain
+        self.gain = gain if gain is not None else Decimal(0)
         self.new_quantity = new_quantity
         self.new_pool_cost = new_pool_cost
         self.bed_and_breakfast_date_index = bed_and_breakfast_date_index
-        if amount >= 0:
-            assert gain == amount - allowable_cost
+        if self.amount >= 0:
+            assert self.gain == self.amount - self.allowable_cost
 
     def __str__(self) -> str:
         return (

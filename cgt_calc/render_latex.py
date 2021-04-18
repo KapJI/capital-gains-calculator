@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
+from decimal import Decimal
 import os
 import subprocess
 import tempfile
-from decimal import Decimal
 
 import jinja2
-from misc import round_decimal
-from model import CalculationLog
+
+from .misc import round_decimal
+from .model import CalculationLog
 
 # Latex template for calculations report
 calculations_template_file = "template.tex.j2"

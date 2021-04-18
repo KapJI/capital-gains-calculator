@@ -12,11 +12,11 @@ def get_last_elapsed_tax_year() -> int:
 
 def create_parser() -> argparse.ArgumentParser:
     # Schwab transactions
-    # Montly GBP/USD history from
+    # Monthly GBP/USD history from
     # https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat
-    default_gbp_history_file = "GBP_USD_monthly_history.csv"
+    default_gbp_history_file = "cgt_calc/resources/GBP_USD_monthly_history.csv"
     # Initial vesting and spin-off prices
-    default_initial_prices_file = "initial_prices.csv"
+    default_initial_prices_file = "cgt_calc/resources/initial_prices.csv"
     default_pdf_report = "calculations.pdf"
 
     parser = argparse.ArgumentParser(
@@ -54,7 +54,7 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         default=default_initial_prices_file,
         nargs="?",
-        help="file cointaining stock prices in USD at the moment of vesting, split, etc.",
+        help="file containing stock prices in USD at the moment of vesting, split, etc.",
     )
     parser.add_argument(
         "--report",

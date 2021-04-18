@@ -2,9 +2,9 @@ import datetime
 from decimal import Decimal
 from typing import Dict
 
-from dates import date_to_index, is_date
-from exceptions import ExchangeRateMissingError
-from model import BrokerTransaction
+from .dates import date_to_index, is_date
+from .exceptions import ExchangeRateMissingError
+from .model import BrokerTransaction
 
 
 class CurrencyConverter:

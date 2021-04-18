@@ -4,8 +4,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from exceptions import ParsingError, UnexpectedColumnCountError
-from model import ActionType, BrokerTransaction
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.model import ActionType, BrokerTransaction
 
 columns = [
     "Action",
@@ -118,7 +118,7 @@ def validate_header(header: List[str], filename: str):
 
 
 # if there's a deposit in the same second as a buy
-# (happens with the referal award at least)
+# (happens with the referral award at least)
 # we want to put the buy last to avoid negative balance errors
 def by_date_and_action(transaction: Trading212Transaction) -> Tuple[datetime, bool]:
     return (transaction.datetime, transaction.action == ActionType.BUY)

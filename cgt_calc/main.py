@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 
+from collections import defaultdict
 import datetime
 import decimal
-import sys
-from collections import defaultdict
 from decimal import Decimal
+import sys
 from typing import Dict, List, Tuple
 
-import render_latex
-from args_parser import create_parser
-from currency_converter import CurrencyConverter
-from dates import date_from_index, date_to_index, internal_start_date, is_date
-from exceptions import (
+from . import render_latex
+from .args_parser import create_parser
+from .currency_converter import CurrencyConverter
+from .dates import date_from_index, date_to_index, internal_start_date, is_date
+from .exceptions import (
     AmountMissingError,
     CalculatedAmountDiscrepancy,
     CalculationError,
@@ -20,9 +20,9 @@ from exceptions import (
     QuantityNotPositiveError,
     SymbolMissingError,
 )
-from initial_prices import InitialPrices
-from misc import round_decimal
-from model import (
+from .initial_prices import InitialPrices
+from .misc import round_decimal
+from .model import (
     ActionType,
     BrokerTransaction,
     CalculationEntry,
@@ -30,7 +30,7 @@ from model import (
     CapitalGainsReport,
     RuleType,
 )
-from parsers import (
+from .parsers import (
     read_broker_transactions,
     read_gbp_prices_history,
     read_initial_prices,
