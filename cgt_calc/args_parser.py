@@ -15,14 +15,13 @@ def get_last_elapsed_tax_year() -> int:
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Calculate capital gains from stock transactions.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--tax_year",
+        "--year",
         type=int,
         default=get_last_elapsed_tax_year(),
         nargs="?",
-        help="First year of the tax year to calculate gains on",
+        help="First year of the tax year to calculate gains on (default: %(default)d)",
     )
     parser.add_argument(
         "--schwab",
@@ -55,7 +54,7 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         default=DEFAULT_REPORT_PATH,
         nargs="?",
-        help="where to save the generated pdf report",
+        help="where to save the generated pdf report (default: %(default)s)",
     )
     parser.add_argument(
         "--version",

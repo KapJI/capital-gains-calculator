@@ -637,7 +637,7 @@ def main() -> int:
     converter = CurrencyConverter(read_gbp_prices_history(args.gbp_history))
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
 
-    calculator = CapitalGainsCalculator(args.tax_year, converter, initial_prices)
+    calculator = CapitalGainsCalculator(args.year, converter, initial_prices)
     # First pass converts broker transactions to HMRC transactions.
     # This means applying same day rule and collapsing all transactions with
     # same type in the same day.
