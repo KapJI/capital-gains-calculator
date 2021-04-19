@@ -15,10 +15,9 @@ class CurrencyConverter:
         assert is_date(date)
         # Set day to 1 to get monthly price
         index = date_to_index(date.replace(day=1))
-        if index in self.gbp_history:
-            return self.gbp_history[index]
-        else:
+        if index not in self.gbp_history:
             raise ExchangeRateMissingError("USD", date)
+        return self.gbp_history[index]
 
     def to_gbp(self, amount: Decimal, currency: str, date: datetime.date) -> Decimal:
         if currency == "USD":

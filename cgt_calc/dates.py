@@ -7,10 +7,9 @@ DateIndex = int
 
 
 def is_date(date: datetime.date) -> bool:
-    if isinstance(date, datetime.date) and not isinstance(date, datetime.datetime):
-        return True
-    else:
+    if not isinstance(date, datetime.date) or isinstance(date, datetime.datetime):
         raise Exception(f'should be datetime.date: {type(date)} "{date}"')
+    return True
 
 
 def date_to_index(date: datetime.date) -> DateIndex:

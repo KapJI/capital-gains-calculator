@@ -15,9 +15,8 @@ class InitialPrices:
         assert is_date(date)
         date_index = date_to_index(date)
         if (
-            date_index in self.initial_prices
-            and symbol in self.initial_prices[date_index]
+            date_index not in self.initial_prices
+            or symbol not in self.initial_prices[date_index]
         ):
-            return self.initial_prices[date_index][symbol]
-        else:
             raise ExchangeRateMissingError(symbol, date)
+        return self.initial_prices[date_index][symbol]
