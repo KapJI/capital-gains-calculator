@@ -1,3 +1,4 @@
+"""Render PDF report with LaTeX."""
 from decimal import Decimal
 import os
 import subprocess

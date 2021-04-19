@@ -1,3 +1,4 @@
+"""Constants."""
 from typing import Dict, Final
 
 # Allowances from

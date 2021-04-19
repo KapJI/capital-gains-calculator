@@ -1,3 +1,4 @@
+"""Unit and integration tests."""
 import datetime
 from decimal import Decimal
 import os

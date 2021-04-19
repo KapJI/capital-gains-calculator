@@ -1,3 +1,4 @@
+"""Model classes."""
 from dataclasses import dataclass
 import datetime
 from decimal import Decimal
@@ -9,6 +10,8 @@ from .util import round_decimal
 
 
 class ActionType(Enum):
+    """Type of transaction action."""
+
     BUY = 1
     SELL = 2
     TRANSFER = 3
@@ -87,28 +90,19 @@ class CalculationEntry:
 CalculationLog = Dict[DateIndex, Dict[str, List[CalculationEntry]]]
 
 
+@dataclass
 class CapitalGainsReport:
-    def __init__(
-        self,
-        tax_year: int,
-        portfolio: Dict[str, Tuple[Decimal, Decimal]],
-        disposal_count: int,
-        disposal_proceeds: Decimal,
-        allowable_costs: Decimal,
-        capital_gain: Decimal,
-        capital_loss: Decimal,
-        capital_gain_allowance: Optional[Decimal],
-        calculation_log: CalculationLog,
-    ):
-        self.tax_year = tax_year
-        self.portfolio = portfolio
-        self.disposal_count = disposal_count
-        self.disposal_proceeds = disposal_proceeds
-        self.allowable_costs = allowable_costs
-        self.capital_gain = capital_gain
-        self.capital_loss = capital_loss
-        self.capital_gain_allowance = capital_gain_allowance
-        self.calculation_log = calculation_log
+    """Store calculated report."""
+
+    tax_year: int
+    portfolio: Dict[str, Tuple[Decimal, Decimal]]
+    disposal_count: int
+    disposal_proceeds: Decimal
+    allowable_costs: Decimal
+    capital_gain: Decimal
+    capital_loss: Decimal
+    capital_gain_allowance: Optional[Decimal]
+    calculation_log: CalculationLog
 
     def total_gain(self):
         return self.capital_gain + self.capital_loss

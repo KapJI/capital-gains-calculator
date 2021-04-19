@@ -1,3 +1,6 @@
+"""Exceptions to different errors."""
+
+
 class ParsingError(Exception):
     def __init__(self, file, message):
         self.message = f"While parsing {file}, {message}"

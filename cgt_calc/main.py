@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Capital Gain Calculator main module."""
 
 from collections import defaultdict
 import datetime
