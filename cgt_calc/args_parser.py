@@ -8,8 +8,7 @@ def get_last_elapsed_tax_year() -> int:
     now = datetime.datetime.now()
     if now.date() >= datetime.date(now.year, 4, 6):
         return now.year - 1
-    else:
-        return now.year - 2
+    return now.year - 2
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -27,13 +26,13 @@ def create_parser() -> argparse.ArgumentParser:
         "--schwab",
         type=str,
         nargs="?",
-        help="file containing the exported transactions from Schwab",
+        help="file containing the exported transactions from Charles Schwab",
     )
     parser.add_argument(
         "--trading212",
         type=str,
         nargs="?",
-        help="folder containing the exported transaction files from Trading212",
+        help="folder containing the exported transaction files from Trading 212",
     )
     parser.add_argument(
         "--gbp_history",
@@ -47,7 +46,7 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         nargs="?",
-        help="file containing stock prices in USD at the moment of vesting, split, etc.",
+        help="file containing stock prices in USD at the moment of vesting, split, etc",
     )
     parser.add_argument(
         "--report",

@@ -234,6 +234,7 @@ def test_run_with_example_files():
         expected = file.read()
     cmd_str = " ".join([param if param else "''" for param in cmd])
     assert result.stdout.decode("utf-8") == expected, (
-        "Run with example files generated unexpected outputs, if you added new features update the test with:\n"
-        + f"{cmd_str} > {expected_file}"
+        "Run with example files generated unexpected outputs, "
+        "if you added new features update the test with:\n"
+        f"{cmd_str} > {expected_file}"
     )
