@@ -129,7 +129,7 @@ def read_trading212_transactions(transactions_folder: str) -> List[BrokerTransac
     for file in Path(transactions_folder).glob("*.csv"):
         with open(file) as csv_file:
             print(f"Parsing {file}")
-            lines = [line for line in csv.reader(csv_file)]
+            lines = list(csv.reader(csv_file))
             validate_header(lines[0], str(file))
             lines = lines[1:]
             cur_transactions = [Trading212Transaction(row, str(file)) for row in lines]

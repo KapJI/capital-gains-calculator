@@ -55,11 +55,11 @@ def read_gbp_prices_history(gbp_history_file: Optional[str]) -> Dict[int, Decima
         csv_file = importlib.resources.open_text(
             RESOURCES_PACKAGE, DEFAULT_GBP_HISTORY_FILE
         )
-        lines = [line for line in csv.reader(csv_file)]
+        lines = list(csv.reader(csv_file))
         csv_file.close()
     else:
         with open(gbp_history_file) as csv_file:
-            lines = [line for line in csv.reader(csv_file)]
+            lines = list(csv.reader(csv_file))
     lines = lines[1:]
     for row in lines:
         if len(row) != 2:
@@ -77,11 +77,11 @@ def read_initial_prices(
         csv_file = importlib.resources.open_text(
             RESOURCES_PACKAGE, DEFAULT_INITIAL_PRICES_FILE
         )
-        lines = [line for line in csv.reader(csv_file)]
+        lines = list(csv.reader(csv_file))
         csv_file.close()
     else:
         with open(initial_prices_file) as csv_file:
-            lines = [line for line in csv.reader(csv_file)]
+            lines = list(csv.reader(csv_file))
     lines = lines[1:]
     for row in lines:
         entry = InitialPricesEntry(row, initial_prices_file or "default")

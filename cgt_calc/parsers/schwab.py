@@ -82,7 +82,7 @@ class SchwabTransaction(BrokerTransaction):
 def read_schwab_transactions(transactions_file: str) -> List[BrokerTransaction]:
     try:
         with open(transactions_file) as csv_file:
-            lines = [line for line in csv.reader(csv_file)]
+            lines = list(csv.reader(csv_file))
             lines = lines[2:-1]
             transactions = [SchwabTransaction(row, transactions_file) for row in lines]
             transactions.reverse()
