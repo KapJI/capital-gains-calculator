@@ -7,11 +7,11 @@ import tempfile
 
 import jinja2
 
-from .misc import round_decimal
 from .model import CalculationLog
+from .util import round_decimal
 
 # Latex template for calculations report
-calculations_template_file = "template.tex.j2"
+calculations_template_file = "cgt_calc/resources/template.tex.j2"
 
 
 def render_calculations(

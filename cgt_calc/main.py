@@ -4,11 +4,13 @@ from collections import defaultdict
 import datetime
 import decimal
 from decimal import Decimal
+from importlib.metadata import version
 import sys
 from typing import Dict, List, Tuple
 
 from . import render_latex
 from .args_parser import create_parser
+from .const import CAPITAL_GAIN_ALLOWANCES
 from .currency_converter import CurrencyConverter
 from .dates import date_from_index, date_to_index, internal_start_date, is_date
 from .exceptions import (
@@ -21,7 +23,6 @@ from .exceptions import (
     SymbolMissingError,
 )
 from .initial_prices import InitialPrices
-from .misc import round_decimal
 from .model import (
     ActionType,
     BrokerTransaction,
@@ -35,6 +36,7 @@ from .parsers import (
     read_gbp_prices_history,
     read_initial_prices,
 )
+from .util import round_decimal
 
 # For mapping of dates to int
 HmrcTransactionLog = Dict[int, Dict[str, Tuple[Decimal, Decimal, Decimal]]]
@@ -45,18 +47,6 @@ def has_key(transactions: HmrcTransactionLog, date_index: int, symbol: str) -> b
 
 
 class CapitalGainsCalculator:
-    # Allowances
-    # https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances#tax-free-allowances-for-capital-gains-tax
-    CAPITAL_GAIN_ALLOWANCES: Dict[int, int] = {
-        2014: 11000,
-        2015: 11100,
-        2016: 11100,
-        2017: 11300,
-        2018: 11700,
-        2019: 12000,
-        2020: 12300,
-    }
-
     def __init__(
         self, tax_year: int, converter: CurrencyConverter, initial_prices: InitialPrices
     ):
@@ -619,7 +609,7 @@ class CapitalGainsCalculator:
                         else:
                             capital_loss += transaction_capital_gain
         print("\nSecond pass completed")
-        allowance = self.CAPITAL_GAIN_ALLOWANCES.get(self.tax_year)
+        allowance = CAPITAL_GAIN_ALLOWANCES.get(self.tax_year)
         return CapitalGainsReport(
             self.tax_year,
             portfolio,
@@ -637,6 +627,10 @@ def main() -> int:
     # Throw exception on accidental float usage
     decimal.getcontext().traps[decimal.FloatOperation] = True
     args = create_parser().parse_args()
+
+    if args.version:
+        print(f"cgt-calc {version(__package__)}")
+        return 0
 
     # Read data from input files
     broker_transactions = read_broker_transactions(args.schwab, args.trading212)
