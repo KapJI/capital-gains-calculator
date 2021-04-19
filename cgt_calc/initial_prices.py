@@ -1,3 +1,5 @@
+"""Initial stock prices."""
+from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from typing import Dict
@@ -7,9 +9,11 @@ from .exceptions import ExchangeRateMissingError
 from .model import DateIndex
 
 
+@dataclass
 class InitialPrices:
-    def __init__(self, initial_prices: Dict[DateIndex, Dict[str, Decimal]]):
-        self.initial_prices = initial_prices
+    """Class to store initial stock prices."""
+
+    initial_prices: Dict[DateIndex, Dict[str, Decimal]]
 
     def get(self, date: datetime.date, symbol: str) -> Decimal:
         assert is_date(date)

@@ -42,7 +42,10 @@ class CalculatedAmountDiscrepancy(InvalidTransactionError):
     def __init__(self, transaction, calculated_amount):
         super().__init__(
             transaction,
-            f"Calculated amount({calculated_amount}) differs from supplied amount ({transaction.amount})",
+            (
+                f"Calculated amount({calculated_amount}) differs "
+                f"from supplied amount ({transaction.amount})"
+            ),
         )
 
 

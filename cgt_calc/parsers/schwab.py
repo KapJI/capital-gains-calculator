@@ -1,3 +1,4 @@
+"""Charles Schwab parser."""
 import csv
 import datetime
 from decimal import Decimal
@@ -10,9 +11,11 @@ from cgt_calc.model import ActionType, BrokerTransaction
 def action_from_str(label: str) -> ActionType:
     if label == "Buy":
         return ActionType.BUY
-    elif label == "Sell":
+
+    if label == "Sell":
         return ActionType.SELL
-    elif label in [
+
+    if label in [
         "MoneyLink Transfer",
         "Misc Cash Entry",
         "Service Fee",
@@ -22,27 +25,37 @@ def action_from_str(label: str) -> ActionType:
         "Cash In Lieu",
     ]:
         return ActionType.TRANSFER
-    elif label == "Stock Plan Activity":
+
+    if label == "Stock Plan Activity":
         return ActionType.STOCK_ACTIVITY
-    elif label in ["Qualified Dividend", "Cash Dividend"]:
+
+    if label in ["Qualified Dividend", "Cash Dividend"]:
         return ActionType.DIVIDEND
-    elif label in ["NRA Tax Adj", "NRA Withholding", "Foreign Tax Paid"]:
+
+    if label in ["NRA Tax Adj", "NRA Withholding", "Foreign Tax Paid"]:
         return ActionType.TAX
-    elif label == "ADR Mgmt Fee":
+
+    if label == "ADR Mgmt Fee":
         return ActionType.FEE
-    elif label in ["Adjustment", "IRS Withhold Adj"]:
+
+    if label in ["Adjustment", "IRS Withhold Adj"]:
         return ActionType.ADJUSTMENT
-    elif label in ["Short Term Cap Gain", "Long Term Cap Gain"]:
+
+    if label in ["Short Term Cap Gain", "Long Term Cap Gain"]:
         return ActionType.CAPITAL_GAIN
-    elif label == "Spin-off":
+
+    if label == "Spin-off":
         return ActionType.SPIN_OFF
-    elif label == "Credit Interest":
+
+    if label == "Credit Interest":
         return ActionType.INTEREST
-    else:
-        raise ParsingError("schwab transactions", f"Unknown action: {label}")
+
+    raise ParsingError("schwab transactions", f"Unknown action: {label}")
 
 
 class SchwabTransaction(BrokerTransaction):
+    """Represent single Schwab transaction."""
+
     def __init__(self, row: List[str], file: str):
         if len(row) != 9:
             raise UnexpectedColumnCountError(row, 9, file)
@@ -80,6 +93,7 @@ class SchwabTransaction(BrokerTransaction):
 
 
 def read_schwab_transactions(transactions_file: str) -> List[BrokerTransaction]:
+    """Read Schwab transactions from file."""
     try:
         with open(transactions_file) as csv_file:
             lines = list(csv.reader(csv_file))

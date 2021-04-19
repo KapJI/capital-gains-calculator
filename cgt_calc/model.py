@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from enum import Enum
@@ -21,53 +22,25 @@ class ActionType(Enum):
     INTEREST = 11
 
 
+@dataclass
 class BrokerTransaction:
-    def __init__(
-        self,
-        date: datetime.date,
-        action: ActionType,
-        symbol: Optional[str],
-        description: str,
-        quantity: Optional[Decimal],
-        price: Optional[Decimal],
-        fees: Decimal,
-        amount: Optional[Decimal],
-        currency: str,
-        broker: str,
-    ):
-        self.date = date
-        self.action = action
-        self.symbol = symbol
-        self.description = description
-        self.quantity = quantity
-        self.price = price
-        self.fees = fees
-        self.amount = amount
-        self.currency = currency
-        self.broker = broker
+    """Broken transaction data."""
 
-    def __str__(self) -> str:
-        result = f'date: {self.date}, action: "{self.action}"'
-        if self.symbol:
-            result += f", symbol: {self.symbol}"
-        if self.description:
-            result += f', description: "{self.description}"'
-        if self.quantity:
-            result += f", quantity: {self.quantity}"
-        if self.price:
-            result += f", price: {self.price}"
-        if self.fees:
-            result += f", fees: {self.fees}"
-        if self.amount:
-            result += f", amount: {self.amount}"
-        if self.currency:
-            result += f", currency: {self.currency}"
-        if self.broker:
-            result += f", broker: {self.broker}"
-        return result
+    date: datetime.date
+    action: ActionType
+    symbol: Optional[str]
+    description: str
+    quantity: Optional[Decimal]
+    price: Optional[Decimal]
+    fees: Decimal
+    amount: Optional[Decimal]
+    currency: str
+    broker: str
 
 
 class RuleType(Enum):
+    """HMRC rule type."""
+
     SECTION_104 = 1
     SAME_DAY = 2
     BED_AND_BREAKFAST = 3
@@ -145,19 +118,22 @@ class CapitalGainsReport:
         return max(Decimal(0), self.total_gain() - self.capital_gain_allowance)
 
     def __str__(self):
-        s = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year:\n"
+        out = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year:\n"
         for symbol, (quantity, amount) in self.portfolio.items():
             if quantity > 0:
-                s += f"  {symbol}: {round_decimal(quantity, 2)}, £{round_decimal(amount, 2)}\n"
-        s += f"For tax year {self.tax_year}/{self.tax_year + 1}:\n"
-        s += f"Number of disposals: {self.disposal_count}\n"
-        s += f"Disposal proceeds: £{self.disposal_proceeds}\n"
-        s += f"Allowable costs: £{self.allowable_costs}\n"
-        s += f"Capital gain: £{self.capital_gain}\n"
-        s += f"Capital loss: £{-self.capital_loss}\n"
-        s += f"Total capital gain: £{self.total_gain()}\n"
+                out += (
+                    f"  {symbol}: {round_decimal(quantity, 2)}, "
+                    f"£{round_decimal(amount, 2)}\n"
+                )
+        out += f"For tax year {self.tax_year}/{self.tax_year + 1}:\n"
+        out += f"Number of disposals: {self.disposal_count}\n"
+        out += f"Disposal proceeds: £{self.disposal_proceeds}\n"
+        out += f"Allowable costs: £{self.allowable_costs}\n"
+        out += f"Capital gain: £{self.capital_gain}\n"
+        out += f"Capital loss: £{-self.capital_loss}\n"
+        out += f"Total capital gain: £{self.total_gain()}\n"
         if self.capital_gain_allowance is not None:
-            s += f"Taxable capital gain: £{self.taxable_gain()}\n"
+            out += f"Taxable capital gain: £{self.taxable_gain()}\n"
         else:
-            s += "WARNING: Missing allowance for this tax year\n"
-        return s
+            out += "WARNING: Missing allowance for this tax year\n"
+        return out

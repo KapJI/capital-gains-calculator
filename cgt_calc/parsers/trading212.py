@@ -39,20 +39,23 @@ def action_from_str(label: str, filename: str) -> ActionType:
         "Limit buy",
     ]:
         return ActionType.BUY
-    elif label in [
+
+    if label in [
         "Market sell",
         "Limit sell",
     ]:
         return ActionType.SELL
-    elif label in [
+
+    if label in [
         "Deposit",
         "Withdrawal",
     ]:
         return ActionType.TRANSFER
-    elif label in ["Dividend (Ordinary)"]:
+
+    if label in ["Dividend (Ordinary)"]:
         return ActionType.DIVIDEND
-    else:
-        raise ParsingError(filename, f"Unknown action: {label}")
+
+    raise ParsingError(filename, f"Unknown action: {label}")
 
 
 class Trading212Transaction(BrokerTransaction):
@@ -85,7 +88,7 @@ class Trading212Transaction(BrokerTransaction):
                 amount *= -1
             amount -= fees
         self.isin = row["ISIN"]
-        self.id = row["ID"]
+        self.transaction_id = row["ID"]
         self.notes = row["Notes"]
         broker = "Trading212"
         super().__init__(
@@ -102,10 +105,10 @@ class Trading212Transaction(BrokerTransaction):
         )
 
     def __eq__(self, other):
-        return self.id == other.id
+        return self.transaction_id == other.transaction_id
 
     def __hash__(self):
-        return hash(self.id)
+        return hash(self.transaction_id)
 
 
 def validate_header(header: List[str], filename: str):

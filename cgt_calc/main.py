@@ -62,7 +62,7 @@ class CapitalGainsCalculator:
 
     def date_in_tax_year(self, date: datetime.date) -> bool:
         assert is_date(date)
-        return self.tax_year_start_date <= date and date <= self.tax_year_end_date
+        return self.tax_year_start_date <= date <= self.tax_year_end_date
 
     @staticmethod
     def add_to_list(
@@ -206,7 +206,6 @@ class CapitalGainsCalculator:
                     raise AmountMissingError(transaction)
                 new_balance += transaction.amount
                 self.add_disposal(portfolio, disposal_list, transaction)
-                # TODO: cleanup
                 if self.date_in_tax_year(transaction.date):
                     total_sells += self.converter.to_gbp_for(
                         transaction.amount, transaction
@@ -279,8 +278,8 @@ class CapitalGainsCalculator:
         print("")
         return acquisition_list, disposal_list
 
+    @staticmethod
     def process_acquisition(
-        self,
         acquisition_list: HmrcTransactionLog,
         bed_and_breakfast_list: HmrcTransactionLog,
         portfolio: Dict[str, Tuple[Decimal, Decimal]],
@@ -345,8 +344,8 @@ class CapitalGainsCalculator:
             )
         return calculation_entries
 
+    @staticmethod
     def process_disposal(
-        self,
         acquisition_list: HmrcTransactionLog,
         disposal_list: HmrcTransactionLog,
         bed_and_breakfast_list: HmrcTransactionLog,
@@ -579,9 +578,10 @@ class CapitalGainsCalculator:
                         )
                         transaction_quantity = disposal_list[date_index][symbol][0]
                         # print(
-                        #     f"DISPOSAL on {date_from_index(date_index)} of {symbol}"
-                        #     f", quantity {transaction_quantity}: "
-                        #     f"capital gain: ${round_decimal(transaction_capital_gain, 2)}"
+                        #     f"DISPOSAL on {date_from_index(date_index)} of {symbol}, "
+                        #     f"quantity {transaction_quantity}, "
+                        #     "capital gain: "
+                        #     f"${round_decimal(transaction_capital_gain, 2)}"
                         # )
                         calculated_quantity = Decimal(0)
                         calculated_proceeds = Decimal(0)

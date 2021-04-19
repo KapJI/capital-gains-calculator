@@ -22,10 +22,9 @@ class CurrencyConverter:
     def to_gbp(self, amount: Decimal, currency: str, date: datetime.date) -> Decimal:
         if currency == "USD":
             return amount / self.usd_to_gbp_price(date)
-        elif currency == "GBP":
+        if currency == "GBP":
             return amount
-        else:
-            raise ExchangeRateMissingError(currency, date)
+        raise ExchangeRateMissingError(currency, date)
 
     def to_gbp_for(self, amount: Decimal, transaction: BrokerTransaction) -> Decimal:
         return self.to_gbp(amount, transaction.currency, transaction.date)
