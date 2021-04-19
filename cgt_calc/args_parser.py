@@ -63,4 +63,9 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="where to save the generated pdf report",
     )
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="print version",
+    )
     return parser

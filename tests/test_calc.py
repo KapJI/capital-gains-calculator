@@ -10,8 +10,8 @@ from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.dates import date_to_index
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.main import CapitalGainsCalculator
-from cgt_calc.misc import round_decimal
 from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.util import round_decimal
 
 
 def get_report(calculator, broker_transactions):
