@@ -218,7 +218,7 @@ def test_run_with_example_files():
         "poetry",
         "run",
         "cgt-calc",
-        "--tax_year",
+        "--year",
         "2020",
         "--schwab",
         "tests/test_data/schwab_transactions.csv",
