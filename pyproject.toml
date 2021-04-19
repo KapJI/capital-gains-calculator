@@ -53,6 +53,8 @@ combine_as_imports = true
 
 [tool.pylint.format]
 max-line-length = 88
+min-similarity-lines = 7
+
 
 [tool.pylint.messages_control]
 # Reasons disabled:
