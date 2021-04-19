@@ -1,6 +1,6 @@
 from typing import Dict, Final
 
-# Allowances
+# Allowances from
 # https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances#tax-free-allowances-for-capital-gains-tax
 CAPITAL_GAIN_ALLOWANCES: Final[Dict[int, int]] = {
     2014: 11000,
@@ -11,3 +11,20 @@ CAPITAL_GAIN_ALLOWANCES: Final[Dict[int, int]] = {
     2019: 12000,
     2020: 12300,
 }
+
+DEFAULT_REPORT_PATH: Final = "calculations.pdf"
+
+# Resources
+
+PACKAGE_NAME = __package__
+
+# Schwab transactions
+# Monthly GBP/USD history from
+# https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat
+DEFAULT_GBP_HISTORY_FILE: Final = "GBP_USD_monthly_history.csv"
+
+# Initial vesting and spin-off prices
+DEFAULT_INITIAL_PRICES_FILE: Final = "initial_prices.csv"
+
+# Latex template for calculations report
+TEMPLATE_NAME: Final = "template.tex.j2"

@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import datetime
 
 internal_start_date = datetime.date(2010, 1, 1)

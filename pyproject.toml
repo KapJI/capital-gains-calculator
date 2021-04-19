@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cgt-calc"
-version = "0.1.0"
+version = "0.1.1"
 description = "UK capital gains tax calculator for Schwab and Trading212 accounts"
 authors = ["Ruslan Sayfutdinov <ruslan@sayfutdinov.com>"]
 license = "MIT"
@@ -53,6 +53,8 @@ combine_as_imports = true
 
 [tool.pylint.format]
 max-line-length = 88
+min-similarity-lines = 7
+
 
 [tool.pylint.messages_control]
 # Reasons disabled:
