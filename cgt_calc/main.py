@@ -44,13 +44,17 @@ HmrcTransactionLog = Dict[int, Dict[str, Tuple[Decimal, Decimal, Decimal]]]
 
 
 def has_key(transactions: HmrcTransactionLog, date_index: int, symbol: str) -> bool:
+    """Check if transaction log has entry for date_index and symbol."""
     return date_index in transactions and symbol in transactions[date_index]
 
 
 class CapitalGainsCalculator:
+    """Main calculator class."""
+
     def __init__(
         self, tax_year: int, converter: CurrencyConverter, initial_prices: InitialPrices
     ):
+        """Create calculator object."""
         self.tax_year = tax_year
 
         # 6 April
@@ -62,6 +66,7 @@ class CapitalGainsCalculator:
         self.initial_prices = initial_prices
 
     def date_in_tax_year(self, date: datetime.date) -> bool:
+        """Check if date is within current tax year."""
         assert is_date(date)
         return self.tax_year_start_date <= date <= self.tax_year_end_date
 
@@ -74,7 +79,7 @@ class CapitalGainsCalculator:
         amount: Decimal,
         fees: Decimal,
     ) -> None:
-        # assert quantity is not None
+        """Add entry to given transaction log."""
         if date_index not in current_list:
             current_list[date_index] = {}
         if symbol not in current_list[date_index]:
@@ -94,6 +99,7 @@ class CapitalGainsCalculator:
         acquisition_list: HmrcTransactionLog,
         transaction: BrokerTransaction,
     ) -> None:
+        """Add new acquisition to the given list."""
         symbol = transaction.symbol
         quantity = transaction.quantity
         if symbol is None:
@@ -134,6 +140,7 @@ class CapitalGainsCalculator:
         disposal_list: HmrcTransactionLog,
         transaction: BrokerTransaction,
     ) -> None:
+        """Add new disposal to the given list."""
         symbol = transaction.symbol
         quantity = transaction.quantity
         if symbol is None:
@@ -173,14 +180,11 @@ class CapitalGainsCalculator:
             self.converter.to_gbp_for(transaction.fees, transaction),
         )
 
-    @staticmethod
-    def swift_date(date: datetime.date) -> str:
-        return date.strftime("%d/%m/%Y")
-
     def convert_to_hmrc_transactions(
         self,
         transactions: List[BrokerTransaction],
     ) -> Tuple[HmrcTransactionLog, HmrcTransactionLog]:
+        """Convert broker transactions to HMRC transactions."""
         # We keep a balance per broker,currency pair
         balance: Dict[Tuple[str, str], Decimal] = defaultdict(lambda: Decimal(0))
         dividends = Decimal(0)
@@ -287,6 +291,7 @@ class CapitalGainsCalculator:
         symbol: str,
         date_index: int,
     ) -> List[CalculationEntry]:
+        """Process single acquisition."""
         acquisition_quantity, acquisition_amount, acquisition_fees = acquisition_list[
             date_index
         ][symbol]
@@ -354,6 +359,7 @@ class CapitalGainsCalculator:
         symbol: str,
         date_index: int,
     ) -> Tuple[Decimal, List[CalculationEntry]]:
+        """Process single disposal."""
         disposal_quantity, proceeds_amount, disposal_fees = disposal_list[date_index][
             symbol
         ]
@@ -528,6 +534,7 @@ class CapitalGainsCalculator:
         acquisition_list: HmrcTransactionLog,
         disposal_list: HmrcTransactionLog,
     ) -> CapitalGainsReport:
+        """Calculate capital gain and return generated report."""
         begin_index = date_to_index(internal_start_date)
         tax_year_start_index = date_to_index(self.tax_year_start_date)
         end_index = date_to_index(self.tax_year_end_date)
@@ -625,6 +632,7 @@ class CapitalGainsCalculator:
 
 
 def main() -> int:
+    """Run main function."""
     # Throw exception on accidental float usage
     decimal.getcontext().traps[decimal.FloatOperation] = True
     args = create_parser().parse_args()

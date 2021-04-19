@@ -16,6 +16,7 @@ class InitialPrices:
     initial_prices: Dict[DateIndex, Dict[str, Decimal]]
 
     def get(self, date: datetime.date, symbol: str) -> Decimal:
+        """Get initial stock price at given date."""
         assert is_date(date)
         date_index = date_to_index(date)
         if (

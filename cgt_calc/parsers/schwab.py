@@ -9,6 +9,7 @@ from cgt_calc.model import ActionType, BrokerTransaction
 
 
 def action_from_str(label: str) -> ActionType:
+    """Convert string label to ActionType."""
     if label == "Buy":
         return ActionType.BUY
 
@@ -57,6 +58,7 @@ class SchwabTransaction(BrokerTransaction):
     """Represent single Schwab transaction."""
 
     def __init__(self, row: List[str], file: str):
+        """Create transaction from CSV row."""
         if len(row) != 9:
             raise UnexpectedColumnCountError(row, 9, file)
         if row[8] != "":

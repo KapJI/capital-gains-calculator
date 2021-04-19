@@ -16,6 +16,7 @@ from cgt_calc.util import round_decimal
 
 
 def get_report(calculator, broker_transactions):
+    """Get calculation report."""
     acquisition_list, disposal_list = calculator.convert_to_hmrc_transactions(
         broker_transactions
     )
@@ -30,6 +31,7 @@ def buy_transaction(
     fees: float,
     amount: float,
 ) -> BrokerTransaction:
+    """Create buy transaction."""
     return BrokerTransaction(
         date,
         ActionType.BUY,
@@ -52,6 +54,7 @@ def sell_transaction(
     fees: float,
     amount: float,
 ) -> BrokerTransaction:
+    """Create sell transaction."""
     return BrokerTransaction(
         date,
         ActionType.SELL,
@@ -71,6 +74,7 @@ def transfer_transaction(
     amount: float,
     fees: float = 0,
 ) -> BrokerTransaction:
+    """Create transfer transaction."""
     return BrokerTransaction(
         date,
         ActionType.TRANSFER,
@@ -200,6 +204,7 @@ def test_basic(
     expected: float,
     gbp_prices: Optional[Dict[int, Decimal]],
 ):
+    """Generate basic tests for test data."""
     if gbp_prices is None:
         gbp_prices = {
             date_to_index(t.date.replace(day=1)): Decimal(1)
@@ -213,8 +218,8 @@ def test_basic(
     assert report.total_gain() == round_decimal(Decimal(expected), 2)
 
 
-# runs the script and verifies it doesn't fail
 def test_run_with_example_files():
+    """Runs the script and verifies it doesn't fail."""
     cmd = [
         "poetry",
         "run",

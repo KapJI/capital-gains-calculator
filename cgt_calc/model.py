@@ -50,6 +50,8 @@ class RuleType(Enum):
 
 
 class CalculationEntry:
+    """Calculation entry for final report."""
+
     def __init__(
         self,
         rule_type: RuleType,
@@ -62,6 +64,7 @@ class CalculationEntry:
         allowable_cost: Optional[Decimal] = None,
         bed_and_breakfast_date_index: int = 0,
     ):
+        """Create calculation entry."""
         self.rule_type = rule_type
         self.quantity = quantity
         self.amount = amount
@@ -77,6 +80,7 @@ class CalculationEntry:
             assert self.gain == self.amount - self.allowable_cost
 
     def __str__(self) -> str:
+        """Return string representation."""
         return (
             f"{self.rule_type.name.replace('_', ' ')}, "
             f"quantity: {self.quantity}, "
@@ -105,13 +109,16 @@ class CapitalGainsReport:
     calculation_log: CalculationLog
 
     def total_gain(self):
+        """Total capital gain."""
         return self.capital_gain + self.capital_loss
 
     def taxable_gain(self):
+        """Taxable gain with current allowance."""
         assert self.capital_gain_allowance is not None
         return max(Decimal(0), self.total_gain() - self.capital_gain_allowance)
 
     def __str__(self):
+        """Return string representation."""
         out = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year:\n"
         for symbol, (quantity, amount) in self.portfolio.items():
             if quantity > 0:
