@@ -20,6 +20,7 @@ class InitialPricesEntry:
     """Entry from initial stock prices file."""
 
     def __init__(self, row: List[str], file: str):
+        """Create entry from CSV row."""
         if len(row) != 3:
             raise UnexpectedColumnCountError(row, 3, file)
         # date,symbol,price
@@ -29,9 +30,11 @@ class InitialPricesEntry:
 
     @staticmethod
     def _parse_date(date_str: str) -> datetime.date:
+        """Parse date from string."""
         return datetime.datetime.strptime(date_str, "%b %d, %Y").date()
 
     def __str__(self) -> str:
+        """Return string representation."""
         return f"date: {self.date}, symbol: {self.symbol}, price: {self.price}"
 
 

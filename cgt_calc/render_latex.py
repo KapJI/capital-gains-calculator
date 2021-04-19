@@ -14,6 +14,7 @@ from .util import round_decimal
 def render_calculations(
     calculation_log: CalculationLog, tax_year: int, date_from_index, output_file: str
 ) -> None:
+    """Render PDF report."""
     print("Generate calculations report")
     latex_template_env = jinja2.Environment(
         block_start_string="\\BLOCK{",

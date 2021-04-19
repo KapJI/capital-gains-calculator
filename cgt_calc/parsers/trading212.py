@@ -3,12 +3,12 @@ import csv
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Final, List, Optional, Tuple
 
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
 
-columns = [
+COLUMNS: Final[List[str]] = [
     "Action",
     "Time",
     "ISIN",
@@ -31,10 +31,12 @@ columns = [
 
 
 def decimal_or_none(val: str) -> Optional[Decimal]:
+    """Convert value to Decimal."""
     return Decimal(val) if val not in ["", "Not available"] else None
 
 
 def action_from_str(label: str, filename: str) -> ActionType:
+    """Convert label to ActionType."""
     if label in [
         "Market buy",
         "Limit buy",
@@ -63,9 +65,10 @@ class Trading212Transaction(BrokerTransaction):
     """Represent single Trading 212 transaction."""
 
     def __init__(self, row_ints: List[str], filename: str):
-        if len(columns) != len(row_ints):
-            raise UnexpectedColumnCountError(len(columns), row_ints, filename)
-        row = {col: row_ints[i] for i, col in enumerate(columns)}
+        """Create transaction from CSV row."""
+        if len(COLUMNS) != len(row_ints):
+            raise UnexpectedColumnCountError(len(COLUMNS), row_ints, filename)
+        row = {col: row_ints[i] for i, col in enumerate(COLUMNS)}
         time_str = row["Time"]
         self.datetime = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
         date = self.datetime.date()
@@ -107,30 +110,38 @@ class Trading212Transaction(BrokerTransaction):
             broker,
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        """Compare transactions by ID."""
+        if not isinstance(other, Trading212Transaction):
+            raise NotImplementedError()
         return self.transaction_id == other.transaction_id
 
     def __hash__(self):
+        """Calculate hash."""
         return hash(self.transaction_id)
 
 
-def validate_header(header: List[str], filename: str):
-    if len(columns) != len(header):
-        raise UnexpectedColumnCountError(len(columns), header, filename)
-    for i, (expected, actual) in enumerate(zip(columns, header)):
+def validate_header(header: List[str], filename: str) -> None:
+    """Check if header is valid."""
+    if len(COLUMNS) != len(header):
+        raise UnexpectedColumnCountError(len(COLUMNS), header, filename)
+    for i, (expected, actual) in enumerate(zip(COLUMNS, header)):
         if expected != actual:
             msg = f"Expected column {i+1} to be {expected} but found {actual}"
             raise ParsingError(msg, filename)
 
 
-# if there's a deposit in the same second as a buy
-# (happens with the referral award at least)
-# we want to put the buy last to avoid negative balance errors
 def by_date_and_action(transaction: Trading212Transaction) -> Tuple[datetime, bool]:
+    """Sort by date and action type."""
+
+    # If there's a deposit in the same second as a buy
+    # (happens with the referral award at least)
+    # we want to put the buy last to avoid negative balance errors
     return (transaction.datetime, transaction.action == ActionType.BUY)
 
 
 def read_trading212_transactions(transactions_folder: str) -> List[BrokerTransaction]:
+    """Parse Trading 212 transactions from CSV file."""
     transactions = []
     for file in Path(transactions_folder).glob("*.csv"):
         with open(file) as csv_file:
