@@ -1,3 +1,4 @@
+"""Parse command line arguments."""
 import argparse
 import datetime
 
@@ -5,6 +6,7 @@ from .const import DEFAULT_REPORT_PATH
 
 
 def get_last_elapsed_tax_year() -> int:
+    """Get last ended tax year."""
     now = datetime.datetime.now()
     if now.date() >= datetime.date(now.year, 4, 6):
         return now.year - 1
@@ -12,6 +14,7 @@ def get_last_elapsed_tax_year() -> int:
 
 
 def create_parser() -> argparse.ArgumentParser:
+    """Create ArgumentParser."""
     parser = argparse.ArgumentParser(
         description="Calculate capital gains from stock transactions.",
     )

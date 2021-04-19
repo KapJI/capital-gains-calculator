@@ -1,3 +1,4 @@
+"""Trading 212 parser."""
 import csv
 from datetime import datetime
 from decimal import Decimal
@@ -59,6 +60,8 @@ def action_from_str(label: str, filename: str) -> ActionType:
 
 
 class Trading212Transaction(BrokerTransaction):
+    """Represent single Trading 212 transaction."""
+
     def __init__(self, row_ints: List[str], filename: str):
         if len(columns) != len(row_ints):
             raise UnexpectedColumnCountError(len(columns), row_ints, filename)

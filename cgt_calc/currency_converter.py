@@ -1,3 +1,4 @@
+"""Covert currency to GBP using price history."""
 import datetime
 from decimal import Decimal
 from typing import Dict
@@ -8,6 +9,8 @@ from .model import BrokerTransaction
 
 
 class CurrencyConverter:
+    """Coverter which holds price history."""
+
     def __init__(self, gbp_history: Dict[int, Decimal]):
         self.gbp_history = gbp_history
 
