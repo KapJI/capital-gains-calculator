@@ -4,7 +4,7 @@ from collections import defaultdict
 import datetime
 import decimal
 from decimal import Decimal
-from importlib.metadata import version
+import importlib.metadata
 import sys
 from typing import Dict, List, Tuple
 
@@ -629,7 +629,7 @@ def main() -> int:
     args = create_parser().parse_args()
 
     if args.version:
-        print(f"cgt-calc {version(__package__)}")
+        print(f"cgt-calc {importlib.metadata.version(__package__)}")
         return 0
 
     # Read data from input files

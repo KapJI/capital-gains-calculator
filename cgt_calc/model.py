@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import datetime
 from decimal import Decimal
 from enum import Enum

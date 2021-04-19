@@ -1,12 +1,15 @@
 import csv
 import datetime
 from decimal import Decimal
+import importlib.resources
 import operator
 from typing import Dict, List, Optional
 
+from cgt_calc.const import DEFAULT_GBP_HISTORY_FILE, DEFAULT_INITIAL_PRICES_FILE
 from cgt_calc.dates import date_to_index
 from cgt_calc.exceptions import UnexpectedColumnCountError
 from cgt_calc.model import BrokerTransaction, DateIndex
+from cgt_calc.resources import RESOURCES_PACKAGE
 
 from .schwab import read_schwab_transactions
 from .trading212 import read_trading212_transactions
@@ -46,30 +49,44 @@ def read_broker_transactions(
     return transactions
 
 
-def read_gbp_prices_history(gbp_history_file: str) -> Dict[int, Decimal]:
+def read_gbp_prices_history(gbp_history_file: Optional[str]) -> Dict[int, Decimal]:
     gbp_history: Dict[int, Decimal] = {}
-    with open(gbp_history_file) as csv_file:
+    if gbp_history_file is None:
+        csv_file = importlib.resources.open_text(
+            RESOURCES_PACKAGE, DEFAULT_GBP_HISTORY_FILE
+        )
         lines = [line for line in csv.reader(csv_file)]
-        lines = lines[1:]
-        for row in lines:
-            if len(row) != 2:
-                raise UnexpectedColumnCountError(row, 2, gbp_history_file)
-            price_date = datetime.datetime.strptime(row[0], "%m/%Y").date()
-            gbp_history[date_to_index(price_date)] = Decimal(row[1])
+        csv_file.close()
+    else:
+        with open(gbp_history_file) as csv_file:
+            lines = [line for line in csv.reader(csv_file)]
+    lines = lines[1:]
+    for row in lines:
+        if len(row) != 2:
+            raise UnexpectedColumnCountError(row, 2, gbp_history_file or "default")
+        price_date = datetime.datetime.strptime(row[0], "%m/%Y").date()
+        gbp_history[date_to_index(price_date)] = Decimal(row[1])
     return gbp_history
 
 
 def read_initial_prices(
-    initial_prices_file: str,
+    initial_prices_file: Optional[str],
 ) -> Dict[DateIndex, Dict[str, Decimal]]:
     initial_prices: Dict[DateIndex, Dict[str, Decimal]] = {}
-    with open(initial_prices_file) as csv_file:
+    if initial_prices_file is None:
+        csv_file = importlib.resources.open_text(
+            RESOURCES_PACKAGE, DEFAULT_INITIAL_PRICES_FILE
+        )
         lines = [line for line in csv.reader(csv_file)]
-        lines = lines[1:]
-        for row in lines:
-            entry = InitialPricesEntry(row, initial_prices_file)
-            date_index = date_to_index(entry.date)
-            if date_index not in initial_prices:
-                initial_prices[date_index] = {}
-            initial_prices[date_index][entry.symbol] = entry.price
+        csv_file.close()
+    else:
+        with open(initial_prices_file) as csv_file:
+            lines = [line for line in csv.reader(csv_file)]
+    lines = lines[1:]
+    for row in lines:
+        entry = InitialPricesEntry(row, initial_prices_file or "default")
+        date_index = date_to_index(entry.date)
+        if date_index not in initial_prices:
+            initial_prices[date_index] = {}
+        initial_prices[date_index][entry.symbol] = entry.price
     return initial_prices

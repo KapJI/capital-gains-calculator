@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from decimal import Decimal
 import os
 import subprocess
@@ -7,18 +5,15 @@ import tempfile
 
 import jinja2
 
+from .const import PACKAGE_NAME, TEMPLATE_NAME
 from .model import CalculationLog
 from .util import round_decimal
-
-# Latex template for calculations report
-calculations_template_file = "cgt_calc/resources/template.tex.j2"
 
 
 def render_calculations(
     calculation_log: CalculationLog, tax_year: int, date_from_index, output_file: str
 ) -> None:
     print("Generate calculations report")
-    current_directory = os.path.abspath(".")
     latex_template_env = jinja2.Environment(
         block_start_string="\\BLOCK{",
         block_end_string="}",
@@ -30,9 +25,9 @@ def render_calculations(
         line_comment_prefix="%#",
         trim_blocks=True,
         autoescape=False,
-        loader=jinja2.FileSystemLoader(current_directory),
+        loader=jinja2.PackageLoader(PACKAGE_NAME, "resources"),
     )
-    template = latex_template_env.get_template(calculations_template_file)
+    template = latex_template_env.get_template(TEMPLATE_NAME)
     output_text = template.render(
         calculation_log=calculation_log,
         tax_year=tax_year,
@@ -43,6 +38,8 @@ def render_calculations(
     generated_file_fd, generated_file = tempfile.mkstemp(suffix=".tex")
     os.write(generated_file_fd, output_text.encode())
     os.close(generated_file_fd)
+
+    current_directory = os.path.abspath(".")
     output_filename = "calculations"
     subprocess.run(
         [

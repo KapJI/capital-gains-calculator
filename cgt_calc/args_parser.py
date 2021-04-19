@@ -1,6 +1,8 @@
 import argparse
 import datetime
 
+from .const import DEFAULT_REPORT_PATH
+
 
 def get_last_elapsed_tax_year() -> int:
     now = datetime.datetime.now()
@@ -11,14 +13,6 @@ def get_last_elapsed_tax_year() -> int:
 
 
 def create_parser() -> argparse.ArgumentParser:
-    # Schwab transactions
-    # Monthly GBP/USD history from
-    # https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat
-    default_gbp_history_file = "cgt_calc/resources/GBP_USD_monthly_history.csv"
-    # Initial vesting and spin-off prices
-    default_initial_prices_file = "cgt_calc/resources/initial_prices.csv"
-    default_pdf_report = "calculations.pdf"
-
     parser = argparse.ArgumentParser(
         description="Calculate capital gains from stock transactions.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -45,21 +39,21 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--gbp_history",
         type=str,
-        default=default_gbp_history_file,
+        default=None,
         nargs="?",
         help="monthly GBP/USD prices from HMRC",
     )
     parser.add_argument(
         "--initial_prices",
         type=str,
-        default=default_initial_prices_file,
+        default=None,
         nargs="?",
         help="file containing stock prices in USD at the moment of vesting, split, etc.",
     )
     parser.add_argument(
         "--report",
         type=str,
-        default=default_pdf_report,
+        default=DEFAULT_REPORT_PATH,
         nargs="?",
         help="where to save the generated pdf report",
     )
