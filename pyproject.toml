@@ -5,8 +5,8 @@ description = "UK capital gains tax calculator for Charles Schwab and Trading 21
 authors = ["Ruslan Sayfutdinov <ruslan@sayfutdinov.com>"]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/KapJI/capital_gains_calculator"
-repository = "https://github.com/KapJI/capital_gains_calculator"
+homepage = "https://github.com/KapJI/capital-gains-calculator"
+repository = "https://github.com/KapJI/capital-gains-calculator"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
@@ -21,7 +21,8 @@ keywords = [
 ]
 
 [tool.poetry.urls]
-"Bug Tracker" = "https://github.com/KapJI/capital_gains_calculator/issues"
+"Bug Tracker" = "https://github.com/KapJI/capital-gains-calculator/issues"
+"Release Notes" = "https://github.com/KapJI/capital-gains-calculator/releases"
 
 [tool.poetry.dependencies]
 python = "^3.8"
