@@ -11,11 +11,13 @@ from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.dates import date_to_index
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.main import CapitalGainsCalculator
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, CapitalGainsReport
 from cgt_calc.util import round_decimal
 
 
-def get_report(calculator, broker_transactions):
+def get_report(
+    calculator: CapitalGainsCalculator, broker_transactions: List[BrokerTransaction]
+) -> CapitalGainsReport:
     """Get calculation report."""
     acquisition_list, disposal_list = calculator.convert_to_hmrc_transactions(
         broker_transactions
@@ -203,7 +205,7 @@ def test_basic(
     broker_transactions: List[BrokerTransaction],
     expected: float,
     gbp_prices: Optional[Dict[int, Decimal]],
-):
+) -> None:
     """Generate basic tests for test data."""
     if gbp_prices is None:
         gbp_prices = {
@@ -218,7 +220,7 @@ def test_basic(
     assert report.total_gain() == round_decimal(Decimal(expected), 2)
 
 
-def test_run_with_example_files():
+def test_run_with_example_files() -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = [
         "poetry",

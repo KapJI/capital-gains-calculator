@@ -1,4 +1,5 @@
 """Constants."""
+import datetime
 from typing import Dict, Final
 
 # Allowances from
@@ -14,6 +15,8 @@ CAPITAL_GAIN_ALLOWANCES: Final[Dict[int, int]] = {
 }
 
 DEFAULT_REPORT_PATH: Final = "calculations.pdf"
+
+INTERNAL_START_DATE: Final = datetime.date(2010, 1, 1)
 
 # Resources
 

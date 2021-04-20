@@ -64,11 +64,11 @@ def action_from_str(label: str, filename: str) -> ActionType:
 class Trading212Transaction(BrokerTransaction):
     """Represent single Trading 212 transaction."""
 
-    def __init__(self, row_ints: List[str], filename: str):
+    def __init__(self, row_raw: List[str], filename: str):
         """Create transaction from CSV row."""
-        if len(COLUMNS) != len(row_ints):
-            raise UnexpectedColumnCountError(len(COLUMNS), row_ints, filename)
-        row = {col: row_ints[i] for i, col in enumerate(COLUMNS)}
+        if len(COLUMNS) != len(row_raw):
+            raise UnexpectedColumnCountError(row_raw, len(COLUMNS), filename)
+        row = {col: row_raw[i] for i, col in enumerate(COLUMNS)}
         time_str = row["Time"]
         self.datetime = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
         date = self.datetime.date()
@@ -116,7 +116,7 @@ class Trading212Transaction(BrokerTransaction):
             raise NotImplementedError()
         return self.transaction_id == other.transaction_id
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         """Calculate hash."""
         return hash(self.transaction_id)
 
@@ -124,7 +124,7 @@ class Trading212Transaction(BrokerTransaction):
 def validate_header(header: List[str], filename: str) -> None:
     """Check if header is valid."""
     if len(COLUMNS) != len(header):
-        raise UnexpectedColumnCountError(len(COLUMNS), header, filename)
+        raise UnexpectedColumnCountError(header, len(COLUMNS), filename)
     for i, (expected, actual) in enumerate(zip(COLUMNS, header)):
         if expected != actual:
             msg = f"Expected column {i+1} to be {expected} but found {actual}"
