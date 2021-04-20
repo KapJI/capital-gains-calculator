@@ -59,6 +59,11 @@ def create_parser() -> argparse.ArgumentParser:
         help="where to save the generated pdf report (default: %(default)s)",
     )
     parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="enable extra logging",
+    )
+    parser.add_argument(
         "--version",
         action="store_true",
         help="print version",
