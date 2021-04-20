@@ -7,6 +7,7 @@ import datetime
 import decimal
 from decimal import Decimal
 import importlib.metadata
+import logging
 import sys
 from typing import Dict, Tuple
 
@@ -42,6 +43,8 @@ from .util import round_decimal
 
 # For mapping of dates to int
 HmrcTransactionLog = Dict[int, Dict[str, Tuple[Decimal, Decimal, Decimal]]]
+
+LOGGER = logging.getLogger(__name__)
 
 
 def has_key(transactions: HmrcTransactionLog, date_index: int, symbol: str) -> bool:
@@ -391,13 +394,14 @@ class CapitalGainsCalculator:
                 same_day_allowable_cost = available_quantity * acquisition_price
                 same_day_gain = same_day_proceeds - same_day_allowable_cost
                 chargeable_gain += same_day_gain
-                # print(
-                #     f"SAME DAY"
-                #     f", quantity {available_quantity}"
-                #     f", gain {same_day_gain}
-                #     f", disposal price {disposal_price}"
-                #     f", acquisition price {acquisition_price}"
-                # )
+                LOGGER.debug(
+                    "SAME DAY, quantity %d, gain %s, disposal price %s, "
+                    "acquisition price %s",
+                    available_quantity,
+                    same_day_gain,
+                    disposal_price,
+                    acquisition_price,
+                )
                 disposal_quantity -= available_quantity
                 proceeds_amount -= available_quantity * disposal_price
                 current_quantity -= available_quantity
@@ -458,13 +462,14 @@ class CapitalGainsCalculator:
                         bed_and_breakfast_proceeds - bed_and_breakfast_allowable_cost
                     )
                     chargeable_gain += bed_and_breakfast_gain
-                    # print(
-                    #     f"BED & BREAKFAST"
-                    #     f", quantity {available_quantity}"
-                    #     f", gain {bed_and_breakfast_gain}"
-                    #     f", disposal price {disposal_price}"
-                    #     f", acquisition price {acquisition_price}"
-                    # )
+                    LOGGER.debug(
+                        "BED & BREAKFAST, quantity %d, gain %s, disposal price %s, "
+                        "acquisition price %s",
+                        available_quantity,
+                        bed_and_breakfast_gain,
+                        disposal_price,
+                        acquisition_price,
+                    )
                     disposal_quantity -= acquisition_quantity
                     proceeds_amount -= available_quantity * disposal_price
                     current_price = current_amount / current_quantity
@@ -500,13 +505,14 @@ class CapitalGainsCalculator:
                 current_amount * Decimal(disposal_quantity) / Decimal(current_quantity)
             )
             chargeable_gain += proceeds_amount - allowable_cost
-            # print(
-            #     f"SECTION 104"
-            #     f", quantity {disposal_quantity}"
-            #     f", gain {proceeds_amount - allowable_cost}"
-            #     f", proceeds amount {proceeds_amount}"
-            #     f", allowable cost {allowable_cost}"
-            # )
+            LOGGER.debug(
+                "SECTION 104, quantity %d, gain %s, proceeds amount %s, "
+                "allowable cost %s",
+                disposal_quantity,
+                proceeds_amount - allowable_cost,
+                proceeds_amount,
+                allowable_cost,
+            )
             current_quantity -= disposal_quantity
             current_amount -= allowable_cost
             if current_quantity == 0:
@@ -586,12 +592,13 @@ class CapitalGainsCalculator:
                             transaction_disposal_proceeds - transaction_capital_gain
                         )
                         transaction_quantity = disposal_list[date_index][symbol][0]
-                        # print(
-                        #     f"DISPOSAL on {date_from_index(date_index)} of {symbol}, "
-                        #     f"quantity {transaction_quantity}, "
-                        #     "capital gain: "
-                        #     f"${round_decimal(transaction_capital_gain, 2)}"
-                        # )
+                        LOGGER.debug(
+                            "DISPOSAL on %s of %s, quantity %d, capital gain $%s",
+                            date_from_index(date_index),
+                            symbol,
+                            transaction_quantity,
+                            round_decimal(transaction_capital_gain, 2),
+                        )
                         calculated_quantity = Decimal(0)
                         calculated_proceeds = Decimal(0)
                         calculated_gain = Decimal(0)
@@ -641,6 +648,9 @@ def main() -> int:
     if args.version:
         print(f"cgt-calc {importlib.metadata.version(__package__)}")
         return 0
+
+    default_logging_level = logging.DEBUG if args.verbose else logging.WARNING
+    logging.basicConfig(level=default_logging_level)
 
     # Read data from input files
     broker_transactions = read_broker_transactions(args.schwab, args.trading212)
