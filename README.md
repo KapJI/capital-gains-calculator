@@ -53,9 +53,9 @@ You will need several input files:
     You can use several files here since Trading 212 limit the statements to 1 year periods.
     [See example](https://github.com/KapJI/capital_gains_calculator/tree/main/tests/test_data/trading212).
 -   CSV file with initial stock prices in USD at the moment of vesting, split, etc.
-    See [`initial_prices.csv`](https://github.com/KapJI/capital_gains_calculator/blob/main/cgt_calc/resources/initial_prices.csv) for the format.
+    [`initial_prices.csv`](https://github.com/KapJI/capital_gains_calculator/blob/main/cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format.
 -   (Optional) Monthly GBP/USD prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).
-    See [`GBP_USD_monthly_history.csv`](https://github.com/KapJI/capital_gains_calculator/blob/main/cgt_calc/resources/GBP_USD_monthly_history.csv) for the format.
+    [`GBP_USD_monthly_history.csv`](https://github.com/KapJI/capital_gains_calculator/blob/main/cgt_calc/resources/GBP_USD_monthly_history.csv) comes pre-packaged, you need to use the same format if you want to override it.
 
 Then run (you can omit the brokers you don't use):
 
