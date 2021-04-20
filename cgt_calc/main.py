@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Capital Gain Calculator main module."""
+from __future__ import annotations
 
 from collections import defaultdict
 import datetime
@@ -7,7 +8,7 @@ import decimal
 from decimal import Decimal
 import importlib.metadata
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 from . import render_latex
 from .args_parser import create_parser
@@ -95,7 +96,7 @@ class CapitalGainsCalculator:
 
     def add_acquisition(
         self,
-        portfolio: Dict[str, Decimal],
+        portfolio: dict[str, Decimal],
         acquisition_list: HmrcTransactionLog,
         transaction: BrokerTransaction,
     ) -> None:
@@ -136,7 +137,7 @@ class CapitalGainsCalculator:
 
     def add_disposal(
         self,
-        portfolio: Dict[str, Decimal],
+        portfolio: dict[str, Decimal],
         disposal_list: HmrcTransactionLog,
         transaction: BrokerTransaction,
     ) -> None:
@@ -182,16 +183,16 @@ class CapitalGainsCalculator:
 
     def convert_to_hmrc_transactions(
         self,
-        transactions: List[BrokerTransaction],
-    ) -> Tuple[HmrcTransactionLog, HmrcTransactionLog]:
+        transactions: list[BrokerTransaction],
+    ) -> tuple[HmrcTransactionLog, HmrcTransactionLog]:
         """Convert broker transactions to HMRC transactions."""
         # We keep a balance per broker,currency pair
-        balance: Dict[Tuple[str, str], Decimal] = defaultdict(lambda: Decimal(0))
+        balance: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal(0))
         dividends = Decimal(0)
         dividends_tax = Decimal(0)
         interest = Decimal(0)
         total_sells = Decimal(0)
-        portfolio: Dict[str, Decimal] = {}
+        portfolio: dict[str, Decimal] = {}
         acquisition_list: HmrcTransactionLog = {}
         disposal_list: HmrcTransactionLog = {}
 
@@ -287,10 +288,10 @@ class CapitalGainsCalculator:
     def process_acquisition(
         acquisition_list: HmrcTransactionLog,
         bed_and_breakfast_list: HmrcTransactionLog,
-        portfolio: Dict[str, Tuple[Decimal, Decimal]],
+        portfolio: dict[str, tuple[Decimal, Decimal]],
         symbol: str,
         date_index: int,
-    ) -> List[CalculationEntry]:
+    ) -> list[CalculationEntry]:
         """Process single acquisition."""
         acquisition_quantity, acquisition_amount, acquisition_fees = acquisition_list[
             date_index
@@ -355,10 +356,10 @@ class CapitalGainsCalculator:
         acquisition_list: HmrcTransactionLog,
         disposal_list: HmrcTransactionLog,
         bed_and_breakfast_list: HmrcTransactionLog,
-        portfolio: Dict[str, Tuple[Decimal, Decimal]],
+        portfolio: dict[str, tuple[Decimal, Decimal]],
         symbol: str,
         date_index: int,
-    ) -> Tuple[Decimal, List[CalculationEntry]]:
+    ) -> tuple[Decimal, list[CalculationEntry]]:
         """Process single disposal."""
         disposal_quantity, proceeds_amount, disposal_fees = disposal_list[date_index][
             symbol
@@ -544,7 +545,7 @@ class CapitalGainsCalculator:
         capital_gain = Decimal(0)
         capital_loss = Decimal(0)
         bed_and_breakfast_list: HmrcTransactionLog = {}
-        portfolio: Dict[str, Tuple[Decimal, Decimal]] = {}
+        portfolio: dict[str, tuple[Decimal, Decimal]] = {}
         calculation_log: CalculationLog = {}
         for date_index in range(begin_index, end_index + 1):
             if date_index in acquisition_list:

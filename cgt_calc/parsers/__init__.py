@@ -1,10 +1,11 @@
 """Parse input files."""
+from __future__ import annotations
+
 import csv
 import datetime
 from decimal import Decimal
 import importlib.resources
 import operator
-from typing import Dict, List, Optional
 
 from cgt_calc.const import DEFAULT_GBP_HISTORY_FILE, DEFAULT_INITIAL_PRICES_FILE
 from cgt_calc.dates import date_to_index
@@ -19,7 +20,7 @@ from .trading212 import read_trading212_transactions
 class InitialPricesEntry:
     """Entry from initial stock prices file."""
 
-    def __init__(self, row: List[str], file: str):
+    def __init__(self, row: list[str], file: str):
         """Create entry from CSV row."""
         if len(row) != 3:
             raise UnexpectedColumnCountError(row, 3, file)
@@ -39,9 +40,9 @@ class InitialPricesEntry:
 
 
 def read_broker_transactions(
-    schwab_transactions_file: Optional[str],
-    trading212_transactions_folder: Optional[str],
-) -> List[BrokerTransaction]:
+    schwab_transactions_file: str | None,
+    trading212_transactions_folder: str | None,
+) -> list[BrokerTransaction]:
     """Read transactions for all brokers."""
     transactions = []
     if schwab_transactions_file is not None:
@@ -56,9 +57,9 @@ def read_broker_transactions(
     return transactions
 
 
-def read_gbp_prices_history(gbp_history_file: Optional[str]) -> Dict[int, Decimal]:
+def read_gbp_prices_history(gbp_history_file: str | None) -> dict[int, Decimal]:
     """Read GBP/USD history from CSV file."""
-    gbp_history: Dict[int, Decimal] = {}
+    gbp_history: dict[int, Decimal] = {}
     if gbp_history_file is None:
         csv_file = importlib.resources.open_text(
             RESOURCES_PACKAGE, DEFAULT_GBP_HISTORY_FILE
@@ -78,10 +79,10 @@ def read_gbp_prices_history(gbp_history_file: Optional[str]) -> Dict[int, Decima
 
 
 def read_initial_prices(
-    initial_prices_file: Optional[str],
-) -> Dict[DateIndex, Dict[str, Decimal]]:
+    initial_prices_file: str | None,
+) -> dict[DateIndex, dict[str, Decimal]]:
     """Read initial stock prices from CSV file."""
-    initial_prices: Dict[DateIndex, Dict[str, Decimal]] = {}
+    initial_prices: dict[DateIndex, dict[str, Decimal]] = {}
     if initial_prices_file is None:
         csv_file = importlib.resources.open_text(
             RESOURCES_PACKAGE, DEFAULT_INITIAL_PRICES_FILE

@@ -1,8 +1,9 @@
 """Initial stock prices."""
+from __future__ import annotations
+
 from dataclasses import dataclass
 import datetime
 from decimal import Decimal
-from typing import Dict
 
 from .dates import date_to_index, is_date
 from .exceptions import ExchangeRateMissingError
@@ -13,7 +14,7 @@ from .model import DateIndex
 class InitialPrices:
     """Class to store initial stock prices."""
 
-    initial_prices: Dict[DateIndex, Dict[str, Decimal]]
+    initial_prices: dict[DateIndex, dict[str, Decimal]]
 
     def get(self, date: datetime.date, symbol: str) -> Decimal:
         """Get initial stock price at given date."""

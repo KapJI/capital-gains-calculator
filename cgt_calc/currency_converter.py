@@ -1,7 +1,8 @@
 """Covert currency to GBP using price history."""
+from __future__ import annotations
+
 import datetime
 from decimal import Decimal
-from typing import Dict
 
 from .dates import date_to_index, is_date
 from .exceptions import ExchangeRateMissingError
@@ -11,7 +12,7 @@ from .model import BrokerTransaction
 class CurrencyConverter:
     """Coverter which holds price history."""
 
-    def __init__(self, gbp_history: Dict[int, Decimal]):
+    def __init__(self, gbp_history: dict[int, Decimal]):
         """Create from GBP/USD price history."""
         self.gbp_history = gbp_history
 

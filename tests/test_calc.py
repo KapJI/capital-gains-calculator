@@ -1,9 +1,10 @@
 """Unit and integration tests."""
+from __future__ import annotations
+
 import datetime
 from decimal import Decimal
 import os
 import subprocess
-from typing import Dict, List, Optional
 
 import pytest
 
@@ -16,7 +17,7 @@ from cgt_calc.util import round_decimal
 
 
 def get_report(
-    calculator: CapitalGainsCalculator, broker_transactions: List[BrokerTransaction]
+    calculator: CapitalGainsCalculator, broker_transactions: list[BrokerTransaction]
 ) -> CapitalGainsReport:
     """Get calculation report."""
     acquisition_list, disposal_list = calculator.convert_to_hmrc_transactions(
@@ -202,9 +203,9 @@ test_basic_data = [
 )
 def test_basic(
     tax_year: int,
-    broker_transactions: List[BrokerTransaction],
+    broker_transactions: list[BrokerTransaction],
     expected: float,
-    gbp_prices: Optional[Dict[int, Decimal]],
+    gbp_prices: dict[int, Decimal] | None,
 ) -> None:
     """Generate basic tests for test data."""
     if gbp_prices is None:
@@ -238,7 +239,7 @@ def test_run_with_example_files() -> None:
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"
     expected_file = os.path.join("tests", "test_run_with_example_files_output.txt")
-    with open(expected_file, "r") as file:
+    with open(expected_file) as file:
         expected = file.read()
     cmd_str = " ".join([param if param else "''" for param in cmd])
     assert result.stdout.decode("utf-8") == expected, (
