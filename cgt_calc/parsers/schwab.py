@@ -1,8 +1,9 @@
 """Charles Schwab parser."""
+from __future__ import annotations
+
 import csv
 import datetime
 from decimal import Decimal
-from typing import List
 
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
@@ -57,7 +58,7 @@ def action_from_str(label: str) -> ActionType:
 class SchwabTransaction(BrokerTransaction):
     """Represent single Schwab transaction."""
 
-    def __init__(self, row: List[str], file: str):
+    def __init__(self, row: list[str], file: str):
         """Create transaction from CSV row."""
         if len(row) != 9:
             raise UnexpectedColumnCountError(row, 9, file)
@@ -94,7 +95,7 @@ class SchwabTransaction(BrokerTransaction):
         )
 
 
-def read_schwab_transactions(transactions_file: str) -> List[BrokerTransaction]:
+def read_schwab_transactions(transactions_file: str) -> list[BrokerTransaction]:
     """Read Schwab transactions from file."""
     try:
         with open(transactions_file) as csv_file:

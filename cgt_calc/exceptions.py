@@ -1,7 +1,8 @@
 """Exceptions to different errors."""
+from __future__ import annotations
+
 import datetime
 from decimal import Decimal
-from typing import List
 
 from .model import BrokerTransaction
 
@@ -60,7 +61,7 @@ class QuantityNotPositiveError(InvalidTransactionError):
 class UnexpectedColumnCountError(ParsingError):
     """Unexpected column error."""
 
-    def __init__(self, row: List[str], count: int, file: str):
+    def __init__(self, row: list[str], count: int, file: str):
         """Initialise."""
         super().__init__(
             file, f"The following row doesn't have {count} columns:\n{row}"

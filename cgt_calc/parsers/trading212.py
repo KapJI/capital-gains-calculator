@@ -1,14 +1,16 @@
 """Trading 212 parser."""
+from __future__ import annotations
+
 import csv
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Final, List, Optional, Tuple
+from typing import Final
 
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
 
-COLUMNS: Final[List[str]] = [
+COLUMNS: Final[list[str]] = [
     "Action",
     "Time",
     "ISIN",
@@ -30,7 +32,7 @@ COLUMNS: Final[List[str]] = [
 ]
 
 
-def decimal_or_none(val: str) -> Optional[Decimal]:
+def decimal_or_none(val: str) -> Decimal | None:
     """Convert value to Decimal."""
     return Decimal(val) if val not in ["", "Not available"] else None
 
@@ -64,7 +66,7 @@ def action_from_str(label: str, filename: str) -> ActionType:
 class Trading212Transaction(BrokerTransaction):
     """Represent single Trading 212 transaction."""
 
-    def __init__(self, row_raw: List[str], filename: str):
+    def __init__(self, row_raw: list[str], filename: str):
         """Create transaction from CSV row."""
         if len(COLUMNS) != len(row_raw):
             raise UnexpectedColumnCountError(row_raw, len(COLUMNS), filename)
@@ -121,7 +123,7 @@ class Trading212Transaction(BrokerTransaction):
         return hash(self.transaction_id)
 
 
-def validate_header(header: List[str], filename: str) -> None:
+def validate_header(header: list[str], filename: str) -> None:
     """Check if header is valid."""
     if len(COLUMNS) != len(header):
         raise UnexpectedColumnCountError(header, len(COLUMNS), filename)
@@ -131,7 +133,7 @@ def validate_header(header: List[str], filename: str) -> None:
             raise ParsingError(msg, filename)
 
 
-def by_date_and_action(transaction: Trading212Transaction) -> Tuple[datetime, bool]:
+def by_date_and_action(transaction: Trading212Transaction) -> tuple[datetime, bool]:
     """Sort by date and action type."""
 
     # If there's a deposit in the same second as a buy
@@ -140,7 +142,7 @@ def by_date_and_action(transaction: Trading212Transaction) -> Tuple[datetime, bo
     return (transaction.datetime, transaction.action == ActionType.BUY)
 
 
-def read_trading212_transactions(transactions_folder: str) -> List[BrokerTransaction]:
+def read_trading212_transactions(transactions_folder: str) -> list[BrokerTransaction]:
     """Parse Trading 212 transactions from CSV file."""
     transactions = []
     for file in Path(transactions_folder).glob("*.csv"):

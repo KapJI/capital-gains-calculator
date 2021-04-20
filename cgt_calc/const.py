@@ -1,10 +1,12 @@
 """Constants."""
+from __future__ import annotations
+
 import datetime
-from typing import Dict, Final
+from typing import Final
 
 # Allowances from
 # https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances#tax-free-allowances-for-capital-gains-tax
-CAPITAL_GAIN_ALLOWANCES: Final[Dict[int, int]] = {
+CAPITAL_GAIN_ALLOWANCES: Final[dict[int, int]] = {
     2014: 11000,
     2015: 11100,
     2016: 11100,

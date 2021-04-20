@@ -1,9 +1,11 @@
 """Model classes."""
+from __future__ import annotations
+
 from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 from .util import round_decimal
 
@@ -33,12 +35,12 @@ class BrokerTransaction:
 
     date: datetime.date
     action: ActionType
-    symbol: Optional[str]
+    symbol: str | None
     description: str
-    quantity: Optional[Decimal]
-    price: Optional[Decimal]
+    quantity: Decimal | None
+    price: Decimal | None
     fees: Decimal
-    amount: Optional[Decimal]
+    amount: Decimal | None
     currency: str
     broker: str
 
@@ -62,8 +64,8 @@ class CalculationEntry:
         fees: Decimal,
         new_quantity: Decimal,
         new_pool_cost: Decimal,
-        gain: Optional[Decimal] = None,
-        allowable_cost: Optional[Decimal] = None,
+        gain: Decimal | None = None,
+        allowable_cost: Decimal | None = None,
         bed_and_breakfast_date_index: int = 0,
     ):
         """Create calculation entry."""
@@ -101,13 +103,13 @@ class CapitalGainsReport:
     """Store calculated report."""
 
     tax_year: int
-    portfolio: Dict[str, Tuple[Decimal, Decimal]]
+    portfolio: dict[str, tuple[Decimal, Decimal]]
     disposal_count: int
     disposal_proceeds: Decimal
     allowable_costs: Decimal
     capital_gain: Decimal
     capital_loss: Decimal
-    capital_gain_allowance: Optional[Decimal]
+    capital_gain_allowance: Decimal | None
     calculation_log: CalculationLog
 
     def total_gain(self) -> Decimal:
