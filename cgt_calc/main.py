@@ -11,9 +11,9 @@ from typing import Dict, List, Tuple
 
 from . import render_latex
 from .args_parser import create_parser
-from .const import CAPITAL_GAIN_ALLOWANCES
+from .const import CAPITAL_GAIN_ALLOWANCES, INTERNAL_START_DATE
 from .currency_converter import CurrencyConverter
-from .dates import date_from_index, date_to_index, internal_start_date, is_date
+from .dates import date_from_index, date_to_index, is_date
 from .exceptions import (
     AmountMissingError,
     CalculatedAmountDiscrepancy,
@@ -535,7 +535,7 @@ class CapitalGainsCalculator:
         disposal_list: HmrcTransactionLog,
     ) -> CapitalGainsReport:
         """Calculate capital gain and return generated report."""
-        begin_index = date_to_index(internal_start_date)
+        begin_index = date_to_index(INTERNAL_START_DATE)
         tax_year_start_index = date_to_index(self.tax_year_start_date)
         end_index = date_to_index(self.tax_year_end_date)
         disposal_count = 0
@@ -662,7 +662,6 @@ def main() -> int:
         render_latex.render_calculations(
             report.calculation_log,
             tax_year=report.tax_year,
-            date_from_index=date_from_index,
             output_file=args.report,
         )
     print("All done!")

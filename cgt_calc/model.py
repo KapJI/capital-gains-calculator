@@ -5,8 +5,10 @@ from decimal import Decimal
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
-from .dates import DateIndex
 from .util import round_decimal
+
+# Number of days from some unspecified fixed date
+DateIndex = int
 
 
 class ActionType(Enum):
@@ -108,16 +110,16 @@ class CapitalGainsReport:
     capital_gain_allowance: Optional[Decimal]
     calculation_log: CalculationLog
 
-    def total_gain(self):
+    def total_gain(self) -> Decimal:
         """Total capital gain."""
         return self.capital_gain + self.capital_loss
 
-    def taxable_gain(self):
+    def taxable_gain(self) -> Decimal:
         """Taxable gain with current allowance."""
         assert self.capital_gain_allowance is not None
         return max(Decimal(0), self.total_gain() - self.capital_gain_allowance)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return string representation."""
         out = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year:\n"
         for symbol, (quantity, amount) in self.portfolio.items():

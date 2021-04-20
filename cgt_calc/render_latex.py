@@ -7,12 +7,13 @@ import tempfile
 import jinja2
 
 from .const import PACKAGE_NAME, TEMPLATE_NAME
+from .dates import date_from_index
 from .model import CalculationLog
 from .util import round_decimal
 
 
 def render_calculations(
-    calculation_log: CalculationLog, tax_year: int, date_from_index, output_file: str
+    calculation_log: CalculationLog, tax_year: int, output_file: str
 ) -> None:
     """Render PDF report."""
     print("Generate calculations report")
