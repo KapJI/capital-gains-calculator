@@ -13,7 +13,7 @@ from typing import Dict, Tuple
 
 from . import render_latex
 from .args_parser import create_parser
-from .const import CAPITAL_GAIN_ALLOWANCES, INTERNAL_START_DATE
+from .const import BED_AND_BREAKFAST_DAYS, CAPITAL_GAIN_ALLOWANCES, INTERNAL_START_DATE
 from .currency_converter import CurrencyConverter
 from .dates import date_from_index, date_to_index, is_date
 from .exceptions import (
@@ -377,17 +377,7 @@ class CapitalGainsCalculator:
             same_day_quantity, same_day_amount, same_day_fees = acquisition_list[
                 date_index
             ][symbol]
-            bed_and_breakfast_quantity = Decimal(0)
-            if has_key(bed_and_breakfast_list, date_index, symbol):
-                (
-                    bed_and_breakfast_quantity,
-                    _bb_amount,
-                    _bb_fees,
-                ) = bed_and_breakfast_list[date_index][symbol]
-            assert bed_and_breakfast_quantity <= same_day_quantity
-            available_quantity = min(
-                disposal_quantity, same_day_quantity - bed_and_breakfast_quantity
-            )
+            available_quantity = min(disposal_quantity, same_day_quantity)
             if available_quantity > 0:
                 acquisition_price = same_day_amount / same_day_quantity
                 same_day_proceeds = available_quantity * disposal_price
@@ -424,7 +414,7 @@ class CapitalGainsCalculator:
 
         # Bed and breakfast rule next
         if disposal_quantity > 0:
-            for i in range(30):
+            for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = date_index + i + 1
                 if has_key(acquisition_list, search_index, symbol):
                     (
@@ -432,6 +422,7 @@ class CapitalGainsCalculator:
                         acquisition_amount,
                         acquisition_fees,
                     ) = acquisition_list[search_index][symbol]
+
                     bed_and_breakfast_quantity = Decimal(0)
                     if has_key(bed_and_breakfast_list, search_index, symbol):
                         (
@@ -440,9 +431,24 @@ class CapitalGainsCalculator:
                             _bb_fees,
                         ) = bed_and_breakfast_list[search_index][symbol]
                     assert bed_and_breakfast_quantity <= acquisition_quantity
+
+                    same_day_quantity = Decimal(0)
+                    if has_key(disposal_list, search_index, symbol):
+                        (
+                            same_day_quantity,
+                            _same_day_amount,
+                            _same_day_fees,
+                        ) = disposal_list[search_index][symbol]
+                    assert same_day_quantity <= acquisition_quantity
+
                     # This can be some management fee entry or already used
                     # by bed and breakfast rule
-                    if acquisition_quantity - bed_and_breakfast_quantity == 0:
+                    if (
+                        acquisition_quantity
+                        - same_day_quantity
+                        - bed_and_breakfast_quantity
+                        == 0
+                    ):
                         continue
                     print(
                         f"WARNING: Bed and breakfasting for {symbol}."
@@ -451,7 +457,9 @@ class CapitalGainsCalculator:
                     )
                     available_quantity = min(
                         disposal_quantity,
-                        acquisition_quantity - bed_and_breakfast_quantity,
+                        acquisition_quantity
+                        - same_day_quantity
+                        - bed_and_breakfast_quantity,
                     )
                     acquisition_price = acquisition_amount / acquisition_quantity
                     bed_and_breakfast_proceeds = available_quantity * disposal_price
