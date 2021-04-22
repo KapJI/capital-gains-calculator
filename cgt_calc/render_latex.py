@@ -48,7 +48,7 @@ def render_calculations(
     # In case of testing
     if skip_pdflatex:
         return
-    current_directory = os.path.abspath(".")
+    current_directory = os.getcwd()
     output_filename = "calculations"
     subprocess.run(
         [
