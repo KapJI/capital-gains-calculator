@@ -5,12 +5,15 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from .util import round_decimal
 
 # Number of days from some unspecified fixed date
 DateIndex = int
+
+# For mapping of dates to int
+HmrcTransactionLog = Dict[int, Dict[str, Tuple[Decimal, Decimal, Decimal]]]
 
 
 class ActionType(Enum):

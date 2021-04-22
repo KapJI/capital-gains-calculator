@@ -23,12 +23,17 @@
     \BLOCK{ set is_disposal = False }
 \BLOCK{ endif }
 \BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
+\BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
 \BLOCK{ if is_disposal }
     \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount"), 2) }
     \BLOCK{ set total_proceeds.value = total_proceeds.value + overall_disposed }
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
-    \subsection*{Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } shares of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }}
+    \subsection*{Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } shares of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }%
+        \BLOCK{ if overall_fees > 0 }
+            , after £\VAR{ "{:,}".format(overall_fees) } fees
+        \BLOCK{ endif }
+    }
     \BLOCK{ if overall_gain > 0 -}
         Chargeable \textbf{gain} is £\VAR{ "{:,}".format(overall_gain) }
 
@@ -44,7 +49,12 @@
     \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
     \BLOCK{ if overall_quantity > 0 }
         \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
-        \subsection*{Acquisition \VAR{ acquisition_count.value }: \VAR{ strip_zeros(overall_quantity) } shares of \VAR{ symbol } for £\VAR{ "{:,}".format(acquisition_cost) }}
+        \subsection*{
+            Acquisition \VAR{ acquisition_count.value }: \VAR{ strip_zeros(overall_quantity) } shares of \VAR{ symbol } for £\VAR{ "{:,}".format(acquisition_cost) }%
+            \BLOCK{ if overall_fees > 0 }
+                , including £\VAR{ "{:,}".format(overall_fees) } fees
+            \BLOCK{ endif }
+        }
     \BLOCK{ else }
         \subsection*{Management fee for \VAR{ symbol } of £\VAR{ "{:,}".format(acquisition_cost) }}
     \BLOCK{ endif}

@@ -10,7 +10,6 @@ import importlib.metadata
 import logging
 from pathlib import Path
 import sys
-from typing import Dict, Tuple
 
 from . import render_latex
 from .args_parser import create_parser
@@ -39,6 +38,7 @@ from .model import (
     CalculationEntry,
     CalculationLog,
     CapitalGainsReport,
+    HmrcTransactionLog,
     RuleType,
 )
 from .parsers import (
@@ -46,17 +46,10 @@ from .parsers import (
     read_gbp_prices_history,
     read_initial_prices,
 )
+from .transaction_log import add_to_list, has_key
 from .util import round_decimal
 
-# For mapping of dates to int
-HmrcTransactionLog = Dict[int, Dict[str, Tuple[Decimal, Decimal, Decimal]]]
-
 LOGGER = logging.getLogger(__name__)
-
-
-def has_key(transactions: HmrcTransactionLog, date_index: int, symbol: str) -> bool:
-    """Check if transaction log has entry for date_index and symbol."""
-    return date_index in transactions and symbol in transactions[date_index]
 
 
 class CapitalGainsCalculator:
@@ -78,29 +71,6 @@ class CapitalGainsCalculator:
         """Check if date is within current tax year."""
         assert is_date(date)
         return self.tax_year_start_date <= date <= self.tax_year_end_date
-
-    @staticmethod
-    def add_to_list(
-        current_list: HmrcTransactionLog,
-        date_index: int,
-        symbol: str,
-        quantity: Decimal,
-        amount: Decimal,
-        fees: Decimal,
-    ) -> None:
-        """Add entry to given transaction log."""
-        if date_index not in current_list:
-            current_list[date_index] = {}
-        if symbol not in current_list[date_index]:
-            current_list[date_index][symbol] = (Decimal(0), Decimal(0), Decimal(0))
-        current_quantity, current_amount, current_fees = current_list[date_index][
-            symbol
-        ]
-        current_list[date_index][symbol] = (
-            current_quantity + quantity,
-            current_amount + amount,
-            current_fees + fees,
-        )
 
     def add_acquisition(
         self,
@@ -134,7 +104,7 @@ class CapitalGainsCalculator:
             if transaction.amount != -calculated_amount:
                 raise CalculatedAmountDiscrepancy(transaction, -calculated_amount)
             amount = -transaction.amount
-        CapitalGainsCalculator.add_to_list(
+        add_to_list(
             acquisition_list,
             date_to_index(transaction.date),
             symbol,
@@ -180,7 +150,7 @@ class CapitalGainsCalculator:
         )
         if amount != calculated_amount:
             raise CalculatedAmountDiscrepancy(transaction, calculated_amount)
-        CapitalGainsCalculator.add_to_list(
+        add_to_list(
             disposal_list,
             date_to_index(transaction.date),
             symbol,
@@ -233,7 +203,7 @@ class CapitalGainsCalculator:
                 gbp_fees = self.converter.to_gbp_for(transaction.fees, transaction)
                 if transaction.symbol is None:
                     raise SymbolMissingError(transaction)
-                CapitalGainsCalculator.add_to_list(
+                add_to_list(
                     acquisition_list,
                     date_to_index(transaction.date),
                     transaction.symbol,
@@ -315,18 +285,22 @@ class CapitalGainsCalculator:
         assert acquisition_amount > 0
         bed_and_breakfast_quantity = Decimal(0)
         bed_and_breakfast_amount = Decimal(0)
+        bed_and_breakfast_fees = Decimal(0)
         if acquisition_quantity > 0:
             acquisition_price = acquisition_amount / acquisition_quantity
             if has_key(bed_and_breakfast_list, date_index, symbol):
                 (
                     bed_and_breakfast_quantity,
                     bed_and_breakfast_amount,
-                    bed_and_breakfast_fees,
+                    _bed_and_breakfast_fees,
                 ) = bed_and_breakfast_list[date_index][symbol]
                 assert bed_and_breakfast_quantity <= acquisition_quantity
                 acquisition_amount -= bed_and_breakfast_quantity * acquisition_price
                 acquisition_amount += bed_and_breakfast_amount
                 assert acquisition_amount > 0
+                bed_and_breakfast_fees = (
+                    acquisition_fees * bed_and_breakfast_quantity / acquisition_quantity
+                )
                 calculation_entries.append(
                     CalculationEntry(
                         rule_type=RuleType.BED_AND_BREAKFAST,
@@ -353,7 +327,7 @@ class CapitalGainsCalculator:
                     amount=-(acquisition_amount - bed_and_breakfast_amount),
                     new_quantity=current_quantity + acquisition_quantity,
                     new_pool_cost=current_amount + acquisition_amount,
-                    fees=acquisition_fees,
+                    fees=acquisition_fees - bed_and_breakfast_fees,
                     allowable_cost=original_acquisition_amount,
                 )
             )
@@ -372,6 +346,7 @@ class CapitalGainsCalculator:
         disposal_quantity, proceeds_amount, disposal_fees = disposal_list[date_index][
             symbol
         ]
+        original_disposal_quantity = disposal_quantity
         disposal_price = proceeds_amount / disposal_quantity
         current_quantity, current_amount = portfolio[symbol]
         assert disposal_quantity <= current_quantity
@@ -379,7 +354,7 @@ class CapitalGainsCalculator:
         calculation_entries = []
         # Same day rule is first
         if has_key(acquisition_list, date_index, symbol):
-            same_day_quantity, same_day_amount, same_day_fees = acquisition_list[
+            same_day_quantity, same_day_amount, _same_day_fees = acquisition_list[
                 date_index
             ][symbol]
             available_quantity = min(disposal_quantity, same_day_quantity)
@@ -404,6 +379,7 @@ class CapitalGainsCalculator:
                 current_amount -= available_quantity * acquisition_price
                 if current_quantity == 0:
                     assert current_amount == 0, f"current amount {current_amount}"
+                fees = disposal_fees * available_quantity / original_disposal_quantity
                 calculation_entries.append(
                     CalculationEntry(
                         rule_type=RuleType.SAME_DAY,
@@ -411,7 +387,7 @@ class CapitalGainsCalculator:
                         amount=same_day_proceeds,
                         gain=same_day_gain,
                         allowable_cost=same_day_allowable_cost,
-                        fees=same_day_fees,
+                        fees=fees,
                         new_quantity=current_quantity,
                         new_pool_cost=current_amount,
                     )
@@ -425,7 +401,7 @@ class CapitalGainsCalculator:
                     (
                         acquisition_quantity,
                         acquisition_amount,
-                        acquisition_fees,
+                        _acquisition_fees,
                     ) = acquisition_list[search_index][symbol]
 
                     bed_and_breakfast_quantity = Decimal(0)
@@ -491,13 +467,16 @@ class CapitalGainsCalculator:
                     current_amount -= amount_delta
                     if current_quantity == 0:
                         assert current_amount == 0, f"current amount {current_amount}"
-                    CapitalGainsCalculator.add_to_list(
+                    add_to_list(
                         bed_and_breakfast_list,
                         search_index,
                         symbol,
                         available_quantity,
                         amount_delta,
                         Decimal(0),
+                    )
+                    fees = (
+                        disposal_fees * available_quantity / original_disposal_quantity
                     )
                     calculation_entries.append(
                         CalculationEntry(
@@ -506,8 +485,7 @@ class CapitalGainsCalculator:
                             amount=bed_and_breakfast_proceeds,
                             gain=bed_and_breakfast_gain,
                             allowable_cost=bed_and_breakfast_allowable_cost,
-                            # TODO: support fees
-                            fees=acquisition_fees,
+                            fees=fees,
                             bed_and_breakfast_date_index=search_index,
                             new_quantity=current_quantity,
                             new_pool_cost=current_amount,
@@ -532,6 +510,7 @@ class CapitalGainsCalculator:
                 assert (
                     round_decimal(current_amount, 10) == 0
                 ), f"current amount {current_amount}"
+            fees = disposal_fees * disposal_quantity / original_disposal_quantity
             calculation_entries.append(
                 CalculationEntry(
                     rule_type=RuleType.SECTION_104,
@@ -539,8 +518,7 @@ class CapitalGainsCalculator:
                     amount=proceeds_amount,
                     gain=proceeds_amount - allowable_cost,
                     allowable_cost=allowable_cost,
-                    # CHECK THIS!
-                    fees=disposal_fees,
+                    fees=fees,
                     new_quantity=current_quantity,
                     new_pool_cost=current_amount,
                 )

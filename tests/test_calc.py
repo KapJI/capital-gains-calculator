@@ -642,9 +642,9 @@ def test_basic(
                         result_entry.bed_and_breakfast_date_index
                         == expected_entry.bed_and_breakfast_date_index
                     )
-                    # assert round_decimal(result_entry.fees, 4) == round_decimal(
-                    #     expected_entry.fees, 4
-                    # )
+                    assert round_decimal(result_entry.fees, 4) == round_decimal(
+                        expected_entry.fees, 4
+                    )
 
 
 def test_run_with_example_files() -> None:
