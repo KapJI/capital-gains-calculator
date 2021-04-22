@@ -1,6 +1,7 @@
 """Render PDF report with LaTeX."""
 from decimal import Decimal
 import os
+from pathlib import Path
 import subprocess
 import tempfile
 
@@ -15,7 +16,7 @@ from .util import round_decimal
 def render_calculations(
     calculation_log: CalculationLog,
     tax_year: int,
-    output_file: str,
+    output_path: Path,
     skip_pdflatex: bool = False,
 ) -> None:
     """Render PDF report."""
@@ -48,7 +49,7 @@ def render_calculations(
     # In case of testing
     if skip_pdflatex:
         return
-    current_directory = os.getcwd()
+    current_directory = Path.cwd()
     output_filename = "calculations"
     subprocess.run(
         [
@@ -61,7 +62,7 @@ def render_calculations(
         check=True,
         stdout=subprocess.DEVNULL,
     )
-    os.remove(generated_file)
-    os.remove(f"{output_filename}.log")
-    os.remove(f"{output_filename}.aux")
-    os.rename(output_filename + ".pdf", output_file)
+    Path(generated_file).unlink()
+    Path(f"{output_filename}.log").unlink()
+    Path(f"{output_filename}.aux").unlink()
+    Path(f"{output_filename}.pdf").replace(output_path)

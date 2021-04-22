@@ -8,6 +8,7 @@ import decimal
 from decimal import Decimal
 import importlib.metadata
 import logging
+from pathlib import Path
 import sys
 from typing import Dict, Tuple
 
@@ -687,7 +688,7 @@ def main() -> int:
         render_latex.render_calculations(
             report.calculation_log,
             tax_year=report.tax_year,
-            output_file=args.report,
+            output_path=Path(args.report),
             skip_pdflatex=args.no_pdflatex,
         )
     print("All done!")
