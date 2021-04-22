@@ -67,15 +67,15 @@
     \BLOCK{ endif }
     allowable
     \BLOCK{ if entry.rule_type.name == "BED_AND_BREAKFAST" }
-        cost on \VAR{ date_from_index(entry.bed_and_breakfast_date_index).strftime("%d %b %Y") }:
+        cost on \mbox{\VAR{ date_from_index(entry.bed_and_breakfast_date_index).strftime("%d %b %Y") }:}
     \BLOCK{ else }
         cost:
     \BLOCK{ endif }
     £\VAR{ "{:,}".format(round_decimal(entry.allowable_cost, 2)) },
     \BLOCK{ if entry.gain > 0}
-        gain: £\VAR{ "{:,}".format(round_decimal(entry.gain, 2)) }.
+        \mbox{gain: £\VAR{ "{:,}".format(round_decimal(entry.gain, 2)) }.}
     \BLOCK{ else }
-        loss: £\VAR{ "{:,}".format(round_decimal(-entry.gain, 2)) }.
+        \mbox{loss: £\VAR{ "{:,}".format(round_decimal(-entry.gain, 2)) }.}
     \BLOCK{ endif }
 \BLOCK{ else } % if is_aquisition
     actual cost: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2)) }.
