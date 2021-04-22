@@ -34,3 +34,5 @@ DEFAULT_INITIAL_PRICES_FILE: Final = "initial_prices.csv"
 
 # Latex template for calculations report
 TEMPLATE_NAME: Final = "template.tex.j2"
+
+BED_AND_BREAKFAST_DAYS: Final = 30
