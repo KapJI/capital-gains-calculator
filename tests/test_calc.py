@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
-import os
+from pathlib import Path
 import subprocess
 
 import pytest
@@ -404,11 +404,10 @@ def test_run_with_example_files() -> None:
     ]
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"
-    expected_file = os.path.join(
-        "tests", "test_data", "test_run_with_example_files_output.txt"
+    expected_file = (
+        Path("tests") / "test_data" / "test_run_with_example_files_output.txt"
     )
-    with open(expected_file) as file:
-        expected = file.read()
+    expected = expected_file.read_text()
     cmd_str = " ".join([param if param else "''" for param in cmd])
     assert result.stdout.decode("utf-8") == expected, (
         "Run with example files generated unexpected outputs, "
