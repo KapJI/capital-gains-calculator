@@ -123,7 +123,33 @@ test_basic_data = [
         ],
         1.00,  # Expected capital gain/loss
         None,
-        None,
+        {
+            date_to_index(datetime.date(day=1, month=5, year=2020)): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(3),
+                        amount=Decimal(-16),
+                        allowable_cost=Decimal(16),
+                        fees=Decimal(1),
+                        new_quantity=Decimal(3),
+                        new_pool_cost=Decimal(16),
+                    ),
+                ],
+                "sell$FOO": [
+                    CalculationEntry(
+                        RuleType.SAME_DAY,
+                        quantity=Decimal(3),
+                        amount=Decimal(17),
+                        gain=Decimal(1),
+                        allowable_cost=Decimal(16),
+                        fees=Decimal(1),
+                        new_quantity=Decimal(0),
+                        new_pool_cost=Decimal(0),
+                    ),
+                ],
+            },
+        },
         id="same_day_gain",
     ),
     pytest.param(
@@ -166,7 +192,36 @@ test_basic_data = [
         # exact amount would be £629+2/3
         629.66,  # Expected capital gain/loss
         None,
-        None,
+        {
+            date_to_index(datetime.date(day=1, month=5, year=2020)): {
+                "sell$LOB": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(700),
+                        amount=Decimal(3260),
+                        gain=Decimal("329.3333"),
+                        allowable_cost=Decimal("2930.6667"),
+                        fees=Decimal(100),
+                        new_quantity=Decimal(800),
+                        new_pool_cost=Decimal("3349.3333"),
+                    ),
+                ],
+            },
+            date_to_index(datetime.date(day=1, month=2, year=2021)): {
+                "sell$LOB": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(400),
+                        amount=Decimal(1975),
+                        gain=Decimal("300.3333"),
+                        allowable_cost=Decimal("1674.6667"),
+                        fees=Decimal(105),
+                        new_quantity=Decimal(400),
+                        new_pool_cost=Decimal("1674.6667"),
+                    ),
+                ],
+            },
+        },
         # https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/972646/HS284_Example_3_2021.pdf
         id="HS284_Example_3_2021",
     ),
@@ -201,7 +256,48 @@ test_basic_data = [
         ],
         -100,  # Expected capital gain/loss
         None,
-        None,
+        {
+            date_to_index(datetime.date(day=30, month=8, year=2020)): {
+                "sell$MSP": [
+                    CalculationEntry(
+                        RuleType.BED_AND_BREAKFAST,
+                        quantity=Decimal(500),
+                        amount=Decimal(750),
+                        gain=Decimal(-100),
+                        allowable_cost=Decimal(850),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(9000),
+                        new_pool_cost=Decimal(13500),
+                        bed_and_breakfast_date_index=date_to_index(
+                            datetime.date(day=11, month=9, year=2020)
+                        ),
+                    ),
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(3500),
+                        amount=Decimal(5250),
+                        gain=Decimal(0),
+                        allowable_cost=Decimal(5250),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(5500),
+                        new_pool_cost=Decimal(8250),
+                    ),
+                ],
+            },
+            date_to_index(datetime.date(day=11, month=9, year=2020)): {
+                "buy$MSP": [
+                    CalculationEntry(
+                        RuleType.BED_AND_BREAKFAST,
+                        quantity=Decimal(500),
+                        amount=Decimal(-750),
+                        allowable_cost=Decimal(850),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(6000),
+                        new_pool_cost=Decimal(9000),
+                    ),
+                ],
+            },
+        },
         # https://www.gov.uk/government/publications/shares-and-capital-gains-tax-hs284-self-assessment-helpsheet/
         id="HS284_Example_2_2021",
     ),
@@ -531,8 +627,8 @@ def test_basic(
                     assert result_entry.quantity == expected_entry.quantity
                     assert result_entry.new_quantity == expected_entry.new_quantity
                     assert round_decimal(
-                        result_entry.new_pool_cost, 10
-                    ) == round_decimal(expected_entry.new_pool_cost, 10)
+                        result_entry.new_pool_cost, 4
+                    ) == round_decimal(expected_entry.new_pool_cost, 4)
                     assert round_decimal(result_entry.gain, 4) == round_decimal(
                         expected_entry.gain, 4
                     )
