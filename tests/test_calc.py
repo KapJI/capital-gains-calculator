@@ -330,6 +330,165 @@ test_basic_data = [
         # Complex case when same day rule should be applied before bed & breakfast.
         id="bed_and_breakfast_vs_same_day",
     ),
+    pytest.param(
+        2020,  # tax year
+        [
+            transfer_transaction(datetime.date(day=1, month=3, year=2021), 6782),
+            buy_transaction(
+                date=datetime.date(day=2, month=3, year=2021),
+                symbol="FOO",
+                quantity=100,
+                price=25,
+                fees=6,
+                amount=-2506,
+            ),
+            buy_transaction(
+                date=datetime.date(day=3, month=3, year=2021),
+                symbol="FOO",
+                quantity=154,
+                price=27.7,
+                fees=10,
+                amount=-4275.8,
+            ),
+            sell_transaction(
+                date=datetime.date(day=3, month=3, year=2021),
+                symbol="FOO",
+                quantity=254,
+                price=28.03,
+                fees=15,
+                amount=7104.62,
+            ),
+            buy_transaction(
+                date=datetime.date(day=6, month=3, year=2021),
+                symbol="FOO",
+                quantity=90,
+                price=28,
+                fees=5,
+                amount=-2525,
+            ),
+            sell_transaction(
+                date=datetime.date(day=6, month=3, year=2021),
+                symbol="FOO",
+                quantity=90,
+                price=27,
+                fees=5,
+                amount=2425,
+            ),
+            buy_transaction(
+                date=datetime.date(day=2, month=4, year=2021),
+                symbol="FOO",
+                quantity=30.5,
+                price=30.2,
+                fees=4,
+                amount=-925.1,
+            ),
+        ],
+        62.05,  # Expected capital gain/loss
+        None,
+        {
+            date_to_index(datetime.date(day=2, month=3, year=2021)): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(100),
+                        amount=Decimal(-2506),
+                        allowable_cost=Decimal(2506),
+                        fees=Decimal(6),
+                        new_quantity=Decimal(100),
+                        new_pool_cost=Decimal(2506),
+                    ),
+                ],
+            },
+            date_to_index(datetime.date(day=3, month=3, year=2021)): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(154),
+                        amount=Decimal("-4275.8"),
+                        allowable_cost=Decimal("4275.8"),
+                        fees=Decimal(10),
+                        new_quantity=Decimal(254),
+                        new_pool_cost=Decimal("6781.8"),
+                    ),
+                ],
+                "sell$FOO": [
+                    CalculationEntry(
+                        RuleType.SAME_DAY,
+                        quantity=Decimal(154),
+                        amount=Decimal("4307.5255"),
+                        gain=Decimal("31.7255"),
+                        allowable_cost=Decimal("4275.8"),
+                        fees=Decimal("9.0945"),
+                        new_quantity=Decimal(100),
+                        new_pool_cost=Decimal(2506),
+                    ),
+                    CalculationEntry(
+                        RuleType.BED_AND_BREAKFAST,
+                        quantity=Decimal(30.5),
+                        amount=Decimal("853.1138"),
+                        gain=Decimal("-71.9862"),
+                        allowable_cost=Decimal("925.1"),
+                        fees=Decimal("1.8012"),
+                        new_quantity=Decimal(69.5),
+                        new_pool_cost=Decimal("1741.67"),
+                        bed_and_breakfast_date_index=date_to_index(
+                            datetime.date(day=2, month=4, year=2021)
+                        ),
+                    ),
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(69.5),
+                        amount=Decimal("1943.9807"),
+                        gain=Decimal("202.3107"),
+                        allowable_cost=Decimal("1741.67"),
+                        fees=Decimal("4.1043"),
+                        new_quantity=Decimal(0),
+                        new_pool_cost=Decimal(0),
+                    ),
+                ],
+            },
+            date_to_index(datetime.date(day=6, month=3, year=2021)): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(90),
+                        amount=Decimal(-2525),
+                        allowable_cost=Decimal(2525),
+                        fees=Decimal(5),
+                        new_quantity=Decimal(90),
+                        new_pool_cost=Decimal(2525),
+                    ),
+                ],
+                "sell$FOO": [
+                    CalculationEntry(
+                        RuleType.SAME_DAY,
+                        quantity=Decimal(90),
+                        amount=Decimal(2425),
+                        gain=Decimal(-100),
+                        allowable_cost=Decimal(2525),
+                        fees=Decimal(5),
+                        new_quantity=Decimal(0),
+                        new_pool_cost=Decimal(0),
+                    ),
+                ],
+            },
+            date_to_index(datetime.date(day=2, month=4, year=2021)): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.BED_AND_BREAKFAST,
+                        quantity=Decimal(30.5),
+                        amount=Decimal("-764.33"),
+                        allowable_cost=Decimal("925.1"),
+                        fees=Decimal(4),
+                        new_quantity=Decimal(30.5),
+                        new_pool_cost=Decimal("764.33"),
+                    ),
+                ],
+            },
+        },
+        # Add real bed & breakfast entries.
+        id="with_bed_and_breakfast",
+    ),
 ]
 
 
@@ -383,6 +542,10 @@ def test_basic(
                     assert round_decimal(
                         result_entry.allowable_cost, 4
                     ) == round_decimal(expected_entry.allowable_cost, 4)
+                    assert (
+                        result_entry.bed_and_breakfast_date_index
+                        == expected_entry.bed_and_breakfast_date_index
+                    )
                     # assert round_decimal(result_entry.fees, 4) == round_decimal(
                     #     expected_entry.fees, 4
                     # )

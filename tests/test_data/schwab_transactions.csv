@@ -1,5 +1,6 @@
 "Transactions  for account XXXX-1234 as of 01/23/2021 14:29:39 ET"
 "Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount",
+"04/02/2021","Buy","FOO","FOO INC","30.5","$30.2","$4","-$925.1",
 "03/06/2021","Sell","FOO","FOO INC","90","$33","$5","$2965",
 "03/06/2021","Buy","FOO","FOO INC","90","$32","$5","-$2885",
 "03/03/2021","Sell","FOO","FOO INC","104","$31","$5","$3219",
