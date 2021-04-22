@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import datetime
 from decimal import Decimal
+from pathlib import Path
 
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
@@ -98,7 +99,7 @@ class SchwabTransaction(BrokerTransaction):
 def read_schwab_transactions(transactions_file: str) -> list[BrokerTransaction]:
     """Read Schwab transactions from file."""
     try:
-        with open(transactions_file) as csv_file:
+        with Path(transactions_file).open() as csv_file:
             lines = list(csv.reader(csv_file))
             lines = lines[2:-1]
             transactions = [SchwabTransaction(row, transactions_file) for row in lines]

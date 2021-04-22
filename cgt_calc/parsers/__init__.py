@@ -6,6 +6,7 @@ import datetime
 from decimal import Decimal
 import importlib.resources
 import operator
+from pathlib import Path
 
 from cgt_calc.const import DEFAULT_GBP_HISTORY_FILE, DEFAULT_INITIAL_PRICES_FILE
 from cgt_calc.dates import date_to_index
@@ -67,7 +68,7 @@ def read_gbp_prices_history(gbp_history_file: str | None) -> dict[int, Decimal]:
         lines = list(csv.reader(csv_file))
         csv_file.close()
     else:
-        with open(gbp_history_file) as csv_file:
+        with Path(gbp_history_file).open() as csv_file:
             lines = list(csv.reader(csv_file))
     lines = lines[1:]
     for row in lines:
@@ -90,7 +91,7 @@ def read_initial_prices(
         lines = list(csv.reader(csv_file))
         csv_file.close()
     else:
-        with open(initial_prices_file) as csv_file:
+        with Path(initial_prices_file).open() as csv_file:
             lines = list(csv.reader(csv_file))
     lines = lines[1:]
     for row in lines:
