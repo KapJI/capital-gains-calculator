@@ -3,15 +3,14 @@
 \usepackage[margin=3cm]{geometry}
 \setlength{\parindent}{0pt} %--don't indent paragraphs
 \begin{document}
-\centerline{\Large\bfseries Capital Gains Tax Calculations for \VAR{ tax_year }-\VAR{ ("{:02d}".format((tax_year + 1) % 100)) }}
+\centerline{\Large\bfseries Capital Gains Tax Calculations for \VAR{ report.tax_year }-\VAR{ ("{:02d}".format((report.tax_year + 1) % 100)) }}
 
-\BLOCK{ set total_proceeds = namespace(value=Decimal(0)) }
 \BLOCK{ set total_gain = namespace(value=Decimal(0)) }
 \BLOCK{ set total_loss = namespace(value=Decimal(0)) }
 \BLOCK{ set acquisition_count = namespace(value=0) }
 \BLOCK{ set disposal_count = namespace(value=0) }
 
-\BLOCK{ for date_index, symbol_dict in calculation_log.items() }
+\BLOCK{ for date_index, symbol_dict in report.calculation_log.items() }
 
 \section*{\VAR{ date_from_index(date_index).strftime("%d %B %Y") }}
 \BLOCK{ for symbol, entries in symbol_dict.items() }
@@ -26,7 +25,6 @@
 \BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
 \BLOCK{ if is_disposal }
     \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount"), 2) }
-    \BLOCK{ set total_proceeds.value = total_proceeds.value + overall_disposed }
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
     \subsection*{Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } shares of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }%
@@ -103,7 +101,7 @@
 \section*{Overall}
 \subsection*{Number of acquisitions: \VAR{ acquisition_count.value }}
 \subsection*{Number of disposals: \VAR{ disposal_count.value }}
-\subsection*{Total disposal proceeds: £\VAR{ "{:,}".format(total_proceeds.value) }}
+\subsection*{Total disposal proceeds: £\VAR{ "{:,}".format(report.disposal_proceeds) }}
 \subsection*{Total capital gain before loss: £\VAR{ "{:,}".format(total_gain.value) }}
 \subsection*{Total capital loss: £\VAR{ "{:,}".format(total_loss.value) }}
 \subsection*{Total capital gain after loss: £\VAR{ "{:,}".format(total_gain.value - total_loss.value) }}

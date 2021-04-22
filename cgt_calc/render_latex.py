@@ -9,13 +9,12 @@ import jinja2
 
 from .const import PACKAGE_NAME, TEMPLATE_NAME
 from .dates import date_from_index
-from .model import CalculationLog
+from .model import CapitalGainsReport
 from .util import round_decimal, strip_zeros
 
 
 def render_calculations(
-    calculation_log: CalculationLog,
-    tax_year: int,
+    report: CapitalGainsReport,
     output_path: Path,
     skip_pdflatex: bool = False,
 ) -> None:
@@ -36,8 +35,7 @@ def render_calculations(
     )
     template = latex_template_env.get_template(TEMPLATE_NAME)
     output_text = template.render(
-        calculation_log=calculation_log,
-        tax_year=tax_year,
+        report=report,
         date_from_index=date_from_index,
         round_decimal=round_decimal,
         strip_zeros=strip_zeros,

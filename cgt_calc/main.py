@@ -668,8 +668,7 @@ def main() -> int:
     # Generate PDF report
     if not args.no_report:
         render_latex.render_calculations(
-            report.calculation_log,
-            tax_year=report.tax_year,
+            report,
             output_path=Path(args.report),
             skip_pdflatex=args.no_pdflatex,
         )
