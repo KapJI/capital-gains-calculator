@@ -28,7 +28,7 @@
     \BLOCK{ set total_proceeds.value = total_proceeds.value + overall_disposed }
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
-    \subsection*{Disposal \VAR{ disposal_count.value }: \VAR{ overall_quantity } shares of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }}
+    \subsection*{Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } shares of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }}
     \BLOCK{ if overall_gain > 0 -}
         Chargeable \textbf{gain} is £\VAR{ "{:,}".format(overall_gain) }
 
@@ -40,11 +40,11 @@
         \BLOCK{ set total_loss.value = total_loss.value - overall_gain }
         Capital loss to date is £\VAR{ "{:,}".format(total_loss.value) }
     \BLOCK{ endif }
-\BLOCK{ else }
+\BLOCK{ else } % if is_aquisition
     \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
     \BLOCK{ if overall_quantity > 0 }
         \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
-        \subsection*{Acquisition \VAR{ acquisition_count.value }: \VAR{ overall_quantity } shares of \VAR{ symbol } for £\VAR{ "{:,}".format(acquisition_cost) }}
+        \subsection*{Acquisition \VAR{ acquisition_count.value }: \VAR{ strip_zeros(overall_quantity) } shares of \VAR{ symbol } for £\VAR{ "{:,}".format(acquisition_cost) }}
     \BLOCK{ else }
         \subsection*{Management fee for \VAR{ symbol } of £\VAR{ "{:,}".format(acquisition_cost) }}
     \BLOCK{ endif}
@@ -52,7 +52,7 @@
 
 \begin{enumerate}
 \BLOCK{ for entry in entries }
-\item \textbf{\VAR{ entry.rule_type.name.replace("_", " ") }}. Quantity: \VAR{ entry.quantity },
+\item \textbf{\VAR{ entry.rule_type.name.replace("_", " ") }}. Quantity: \VAR{ strip_zeros(entry.quantity) },
 \BLOCK{ if is_disposal }
     \BLOCK{ if entry.quantity < overall_quantity }
         disposal proceeds: £\VAR{ "{:,}".format(round_decimal(entry.amount, 2)) },
@@ -69,7 +69,7 @@
     \BLOCK{ else }
         loss: £\VAR{ "{:,}".format(round_decimal(-entry.gain, 2)) }.
     \BLOCK{ endif }
-\BLOCK{ else }
+\BLOCK{ else } % if is_aquisition
     actual cost: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2)) }.
 \BLOCK{ endif}
 
@@ -78,8 +78,10 @@
 \BLOCK{ else }
     Number of shares in the pool:
 \BLOCK{ endif }
-\VAR{ entry.new_quantity }\BLOCK{ if entry.new_quantity > 0 },
-new pool cost: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2)) }\BLOCK{ endif }.
+\VAR{ strip_zeros(entry.new_quantity) }%
+\BLOCK{ if entry.new_quantity > 0 },
+    new pool cost: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2)) }%
+\BLOCK{ endif }.
 
 \BLOCK{ endfor}
 \end{enumerate}

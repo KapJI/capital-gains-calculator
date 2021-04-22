@@ -10,7 +10,7 @@ import jinja2
 from .const import PACKAGE_NAME, TEMPLATE_NAME
 from .dates import date_from_index
 from .model import CalculationLog
-from .util import round_decimal
+from .util import round_decimal, strip_zeros
 
 
 def render_calculations(
@@ -40,6 +40,7 @@ def render_calculations(
         tax_year=tax_year,
         date_from_index=date_from_index,
         round_decimal=round_decimal,
+        strip_zeros=strip_zeros,
         Decimal=Decimal,
     )
     generated_file_fd, generated_file = tempfile.mkstemp(suffix=".tex")
