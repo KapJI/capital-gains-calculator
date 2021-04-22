@@ -400,8 +400,7 @@ def test_run_with_example_files() -> None:
         "tests/test_data/schwab_transactions.csv",
         "--trading212",
         "tests/test_data/trading212/",
-        "--report",
-        "",
+        "--no-pdflatex",
     ]
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"

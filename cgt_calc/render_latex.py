@@ -13,7 +13,10 @@ from .util import round_decimal
 
 
 def render_calculations(
-    calculation_log: CalculationLog, tax_year: int, output_file: str
+    calculation_log: CalculationLog,
+    tax_year: int,
+    output_file: str,
+    skip_pdflatex: bool = False,
 ) -> None:
     """Render PDF report."""
     print("Generate calculations report")
@@ -42,6 +45,9 @@ def render_calculations(
     os.write(generated_file_fd, output_text.encode())
     os.close(generated_file_fd)
 
+    # In case of testing
+    if skip_pdflatex:
+        return
     current_directory = os.path.abspath(".")
     output_filename = "calculations"
     subprocess.run(

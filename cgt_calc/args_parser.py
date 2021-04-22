@@ -38,14 +38,14 @@ def create_parser() -> argparse.ArgumentParser:
         help="folder containing the exported transaction files from Trading 212",
     )
     parser.add_argument(
-        "--gbp_history",
+        "--gbp-history",
         type=str,
         default=None,
         nargs="?",
         help="monthly GBP/USD prices from HMRC",
     )
     parser.add_argument(
-        "--initial_prices",
+        "--initial-prices",
         type=str,
         default=None,
         nargs="?",
@@ -56,7 +56,12 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         default=DEFAULT_REPORT_PATH,
         nargs="?",
-        help="where to save the generated pdf report (default: %(default)s)",
+        help="where to save the generated PDF report (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--no-report",
+        action="store_true",
+        help="do not generate PDF report",
     )
     parser.add_argument(
         "--verbose",
@@ -67,5 +72,11 @@ def create_parser() -> argparse.ArgumentParser:
         "--version",
         action="store_true",
         help="print version",
+    )
+    # For testing only
+    parser.add_argument(
+        "--no-pdflatex",
+        action="store_true",
+        help=argparse.SUPPRESS,
     )
     return parser

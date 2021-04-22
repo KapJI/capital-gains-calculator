@@ -657,6 +657,10 @@ def main() -> int:
         print(f"cgt-calc {importlib.metadata.version(__package__)}")
         return 0
 
+    if args.report == "":
+        print("error: report name can't be empty")
+        return 1
+
     default_logging_level = logging.DEBUG if args.verbose else logging.WARNING
     logging.basicConfig(level=default_logging_level)
 
@@ -677,16 +681,20 @@ def main() -> int:
     # Second pass calculates capital gain tax for the given tax year
     report = calculator.calculate_capital_gain(acquisition_list, disposal_list)
     print(report)
-    if args.report:
+
+    # Generate PDF report
+    if not args.no_report:
         render_latex.render_calculations(
             report.calculation_log,
             tax_year=report.tax_year,
             output_file=args.report,
+            skip_pdflatex=args.no_pdflatex,
         )
     print("All done!")
 
     return 0
 
 
-if __name__ == "__main__":
+def init() -> None:
+    """Entry point."""
     sys.exit(main())
