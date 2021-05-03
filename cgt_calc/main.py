@@ -15,16 +15,10 @@ from . import render_latex
 from .args_parser import create_parser
 from .const import BED_AND_BREAKFAST_DAYS, CAPITAL_GAIN_ALLOWANCES, INTERNAL_START_DATE
 from .currency_converter import CurrencyConverter
-from .dates import (
-    date_from_index,
-    date_to_index,
-    get_tax_year_end,
-    get_tax_year_start,
-    is_date,
-)
+from .dates import get_tax_year_end, get_tax_year_start, is_date
 from .exceptions import (
     AmountMissingError,
-    CalculatedAmountDiscrepancy,
+    CalculatedAmountDiscrepancyError,
     CalculationError,
     InvalidTransactionError,
     PriceMissingError,
@@ -111,11 +105,11 @@ class CapitalGainsCalculator:
                 quantity * transaction.price + transaction.fees, 2
             )
             if transaction.amount != -calculated_amount:
-                raise CalculatedAmountDiscrepancy(transaction, -calculated_amount)
+                raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
             amount = -transaction.amount
         add_to_list(
             acquisition_list,
-            date_to_index(transaction.date),
+            transaction.date,
             symbol,
             quantity,
             self.converter.to_gbp_for(amount, transaction),
@@ -158,10 +152,10 @@ class CapitalGainsCalculator:
             quantity * transaction.price - transaction.fees, 2
         )
         if amount != calculated_amount:
-            raise CalculatedAmountDiscrepancy(transaction, calculated_amount)
+            raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
         add_to_list(
             disposal_list,
-            date_to_index(transaction.date),
+            transaction.date,
             symbol,
             quantity,
             self.converter.to_gbp_for(amount, transaction),
@@ -214,7 +208,7 @@ class CapitalGainsCalculator:
                     raise SymbolMissingError(transaction)
                 add_to_list(
                     acquisition_list,
-                    date_to_index(transaction.date),
+                    transaction.date,
                     transaction.symbol,
                     transaction.quantity,
                     gbp_fees,
@@ -277,7 +271,7 @@ class CapitalGainsCalculator:
         bed_and_breakfast_list: HmrcTransactionLog,
         portfolio: dict[str, tuple[Decimal, Decimal]],
         symbol: str,
-        date_index: int,
+        date_index: datetime.date,
     ) -> list[CalculationEntry]:
         """Process single acquisition."""
         acquisition_quantity, acquisition_amount, acquisition_fees = acquisition_list[
@@ -349,7 +343,7 @@ class CapitalGainsCalculator:
         bed_and_breakfast_list: HmrcTransactionLog,
         portfolio: dict[str, tuple[Decimal, Decimal]],
         symbol: str,
-        date_index: int,
+        date_index: datetime.date,
     ) -> tuple[Decimal, list[CalculationEntry]]:
         """Process single disposal."""
         disposal_quantity, proceeds_amount, disposal_fees = disposal_list[date_index][
@@ -405,7 +399,7 @@ class CapitalGainsCalculator:
         # Bed and breakfast rule next
         if disposal_quantity > 0:
             for i in range(BED_AND_BREAKFAST_DAYS):
-                search_index = date_index + i + 1
+                search_index = date_index + datetime.timedelta(days=i + 1)
                 if has_key(acquisition_list, search_index, symbol):
                     (
                         acquisition_quantity,
@@ -442,8 +436,8 @@ class CapitalGainsCalculator:
                         continue
                     print(
                         f"WARNING: Bed and breakfasting for {symbol}."
-                        f" Disposed on {date_from_index(date_index)}"
-                        f" and acquired again on {date_from_index(search_index)}"
+                        f" Disposed on {date_index}"
+                        f" and acquired again on {search_index}"
                     )
                     available_quantity = min(
                         disposal_quantity,
@@ -543,9 +537,9 @@ class CapitalGainsCalculator:
         disposal_list: HmrcTransactionLog,
     ) -> CapitalGainsReport:
         """Calculate capital gain and return generated report."""
-        begin_index = date_to_index(INTERNAL_START_DATE)
-        tax_year_start_index = date_to_index(self.tax_year_start_date)
-        end_index = date_to_index(self.tax_year_end_date)
+        begin_index = INTERNAL_START_DATE
+        tax_year_start_index = self.tax_year_start_date
+        end_index = self.tax_year_end_date
         disposal_count = 0
         disposal_proceeds = Decimal(0)
         allowable_costs = Decimal(0)
@@ -554,7 +548,10 @@ class CapitalGainsCalculator:
         bed_and_breakfast_list: HmrcTransactionLog = {}
         portfolio: dict[str, tuple[Decimal, Decimal]] = {}
         calculation_log: CalculationLog = {}
-        for date_index in range(begin_index, end_index + 1):
+        for date_index in (
+            begin_index + datetime.timedelta(days=x)
+            for x in range(0, (end_index - begin_index).days)
+        ):
             if date_index in acquisition_list:
                 for symbol in acquisition_list[date_index]:
                     calculation_entries = self.process_acquisition(
@@ -595,7 +592,7 @@ class CapitalGainsCalculator:
                         transaction_quantity = disposal_list[date_index][symbol][0]
                         LOGGER.debug(
                             "DISPOSAL on %s of %s, quantity %d, capital gain $%s",
-                            date_from_index(date_index),
+                            date_index,
                             symbol,
                             transaction_quantity,
                             round_decimal(transaction_capital_gain, 2),

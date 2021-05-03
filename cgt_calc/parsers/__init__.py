@@ -9,9 +9,8 @@ import operator
 from pathlib import Path
 
 from cgt_calc.const import DEFAULT_GBP_HISTORY_FILE, DEFAULT_INITIAL_PRICES_FILE
-from cgt_calc.dates import date_to_index
 from cgt_calc.exceptions import UnexpectedColumnCountError
-from cgt_calc.model import BrokerTransaction, DateIndex
+from cgt_calc.model import BrokerTransaction
 from cgt_calc.resources import RESOURCES_PACKAGE
 
 from .mssb import read_mssb_transactions
@@ -67,9 +66,11 @@ def read_broker_transactions(
     return transactions
 
 
-def read_gbp_prices_history(gbp_history_file: str | None) -> dict[int, Decimal]:
+def read_gbp_prices_history(
+    gbp_history_file: str | None,
+) -> dict[datetime.date, Decimal]:
     """Read GBP/USD history from CSV file."""
-    gbp_history: dict[int, Decimal] = {}
+    gbp_history: dict[datetime.date, Decimal] = {}
     if gbp_history_file is None:
         csv_file = importlib.resources.open_text(
             RESOURCES_PACKAGE, DEFAULT_GBP_HISTORY_FILE
@@ -84,15 +85,15 @@ def read_gbp_prices_history(gbp_history_file: str | None) -> dict[int, Decimal]:
         if len(row) != 2:
             raise UnexpectedColumnCountError(row, 2, gbp_history_file or "default")
         price_date = datetime.datetime.strptime(row[0], "%m/%Y").date()
-        gbp_history[date_to_index(price_date)] = Decimal(row[1])
+        gbp_history[price_date] = Decimal(row[1])
     return gbp_history
 
 
 def read_initial_prices(
     initial_prices_file: str | None,
-) -> dict[DateIndex, dict[str, Decimal]]:
+) -> dict[datetime.date, dict[str, Decimal]]:
     """Read initial stock prices from CSV file."""
-    initial_prices: dict[DateIndex, dict[str, Decimal]] = {}
+    initial_prices: dict[datetime.date, dict[str, Decimal]] = {}
     if initial_prices_file is None:
         csv_file = importlib.resources.open_text(
             RESOURCES_PACKAGE, DEFAULT_INITIAL_PRICES_FILE
@@ -105,7 +106,7 @@ def read_initial_prices(
     lines = lines[1:]
     for row in lines:
         entry = InitialPricesEntry(row, initial_prices_file or "default")
-        date_index = date_to_index(entry.date)
+        date_index = entry.date
         if date_index not in initial_prices:
             initial_prices[date_index] = {}
         initial_prices[date_index][entry.symbol] = entry.price
