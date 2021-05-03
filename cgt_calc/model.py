@@ -86,6 +86,9 @@ class CalculationEntry:
         if self.amount >= 0:
             assert self.gain == self.amount - self.allowable_cost
 
+    def __repr__(self) -> str:
+        return f"<CalculationEntry {str(self)}>"
+
     def __str__(self) -> str:
         """Return string representation."""
         return (

@@ -393,6 +393,7 @@ class CapitalGainsCalculator:
                     )
                 )
 
+
         # Bed and breakfast rule next
         if disposal_quantity > 0:
             for i in range(BED_AND_BREAKFAST_DAYS):
@@ -459,7 +460,7 @@ class CapitalGainsCalculator:
                         disposal_price,
                         acquisition_price,
                     )
-                    disposal_quantity -= acquisition_quantity
+                    disposal_quantity -= available_quantity
                     proceeds_amount -= available_quantity * disposal_price
                     current_price = current_amount / current_quantity
                     amount_delta = available_quantity * current_price
@@ -523,6 +524,9 @@ class CapitalGainsCalculator:
                     new_pool_cost=current_amount,
                 )
             )
+            disposal_quantity = 0
+
+        assert disposal_quantity == 0, f"disposal quantity {disposal_quantity}"
         portfolio[symbol] = (current_quantity, current_amount)
         chargeable_gain = round_decimal(chargeable_gain, 2)
         return chargeable_gain, calculation_entries
@@ -680,3 +684,6 @@ def main() -> int:
 def init() -> None:
     """Entry point."""
     sys.exit(main())
+
+if __name__ == '__main__':
+    init()
