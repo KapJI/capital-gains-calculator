@@ -12,7 +12,7 @@
 
 \BLOCK{ for date_index, symbol_dict in report.calculation_log.items() }
 
-\section*{\VAR{ date_from_index(date_index).strftime("%d %B %Y") }}
+\section*{\VAR{ date_index.strftime("%d %B %Y") }}
 \BLOCK{ for symbol, entries in symbol_dict.items() }
 \BLOCK{ if symbol.startswith("sell$") }
     \BLOCK{ set symbol = symbol[5:] }
@@ -67,7 +67,7 @@
     \BLOCK{ endif }
     allowable
     \BLOCK{ if entry.rule_type.name == "BED_AND_BREAKFAST" }
-        cost on \mbox{\VAR{ date_from_index(entry.bed_and_breakfast_date_index).strftime("%d %b %Y") }:}
+        cost on \mbox{\VAR{ entry.bed_and_breakfast_date_index.strftime("%d %b %Y") }:}
     \BLOCK{ else }
         cost:
     \BLOCK{ endif }

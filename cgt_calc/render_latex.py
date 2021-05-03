@@ -8,7 +8,6 @@ import tempfile
 import jinja2
 
 from .const import PACKAGE_NAME, TEMPLATE_NAME
-from .dates import date_from_index
 from .model import CapitalGainsReport
 from .util import round_decimal, strip_zeros
 
@@ -36,7 +35,6 @@ def render_calculations(
     template = latex_template_env.get_template(TEMPLATE_NAME)
     output_text = template.render(
         report=report,
-        date_from_index=date_from_index,
         round_decimal=round_decimal,
         strip_zeros=strip_zeros,
         Decimal=Decimal,
