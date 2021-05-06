@@ -42,7 +42,7 @@ isort = "^5.8.0"
 mypy = "^0.812"
 pre-commit = "^2.12.1"
 pylint = "^2.8.2"
-pytest = "^6.2.3"
+pytest = "^6.2.4"
 
 [tool.poetry.scripts]
 cgt-calc = 'cgt_calc.main:init'
