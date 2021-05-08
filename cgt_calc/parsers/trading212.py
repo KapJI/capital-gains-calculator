@@ -130,7 +130,7 @@ def validate_header(header: list[str], filename: str) -> None:
     for i, (expected, actual) in enumerate(zip(COLUMNS, header)):
         if expected != actual:
             msg = f"Expected column {i+1} to be {expected} but found {actual}"
-            raise ParsingError(msg, filename)
+            raise ParsingError(filename, msg)
 
 
 def by_date_and_action(transaction: Trading212Transaction) -> tuple[datetime, bool]:
