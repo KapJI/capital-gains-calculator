@@ -42,13 +42,16 @@ class InitialPricesEntry:
 
 def read_broker_transactions(
     schwab_transactions_file: str | None,
+    schwab_awards_transactions_file: str | None,
     trading212_transactions_folder: str | None,
     mssb_transactions_folder: str | None,
 ) -> list[BrokerTransaction]:
     """Read transactions for all brokers."""
     transactions = []
     if schwab_transactions_file is not None:
-        transactions += read_schwab_transactions(schwab_transactions_file)
+        transactions += read_schwab_transactions(
+            schwab_transactions_file, schwab_awards_transactions_file
+        )
     else:
         print("WARNING: No schwab file provided")
 
