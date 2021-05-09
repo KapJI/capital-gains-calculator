@@ -648,7 +648,9 @@ def main() -> int:
     logging.basicConfig(level=default_logging_level)
 
     # Read data from input files
-    broker_transactions = read_broker_transactions(args.schwab, args.trading212)
+    broker_transactions = read_broker_transactions(
+        args.schwab, args.trading212, args.mssb
+    )
     converter = CurrencyConverter(read_gbp_prices_history(args.gbp_history))
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
 

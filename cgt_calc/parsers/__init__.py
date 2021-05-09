@@ -14,6 +14,7 @@ from cgt_calc.exceptions import UnexpectedColumnCountError
 from cgt_calc.model import BrokerTransaction, DateIndex
 from cgt_calc.resources import RESOURCES_PACKAGE
 
+from .mssb import read_mssb_transactions
 from .schwab import read_schwab_transactions
 from .trading212 import read_trading212_transactions
 
@@ -43,6 +44,7 @@ class InitialPricesEntry:
 def read_broker_transactions(
     schwab_transactions_file: str | None,
     trading212_transactions_folder: str | None,
+    mssb_transactions_folder: str | None,
 ) -> list[BrokerTransaction]:
     """Read transactions for all brokers."""
     transactions = []
@@ -50,10 +52,17 @@ def read_broker_transactions(
         transactions += read_schwab_transactions(schwab_transactions_file)
     else:
         print("WARNING: No schwab file provided")
+
     if trading212_transactions_folder is not None:
         transactions += read_trading212_transactions(trading212_transactions_folder)
     else:
         print("WARNING: No trading212 folder provided")
+
+    if mssb_transactions_folder is not None:
+        transactions += read_mssb_transactions(mssb_transactions_folder)
+    else:
+        print("WARNING: No mssb folder provided")
+
     transactions.sort(key=operator.attrgetter("date"))
     return transactions
 
