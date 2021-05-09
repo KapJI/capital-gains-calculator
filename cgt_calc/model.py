@@ -5,12 +5,22 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 from .util import round_decimal
 
+
+@dataclass
+class HmrcTransactionData:
+    """Hmrc transaction figures."""
+
+    quantity: Decimal
+    amount: Decimal
+    fees: Decimal
+
+
 # For mapping of dates to int
-HmrcTransactionLog = Dict[datetime.date, Dict[str, Tuple[Decimal, Decimal, Decimal]]]
+HmrcTransactionLog = Dict[datetime.date, Dict[str, HmrcTransactionData]]
 
 
 class ActionType(Enum):
