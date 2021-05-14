@@ -56,7 +56,7 @@ class RuleType(Enum):
     BED_AND_BREAKFAST = 3
 
 
-class CalculationEntry:
+class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
     """Calculation entry for final report."""
 
     def __init__(
