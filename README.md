@@ -3,7 +3,7 @@
 [![CI](https://github.com/KapJI/capital-gains-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/KapJI/capital-gains-calculator/actions)
 [![PyPI version](https://img.shields.io/pypi/v/cgt-calc)](https://pypi.org/project/cgt-calc/)
 
-Calculate capital gains tax by transaction history exported from Charles Schwab and Trading 212. Generate PDF report with calculations.
+Calculate capital gains tax by transaction history exported from Charles Schwab, Trading 212 and Morgan Stanley. Generate PDF report with calculations.
 
 Automatically convert all prices to GBP and apply HMRC rules to calculate capital gains tax: "same day" rule, "bed and breakfast" rule, section 104 holding.
 
@@ -52,6 +52,8 @@ You will need several input files:
 -   Exported transaction history from Trading 212.
     You can use several files here since Trading 212 limit the statements to 1 year periods.
     [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/trading212).
+-   Exported transaction history from Morgan Stanley.
+    Since Morgan Stanley generates multiple files in a single report, please specify a directory produced from the report download page.
 -   CSV file with initial stock prices in USD at the moment of vesting, split, etc.
     [`initial_prices.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format.
 -   (Optional) Monthly GBP/USD prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).
@@ -60,7 +62,7 @@ You will need several input files:
 Then run (you can omit the brokers you don't use):
 
 ```shell
-cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/
+cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/
 ```
 
 See `cgt-calc --help` for the full list of settings.
