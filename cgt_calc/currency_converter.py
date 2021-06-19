@@ -1,4 +1,4 @@
-"""Covert currency to GBP using price history."""
+"""Convert currency to GBP using price history."""
 from __future__ import annotations
 
 import datetime

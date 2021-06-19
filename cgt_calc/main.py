@@ -90,7 +90,16 @@ class CapitalGainsCalculator:
             portfolio[symbol] = quantity
         # Add to acquisition_list to apply same day rule
         if transaction.action in [ActionType.STOCK_ACTIVITY, ActionType.SPIN_OFF]:
-            amount = quantity * self.initial_prices.get(transaction.date, symbol)
+            stock_price_gbp = None
+
+            if transaction.price is not None and transaction.currency is not None:
+                stock_price_gbp = self.converter.to_gbp(
+                    transaction.price, transaction.currency, transaction.date
+                )
+            else:
+                stock_price_gbp = self.initial_prices.get(transaction.date, symbol)
+
+            amount = quantity * stock_price_gbp
         else:
             if transaction.amount is None:
                 raise AmountMissingError(transaction)
@@ -650,7 +659,9 @@ def main() -> int:
     logging.basicConfig(level=default_logging_level)
 
     # Read data from input files
-    broker_transactions = read_broker_transactions(args.schwab, args.trading212)
+    broker_transactions = read_broker_transactions(
+        args.schwab, args.trading212, args.mssb
+    )
     converter = CurrencyConverter(read_gbp_prices_history(args.gbp_history))
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
 

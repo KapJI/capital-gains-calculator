@@ -835,6 +835,8 @@ def test_run_with_example_files() -> None:
         "tests/test_data/schwab_transactions.csv",
         "--trading212",
         "tests/test_data/trading212/",
+        "--mssb",
+        "tests/test_data/mssb/",
         "--no-pdflatex",
     ]
     result = subprocess.run(cmd, check=True, capture_output=True)
