@@ -77,7 +77,7 @@ def read_gbp_prices_history(gbp_history_file: str | None) -> dict[int, Decimal]:
         lines = list(csv.reader(csv_file))
         csv_file.close()
     else:
-        with Path(gbp_history_file).open() as csv_file:
+        with Path(gbp_history_file).open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))
     lines = lines[1:]
     for row in lines:
@@ -100,7 +100,7 @@ def read_initial_prices(
         lines = list(csv.reader(csv_file))
         csv_file.close()
     else:
-        with Path(initial_prices_file).open() as csv_file:
+        with Path(initial_prices_file).open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))
     lines = lines[1:]
     for row in lines:

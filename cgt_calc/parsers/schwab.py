@@ -99,7 +99,7 @@ class SchwabTransaction(BrokerTransaction):
 def read_schwab_transactions(transactions_file: str) -> list[BrokerTransaction]:
     """Read Schwab transactions from file."""
     try:
-        with Path(transactions_file).open() as csv_file:
+        with Path(transactions_file).open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))
             lines = lines[2:-1]
             transactions = [SchwabTransaction(row, transactions_file) for row in lines]
