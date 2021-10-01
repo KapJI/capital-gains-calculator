@@ -468,7 +468,7 @@ class CapitalGainsCalculator:
                         disposal_price,
                         acquisition_price,
                     )
-                    disposal_quantity -= acquisition_quantity
+                    disposal_quantity -= available_quantity
                     proceeds_amount -= available_quantity * disposal_price
                     current_price = current_amount / current_quantity
                     amount_delta = available_quantity * current_price
@@ -501,9 +501,7 @@ class CapitalGainsCalculator:
                         )
                     )
         if disposal_quantity > 0:
-            allowable_cost = (
-                current_amount * Decimal(disposal_quantity) / Decimal(current_quantity)
-            )
+            allowable_cost = current_amount * disposal_quantity / current_quantity
             chargeable_gain += proceeds_amount - allowable_cost
             LOGGER.debug(
                 "SECTION 104, quantity %d, gain %s, proceeds amount %s, "
@@ -666,17 +664,17 @@ def main() -> int:
     calculator = CapitalGainsCalculator(args.year, converter, initial_prices)
     # First pass converts broker transactions to HMRC transactions.
     # This means applying same day rule and collapsing all transactions with
-    # same type in the same day.
+    # same type within the same day.
     # It also converts prices to GBP, validates data and calculates dividends,
     # taxes on dividends and interest.
     acquisition_list, disposal_list = calculator.convert_to_hmrc_transactions(
         broker_transactions
     )
-    # Second pass calculates capital gain tax for the given tax year
+    # Second pass calculates capital gain tax for the given tax year.
     report = calculator.calculate_capital_gain(acquisition_list, disposal_list)
     print(report)
 
-    # Generate PDF report
+    # Generate PDF report.
     if not args.no_report:
         render_latex.render_calculations(
             report,
