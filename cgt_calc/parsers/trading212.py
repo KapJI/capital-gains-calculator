@@ -146,7 +146,7 @@ def read_trading212_transactions(transactions_folder: str) -> list[BrokerTransac
     """Parse Trading 212 transactions from CSV file."""
     transactions = []
     for file in Path(transactions_folder).glob("*.csv"):
-        with Path(file).open() as csv_file:
+        with Path(file).open(encoding="utf-8") as csv_file:
             print(f"Parsing {file}")
             lines = list(csv.reader(csv_file))
             validate_header(lines[0], str(file))
