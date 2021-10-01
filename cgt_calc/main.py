@@ -691,3 +691,7 @@ def main() -> int:
 def init() -> None:
     """Entry point."""
     sys.exit(main())
+
+
+if __name__ == "__main__":
+    init()

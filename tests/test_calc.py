@@ -5,6 +5,7 @@ import datetime
 from decimal import Decimal
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 
@@ -608,7 +609,6 @@ def test_basic(
     initial_prices = InitialPrices({})
     calculator = CapitalGainsCalculator(tax_year, converter, initial_prices)
     report = get_report(calculator, broker_transactions)
-    print(report)
     assert report.total_gain() == round_decimal(Decimal(expected), 2)
     if calculation_log is not None:
         result_log = report.calculation_log
@@ -650,9 +650,9 @@ def test_basic(
 def test_run_with_example_files() -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = [
-        "poetry",
-        "run",
-        "cgt-calc",
+        sys.executable,
+        "-m",
+        "cgt_calc.main",
         "--year",
         "2020",
         "--schwab",
