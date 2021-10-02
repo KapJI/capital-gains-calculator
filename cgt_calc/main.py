@@ -530,6 +530,9 @@ class CapitalGainsCalculator:
                     new_pool_cost=current_amount,
                 )
             )
+            disposal_quantity = Decimal(0)
+
+        assert disposal_quantity == 0, f"disposal quantity {disposal_quantity}"
         portfolio[symbol] = (current_quantity, current_amount)
         chargeable_gain = round_decimal(chargeable_gain, 2)
         return chargeable_gain, calculation_entries
