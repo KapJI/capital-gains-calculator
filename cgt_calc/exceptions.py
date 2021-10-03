@@ -68,7 +68,7 @@ class UnexpectedColumnCountError(ParsingError):
         )
 
 
-class CalculatedAmountDiscrepancy(InvalidTransactionError):
+class CalculatedAmountDiscrepancyError(InvalidTransactionError):
     """Calculated amount discrepancy error."""
 
     def __init__(self, transaction: BrokerTransaction, calculated_amount: Decimal):

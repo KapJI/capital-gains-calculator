@@ -1,17 +1,20 @@
 """Functions to work with HMRC transaction log."""
+import datetime
 from decimal import Decimal
 
 from .model import HmrcTransactionLog
 
 
-def has_key(transactions: HmrcTransactionLog, date_index: int, symbol: str) -> bool:
+def has_key(
+    transactions: HmrcTransactionLog, date_index: datetime.date, symbol: str
+) -> bool:
     """Check if transaction log has entry for date_index and symbol."""
     return date_index in transactions and symbol in transactions[date_index]
 
 
 def add_to_list(
     current_list: HmrcTransactionLog,
-    date_index: int,
+    date_index: datetime.date,
     symbol: str,
     quantity: Decimal,
     amount: Decimal,

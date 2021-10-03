@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 
-from .dates import date_to_index, is_date
+from .dates import is_date
 from .exceptions import ExchangeRateMissingError
 from .model import BrokerTransaction
 
@@ -12,7 +12,7 @@ from .model import BrokerTransaction
 class CurrencyConverter:
     """Coverter which holds price history."""
 
-    def __init__(self, gbp_history: dict[int, Decimal]):
+    def __init__(self, gbp_history: dict[datetime.date, Decimal]):
         """Create from GBP/USD price history."""
         self.gbp_history = gbp_history
 
@@ -20,10 +20,10 @@ class CurrencyConverter:
         """Get GBP/USD price at given date."""
         assert is_date(date)
         # Set day to 1 to get monthly price
-        index = date_to_index(date.replace(day=1))
-        if index not in self.gbp_history:
+        index_date = date.replace(day=1)
+        if index_date not in self.gbp_history:
             raise ExchangeRateMissingError("USD", date)
-        return self.gbp_history[index]
+        return self.gbp_history[index_date]
 
     def to_gbp(self, amount: Decimal, currency: str, date: datetime.date) -> Decimal:
         """Convert amount from given currency to GBP."""

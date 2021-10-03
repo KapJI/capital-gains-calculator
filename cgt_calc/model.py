@@ -9,11 +9,8 @@ from typing import Dict, List, Tuple
 
 from .util import round_decimal
 
-# Number of days from some unspecified fixed date
-DateIndex = int
-
 # For mapping of dates to int
-HmrcTransactionLog = Dict[int, Dict[str, Tuple[Decimal, Decimal, Decimal]]]
+HmrcTransactionLog = Dict[datetime.date, Dict[str, Tuple[Decimal, Decimal, Decimal]]]
 
 
 class ActionType(Enum):
@@ -69,7 +66,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         new_pool_cost: Decimal,
         gain: Decimal | None = None,
         allowable_cost: Decimal | None = None,
-        bed_and_breakfast_date_index: int = 0,
+        bed_and_breakfast_date_index: datetime.date | None = None,
     ):
         """Create calculation entry."""
         self.rule_type = rule_type
@@ -102,7 +99,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         )
 
 
-CalculationLog = Dict[DateIndex, Dict[str, List[CalculationEntry]]]
+CalculationLog = Dict[datetime.date, Dict[str, List[CalculationEntry]]]
 
 
 @dataclass
