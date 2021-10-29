@@ -13,7 +13,7 @@ Automatically convert all prices to GBP and apply HMRC rules to calculate capita
 
 ## Installation
 
-Install it with [pipx](https://pipxproject.github.io/pipx/) (or regular pip):
+Install it with [pipx](https://pypa.github.io/pipx/) (or regular pip):
 
 ```shell
 pipx install cgt-calc
