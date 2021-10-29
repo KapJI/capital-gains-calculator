@@ -1,13 +1,44 @@
 """Charles Schwab parser."""
 from __future__ import annotations
 
+from collections import defaultdict
 import csv
+from dataclasses import dataclass
 import datetime
 from decimal import Decimal
+import itertools
 from pathlib import Path
 
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import (
+    ExchangeRateMissingError,
+    ParsingError,
+    SymbolMissingError,
+    UnexpectedColumnCountError,
+    UnexpectedRowCountError,
+)
 from cgt_calc.model import ActionType, BrokerTransaction
+
+
+@dataclass
+class AwardPrices:
+    """Class to store initial stock prices."""
+
+    award_prices: dict[datetime.date, dict[str, Decimal]]
+
+    def get(self, date: datetime.date, symbol: str) -> Decimal:
+        """Get initial stock price at given date."""
+        # Award dates may go back for few days, depending on
+        # holidays or weekends, so we do a linear search
+        # in the past to find the award price
+        for i in range(7):
+            to_search = date - datetime.timedelta(days=i)
+
+            if (
+                to_search in self.award_prices
+                and symbol in self.award_prices[to_search]
+            ):
+                return self.award_prices[to_search][symbol]
+        raise ExchangeRateMissingError(symbol, date)
 
 
 def action_from_str(label: str) -> ActionType:
@@ -59,7 +90,11 @@ def action_from_str(label: str) -> ActionType:
 class SchwabTransaction(BrokerTransaction):
     """Represent single Schwab transaction."""
 
-    def __init__(self, row: list[str], file: str):
+    def __init__(
+        self,
+        row: list[str],
+        file: str,
+    ):
         """Create transaction from CSV row."""
         if len(row) != 9:
             raise UnexpectedColumnCountError(row, 9, file)
@@ -80,6 +115,7 @@ class SchwabTransaction(BrokerTransaction):
         price = Decimal(row[5].replace("$", "")) if row[5] != "" else None
         fees = Decimal(row[6].replace("$", "")) if row[6] != "" else Decimal(0)
         amount = Decimal(row[7].replace("$", "")) if row[7] != "" else None
+
         currency = "USD"
         broker = "Charles Schwab"
         super().__init__(
@@ -95,16 +131,94 @@ class SchwabTransaction(BrokerTransaction):
             broker,
         )
 
+    @staticmethod
+    def create(
+        row: list[str], file: str, awards_prices: AwardPrices
+    ) -> SchwabTransaction:
+        """Create and post process a SchwabTransaction."""
+        transaction = SchwabTransaction(row, file)
+        if (
+            transaction.price is None
+            and transaction.action == ActionType.STOCK_ACTIVITY
+        ):
+            symbol = transaction.symbol
+            if symbol is None:
+                raise SymbolMissingError(transaction)
+            transaction.price = awards_prices.get(transaction.date, symbol)
+        return transaction
 
-def read_schwab_transactions(transactions_file: str) -> list[BrokerTransaction]:
+
+def read_schwab_transactions(
+    transactions_file: str, schwab_award_transactions_file: str | None
+) -> list[BrokerTransaction]:
     """Read Schwab transactions from file."""
+    awards_prices = _read_schwab_awards(schwab_award_transactions_file)
     try:
         with Path(transactions_file).open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))
+            # Remove headers and footer
             lines = lines[2:-1]
-            transactions = [SchwabTransaction(row, transactions_file) for row in lines]
+            transactions = [
+                SchwabTransaction.create(row, transactions_file, awards_prices)
+                for row in lines
+            ]
             transactions.reverse()
             return list(transactions)
     except FileNotFoundError:
         print(f"WARNING: Couldn't locate Schwab transactions file({transactions_file})")
         return []
+
+
+def _read_schwab_awards(
+    schwab_award_transactions_file: str | None,
+) -> AwardPrices:
+    """Read initial stock prices from CSV file."""
+    initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
+
+    lines = []
+    if schwab_award_transactions_file is not None:
+        try:
+            with Path(schwab_award_transactions_file).open(
+                encoding="utf-8"
+            ) as csv_file:
+                lines = list(csv.reader(csv_file))
+                # Remove headers
+                lines = lines[2:]
+        except FileNotFoundError:
+            print(
+                "WARNING: Couldn't locate Schwab award "
+                f"file({schwab_award_transactions_file})"
+            )
+    else:
+        print("WARNING: No schwab award file provided")
+
+    modulo = len(lines) % 3
+    if modulo != 0:
+        raise UnexpectedRowCountError(
+            len(lines) - modulo + 3, schwab_award_transactions_file or ""
+        )
+
+    for row in zip(lines[::3], lines[1::3], lines[2::3]):
+        if len(row) != 3:
+            raise UnexpectedColumnCountError(
+                list(itertools.chain(*row)), 3, schwab_award_transactions_file or ""
+            )
+
+        lapse_main, _, lapse_data = row
+
+        if len(lapse_main) != 8:
+            raise UnexpectedColumnCountError(
+                lapse_main, 8, schwab_award_transactions_file or ""
+            )
+        if len(lapse_data) != 8:
+            raise UnexpectedColumnCountError(
+                lapse_data, 7, schwab_award_transactions_file or ""
+            )
+
+        date_str = lapse_main[0]
+        date = datetime.datetime.strptime(date_str, "%Y/%m/%d").date()
+        symbol = lapse_main[2] if lapse_main[2] != "" else None
+        price = Decimal(lapse_data[3].replace("$", "")) if lapse_data[3] != "" else None
+        if symbol is not None and price is not None:
+            initial_prices[date][symbol] = price
+    return AwardPrices(award_prices=dict(initial_prices))

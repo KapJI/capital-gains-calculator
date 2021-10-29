@@ -2,6 +2,7 @@
 *.log
 .DS_Store
 .mypy_cache/
+.vscode
 __pycache__
 env
 dist

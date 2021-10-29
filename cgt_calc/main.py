@@ -46,6 +46,14 @@ from .util import round_decimal
 LOGGER = logging.getLogger(__name__)
 
 
+def get_amount_or_fail(transaction: BrokerTransaction) -> Decimal:
+    """Return the transaction amount or throw an error."""
+    amount = transaction.amount
+    if amount is None:
+        raise AmountMissingError(transaction)
+    return amount
+
+
 class CapitalGainsCalculator:
     """Main calculator class."""
 
@@ -75,6 +83,7 @@ class CapitalGainsCalculator:
         """Add new acquisition to the given list."""
         symbol = transaction.symbol
         quantity = transaction.quantity
+        price = transaction.price
         if symbol is None:
             raise SymbolMissingError(transaction)
         if quantity is None or quantity <= 0:
@@ -84,29 +93,22 @@ class CapitalGainsCalculator:
             portfolio[symbol] += quantity
         else:
             portfolio[symbol] = quantity
+
         # Add to acquisition_list to apply same day rule
         if transaction.action in [ActionType.STOCK_ACTIVITY, ActionType.SPIN_OFF]:
-            stock_price_gbp = None
-
-            if transaction.price is not None and transaction.currency is not None:
-                stock_price_gbp = self.converter.to_gbp(
-                    transaction.price, transaction.currency, transaction.date
-                )
-            else:
-                stock_price_gbp = self.initial_prices.get(transaction.date, symbol)
-
-            amount = quantity * stock_price_gbp
+            if price is None:
+                price = self.initial_prices.get(transaction.date, symbol)
+            amount = round_decimal(quantity * price, 2)
         else:
-            if transaction.amount is None:
-                raise AmountMissingError(transaction)
-            if transaction.price is None:
+            if price is None:
                 raise PriceMissingError(transaction)
-            calculated_amount = round_decimal(
-                quantity * transaction.price + transaction.fees, 2
-            )
-            if transaction.amount != -calculated_amount:
+
+            amount = get_amount_or_fail(transaction)
+            calculated_amount = round_decimal(quantity * price + transaction.fees, 2)
+            if amount != -calculated_amount:
                 raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
-            amount = -transaction.amount
+            amount = -amount
+
         add_to_list(
             acquisition_list,
             transaction.date,
@@ -143,14 +145,13 @@ class CapitalGainsCalculator:
         if portfolio[symbol] == 0:
             del portfolio[symbol]
         # Add to disposal_list to apply same day rule
-        if transaction.amount is None:
-            raise AmountMissingError(transaction)
-        if transaction.price is None:
+
+        amount = get_amount_or_fail(transaction)
+        price = transaction.price
+
+        if price is None:
             raise PriceMissingError(transaction)
-        amount = transaction.amount
-        calculated_amount = round_decimal(
-            quantity * transaction.price - transaction.fees, 2
-        )
+        calculated_amount = round_decimal(quantity * price - transaction.fees, 2)
         if amount != calculated_amount:
             raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
         add_to_list(
@@ -180,28 +181,20 @@ class CapitalGainsCalculator:
         for i, transaction in enumerate(transactions):
             new_balance = balance[(transaction.broker, transaction.currency)]
             if transaction.action is ActionType.TRANSFER:
-                if transaction.amount is None:
-                    raise AmountMissingError(transaction)
-                new_balance += transaction.amount
+                new_balance += get_amount_or_fail(transaction)
             elif transaction.action is ActionType.BUY:
-                if transaction.amount is None:
-                    raise AmountMissingError(transaction)
-                new_balance += transaction.amount
+                new_balance += get_amount_or_fail(transaction)
                 self.add_acquisition(portfolio, acquisition_list, transaction)
             elif transaction.action is ActionType.SELL:
-                if transaction.amount is None:
-                    raise AmountMissingError(transaction)
-                new_balance += transaction.amount
+                amount = get_amount_or_fail(transaction)
+                new_balance += amount
                 self.add_disposal(portfolio, disposal_list, transaction)
                 if self.date_in_tax_year(transaction.date):
-                    total_sells += self.converter.to_gbp_for(
-                        transaction.amount, transaction
-                    )
+                    total_sells += self.converter.to_gbp_for(amount, transaction)
             elif transaction.action is ActionType.FEE:
-                if transaction.amount is None:
-                    raise AmountMissingError(transaction)
-                new_balance += transaction.amount
-                transaction.fees = -transaction.amount
+                amount = get_amount_or_fail(transaction)
+                new_balance += amount
+                transaction.fees = -amount
                 transaction.quantity = Decimal(0)
                 gbp_fees = self.converter.to_gbp_for(transaction.fees, transaction)
                 if transaction.symbol is None:
@@ -217,29 +210,20 @@ class CapitalGainsCalculator:
             elif transaction.action in [ActionType.STOCK_ACTIVITY, ActionType.SPIN_OFF]:
                 self.add_acquisition(portfolio, acquisition_list, transaction)
             elif transaction.action in [ActionType.DIVIDEND, ActionType.CAPITAL_GAIN]:
-                if transaction.amount is None:
-                    raise AmountMissingError(transaction)
-                new_balance += transaction.amount
+                amount = get_amount_or_fail(transaction)
+                new_balance += amount
                 if self.date_in_tax_year(transaction.date):
-                    dividends += self.converter.to_gbp_for(
-                        transaction.amount, transaction
-                    )
+                    dividends += self.converter.to_gbp_for(amount, transaction)
             elif transaction.action in [ActionType.TAX, ActionType.ADJUSTMENT]:
-                if transaction.amount is None:
-                    raise AmountMissingError(transaction)
-                new_balance += transaction.amount
+                amount = get_amount_or_fail(transaction)
+                new_balance += amount
                 if self.date_in_tax_year(transaction.date):
-                    dividends_tax += self.converter.to_gbp_for(
-                        transaction.amount, transaction
-                    )
+                    dividends_tax += self.converter.to_gbp_for(amount, transaction)
             elif transaction.action is ActionType.INTEREST:
-                if transaction.amount is None:
-                    raise AmountMissingError(transaction)
-                new_balance += transaction.amount
+                amount = get_amount_or_fail(transaction)
+                new_balance += amount
                 if self.date_in_tax_year(transaction.date):
-                    interest += self.converter.to_gbp_for(
-                        transaction.amount, transaction
-                    )
+                    interest += self.converter.to_gbp_for(amount, transaction)
             else:
                 raise InvalidTransactionError(
                     transaction, f"Action not processed({transaction.action})"
@@ -656,7 +640,7 @@ def main() -> int:
 
     # Read data from input files
     broker_transactions = read_broker_transactions(
-        args.schwab, args.trading212, args.mssb
+        args.schwab, args.schwab_award, args.trading212, args.mssb
     )
     converter = CurrencyConverter(read_gbp_prices_history(args.gbp_history))
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))

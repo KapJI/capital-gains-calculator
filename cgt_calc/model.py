@@ -125,6 +125,10 @@ class CapitalGainsReport:
         assert self.capital_gain_allowance is not None
         return max(Decimal(0), self.total_gain() - self.capital_gain_allowance)
 
+    def __repr__(self) -> str:
+        """Return string representation."""
+        return f"<CalculationEntry: {str(self)}>"
+
     def __str__(self) -> str:
         """Return string representation."""
         out = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year:\n"

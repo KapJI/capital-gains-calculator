@@ -68,6 +68,14 @@ class UnexpectedColumnCountError(ParsingError):
         )
 
 
+class UnexpectedRowCountError(ParsingError):
+    """Unexpected row error."""
+
+    def __init__(self, count: int, file: str):
+        """Initialise."""
+        super().__init__(file, f"The following file doesn't have {count} rows:")
+
+
 class CalculatedAmountDiscrepancyError(InvalidTransactionError):
     """Calculated amount discrepancy error."""
 
