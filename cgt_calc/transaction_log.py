@@ -1,8 +1,9 @@
 """Functions to work with HMRC transaction log."""
+from dataclasses import astuple
 import datetime
 from decimal import Decimal
 
-from .model import HmrcTransactionLog
+from .model import HmrcTransactionData, HmrcTransactionLog
 
 
 def has_key(
@@ -24,10 +25,14 @@ def add_to_list(
     if date_index not in current_list:
         current_list[date_index] = {}
     if symbol not in current_list[date_index]:
-        current_list[date_index][symbol] = (Decimal(0), Decimal(0), Decimal(0))
-    current_quantity, current_amount, current_fees = current_list[date_index][symbol]
-    current_list[date_index][symbol] = (
-        current_quantity + quantity,
-        current_amount + amount,
-        current_fees + fees,
+        current_list[date_index][symbol] = HmrcTransactionData(
+            quantity=Decimal(0), amount=Decimal(0), fees=Decimal(0)
+        )
+    current_quantity, current_amount, current_fees = astuple(
+        current_list[date_index][symbol]
+    )
+    current_list[date_index][symbol] = HmrcTransactionData(
+        quantity=current_quantity + quantity,
+        amount=current_amount + amount,
+        fees=current_fees + fees,
     )

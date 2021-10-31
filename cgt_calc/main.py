@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import astuple
 import datetime
 import decimal
 from decimal import Decimal
@@ -258,9 +259,9 @@ class CapitalGainsCalculator:
         date_index: datetime.date,
     ) -> list[CalculationEntry]:
         """Process single acquisition."""
-        acquisition_quantity, acquisition_amount, acquisition_fees = acquisition_list[
-            date_index
-        ][symbol]
+        acquisition_quantity, acquisition_amount, acquisition_fees = astuple(
+            acquisition_list[date_index][symbol]
+        )
         original_acquisition_amount = acquisition_amount
         if symbol not in portfolio:
             portfolio[symbol] = (Decimal(0), Decimal(0))
@@ -280,7 +281,7 @@ class CapitalGainsCalculator:
                     bed_and_breakfast_quantity,
                     bed_and_breakfast_amount,
                     _bed_and_breakfast_fees,
-                ) = bed_and_breakfast_list[date_index][symbol]
+                ) = astuple(bed_and_breakfast_list[date_index][symbol])
                 assert bed_and_breakfast_quantity <= acquisition_quantity
                 acquisition_amount -= bed_and_breakfast_quantity * acquisition_price
                 acquisition_amount += bed_and_breakfast_amount
@@ -330,9 +331,9 @@ class CapitalGainsCalculator:
         date_index: datetime.date,
     ) -> tuple[Decimal, list[CalculationEntry]]:
         """Process single disposal."""
-        disposal_quantity, proceeds_amount, disposal_fees = disposal_list[date_index][
-            symbol
-        ]
+        disposal_quantity, proceeds_amount, disposal_fees = astuple(
+            disposal_list[date_index][symbol]
+        )
         original_disposal_quantity = disposal_quantity
         disposal_price = proceeds_amount / disposal_quantity
         current_quantity, current_amount = portfolio[symbol]
@@ -341,9 +342,9 @@ class CapitalGainsCalculator:
         calculation_entries = []
         # Same day rule is first
         if has_key(acquisition_list, date_index, symbol):
-            same_day_quantity, same_day_amount, _same_day_fees = acquisition_list[
-                date_index
-            ][symbol]
+            same_day_quantity, same_day_amount, _same_day_fees = astuple(
+                acquisition_list[date_index][symbol]
+            )
             available_quantity = min(disposal_quantity, same_day_quantity)
             if available_quantity > 0:
                 acquisition_price = same_day_amount / same_day_quantity
@@ -389,7 +390,7 @@ class CapitalGainsCalculator:
                         acquisition_quantity,
                         acquisition_amount,
                         _acquisition_fees,
-                    ) = acquisition_list[search_index][symbol]
+                    ) = astuple(acquisition_list[search_index][symbol])
 
                     bed_and_breakfast_quantity = Decimal(0)
                     if has_key(bed_and_breakfast_list, search_index, symbol):
@@ -397,7 +398,7 @@ class CapitalGainsCalculator:
                             bed_and_breakfast_quantity,
                             _bb_amount,
                             _bb_fees,
-                        ) = bed_and_breakfast_list[search_index][symbol]
+                        ) = astuple(bed_and_breakfast_list[search_index][symbol])
                     assert bed_and_breakfast_quantity <= acquisition_quantity
 
                     same_day_quantity = Decimal(0)
@@ -406,7 +407,7 @@ class CapitalGainsCalculator:
                             same_day_quantity,
                             _same_day_amount,
                             _same_day_fees,
-                        ) = disposal_list[search_index][symbol]
+                        ) = astuple(disposal_list[search_index][symbol])
                     assert same_day_quantity <= acquisition_quantity
 
                     # This can be some management fee entry or already used
@@ -568,12 +569,14 @@ class CapitalGainsCalculator:
                         disposal_count += 1
                         transaction_disposal_proceeds = disposal_list[date_index][
                             symbol
-                        ][1]
+                        ].amount
                         disposal_proceeds += transaction_disposal_proceeds
                         allowable_costs += (
                             transaction_disposal_proceeds - transaction_capital_gain
                         )
-                        transaction_quantity = disposal_list[date_index][symbol][0]
+                        transaction_quantity = disposal_list[date_index][
+                            symbol
+                        ].quantity
                         LOGGER.debug(
                             "DISPOSAL on %s of %s, quantity %d, capital gain $%s",
                             date_index,
