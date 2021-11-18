@@ -29,7 +29,7 @@ python = "^3.8"
 Jinja2 = ">=2.11.3,<4.0.0"
 
 [tool.poetry.dev-dependencies]
-black = "^21.10b0"
+black = "^21.11b1"
 codespell = "^2.1.0"
 flake8 = "^3.9.2"
 flake8-bugbear = "^21.9.2"
