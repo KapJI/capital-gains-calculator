@@ -209,14 +209,14 @@ test = ["coverage (>=4.0.0,<5.0.0)", "pytest (>=4)", "pytest-cov (>=2)", "flake8
 
 [[package]]
 name = "flake8-use-pathlib"
-version = "0.2.0"
+version = "0.2.1"
 description = "A plugin for flake8 finding use of functions that can be replaced by pathlib module."
 category = "dev"
 optional = false
 python-versions = ">=3.6,<4.0"
 
 [package.dependencies]
-flake8 = ">=3.8.3,<4.0.0"
+flake8 = ">=3.6,<5"
 
 [[package]]
 name = "identify"
@@ -546,7 +546,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "90ac22cd9214d9cc6e17d99bd8613753b5eda6c7153739a98e430f93f996a7ba"
+content-hash = "499a73d6ce1f4457e533bf570af427e019041eb75880572ecf66d651e84a214c"
 
 [metadata.files]
 appdirs = [
@@ -621,8 +621,8 @@ flake8-use-fstring = [
     {file = "flake8-use-fstring-1.3.tar.gz", hash = "sha256:1bd4a409adbb93e64e711fdd26b88759c33792e3899f174edc68ddf7307e81b6"},
 ]
 flake8-use-pathlib = [
-    {file = "flake8-use-pathlib-0.2.0.tar.gz", hash = "sha256:fe178e060f2185afc6e71adaa19598e0dc90e65bb09b1ab9b729673dc4e8d7cc"},
-    {file = "flake8_use_pathlib-0.2.0-py3-none-any.whl", hash = "sha256:7aabe903482e90aae671e28a81525affb8c3d4ab3453ccf8f05fbc9fdd70b7f4"},
+    {file = "flake8-use-pathlib-0.2.1.tar.gz", hash = "sha256:844023d3e1ed55dc183bfd5421c4887f1d8242a85f183d6b4849567da6f9ee5e"},
+    {file = "flake8_use_pathlib-0.2.1-py3-none-any.whl", hash = "sha256:5d6ecccead68deef2b7a056553fc4fea513666dc0ae61cc9378615ea1ee301e3"},
 ]
 identify = [
     {file = "identify-2.2.3-py2.py3-none-any.whl", hash = "sha256:398cb92a7599da0b433c65301a1b62b9b1f4bb8248719b84736af6c0b22289d6"},
