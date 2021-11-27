@@ -535,7 +535,7 @@ class CapitalGainsCalculator:
         calculation_log: CalculationLog = {}
         for date_index in (
             begin_index + datetime.timedelta(days=x)
-            for x in range(0, (end_index - begin_index).days)
+            for x in range(0, (end_index - begin_index).days + 1)
         ):
             if date_index in acquisition_list:
                 for symbol in acquisition_list[date_index]:
