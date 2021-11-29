@@ -51,12 +51,12 @@ class RowIterator(Iterator[List[str]]):
         self.line += 1
         return elm
 
-    def __iter__(self) -> "RowIterator":  # noqa: D105
+    def __iter__(self) -> RowIterator:  # noqa: D105
         return self
 
 
 def parse_dividend_payments(
-    rows: Iterator[List[str]],
+    rows: Iterator[list[str]],
 ) -> Iterable[SharesightTransaction]:
     """Parse dividend payments from Sharesight data.
 
@@ -117,7 +117,7 @@ def parse_dividend_payments(
             )
 
 
-def parse_local_income(rows: Iterator[List[str]]) -> Iterable[SharesightTransaction]:
+def parse_local_income(rows: Iterator[list[str]]) -> Iterable[SharesightTransaction]:
     """Parse Local Income section from Sharesight data.
 
     This basically just yields to `parse_dividend_payments`, but we skip the
@@ -132,7 +132,7 @@ def parse_local_income(rows: Iterator[List[str]]) -> Iterable[SharesightTransact
             yield from parse_dividend_payments(rows)
 
 
-def parse_foreign_income(rows: Iterator[List[str]]) -> Iterable[SharesightTransaction]:
+def parse_foreign_income(rows: Iterator[list[str]]) -> Iterable[SharesightTransaction]:
     """Parse Foreign Income section from Sharesight data."""
 
     yield from parse_dividend_payments(rows)
