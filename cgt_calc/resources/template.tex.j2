@@ -27,7 +27,8 @@
     \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount"), 2) }
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
-    \subsection*{Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }%
+    \subsection*{
+        Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }%
         \BLOCK{ if overall_fees > 0 }
             , after £\VAR{ "{:,}".format(overall_fees) } fees
         \BLOCK{ endif }
