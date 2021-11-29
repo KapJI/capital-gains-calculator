@@ -31,6 +31,7 @@ def maybe_decimal(val: str) -> Decimal | None:
     """Convert value to Decimal."""
     return parse_decimal(val) if val else None
 
+
 class SharesightTransaction(BrokerTransaction):
     """Sharesight transaction.
 
