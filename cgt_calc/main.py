@@ -59,7 +59,11 @@ class CapitalGainsCalculator:
     """Main calculator class."""
 
     def __init__(
-        self, tax_year: int, converter: CurrencyConverter, initial_prices: InitialPrices
+        self,
+        tax_year: int,
+        converter: CurrencyConverter,
+        initial_prices: InitialPrices,
+        balance_check: bool = True,
     ):
         """Create calculator object."""
         self.tax_year = tax_year
@@ -69,6 +73,7 @@ class CapitalGainsCalculator:
 
         self.converter = converter
         self.initial_prices = initial_prices
+        self.balance_check = balance_check
 
     def date_in_tax_year(self, date: datetime.date) -> bool:
         """Check if date is within current tax year."""
@@ -229,7 +234,7 @@ class CapitalGainsCalculator:
                 raise InvalidTransactionError(
                     transaction, f"Action not processed({transaction.action})"
                 )
-            if new_balance < 0:
+            if self.balance_check and new_balance < 0:
                 msg = f"Reached a negative balance({new_balance})"
                 msg += f" for broker {transaction.broker} ({transaction.currency})"
                 msg += " after processing the following transactions:\n"
@@ -643,12 +648,14 @@ def main() -> int:
 
     # Read data from input files
     broker_transactions = read_broker_transactions(
-        args.schwab, args.schwab_award, args.trading212, args.mssb
+        args.schwab, args.schwab_award, args.trading212, args.mssb, args.sharesight
     )
     converter = CurrencyConverter(read_gbp_prices_history(args.gbp_history))
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
 
-    calculator = CapitalGainsCalculator(args.year, converter, initial_prices)
+    calculator = CapitalGainsCalculator(
+        args.year, converter, initial_prices, balance_check=args.balance_check
+    )
     # First pass converts broker transactions to HMRC transactions.
     # This means applying same day rule and collapsing all transactions with
     # same type within the same day.

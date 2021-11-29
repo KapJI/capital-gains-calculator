@@ -1,0 +1,18 @@
+Test Portfolio - All Trades Report between 2019-01-01 and 2021-11-27,,,,,,,,,,,,
+,,,,,,,,,,,,
+Market,Code,Name,Type,Date,Quantity,Price *,Brokerage *,Currency,Exchange Rate,Value,,Comments
+FX,ETH,Ethereum currency account,Buy,01/08/2019,1,1,0,ETH,0.0005,1819.82,All Trades,
+FX,XBT,Bitcoin currency account,Buy,02/08/2019,0.1,1,0,XBT,0.0002,2262.49,All Trades,
+NASDAQ,FOO,FOO Inc,Buy,01/09/2020,10,250,0,USD,1.3,1923.08,All Trades,Stock Activity
+NASDAQ,FOO,FOO Inc,Buy,01/10/2020,20,250,0,USD,1.25,4000.00,All Trades,Stock Activity
+NYSE,BAR,BAR Inc,Buy,02/10/2020,3.15,316,0,USD,1.36,731.91,All Trades,
+NASDAQ,BAZ,BAZ Inc,Buy,02/10/2020,45.1,88.49,0,USD,1.36,2934.48,All Trades,
+FX,XBT,Bitcoin currency account,Sell,03/10/2020,-0.1,1,0,XBT,0,-3532.66,All Trades,
+FX,ETH,Ethereum currency account,Buy,03/10/2020,1.585396612,1,0,ETH,0.0004,3532.66,All Trades,
+NASDAQ,FOO,FOO Inc,Sell,01/11/2020,-25,300,5,USD,1.4,-5357.14,All Trades,
+FundUK,FUND1,Fund #1,Buy,02/11/2020,50,275.5,0,GBP,1,13775.00,All Trades,
+NASDAQ,BAZ,BAZ Inc,Sell,03/11/2020,-25.1,86.01,0,USD,1.367,-1579.26,All Trades,
+NYSE,BAR,BAR Inc,Sell,03/11/2020,-3.15,350,0,USD,1.371,-804.16,All Trades,
+NASDAQ,BAZ,BAZ Inc,Sell,03/11/2020,-20,85,0,USD,1.367,-1243.60,All Trades,
+,,,,,,,,,,,,
+* Prices and brokerage are specified in market currency.,,,,,,,,,,,,
