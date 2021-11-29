@@ -105,7 +105,7 @@ class CapitalGainsCalculator:
                 raise PriceMissingError(transaction)
 
             amount = get_amount_or_fail(transaction)
-            calculated_amount = round_decimal(quantity * price + transaction.fees, 2)
+            calculated_amount = (quantity * price + transaction.fees).quantize(amount)
             if amount != -calculated_amount:
                 raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
             amount = -amount
@@ -152,7 +152,7 @@ class CapitalGainsCalculator:
 
         if price is None:
             raise PriceMissingError(transaction)
-        calculated_amount = round_decimal(quantity * price - transaction.fees, 2)
+        calculated_amount = (quantity * price - transaction.fees).quantize(amount)
         if amount != calculated_amount:
             raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
         add_to_list(
