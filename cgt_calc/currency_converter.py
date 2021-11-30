@@ -35,4 +35,5 @@ class CurrencyConverter:
 
     def to_gbp_for(self, amount: Decimal, transaction: BrokerTransaction) -> Decimal:
         """Convert amount from transaction currency to GBP."""
+
         return self.to_gbp(amount, transaction.currency, transaction.date)

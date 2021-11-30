@@ -54,6 +54,20 @@ You will need several input files:
     [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/trading212).
 -   Exported transaction history from Morgan Stanley.
     Since Morgan Stanley generates multiple files in a single report, please specify a directory produced from the report download page.
+-   Exported transaction history from Sharesight
+    Sharesight is a portfolio tracking tool with support for multiple brokers.
+
+    You will need the "All Trades" and "Taxable Income" reports since the beginning.
+    Make sure to select "Since Inception" for the period, and "Not Grouping".
+    Export both reports to Excel or Google Sheets, save as CSV, and place them in the same folder.
+
+    Sharesight aggregates transactions from multiple brokers, but doesn't necessarily have balance information.
+    Use the `--no-balance-check` flag to avoid spurious errors.
+
+    Since there is no direct support for equity grants, add `Stock Activity` as part of the comment associated with any vesting transactions - making sure they have the grant price filled.
+
+    [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight).
+
 -   CSV file with initial stock prices in USD at the moment of vesting, split, etc.
     [`initial_prices.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format.
 -   (Optional) Monthly GBP/USD prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).

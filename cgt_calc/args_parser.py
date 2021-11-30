@@ -44,6 +44,13 @@ def create_parser() -> argparse.ArgumentParser:
         help="folder containing the exported transaction files from Morgan Stanley",
     )
     parser.add_argument(
+        "--sharesight",
+        type=str,
+        nargs="?",
+        help="folder containing reports from Sharesight in CSV format",
+    )
+
+    parser.add_argument(
         "--gbp-history",
         type=str,
         default=None,
@@ -75,6 +82,12 @@ def create_parser() -> argparse.ArgumentParser:
         "--no-report",
         action="store_true",
         help="do not generate PDF report",
+    )
+    parser.add_argument(
+        "--no-balance-check",
+        dest="balance_check",
+        action="store_false",
+        default=True,
     )
     parser.add_argument(
         "--verbose",
