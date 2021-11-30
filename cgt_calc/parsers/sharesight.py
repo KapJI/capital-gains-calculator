@@ -42,7 +42,8 @@ class SharesightTransaction(BrokerTransaction):
 class RowIterator(Iterator[List[str]]):
     """Iterator for CSV rows that keeps track of line number."""
 
-    def __init__(self, rows: Iterable[list[str]]) -> None:  # noqa: D107
+    def __init__(self, rows: Iterable[list[str]]) -> None:
+        """Initialise RowIterator."""
         self.rows = iter(rows)
         self.line = 1
 
@@ -52,7 +53,8 @@ class RowIterator(Iterator[List[str]]):
         self.line += 1
         return elm
 
-    def __iter__(self) -> RowIterator:  # noqa: D105
+    def __iter__(self) -> RowIterator:
+        """Return an iterator for this object."""
         return self
 
 
@@ -65,7 +67,10 @@ def parse_dividend_payments(
     We parse those two sections very similarly, so we use one function.
     """
 
-    columns = next(rows)  # pylint: disable=R1708
+    columns = next(rows, None)
+    if columns is None:
+        return
+
     for row in rows:
         if row[0] == "Total":
             # Don't use the totals row, but it signals the end of the section
