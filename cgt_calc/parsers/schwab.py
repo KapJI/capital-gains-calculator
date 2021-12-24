@@ -156,6 +156,27 @@ def read_schwab_transactions(
     try:
         with Path(transactions_file).open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))
+
+            if "Transactions" not in lines[0][0]:
+                raise ParsingError(
+                    transactions_file,
+                    "First line of Schwab transactions file must be something like "
+                    "'Transactions for account ...'",
+                )
+
+            if len(lines[1]) != 9:
+                raise ParsingError(
+                    transactions_file,
+                    "Second line of Schwab transactions file must be a header"
+                    " with 9 columns",
+                )
+
+            if "Total" not in lines[-1][0]:
+                raise ParsingError(
+                    transactions_file,
+                    "Last line of Schwab transactions file must be total",
+                )
+
             # Remove headers and footer
             lines = lines[2:-1]
             transactions = [
