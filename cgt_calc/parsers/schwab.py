@@ -10,7 +10,6 @@ import itertools
 from pathlib import Path
 
 from cgt_calc.exceptions import (
-    ExchangeRateMissingError,
     ParsingError,
     SymbolMissingError,
     UnexpectedColumnCountError,
@@ -38,7 +37,7 @@ class AwardPrices:
                 and symbol in self.award_prices[to_search]
             ):
                 return self.award_prices[to_search][symbol]
-        raise ExchangeRateMissingError(symbol, date)
+        raise Exception(f"Award price is not found for symbol {symbol} for date {date}")
 
 
 def action_from_str(label: str) -> ActionType:
