@@ -32,6 +32,13 @@ def create_parser() -> argparse.ArgumentParser:
         help="file containing the exported transactions from Charles Schwab",
     )
     parser.add_argument(
+        "--schwab-award",
+        type=str,
+        default=None,
+        nargs="?",
+        help="file containing schwab award data for stock prices",
+    )
+    parser.add_argument(
         "--trading212",
         type=str,
         nargs="?",
@@ -56,13 +63,6 @@ def create_parser() -> argparse.ArgumentParser:
         default=None,
         nargs="?",
         help="monthly GBP/USD prices from HMRC",
-    )
-    parser.add_argument(
-        "--schwab-award",
-        type=str,
-        default=None,
-        nargs="?",
-        help="file containing schwab award data for stock prices",
     )
     parser.add_argument(
         "--initial-prices",
