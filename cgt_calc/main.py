@@ -213,7 +213,11 @@ class CapitalGainsCalculator:
                     gbp_fees,
                     gbp_fees,
                 )
-            elif transaction.action in [ActionType.STOCK_ACTIVITY, ActionType.SPIN_OFF]:
+            elif transaction.action in [
+                ActionType.STOCK_ACTIVITY,
+                ActionType.SPIN_OFF,
+                ActionType.REINVEST_SHARES,
+            ]:
                 self.add_acquisition(portfolio, acquisition_list, transaction)
             elif transaction.action in [ActionType.DIVIDEND, ActionType.CAPITAL_GAIN]:
                 amount = get_amount_or_fail(transaction)
@@ -230,6 +234,11 @@ class CapitalGainsCalculator:
                 new_balance += amount
                 if self.date_in_tax_year(transaction.date):
                     interest += self.converter.to_gbp_for(amount, transaction)
+            elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
+                amount = get_amount_or_fail(transaction)
+                new_balance += amount
+            elif transaction.action is ActionType.REINVEST_DIVIDENDS:
+                print(f"WARNING: Ignoring unsupported action: {transaction.action}")
             else:
                 raise InvalidTransactionError(
                     transaction, f"Action not processed({transaction.action})"

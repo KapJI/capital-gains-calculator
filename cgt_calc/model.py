@@ -37,6 +37,9 @@ class ActionType(Enum):
     CAPITAL_GAIN = 9
     SPIN_OFF = 10
     INTEREST = 11
+    REINVEST_SHARES = 12
+    REINVEST_DIVIDENDS = 13
+    WIRE_FUNDS_RECEIVED = 14
 
 
 @dataclass

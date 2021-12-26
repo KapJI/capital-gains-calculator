@@ -83,6 +83,15 @@ def action_from_str(label: str) -> ActionType:
     if label == "Credit Interest":
         return ActionType.INTEREST
 
+    if label == "Reinvest Shares":
+        return ActionType.REINVEST_SHARES
+
+    if label == "Reinvest Dividend":
+        return ActionType.REINVEST_DIVIDENDS
+
+    if label == "Wire Funds Received":
+        return ActionType.WIRE_FUNDS_RECEIVED
+
     raise ParsingError("schwab transactions", f"Unknown action: {label}")
 
 
