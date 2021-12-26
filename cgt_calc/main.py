@@ -55,6 +55,12 @@ def get_amount_or_fail(transaction: BrokerTransaction) -> Decimal:
     return amount
 
 
+# It is not clear how Schwab or other brokers round the dollar value,
+# so assume the values are equal if they are within $0.01.
+def _approx_equal(val_a: Decimal, val_b: Decimal) -> bool:
+    return abs(val_a - val_b) < Decimal("0.01")
+
+
 class CapitalGainsCalculator:
     """Main calculator class."""
 
@@ -110,8 +116,8 @@ class CapitalGainsCalculator:
                 raise PriceMissingError(transaction)
 
             amount = get_amount_or_fail(transaction)
-            calculated_amount = (quantity * price + transaction.fees).quantize(amount)
-            if amount != -calculated_amount:
+            calculated_amount = quantity * price + transaction.fees
+            if not _approx_equal(amount, -calculated_amount):
                 raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
             amount = -amount
 
@@ -157,8 +163,8 @@ class CapitalGainsCalculator:
 
         if price is None:
             raise PriceMissingError(transaction)
-        calculated_amount = (quantity * price - transaction.fees).quantize(amount)
-        if amount != calculated_amount:
+        calculated_amount = quantity * price - transaction.fees
+        if not _approx_equal(amount, calculated_amount):
             raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
         add_to_list(
             disposal_list,
