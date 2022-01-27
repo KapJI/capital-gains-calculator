@@ -7,7 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Final
 
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 
 COLUMNS: Final[list[str]] = [
@@ -29,6 +29,7 @@ COLUMNS: Final[list[str]] = [
     "Finra fee (GBP)",
     "Notes",
     "ID",
+    "Currency conversion fee (GBP)",
 ]
 
 
@@ -66,11 +67,9 @@ def action_from_str(label: str, filename: str) -> ActionType:
 class Trading212Transaction(BrokerTransaction):
     """Represent single Trading 212 transaction."""
 
-    def __init__(self, row_raw: list[str], filename: str):
+    def __init__(self, header: list[str], row_raw: list[str], filename: str):
         """Create transaction from CSV row."""
-        if len(COLUMNS) != len(row_raw):
-            raise UnexpectedColumnCountError(row_raw, len(COLUMNS), filename)
-        row = {col: row_raw[i] for i, col in enumerate(COLUMNS)}
+        row = dict(zip(header, row_raw))
         time_str = row["Time"]
         self.datetime = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
         date = self.datetime.date()
@@ -82,9 +81,16 @@ class Trading212Transaction(BrokerTransaction):
         self.price_foreign = decimal_or_none(row["Price / share"])
         self.currency_foreign = row["Currency (Price / share)"]
         self.exchange_rate = decimal_or_none(row["Exchange rate"])
-        self.transaction_fee = decimal_or_none(row["Transaction fee (GBP)"])
-        self.finra_fee = decimal_or_none(row["Finra fee (GBP)"])
-        fees = (self.transaction_fee or Decimal(0)) + (self.finra_fee or Decimal(0))
+        self.transaction_fee = decimal_or_none(row.get("Transaction fee (GBP)", "0"))
+        self.finra_fee = decimal_or_none(row.get("Finra fee (GBP)", "0"))
+        self.conversion_fee = decimal_or_none(
+            row.get("Currency conversion fee (GBP)", "0")
+        )
+        fees = (
+            (self.transaction_fee or Decimal(0))
+            + (self.finra_fee or Decimal(0))
+            + (self.conversion_fee or Decimal(0))
+        )
         amount = decimal_or_none(row["Total (GBP)"])
         price = (
             abs(amount / quantity)
@@ -125,11 +131,9 @@ class Trading212Transaction(BrokerTransaction):
 
 def validate_header(header: list[str], filename: str) -> None:
     """Check if header is valid."""
-    if len(COLUMNS) != len(header):
-        raise UnexpectedColumnCountError(header, len(COLUMNS), filename)
-    for i, (expected, actual) in enumerate(zip(COLUMNS, header)):
-        if expected != actual:
-            msg = f"Expected column {i+1} to be {expected} but found {actual}"
+    for actual in header:
+        if actual not in COLUMNS:
+            msg = f"Unknown column {actual}"
             raise ParsingError(filename, msg)
 
 
@@ -149,9 +153,12 @@ def read_trading212_transactions(transactions_folder: str) -> list[BrokerTransac
         with Path(file).open(encoding="utf-8") as csv_file:
             print(f"Parsing {file}")
             lines = list(csv.reader(csv_file))
-            validate_header(lines[0], str(file))
+            header = lines[0]
+            validate_header(header, str(file))
             lines = lines[1:]
-            cur_transactions = [Trading212Transaction(row, str(file)) for row in lines]
+            cur_transactions = [
+                Trading212Transaction(header, row, str(file)) for row in lines
+            ]
             if len(cur_transactions) == 0:
                 print(f"WARNING: no transactions detected in file {file}")
             transactions += cur_transactions
