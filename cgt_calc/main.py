@@ -386,7 +386,9 @@ class CapitalGainsCalculator:
                 # These shares shouldn't be added to Section 104 holding
                 current_amount -= available_quantity * acquisition_price
                 if current_quantity == 0:
-                    assert current_amount == 0, f"current amount {current_amount}"
+                    assert (
+                        round_decimal(current_amount, 23) == 0
+                    ), f"current amount {current_amount}"
                 fees = disposal_fees * available_quantity / original_disposal_quantity
                 calculation_entries.append(
                     CalculationEntry(
@@ -474,7 +476,9 @@ class CapitalGainsCalculator:
                     current_quantity -= available_quantity
                     current_amount -= amount_delta
                     if current_quantity == 0:
-                        assert current_amount == 0, f"current amount {current_amount}"
+                        assert (
+                            round_decimal(current_amount, 23) == 0
+                        ), f"current amount {current_amount}"
                     add_to_list(
                         bed_and_breakfast_list,
                         search_index,
@@ -531,7 +535,9 @@ class CapitalGainsCalculator:
             )
             disposal_quantity = Decimal(0)
 
-        assert disposal_quantity == 0, f"disposal quantity {disposal_quantity}"
+        assert (
+            round_decimal(disposal_quantity, 23) == 0
+        ), f"disposal quantity {disposal_quantity}"
         portfolio[symbol] = (current_quantity, current_amount)
         chargeable_gain = round_decimal(chargeable_gain, 2)
         return chargeable_gain, calculation_entries
