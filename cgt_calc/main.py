@@ -36,11 +36,7 @@ from .model import (
     HmrcTransactionLog,
     RuleType,
 )
-from .parsers import (
-    read_broker_transactions,
-    read_gbp_prices_history,
-    read_initial_prices,
-)
+from .parsers import read_broker_transactions, read_initial_prices
 from .transaction_log import add_to_list, has_key
 from .util import round_decimal
 
@@ -671,7 +667,7 @@ def main() -> int:
     broker_transactions = read_broker_transactions(
         args.schwab, args.schwab_award, args.trading212, args.mssb, args.sharesight
     )
-    converter = CurrencyConverter(read_gbp_prices_history(args.gbp_history))
+    converter = CurrencyConverter(args.exchange_rates_file)
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
 
     calculator = CapitalGainsCalculator(

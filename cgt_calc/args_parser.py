@@ -2,7 +2,7 @@
 import argparse
 import datetime
 
-from .const import DEFAULT_REPORT_PATH
+from .const import DEFAULT_EXCHANGE_RATES_FILE, DEFAULT_REPORT_PATH
 
 
 def get_last_elapsed_tax_year() -> int:
@@ -58,11 +58,11 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "--gbp-history",
+        "--exchange-rates-file",
         type=str,
-        default=None,
+        default=DEFAULT_EXCHANGE_RATES_FILE,
         nargs="?",
-        help="monthly GBP/USD prices from HMRC",
+        help="monthly exchange rates from HMRC",
     )
     parser.add_argument(
         "--initial-prices",
