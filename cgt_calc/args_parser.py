@@ -62,7 +62,7 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         default=DEFAULT_EXCHANGE_RATES_FILE,
         nargs="?",
-        help="monthly exchange rates from HMRC",
+        help="output file for monthly exchange rates from HMRC",
     )
     parser.add_argument(
         "--initial-prices",

@@ -5,6 +5,7 @@ import csv
 import datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Final
 from xml.etree import ElementTree
 
 import requests
@@ -13,7 +14,7 @@ from .dates import is_date
 from .exceptions import ExchangeRateMissingError, ParsingError
 from .model import BrokerTransaction
 
-EXCHANGE_RATES_HEADER = ["month", "currency", "rate"]
+EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
 
 
 class CurrencyConverter:
