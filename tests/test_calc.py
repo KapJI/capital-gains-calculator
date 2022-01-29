@@ -772,13 +772,15 @@ def test_basic(
     tax_year: int,
     broker_transactions: list[BrokerTransaction],
     expected: float,
-    gbp_prices: dict[datetime.date, Decimal] | None,
+    gbp_prices: dict[str, dict[str, Decimal]] | None,
     calculation_log: CalculationLog | None,
 ) -> None:
     """Generate basic tests for test data."""
     if gbp_prices is None:
-        gbp_prices = {(t.date.replace(day=1)): Decimal(1) for t in broker_transactions}
-    converter = CurrencyConverter(gbp_prices)
+        gbp_prices = {
+            t.date.strftime("%m%y"): {"USD": Decimal(1)} for t in broker_transactions
+        }
+    converter = CurrencyConverter(None, gbp_prices)
     initial_prices = InitialPrices({})
     calculator = CapitalGainsCalculator(tax_year, converter, initial_prices)
     report = get_report(calculator, broker_transactions)

@@ -8,7 +8,7 @@ import importlib.resources
 import operator
 from pathlib import Path
 
-from cgt_calc.const import DEFAULT_GBP_HISTORY_FILE, DEFAULT_INITIAL_PRICES_FILE
+from cgt_calc.const import DEFAULT_INITIAL_PRICES_FILE
 from cgt_calc.exceptions import UnexpectedColumnCountError
 from cgt_calc.model import BrokerTransaction
 from cgt_calc.resources import RESOURCES_PACKAGE
@@ -74,29 +74,6 @@ def read_broker_transactions(
 
     transactions.sort(key=operator.attrgetter("date"))
     return transactions
-
-
-def read_gbp_prices_history(
-    gbp_history_file: str | None,
-) -> dict[datetime.date, Decimal]:
-    """Read GBP/USD history from CSV file."""
-    gbp_history: dict[datetime.date, Decimal] = {}
-    if gbp_history_file is None:
-        csv_file = importlib.resources.open_text(
-            RESOURCES_PACKAGE, DEFAULT_GBP_HISTORY_FILE
-        )
-        lines = list(csv.reader(csv_file))
-        csv_file.close()
-    else:
-        with Path(gbp_history_file).open(encoding="utf-8") as csv_file:
-            lines = list(csv.reader(csv_file))
-    lines = lines[1:]
-    for row in lines:
-        if len(row) != 2:
-            raise UnexpectedColumnCountError(row, 2, gbp_history_file or "default")
-        price_date = datetime.datetime.strptime(row[0], "%m/%Y").date()
-        gbp_history[price_date] = Decimal(row[1])
-    return gbp_history
 
 
 def read_initial_prices(

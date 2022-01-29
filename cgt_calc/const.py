@@ -24,10 +24,8 @@ INTERNAL_START_DATE: Final = datetime.date(2010, 1, 1)
 
 PACKAGE_NAME = __package__
 
-# Schwab transactions
-# Monthly GBP/USD history from
-# https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat
-DEFAULT_GBP_HISTORY_FILE: Final = "GBP_USD_monthly_history.csv"
+# Monthly exchange rate history from HMRC
+DEFAULT_EXCHANGE_RATES_FILE: Final = "exchange_rates.csv"
 
 # Initial vesting and spin-off prices
 DEFAULT_INITIAL_PRICES_FILE: Final = "initial_prices.csv"
