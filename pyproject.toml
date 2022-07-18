@@ -43,7 +43,7 @@ flake8-use-pathlib = "^0.2.1"
 isort = "^5.10.1"
 mypy = "^0.961"
 pre-commit = "^2.20.0"
-pylint = "^2.14.4"
+pylint = "^2.14.5"
 pytest = "^7.1.2"
 
 [tool.poetry.scripts]
