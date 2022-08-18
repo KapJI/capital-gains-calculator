@@ -28,7 +28,8 @@
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
     \subsection*{
-        Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }%
+        Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }
+        (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
         \BLOCK{ if overall_fees > 0 }
             , after £\VAR{ "{:,}".format(overall_fees) } fees
         \BLOCK{ endif }
@@ -49,7 +50,8 @@
     \BLOCK{ if overall_quantity > 0 }
         \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
         \subsection*{
-            Acquisition \VAR{ acquisition_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(acquisition_cost) }%
+            Acquisition \VAR{ acquisition_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(acquisition_cost) }
+            (£\VAR{ "{:,}".format(round_decimal(acquisition_cost/overall_quantity, 2)) }/unit)%
             \BLOCK{ if overall_fees > 0 }
                 , including £\VAR{ "{:,}".format(overall_fees) } fees
             \BLOCK{ endif }
@@ -89,7 +91,8 @@
 \BLOCK{ endif }
 \VAR{ strip_zeros(entry.new_quantity) }%
 \BLOCK{ if entry.new_quantity > 0 },
-    new pool cost: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2)) }%
+    new pool cost: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2)) }
+    (£\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost/entry.new_quantity, 2)) }/unit)%
 \BLOCK{ endif }.
 
 \BLOCK{ endfor}
