@@ -4,25 +4,28 @@ To get the data from Schwab:
 1. Open https://client.schwab.com/Apps/accounts/transactionhistory/#/
 2. Make sure Equity Award Center is selected
 3. Select date range ALL and click SEARCH
-4. In chrome devtools, look for an API call to https://client.schwab.com/api/EAC/Customers/EacTransactionsHistory
+4. In chrome devtools, look for an API call to
+   https://client.schwab.com/api/EAC/Customers/EacTransactionsHistory
 5. Copy response JSON inside schwab_input.json and run schwab.py
 """
 from __future__ import annotations
 
-import json
 import datetime
 from decimal import Decimal
-from pandas.tseries.holiday import USFederalHolidayCalendar
-from pandas.tseries.offsets import CustomBusinessDay
+import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Optional
+
+from pandas.tseries.holiday import USFederalHolidayCalendar  # type: ignore
+from pandas.tseries.offsets import CustomBusinessDay  # type: ignore
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 
-
 # Delay between a (sale) trade, and when it is settled.
-SETTLEMENT_DELAY = 2*CustomBusinessDay(calendar=USFederalHolidayCalendar())
+SETTLEMENT_DELAY = 2 * CustomBusinessDay(calendar=USFederalHolidayCalendar())
+
+JsonRowType = Any  # type: ignore
 
 
 def action_from_str(label: str) -> ActionType:
@@ -81,14 +84,20 @@ def action_from_str(label: str) -> ActionType:
     raise ParsingError("schwab transactions", f"Unknown action: {label}")
 
 
-def _get_decimal(row, key, default=None):
+def _get_decimal_or_default(
+    row: JsonRowType, key: str, default: Optional[Decimal] = None
+) -> Optional[Decimal]:
     if key in row and row[key]:
         if isinstance(row[key], float):
             return round(Decimal.from_float(row[key]), 2)
-        else:
-            return Decimal(row[key])
-    else:
-        return default
+
+        return Decimal(row[key])
+
+    return default
+
+
+def _get_decimal(row: JsonRowType, key: str) -> Decimal:
+    return _get_decimal_or_default(row, key, Decimal(0))  # type: ignore
 
 
 def _price_from_str(price_str: str) -> Decimal:
@@ -102,39 +111,62 @@ class SchwabTransaction(BrokerTransaction):
 
     def __init__(
         self,
-        row: Dict[str, Any],
+        row: JsonRowType,
         file: str,
-    ):
-        description = row['description']
-        self.raw_action = row['action']
+    ) -> None:
+        """Create a new SchwabTransaction from a JSON row."""
+        description = row["description"]
+        self.raw_action = row["action"]
         action = action_from_str(self.raw_action)
-        symbol = row.get('symbol')
-        quantity = _get_decimal(row, 'quantitySortValue')
-        amount = _get_decimal(row, 'amountSortValue')
-        fees = _get_decimal(row, 'totalCommissionsAndFeesSortValue', Decimal(0))
-        if row['action'] == 'Deposit':
-            if len(row['transactionDetails']) != 1:
-                raise ParsingError(file, f"Expected a single transactionDetails for a Deposit, but found {len(row['transactionDetails'])}")
-            date = datetime.datetime.strptime(row['transactionDetails'][0]['vestDate'], "%m/%d/%Y").date()
-            price = _price_from_str(row['transactionDetails'][0]['vestFairMarketValue'])
-            description = f'Vest from Award Date {row["transactionDetails"][0]["awardDate"]} (ID {row["transactionDetails"][0]["awardName"]})'
-        elif row['action'] == 'Sale':
-            # Schwab's data export shows the settlement date, whereas HMRC wants the trade date:
-            date = (datetime.datetime.strptime(row['eventDate'], "%m/%d/%Y").date() - SETTLEMENT_DELAY).date()
-            # Schwab's data export lacks decimals on Sales quantities, so we infer it
-            # from the amount and salePrice.
-            price_str = row['transactionDetails'][0]['salePrice']
+        symbol = row.get("symbol")
+        quantity = _get_decimal_or_default(row, "quantitySortValue")
+        amount = _get_decimal(row, "amountSortValue")
+        fees = _get_decimal(row, "totalCommissionsAndFeesSortValue")
+        if row["action"] == "Deposit":
+            if len(row["transactionDetails"]) != 1:
+                raise ParsingError(
+                    file,
+                    "Expected a single transactionDetails for a Deposit, but "
+                    f"found {len(row['transactionDetails'])}",
+                )
+            date = datetime.datetime.strptime(
+                row["transactionDetails"][0]["vestDate"], "%m/%d/%Y"
+            ).date()
+            price = _price_from_str(row["transactionDetails"][0]["vestFairMarketValue"])
+            description = (
+                f"Vest from Award Date "
+                f'{row["transactionDetails"][0]["awardDate"]} '
+                f'(ID {row["transactionDetails"][0]["awardName"]})'
+            )
+        elif row["action"] == "Sale":
+            # Schwab's data export shows the settlement date,
+            # whereas HMRC wants the trade date:
+            date = (
+                datetime.datetime.strptime(row["eventDate"], "%m/%d/%Y").date()
+                - SETTLEMENT_DELAY
+            ).date()
+            # Schwab's data export lacks decimals on Sales quantities,
+            # so we infer it from the amount and salePrice.
+            price_str = row["transactionDetails"][0]["salePrice"]
             price = _price_from_str(price_str)
 
-            # Schwab only gives us overall transaction amount, and sale price of the sub-transactions.
-            # We can only work-out the correct quantity if all sub-transactions have the same price:
-            for subtransac in row['transactionDetails'][1:]:
-                if subtransac['salePrice'] != price_str:
-                    raise ParsingError(file, f"Impossible to work out quantity of sale of date {date} and amount {amount} because different sub-transaction have different sale prices")
+            # Schwab only gives us overall transaction amount, and sale price
+            # of the sub-transactions. We can only work-out the correct
+            # quantity if all sub-transactions have the same price:
+            for subtransac in row["transactionDetails"][1:]:
+                if subtransac["salePrice"] != price_str:
+                    raise ParsingError(
+                        file,
+                        "Impossible to work out quantity of sale of date"
+                        f"{date} and amount {amount} because different "
+                        "sub-transaction have different sale prices",
+                    )
 
             quantity = (amount + fees) / price
         else:
-            raise ParsingError(file, f'Parsing for action {row["action"]} is not implemented!')
+            raise ParsingError(
+                file, f'Parsing for action {row["action"]} is not implemented!'
+            )
 
         currency = "USD"
         broker = "Charles Schwab"
@@ -153,47 +185,55 @@ class SchwabTransaction(BrokerTransaction):
 
         self._normalize_split()
 
-    def _normalize_split(self):
-        """Ensure past transactions are normalized to splitted values.
+    def _normalize_split(self) -> None:
+        """Ensure past transactions are normalized to split values.
 
-        This is in the context of the 20:1 stock split which happened at close on 2022-07-15 20:1.
+        This is in the context of the 20:1 stock split which happened at close
+        on 2022-07-15 20:1.
 
-        As of 2022-08-07, Schwab's data exports have some past transactions corrected
-        for the 20:1 split on 2022-07-15, whereas others are not."""
+        As of 2022-08-07, Schwab's data exports have some past transactions
+        corrected for the 20:1 split on 2022-07-15, whereas others are not.
+        """
         split_factor = 20
 
         # The share price has never been above $175*20=$3500 before 2022-07-15
         # so this price is expressed in pre-split amounts: normalize to post-split
-        if self.date <= datetime.date(2022, 7, 15) and self.price and self.price > 175:
+        if (
+            self.date <= datetime.date(2022, 7, 15)
+            and self.price
+            and self.price > 175
+            and self.quantity
+        ):
             self.price = round(self.price / split_factor, 2)
             self.quantity = round(self.quantity * split_factor, 2)
 
 
 def read_schwab_equity_award_json_transactions(
-    transactions_file: str
+    transactions_file: str,
 ) -> list[BrokerTransaction]:
     """Read Schwab transactions from file."""
     try:
         with Path(transactions_file).open(encoding="utf-8") as json_file:
             try:
                 data = json.load(json_file)
-            except json.decoder.JSONDecodeError as e:
+            except json.decoder.JSONDecodeError as exception:
                 raise ParsingError(
                     transactions_file,
                     "Cloud not parse content as JSON",
-                ) from e
+                ) from exception
 
-            if "transactions" not in data or not isinstance(data['transactions'], list):
+            if "transactions" not in data or not isinstance(data["transactions"], list):
                 raise ParsingError(
                     transactions_file,
-                    "no 'transactions' list found: the JSON data is not in the expected format",
+                    "no 'transactions' list found: the JSON data is not "
+                    "in the expected format",
                 )
 
             transactions = [
                 SchwabTransaction(transac, transactions_file)
                 for transac in data["transactions"]
                 # Skip as not relevant for CGT
-                if transac['action'] not in {'Journal', "Wire Transfer"}
+                if transac["action"] not in {"Journal", "Wire Transfer"}
             ]
             transactions.reverse()
             return list(transactions)
