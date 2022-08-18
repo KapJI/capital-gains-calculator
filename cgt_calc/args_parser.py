@@ -39,6 +39,13 @@ def create_parser() -> argparse.ArgumentParser:
         help="file containing schwab award data for stock prices",
     )
     parser.add_argument(
+        "--schwab_equity_award_json",
+        type=str,
+        default=None,
+        nargs="?",
+        help="file containing schwab equity award transactions data in JSON format",
+    )
+    parser.add_argument(
         "--trading212",
         type=str,
         nargs="?",
