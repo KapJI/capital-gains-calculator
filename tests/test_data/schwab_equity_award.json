@@ -1,0 +1,143 @@
+{
+	"transactions": [
+		{
+			"typeName": "DepositViewModel",
+			"eventDateSortValue": "2022-10-27T00:00:00",
+			"eventDate": "10/27/2022",
+			"action": "Deposit",
+			"symbol": "GOOG",
+			"quantitySortValue": 10.45,
+			"quantity": "10.45",
+			"description": "RS",
+			"totalCommissionsAndFeesSortValue": null,
+			"totalCommissionsAndFees": null,
+			"disbursementElection": null,
+			"amountSortValue": null,
+			"amount": null,
+			"transactionDetails": [
+				{
+					"fieldNameToDisplayNameLookup": {
+						"Award Date": "01/05/2022",
+						"Award ID": "C1234567",
+						"Vest Date": "10/25/2022",
+						"Vest FMV": "$112.42"
+					},
+					"awardDate": "01/05/2022",
+					"awardName": "C1234567",
+					"vestDate": "10/25/2022",
+					"vestFairMarketValue": "$112.42",
+					"typeName": "DepositDetailRSOrPSDetail"
+				}
+			]
+		},
+		{
+			"typeName": "ShareSaleViewModel",
+			"eventDateSortValue": "2022-06-21T00:00:00",
+			"eventDate": "06/21/2022",
+			"action": "Sale",
+			"symbol": "GOOG",
+			"quantitySortValue": 3,
+			"quantity": "3",
+			"description": "Share Sale",
+			"totalCommissionsAndFeesSortValue": 0.17,
+			"totalCommissionsAndFees": "$0.17",
+			"disbursementElection": null,
+			"amountSortValue": 7120.75,
+			"amount": "$7,120.75",
+			"transactionDetails": [
+				{
+					"fieldNameToDisplayNameLookup": {
+						"Type": "RS",
+						"Shares": "0",
+						"Sale Price": "$2,275.00",
+						"Subscription Date": null,
+						"Subscription FMV": "",
+						"Purchase Date": null,
+						"Purchase Price": "",
+						"Purchase FMV": "",
+						"Disposition Type": null,
+						"Grant Id": "C1234567",
+						"Vest Date": "04/25/2022",
+						"Vest FMV": "$2,253.61",
+						"Gross Proceeds": "$238.88"
+					},
+					"type": "RS",
+					"shares": "0",
+					"salePrice": "$2,275.00",
+					"subscriptionDate": null,
+					"subscriptionFairMarketValue": "",
+					"purchaseDate": null,
+					"purchasePrice": "",
+					"purchaseFairMarketValue": "",
+					"dispositionType": null,
+					"grantId": "C1234567",
+					"vestDate": "05/25/2022",
+					"vestFairMarketValue": "$2,253.61",
+					"grossProceeds": "$238.88",
+					"typeName": "ShareSaleDetail"
+				},
+				{
+					"fieldNameToDisplayNameLookup": {
+						"Type": "RS",
+						"Shares": "3",
+						"Sale Price": "$2,275.00",
+						"Subscription Date": null,
+						"Subscription FMV": "",
+						"Purchase Date": null,
+						"Purchase Price": "",
+						"Purchase FMV": "",
+						"Disposition Type": null,
+						"Grant Id": "C1234567",
+						"Vest Date": "05/25/2022",
+						"Vest FMV": "$2,253.61",
+						"Gross Proceeds": "$6,825.00"
+					},
+					"type": "RS",
+					"shares": "3",
+					"salePrice": "$2,275.00",
+					"subscriptionDate": null,
+					"subscriptionFairMarketValue": "",
+					"purchaseDate": null,
+					"purchasePrice": "",
+					"purchaseFairMarketValue": "",
+					"dispositionType": null,
+					"grantId": "C1234567",
+					"vestDate": "05/25/2022",
+					"vestFairMarketValue": "$2,253.61",
+					"grossProceeds": "$6,825.00",
+					"typeName": "ShareSaleDetail"
+				}
+			]
+		},
+		{
+			"typeName": "DepositViewModel",
+			"eventDateSortValue": "2022-04-01T00:00:00",
+			"eventDate": "04/27/2022",
+			"action": "Deposit",
+			"symbol": "GOOG",
+			"quantitySortValue": 3.36,
+			"quantity": "3.36",
+			"description": "RS",
+			"totalCommissionsAndFeesSortValue": null,
+			"totalCommissionsAndFees": null,
+			"disbursementElection": null,
+			"amountSortValue": null,
+			"amount": null,
+			"transactionDetails": [
+				{
+					"fieldNameToDisplayNameLookup": {
+						"Award Date": "01/05/2022",
+						"Award ID": "C1234567",
+						"Vest Date": "04/25/2022",
+						"Vest FMV": "$2,512.89"
+					},
+					"awardDate": "01/05/2022",
+					"awardName": "C1234567",
+					"vestDate": "04/25/2022",
+					"vestFairMarketValue": "$2,512.89",
+					"typeName": "DepositDetailRSOrPSDetail"
+				}
+			]
+		}
+	]
+}

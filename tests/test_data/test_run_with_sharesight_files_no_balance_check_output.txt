@@ -1,4 +1,5 @@
 WARNING: No schwab file provided
+WARNING: No schwab Equity Award JSON file provided
 WARNING: No trading212 folder provided
 WARNING: No mssb folder provided
 First pass completed
