@@ -665,7 +665,12 @@ def main() -> int:
 
     # Read data from input files
     broker_transactions = read_broker_transactions(
-        args.schwab, args.schwab_award, args.schwab_equity_award_json, args.trading212, args.mssb, args.sharesight
+        args.schwab,
+        args.schwab_award,
+        args.schwab_equity_award_json,
+        args.trading212,
+        args.mssb,
+        args.sharesight,
     )
     converter = CurrencyConverter(args.exchange_rates_file)
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
