@@ -32,7 +32,7 @@ types-requests = "^2.27.7"
 
 [tool.poetry.dev-dependencies]
 black = "^22.6"
-codespell = "^2.1.0"
+codespell = "^2.2.1"
 flake8 = "^4.0.1"
 flake8-bugbear = "^22.7.1"
 flake8-comprehensions = "^3.10.0"
