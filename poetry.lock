@@ -44,10 +44,10 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [package.extras]
-dev = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "zope.interface", "furo", "sphinx", "pre-commit"]
-docs = ["furo", "sphinx", "zope.interface"]
-tests = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "zope.interface"]
-tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "six"]
+tests_no_zope = ["six", "pytest (>=4.3.0)", "pympler", "hypothesis", "coverage[toml] (>=5.0.2)"]
+tests = ["zope.interface", "six", "pytest (>=4.3.0)", "pympler", "hypothesis", "coverage[toml] (>=5.0.2)"]
+docs = ["zope.interface", "sphinx", "furo"]
+dev = ["pre-commit", "sphinx", "furo", "zope.interface", "six", "pytest (>=4.3.0)", "pympler", "hypothesis", "coverage[toml] (>=5.0.2)"]
 
 [[package]]
 name = "black"
@@ -182,7 +182,7 @@ attrs = ">=19.2.0"
 flake8 = ">=3.0.0"
 
 [package.extras]
-dev = ["coverage", "hypothesis", "hypothesmith (>=0.2)", "pre-commit"]
+dev = ["pre-commit", "hypothesmith (>=0.2)", "hypothesis", "coverage"]
 
 [[package]]
 name = "flake8-comprehensions"
@@ -339,9 +339,9 @@ tomli = {version = ">=1.1.0", markers = "python_version < \"3.11\""}
 typing-extensions = ">=3.10"
 
 [package.extras]
-dmypy = ["psutil (>=4.0)"]
-python2 = ["typed-ast (>=1.4.0,<2)"]
 reports = ["lxml"]
+python2 = ["typed-ast (>=1.4.0,<2)"]
+dmypy = ["psutil (>=4.0)"]
 
 [[package]]
 name = "mypy-extensions"
@@ -399,7 +399,7 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [package.extras]
-dev = ["pre-commit", "tox"]
+dev = ["tox", "pre-commit"]
 
 [[package]]
 name = "pre-commit"
@@ -502,7 +502,7 @@ py = ">=1.8.2"
 tomli = ">=1.0.0"
 
 [package.extras]
-testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "pygments (>=2.7.2)", "requests", "xmlschema"]
+testing = ["xmlschema", "requests", "pygments (>=2.7.2)", "nose", "mock", "hypothesis (>=3.56)", "argcomplete"]
 
 [[package]]
 name = "pyyaml"
@@ -527,8 +527,8 @@ idna = ">=2.5,<4"
 urllib3 = ">=1.21.1,<1.27"
 
 [package.extras]
-socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use_chardet_on_py3 = ["chardet (>=3.0.2,<6)"]
+socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 
 [[package]]
 name = "six"
@@ -572,7 +572,7 @@ python-versions = ">=3.6,<4.0"
 
 [[package]]
 name = "types-requests"
-version = "2.28.8"
+version = "2.28.9"
 description = "Typing stubs for requests"
 category = "main"
 optional = false
@@ -606,9 +606,9 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, <4"
 
 [package.extras]
-brotli = ["brotlipy (>=0.6.0)"]
-secure = ["pyOpenSSL (>=0.14)", "cryptography (>=1.3.4)", "idna (>=2.0.0)", "certifi", "ipaddress"]
 socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
+secure = ["ipaddress", "certifi", "idna (>=2.0.0)", "cryptography (>=1.3.4)", "pyOpenSSL (>=0.14)"]
+brotli = ["brotlipy (>=0.6.0)"]
 
 [[package]]
 name = "virtualenv"
@@ -1006,8 +1006,8 @@ tomlkit = [
     {file = "tomlkit-0.11.0.tar.gz", hash = "sha256:71ceb10c0eefd8b8f11fe34e8a51ad07812cb1dc3de23247425fbc9ddc47b9dd"},
 ]
 types-requests = [
-    {file = "types-requests-2.28.8.tar.gz", hash = "sha256:7a9f7b152d594a1c18dd4932cdd2596b8efbeedfd73caa4e4abb3755805b4685"},
-    {file = "types_requests-2.28.8-py3-none-any.whl", hash = "sha256:b0421f9f2d0dd0f8df2c75f974686517ca67473f05b466232d4c6384d765ad7a"},
+    {file = "types-requests-2.28.9.tar.gz", hash = "sha256:feaf581bd580497a47fe845d506fa3b91b484cf706ff27774e87659837de9962"},
+    {file = "types_requests-2.28.9-py3-none-any.whl", hash = "sha256:86cb66d3de2f53eac5c09adc42cf6547eefbd0c7e1210beca1ee751c35d96083"},
 ]
 types-urllib3 = [
     {file = "types-urllib3-1.26.7.tar.gz", hash = "sha256:cfd1fbbe4ba9a605ed148294008aac8a7b8b7472651d1cc357d507ae5962e3d2"},
