@@ -76,7 +76,7 @@ class CurrencyConverter:
             "http://www.hmrc.gov.uk/softwaredevelopers/rates/"
             f"exrates-monthly-{month_str}.xml"
         )
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         if not response.ok:
             raise ParsingError(
                 url, f"HMRC API returned a {response.status_code} response"
