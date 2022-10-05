@@ -5,7 +5,7 @@ To get the data from Schwab:
 2. Make sure Equity Award Center is selected
 3. Select date range ALL and click SEARCH
 4. In chrome devtools, look for an API call to
-   https://client.schwab.com/api/EAC/Customers/EacTransactionsHistory
+   https://ausgateway.schwab.com/api/is.TransactionHistoryWeb/TransactionHistoryInterface/TransactionHistory/equity-award-center/transactions
 5. Copy response JSON inside schwab_input.json and run schwab.py
 """
 from __future__ import annotations
