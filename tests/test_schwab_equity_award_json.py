@@ -46,14 +46,14 @@ def test_schwab_transaction() -> None:
     assert transactions[0].action == ActionType.STOCK_ACTIVITY
     assert transactions[0].symbol == "GOOG"
     assert transactions[0].quantity == Decimal("67.2")
-    assert transactions[0].price == Decimal("125.64")
+    assert transactions[0].price == Decimal("125.6445")
     assert transactions[0].fees == Decimal("0")
     assert transactions[0].currency == "USD"
     assert transactions[0].broker == "Charles Schwab"
 
     assert transactions[1].date == datetime.date(2022, 6, 10)
     assert transactions[1].action == ActionType.SELL
-    assert transactions[1].quantity == Decimal("62.6")
+    assert transactions[1].quantity == Decimal("62.6015")
     assert transactions[1].price == Decimal("113.75")
     assert transactions[1].fees == Decimal("0.17")
 

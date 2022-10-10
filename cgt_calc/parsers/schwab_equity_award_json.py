@@ -84,12 +84,22 @@ def action_from_str(label: str) -> ActionType:
     raise ParsingError("schwab transactions", f"Unknown action: {label}")
 
 
+def _round_decimal(num: Decimal) -> Decimal:
+    # We want enough decimals to cover what Schwab gives us (2 decimals)
+    # divided by the share-split factor (20), so we keep 4 decimals.
+    # We don't want more decimals than necessary or we risk converting
+    # the float number format approximations into Decimals
+    # (e.g. a number 1.0001 in JSON may become 1.00010001 when parsed
+    # into float, but we want to get Decimal('1.0001'))
+    return num.quantize(Decimal(".0001")).normalize()
+
+
 def _get_decimal_or_default(
     row: JsonRowType, key: str, default: Optional[Decimal] = None
 ) -> Optional[Decimal]:
     if key in row and row[key]:
         if isinstance(row[key], float):
-            return round(Decimal.from_float(row[key]), 2)
+            return _round_decimal(Decimal.from_float(row[key]))
 
         return Decimal(row[key])
 
@@ -204,8 +214,8 @@ class SchwabTransaction(BrokerTransaction):
             and self.price > 175
             and self.quantity
         ):
-            self.price = round(self.price / split_factor, 2)
-            self.quantity = round(self.quantity * split_factor, 2)
+            self.price = _round_decimal(self.price / split_factor)
+            self.quantity = _round_decimal(self.quantity * split_factor)
 
 
 def read_schwab_equity_award_json_transactions(
