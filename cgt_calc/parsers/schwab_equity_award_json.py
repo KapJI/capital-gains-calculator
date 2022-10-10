@@ -14,7 +14,7 @@ import datetime
 from decimal import Decimal
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pandas.tseries.holiday import USFederalHolidayCalendar  # type: ignore
 from pandas.tseries.offsets import CustomBusinessDay  # type: ignore
@@ -95,8 +95,8 @@ def _round_decimal(num: Decimal) -> Decimal:
 
 
 def _get_decimal_or_default(
-    row: JsonRowType, key: str, default: Optional[Decimal] = None
-) -> Optional[Decimal]:
+    row: JsonRowType, key: str, default: Decimal | None = None
+) -> Decimal | None:
     if key in row and row[key]:
         if isinstance(row[key], float):
             return _round_decimal(Decimal.from_float(row[key]))
