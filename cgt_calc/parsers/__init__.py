@@ -15,6 +15,7 @@ from cgt_calc.resources import RESOURCES_PACKAGE
 
 from .mssb import read_mssb_transactions
 from .schwab import read_schwab_transactions
+from .schwab_equity_award_json import read_schwab_equity_award_json_transactions
 from .sharesight import read_sharesight_transactions
 from .trading212 import read_trading212_transactions
 
@@ -44,6 +45,7 @@ class InitialPricesEntry:
 def read_broker_transactions(
     schwab_transactions_file: str | None,
     schwab_awards_transactions_file: str | None,
+    schwab_equity_award_json_transactions_file: str | None,
     trading212_transactions_folder: str | None,
     mssb_transactions_folder: str | None,
     sharesight_transactions_folder: str | None,
@@ -56,6 +58,13 @@ def read_broker_transactions(
         )
     else:
         print("WARNING: No schwab file provided")
+
+    if schwab_equity_award_json_transactions_file is not None:
+        transactions += read_schwab_equity_award_json_transactions(
+            schwab_equity_award_json_transactions_file
+        )
+    else:
+        print("WARNING: No schwab Equity Award JSON file provided")
 
     if trading212_transactions_folder is not None:
         transactions += read_trading212_transactions(trading212_transactions_folder)
