@@ -45,7 +45,7 @@ mypy = "^0.982"
 pandas = "^1.5.1"
 pre-commit = "^2.20.0"
 pylint = "^2.15.5"
-pytest = "^7.1.3"
+pytest = "^7.2.0"
 
 [tool.poetry.scripts]
 cgt-calc = 'cgt_calc.main:init'
