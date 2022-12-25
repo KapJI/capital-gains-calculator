@@ -116,6 +116,22 @@ def _price_from_str(price_str: str) -> Decimal:
     return Decimal(price_str.replace("$", "").replace(",", ""))
 
 
+def _price_from_str_or_float(
+    row: JsonRowType,
+    field_basename: str,
+    field_float_suffix: str = "SortValue",
+) -> Decimal:
+    # We prefer strings to floats which get rounded when parsed:
+    if field_basename in row and row[field_basename]:
+        return _price_from_str(row[field_basename])
+
+    return _get_decimal(row, f"{field_basename}{field_float_suffix}")
+
+
+def _is_integer(number: Decimal) -> bool:
+    return number % 1 == 0
+
+
 class SchwabTransaction(BrokerTransaction):
     """Represent single Schwab transaction."""
 
@@ -129,9 +145,9 @@ class SchwabTransaction(BrokerTransaction):
         self.raw_action = row["action"]
         action = action_from_str(self.raw_action)
         symbol = row.get("symbol")
-        quantity = _get_decimal_or_default(row, "quantitySortValue")
-        amount = _get_decimal(row, "amountSortValue")
-        fees = _get_decimal(row, "totalCommissionsAndFeesSortValue")
+        quantity = _price_from_str_or_float(row, "quantity")
+        amount = _price_from_str_or_float(row, "amount")
+        fees = _price_from_str_or_float(row, "totalCommissionsAndFees")
         if row["action"] == "Deposit":
             if len(row["transactionDetails"]) != 1:
                 raise ParsingError(
@@ -143,6 +159,8 @@ class SchwabTransaction(BrokerTransaction):
                 row["transactionDetails"][0]["vestDate"], "%m/%d/%Y"
             ).date()
             price = _price_from_str(row["transactionDetails"][0]["vestFairMarketValue"])
+            if amount == Decimal(0):
+                amount = price * quantity
             description = (
                 f"Vest from Award Date "
                 f'{row["transactionDetails"][0]["awardDate"]} '
@@ -155,24 +173,48 @@ class SchwabTransaction(BrokerTransaction):
                 datetime.datetime.strptime(row["eventDate"], "%m/%d/%Y").date()
                 - SETTLEMENT_DELAY
             ).date()
-            # Schwab's data export lacks decimals on Sales quantities,
-            # so we infer it from the amount and salePrice.
-            price_str = row["transactionDetails"][0]["salePrice"]
-            price = _price_from_str(price_str)
 
-            # Schwab only gives us overall transaction amount, and sale price
-            # of the sub-transactions. We can only work-out the correct
-            # quantity if all sub-transactions have the same price:
-            for subtransac in row["transactionDetails"][1:]:
-                if subtransac["salePrice"] != price_str:
-                    raise ParsingError(
-                        file,
-                        "Impossible to work out quantity of sale of date"
-                        f"{date} and amount {amount} because different "
-                        "sub-transaction have different sale prices",
-                    )
+            # Schwab's data export sometimes lacks decimals on Sales
+            # quantities, in which case we infer it from number of shares in
+            # sub-transactions, or failing that from the amount and salePrice.
+            if not _is_integer(quantity):
+                price = (amount + fees) / quantity
+            else:
+                subtransac_have_quantities = True
+                subtransac_shares_sum = Decimal()  # Decimal 0
+                found_share_decimals = False
+                for subtransac in row["transactionDetails"]:
+                    if "shares" in subtransac:
+                        shares = _price_from_str(subtransac["shares"])
+                        subtransac_shares_sum += shares
+                        if not _is_integer(shares):
+                            found_share_decimals = True
+                    else:
+                        subtransac_have_quantities = False
+                        break
 
-            quantity = (amount + fees) / price
+                if subtransac_have_quantities and found_share_decimals:
+                    quantity = subtransac_shares_sum
+                    price = (amount + fees) / quantity
+                else:
+                    # Schwab sometimes only gives us overall transaction
+                    # amount, and sale price of the sub-transactions.
+                    # We can only work-out the correct quantity if all
+                    # sub-transactions have the same price:
+                    price_str = row["transactionDetails"][0]["salePrice"]
+                    price = _price_from_str(price_str)
+
+                    for subtransac in row["transactionDetails"][1:]:
+                        if subtransac["salePrice"] != price_str:
+                            raise ParsingError(
+                                file,
+                                "Impossible to work out quantity of sale of "
+                                f"date {date} and amount {amount} because "
+                                "different sub-transaction have different sale"
+                                " prices",
+                            )
+
+                    quantity = (amount + fees) / price
         else:
             raise ParsingError(
                 file, f'Parsing for action {row["action"]} is not implemented!'
