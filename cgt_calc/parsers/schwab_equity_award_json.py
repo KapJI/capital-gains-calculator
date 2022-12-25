@@ -85,13 +85,13 @@ def action_from_str(label: str) -> ActionType:
 
 
 def _round_decimal(num: Decimal) -> Decimal:
-    # We want enough decimals to cover what Schwab gives us (2 decimals)
-    # divided by the share-split factor (20), so we keep 4 decimals.
+    # We want enough decimals to cover what Schwab gives us (up to 4 decimals)
+    # divided by the share-split factor (20), so we keep 6 decimals.
     # We don't want more decimals than necessary or we risk converting
     # the float number format approximations into Decimals
     # (e.g. a number 1.0001 in JSON may become 1.00010001 when parsed
     # into float, but we want to get Decimal('1.0001'))
-    return num.quantize(Decimal(".0001")).normalize()
+    return num.quantize(Decimal(".000001")).normalize()
 
 
 def _get_decimal_or_default(
