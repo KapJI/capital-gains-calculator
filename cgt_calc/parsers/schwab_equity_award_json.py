@@ -21,9 +21,18 @@ from pandas.tseries.offsets import CustomBusinessDay  # type: ignore
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.util import round_decimal
 
 # Delay between a (sale) trade, and when it is settled.
 SETTLEMENT_DELAY = 2 * CustomBusinessDay(calendar=USFederalHolidayCalendar())
+
+# We want enough decimals to cover what Schwab gives us (up to 4 decimals)
+# divided by the share-split factor (20), so we keep 6 decimals.
+# We don't want more decimals than necessary or we risk converting
+# the float number format approximations into Decimals
+# (e.g. a number 1.0001 in JSON may become 1.00010001 when parsed
+# into float, but we want to get Decimal('1.0001'))
+ROUND_DIGITS = 6
 
 JsonRowType = Any  # type: ignore
 
@@ -84,22 +93,12 @@ def action_from_str(label: str) -> ActionType:
     raise ParsingError("schwab transactions", f"Unknown action: {label}")
 
 
-def _round_decimal(num: Decimal) -> Decimal:
-    # We want enough decimals to cover what Schwab gives us (up to 4 decimals)
-    # divided by the share-split factor (20), so we keep 6 decimals.
-    # We don't want more decimals than necessary or we risk converting
-    # the float number format approximations into Decimals
-    # (e.g. a number 1.0001 in JSON may become 1.00010001 when parsed
-    # into float, but we want to get Decimal('1.0001'))
-    return num.quantize(Decimal(".000001")).normalize()
-
-
 def _get_decimal_or_default(
     row: JsonRowType, key: str, default: Decimal | None = None
 ) -> Decimal | None:
     if key in row and row[key]:
         if isinstance(row[key], float):
-            return _round_decimal(Decimal.from_float(row[key]))
+            return round_decimal(Decimal.from_float(row[key]), ROUND_DIGITS)
 
         return Decimal(row[key])
 
@@ -214,8 +213,8 @@ class SchwabTransaction(BrokerTransaction):
             and self.price > 175
             and self.quantity
         ):
-            self.price = _round_decimal(self.price / split_factor)
-            self.quantity = _round_decimal(self.quantity * split_factor)
+            self.price = round_decimal(self.price / split_factor, ROUND_DIGITS)
+            self.quantity = round_decimal(self.quantity * split_factor, ROUND_DIGITS)
 
 
 def read_schwab_equity_award_json_transactions(
