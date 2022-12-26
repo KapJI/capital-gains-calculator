@@ -28,10 +28,6 @@ SETTLEMENT_DELAY = 2 * CustomBusinessDay(calendar=USFederalHolidayCalendar())
 
 # We want enough decimals to cover what Schwab gives us (up to 4 decimals)
 # divided by the share-split factor (20), so we keep 6 decimals.
-# We don't want more decimals than necessary or we risk converting
-# the float number format approximations into Decimals
-# (e.g. a number 1.0001 in JSON may become 1.00010001 when parsed
-# into float, but we want to get Decimal('1.0001'))
 ROUND_DIGITS = 6
 
 JsonRowType = Any  # type: ignore
@@ -93,38 +89,34 @@ def action_from_str(label: str) -> ActionType:
     raise ParsingError("schwab transactions", f"Unknown action: {label}")
 
 
-def _get_decimal_or_default(
-    row: JsonRowType, key: str, default: Decimal | None = None
-) -> Decimal | None:
-    if key in row and row[key]:
-        if isinstance(row[key], float):
-            return round_decimal(Decimal.from_float(row[key]), ROUND_DIGITS)
+def _decimal_from_str(price_str: str) -> Decimal:
+    """Convert a number as string to a Decimal.
 
-        return Decimal(row[key])
-
-    return default
-
-
-def _get_decimal(row: JsonRowType, key: str) -> Decimal:
-    return _get_decimal_or_default(row, key, Decimal(0))  # type: ignore
-
-
-def _price_from_str(price_str: str) -> Decimal:
-    # example: "$1,250.00",
-    # remove $ sign, and coma thousand separators:
+    Remove $ sign, and coma thousand separators so as to handle dollar amounts
+    such as "$1,250.00".
+    """
     return Decimal(price_str.replace("$", "").replace(",", ""))
 
 
-def _price_from_str_or_float(
+def _decimal_from_number_or_str(
     row: JsonRowType,
     field_basename: str,
     field_float_suffix: str = "SortValue",
 ) -> Decimal:
-    # We prefer strings to floats which get rounded when parsed:
-    if field_basename in row and row[field_basename]:
-        return _price_from_str(row[field_basename])
+    """Get a number from a row, preferably from the number field.
 
-    return _get_decimal(row, f"{field_basename}{field_float_suffix}")
+    Fall back to the string representation field, or default to Decimal(0)
+    if the fields are not there or both have a value of None.
+    """
+    # We prefer native number to strings as more efficient/safer parsing
+    float_name = f"{field_basename}{field_float_suffix}"
+    if float_name in row and row[float_name] is not None:
+        return Decimal(row[float_name])
+
+    if field_basename in row and row[field_basename] is not None:
+        return _decimal_from_str(row[field_basename])
+
+    return Decimal(0)
 
 
 def _is_integer(number: Decimal) -> bool:
@@ -144,9 +136,9 @@ class SchwabTransaction(BrokerTransaction):
         self.raw_action = row["action"]
         action = action_from_str(self.raw_action)
         symbol = row.get("symbol")
-        quantity = _price_from_str_or_float(row, "quantity")
-        amount = _price_from_str_or_float(row, "amount")
-        fees = _price_from_str_or_float(row, "totalCommissionsAndFees")
+        quantity = _decimal_from_number_or_str(row, "quantity")
+        amount = _decimal_from_number_or_str(row, "amount")
+        fees = _decimal_from_number_or_str(row, "totalCommissionsAndFees")
         if row["action"] == "Deposit":
             if len(row["transactionDetails"]) != 1:
                 raise ParsingError(
@@ -157,7 +149,10 @@ class SchwabTransaction(BrokerTransaction):
             date = datetime.datetime.strptime(
                 row["transactionDetails"][0]["vestDate"], "%m/%d/%Y"
             ).date()
-            price = _price_from_str(row["transactionDetails"][0]["vestFairMarketValue"])
+            # Schwab only provide this one as string:
+            price = _decimal_from_str(
+                row["transactionDetails"][0]["vestFairMarketValue"]
+            )
             if amount == Decimal(0):
                 amount = price * quantity
             description = (
@@ -184,7 +179,8 @@ class SchwabTransaction(BrokerTransaction):
                 found_share_decimals = False
                 for subtransac in row["transactionDetails"]:
                     if "shares" in subtransac:
-                        shares = _price_from_str(subtransac["shares"])
+                        # Schwab only provides this one as a string:
+                        shares = _decimal_from_str(subtransac["shares"])
                         subtransac_shares_sum += shares
                         if not _is_integer(shares):
                             found_share_decimals = True
@@ -201,7 +197,7 @@ class SchwabTransaction(BrokerTransaction):
                     # We can only work-out the correct quantity if all
                     # sub-transactions have the same price:
                     price_str = row["transactionDetails"][0]["salePrice"]
-                    price = _price_from_str(price_str)
+                    price = _decimal_from_str(price_str)
 
                     for subtransac in row["transactionDetails"][1:]:
                         if subtransac["salePrice"] != price_str:
@@ -266,7 +262,7 @@ def read_schwab_equity_award_json_transactions(
     try:
         with Path(transactions_file).open(encoding="utf-8") as json_file:
             try:
-                data = json.load(json_file)
+                data = json.load(json_file, parse_float=Decimal, parse_int=Decimal)
             except json.decoder.JSONDecodeError as exception:
                 raise ParsingError(
                     transactions_file,
