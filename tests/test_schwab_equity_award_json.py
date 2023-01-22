@@ -36,6 +36,47 @@ def test_price_from_str() -> None:
     ) == Decimal("123456.23")
 
 
+def test_price_from_str_or_float_str() -> None:
+    """Test _price_from_str_or_float() on string."""
+    assert schwab_equity_award_json._price_from_str_or_float(  # pylint: disable=W0212
+        {"key": "123.45", "keySortValue": 67.89}, "key"
+    ) == Decimal("123.45")
+
+
+def test_price_from_str_or_float_str_null() -> None:
+    """Test _price_from_str_or_float() on None string."""
+    assert schwab_equity_award_json._price_from_str_or_float(  # pylint: disable=W0212
+        {"key": None, "keySortValue": 67.89}, "key"
+    ) == Decimal("67.89")
+
+
+def test_price_from_str_or_float_float_default_suffix() -> None:
+    """Test _price_from_str_or_float_default_suffix() on float.
+
+    With the default suffix.
+    """
+    assert schwab_equity_award_json._price_from_str_or_float(  # pylint: disable=W0212
+        {"keySortValue": 67.89}, "key"
+    ) == Decimal("67.89")
+
+
+def test_price_from_str_or_float_float_custom_suffix() -> None:
+    """Test _price_from_str_or_float_default_suffix() on float.
+
+    With a custom suffix.
+    """
+    assert schwab_equity_award_json._price_from_str_or_float(  # pylint: disable=W0212
+        {"keyMySuffix": 67.89}, "key", "MySuffix"
+    ) == Decimal("67.89")
+
+
+def test_price_from_str_or_float_default() -> None:
+    """Test _price_from_str_or_float() with absent keys."""
+    assert schwab_equity_award_json._price_from_str_or_float(  # pylint: disable=W0212
+        {"key": "123.45", "keySortValue": 67.89}, "otherkey"
+    ) == Decimal("0")
+
+
 def test_schwab_transaction() -> None:
     """Test read_schwab_equity_award_json_transactions()."""
     transactions = schwab_equity_award_json.read_schwab_equity_award_json_transactions(
@@ -62,3 +103,12 @@ def test_schwab_transaction() -> None:
     assert transactions[2].quantity == Decimal("10.45")
     assert transactions[2].price == Decimal("112.42")
     assert transactions[2].fees == Decimal("0")
+
+    assert transactions[3].date == datetime.date(2022, 11, 14)
+    assert transactions[3].action == ActionType.SELL
+    assert transactions[3].quantity == Decimal("12.549")
+    assert transactions[3].price.quantize(  # type: ignore
+        Decimal(".000001")
+    ).normalize() == Decimal("2051.597737")
+    assert transactions[3].amount == Decimal("25745")
+    assert transactions[3].fees == Decimal("0.50")
