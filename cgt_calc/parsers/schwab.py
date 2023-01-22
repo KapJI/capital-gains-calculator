@@ -104,9 +104,10 @@ class SchwabTransaction(BrokerTransaction):
         file: str,
     ):
         """Create transaction from CSV row."""
-        if len(row) != 9:
-            raise UnexpectedColumnCountError(row, 9, file)
-        if row[8] != "":
+        if len(row) < 8 or len(row) > 9:
+            # Old transactions had empty 9th column.
+            raise UnexpectedColumnCountError(row, 8, file)
+        if len(row) == 9 and row[8] != "":
             raise ParsingError(file, "Column 9 should be empty")
         as_of_str = " as of "
         if as_of_str in row[0]:
@@ -172,11 +173,11 @@ def read_schwab_transactions(
                     "'Transactions for account ...'",
                 )
 
-            if len(lines[1]) != 9:
+            if len(lines[1]) < 8 or len(lines[1]) > 9:
                 raise ParsingError(
                     transactions_file,
                     "Second line of Schwab transactions file must be a header"
-                    " with 9 columns",
+                    " with 8 columns",
                 )
 
             if "Total" not in lines[-1][0]:
