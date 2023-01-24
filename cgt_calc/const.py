@@ -15,6 +15,8 @@ CAPITAL_GAIN_ALLOWANCES: Final[dict[int, int]] = {
     2019: 12000,
     2020: 12300,
     2021: 12300,
+    2022: 12300,
+    2023: 12300,
 }
 
 DEFAULT_REPORT_PATH: Final = "calculations.pdf"
