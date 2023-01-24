@@ -19,6 +19,7 @@ from typing import Any
 from pandas.tseries.holiday import USFederalHolidayCalendar  # type: ignore
 from pandas.tseries.offsets import CustomBusinessDay  # type: ignore
 
+from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.util import round_decimal
@@ -140,6 +141,7 @@ class SchwabTransaction(BrokerTransaction):
         self.raw_action = row["action"]
         action = action_from_str(self.raw_action)
         symbol = row.get("symbol")
+        symbol = TICKER_RENAMES.get(symbol, symbol)
         quantity = _decimal_from_number_or_str(row, "quantity")
         amount = _decimal_from_number_or_str(row, "amount")
         fees = _decimal_from_number_or_str(row, "totalCommissionsAndFees")

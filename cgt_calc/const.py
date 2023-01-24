@@ -37,3 +37,7 @@ DEFAULT_INITIAL_PRICES_FILE: Final = "initial_prices.csv"
 TEMPLATE_NAME: Final = "template.tex.j2"
 
 BED_AND_BREAKFAST_DAYS: Final = 30
+
+TICKER_RENAMES: Final[dict[str, str]] = {
+    "FB": "META",
+}

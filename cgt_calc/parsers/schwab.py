@@ -9,6 +9,7 @@ from decimal import Decimal
 import itertools
 from pathlib import Path
 
+from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
     ParsingError,
     SymbolMissingError,
@@ -29,6 +30,7 @@ class AwardPrices:
         # Award dates may go back for few days, depending on
         # holidays or weekends, so we do a linear search
         # in the past to find the award price
+        symbol = TICKER_RENAMES.get(symbol, symbol)
         for i in range(7):
             to_search = date - datetime.timedelta(days=i)
 
@@ -119,6 +121,8 @@ class SchwabTransaction(BrokerTransaction):
         self.raw_action = row[1]
         action = action_from_str(self.raw_action)
         symbol = row[2] if row[2] != "" else None
+        if symbol is not None:
+            symbol = TICKER_RENAMES.get(symbol, symbol)
         description = row[3]
         quantity = Decimal(row[4]) if row[4] != "" else None
         price = Decimal(row[5].replace("$", "")) if row[5] != "" else None
@@ -253,5 +257,6 @@ def _read_schwab_awards(
         symbol = lapse_main[2] if lapse_main[2] != "" else None
         price = Decimal(lapse_data[3].replace("$", "")) if lapse_data[3] != "" else None
         if symbol is not None and price is not None:
-            initial_prices[date][symbol] = price
+            symbol = TICKER_RENAMES.get(symbol, symbol)
+            initial_prices[date][symbol] = price  # type: ignore[index]
     return AwardPrices(award_prices=dict(initial_prices))
