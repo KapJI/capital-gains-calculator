@@ -240,13 +240,16 @@ def _read_schwab_awards(
             raise UnexpectedColumnCountError(
                 lapse_main, 8, schwab_award_transactions_file or ""
             )
-        if len(lapse_data) != 8:
+        if len(lapse_data) < 8 or len(lapse_data) > 9:
             raise UnexpectedColumnCountError(
-                lapse_data, 7, schwab_award_transactions_file or ""
+                lapse_data, 8, schwab_award_transactions_file or ""
             )
 
         date_str = lapse_main[0]
-        date = datetime.datetime.strptime(date_str, "%Y/%m/%d").date()
+        try:
+            date = datetime.datetime.strptime(date_str, "%Y/%m/%d").date()
+        except ValueError:
+            date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
         symbol = lapse_main[2] if lapse_main[2] != "" else None
         price = Decimal(lapse_data[3].replace("$", "")) if lapse_data[3] != "" else None
         if symbol is not None and price is not None:
