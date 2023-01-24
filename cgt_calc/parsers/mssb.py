@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Final
 
+from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
 
@@ -73,11 +74,13 @@ def _init_from_release_report(row_raw: list[str], filename: str) -> BrokerTransa
     quantity = _hacky_parse_decimal(row["Net Share Proceeds"])
     price = _hacky_parse_decimal(row["Price"][1:])
     amount = quantity * price
+    symbol = KNOWN_SYMBOL_DICT[row["Plan"]]
+    symbol = TICKER_RENAMES.get(symbol, symbol)
 
     return BrokerTransaction(
         date=datetime.strptime(row["Vest Date"], "%d-%b-%Y").date(),
         action=ActionType.STOCK_ACTIVITY,
-        symbol=KNOWN_SYMBOL_DICT[row["Plan"]],
+        symbol=symbol,
         description=row["Plan"],
         quantity=quantity,
         price=price,
