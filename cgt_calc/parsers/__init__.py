@@ -57,29 +57,29 @@ def read_broker_transactions(
             schwab_transactions_file, schwab_awards_transactions_file
         )
     else:
-        print("WARNING: No schwab file provided")
+        print("INFO: No schwab file provided")
 
     if schwab_equity_award_json_transactions_file is not None:
         transactions += read_schwab_equity_award_json_transactions(
             schwab_equity_award_json_transactions_file
         )
     else:
-        print("WARNING: No schwab Equity Award JSON file provided")
+        print("INFO: No schwab Equity Award JSON file provided")
 
     if trading212_transactions_folder is not None:
         transactions += read_trading212_transactions(trading212_transactions_folder)
     else:
-        print("WARNING: No trading212 folder provided")
+        print("INFO: No trading212 folder provided")
 
     if mssb_transactions_folder is not None:
         transactions += read_mssb_transactions(mssb_transactions_folder)
     else:
-        print("WARNING: No mssb folder provided")
+        print("INFO: No mssb folder provided")
 
     if sharesight_transactions_folder is not None:
         transactions += read_sharesight_transactions(sharesight_transactions_folder)
     else:
-        print("WARNING: No sharesight file provided")
+        print("INFO: No sharesight file provided")
 
     transactions.sort(key=operator.attrgetter("date"))
     return transactions
