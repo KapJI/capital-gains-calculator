@@ -94,6 +94,9 @@ def action_from_str(label: str) -> ActionType:
     if label == "Wire Funds Received":
         return ActionType.WIRE_FUNDS_RECEIVED
 
+    if label == "Stock Split":
+        return ActionType.STOCK_SPLIT
+
     raise ParsingError("schwab transactions", f"Unknown action: {label}")
 
 

@@ -107,6 +107,9 @@ class CapitalGainsCalculator:
             if price is None:
                 price = self.initial_prices.get(transaction.date, symbol)
             amount = round_decimal(quantity * price, 2)
+        elif transaction.action == ActionType.STOCK_SPLIT:
+            price = Decimal(0)
+            amount = Decimal(0)
         else:
             if price is None:
                 raise PriceMissingError(transaction)
@@ -219,6 +222,7 @@ class CapitalGainsCalculator:
                 ActionType.STOCK_ACTIVITY,
                 ActionType.SPIN_OFF,
                 ActionType.REINVEST_SHARES,
+                ActionType.STOCK_SPLIT,
             ]:
                 self.add_acquisition(portfolio, acquisition_list, transaction)
             elif transaction.action in [ActionType.DIVIDEND, ActionType.CAPITAL_GAIN]:
@@ -286,7 +290,8 @@ class CapitalGainsCalculator:
 
         # Management fee transaction can have 0 quantity
         assert acquisition_quantity >= 0
-        assert acquisition_amount > 0
+        # Stock split can have 0 amount
+        assert acquisition_amount >= 0
         bed_and_breakfast_quantity = Decimal(0)
         bed_and_breakfast_amount = Decimal(0)
         bed_and_breakfast_fees = Decimal(0)
