@@ -39,7 +39,7 @@ class AwardPrices:
                 and symbol in self.award_prices[to_search]
             ):
                 return self.award_prices[to_search][symbol]
-        raise Exception(f"Award price is not found for symbol {symbol} for date {date}")
+        raise KeyError(f"Award price is not found for symbol {symbol} for date {date}")
 
 
 def action_from_str(label: str) -> ActionType:
