@@ -261,5 +261,5 @@ def _read_schwab_awards(
         price = Decimal(lapse_data[3].replace("$", "")) if lapse_data[3] != "" else None
         if symbol is not None and price is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
-            initial_prices[date][symbol] = price  # type: ignore[index]
+            initial_prices[date][symbol] = price
     return AwardPrices(award_prices=dict(initial_prices))
