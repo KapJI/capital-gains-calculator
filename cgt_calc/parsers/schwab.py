@@ -55,6 +55,7 @@ def action_from_str(label: str) -> ActionType:
         "Misc Cash Entry",
         "Service Fee",
         "Wire Funds",
+        "Wire Sent",
         "Funds Received",
         "Journal",
         "Cash In Lieu",
