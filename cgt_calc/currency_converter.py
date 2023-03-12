@@ -18,7 +18,7 @@ EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
 
 
 class CurrencyConverter:
-    """Coverter which holds rate history."""
+    """Converter which holds rate history."""
 
     def __init__(
         self,
