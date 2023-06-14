@@ -44,7 +44,7 @@ COLUMNS_WITHDRAWAL: Final[list[str]] = [
 # These can be potentially wired through as a flag
 KNOWN_SYMBOL_DICT: Final[dict[str, str]] = {
     "GSU Class C": "GOOG",
-    "Cash": "USD",    
+    "Cash": "USD",
 }
 
 
