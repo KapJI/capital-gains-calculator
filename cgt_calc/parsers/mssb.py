@@ -111,18 +111,15 @@ def _init_from_withdrawal_report(
     if row["Plan"] not in KNOWN_SYMBOL_DICT:
         raise ParsingError(filename, f"Unknown plan: {row_raw[3]}")
 
+    quantity = -_hacky_parse_decimal(row["Quantity"])
+    price = _hacky_parse_decimal(row["Price"][1:])
+    amount = _hacky_parse_decimal(row["Net Amount"][1:])
+    
     if row["Plan"] == "Cash":
         action = ActionType.TRANSFER
-        amount = -_hacky_parse_decimal(row["Net Amount"][1:])
-        price = None
-        quantity = None
-        fees = None
+        amount *= -1
     else:
         action = ActionType.SELL
-        quantity = -Decimal(row["Quantity"])
-        price = _hacky_parse_decimal(row["Price"][1:])
-        amount = _hacky_parse_decimal(row["Net Amount"][1:])
-        fees = quantity * price - amount
 
     return BrokerTransaction(
         date=datetime.strptime(row["Date"], "%d-%b-%Y").date(),
@@ -131,7 +128,7 @@ def _init_from_withdrawal_report(
         description=row["Plan"],
         quantity=quantity,
         price=price,
-        fees=fees,
+        fees=quantity * price - amount,
         amount=amount,
         currency="USD",
         broker="Morgan Stanley",
