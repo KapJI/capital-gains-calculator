@@ -114,6 +114,7 @@ def _init_from_withdrawal_report(
     quantity = -_hacky_parse_decimal(row["Quantity"])
     price = _hacky_parse_decimal(row["Price"][1:])
     amount = _hacky_parse_decimal(row["Net Amount"][1:])
+    fees = quantity * price - amount
 
     if row["Plan"] == "Cash":
         action = ActionType.TRANSFER
@@ -128,7 +129,7 @@ def _init_from_withdrawal_report(
         description=row["Plan"],
         quantity=quantity,
         price=price,
-        fees=quantity * price - amount,
+        fees=fees,
         amount=amount,
         currency="USD",
         broker="Morgan Stanley",
