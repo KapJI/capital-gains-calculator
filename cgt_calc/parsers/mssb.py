@@ -44,6 +44,7 @@ COLUMNS_WITHDRAWAL: Final[list[str]] = [
 # These can be potentially wired through as a flag
 KNOWN_SYMBOL_DICT: Final[dict[str, str]] = {
     "GSU Class C": "GOOG",
+    "Cash": "USD",
 }
 
 
@@ -110,18 +111,25 @@ def _init_from_withdrawal_report(
     if row["Plan"] not in KNOWN_SYMBOL_DICT:
         raise ParsingError(filename, f"Unknown plan: {row_raw[3]}")
 
-    quantity = -Decimal(row["Quantity"])
+    quantity = -_hacky_parse_decimal(row["Quantity"])
     price = _hacky_parse_decimal(row["Price"][1:])
     amount = _hacky_parse_decimal(row["Net Amount"][1:])
+    fees = quantity * price - amount
+
+    if row["Plan"] == "Cash":
+        action = ActionType.TRANSFER
+        amount *= -1
+    else:
+        action = ActionType.SELL
 
     return BrokerTransaction(
         date=datetime.strptime(row["Date"], "%d-%b-%Y").date(),
-        action=ActionType.SELL,
+        action=action,
         symbol=KNOWN_SYMBOL_DICT[row["Plan"]],
         description=row["Plan"],
         quantity=quantity,
         price=price,
-        fees=quantity * price - amount,
+        fees=fees,
         amount=amount,
         currency="USD",
         broker="Morgan Stanley",
