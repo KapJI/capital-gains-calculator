@@ -6,7 +6,8 @@ for another company, or for a full profile.
 from __future__ import annotations
 
 import csv
-from datetime import datetime
+from dataclasses import dataclass
+import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Final
@@ -48,6 +49,20 @@ KNOWN_SYMBOL_DICT: Final[dict[str, str]] = {
 }
 
 
+@dataclass
+class StockSplit:
+    """Info about stock split."""
+
+    symbol: str
+    date: datetime.date
+    factor: int
+
+
+STOCK_SPLIT_INFO = [
+    StockSplit(symbol="GOOG", date=datetime.datetime(2022, 6, 15).date(), factor=20),
+]
+
+
 def _hacky_parse_decimal(decimal: str) -> Decimal:
     return Decimal(decimal.replace(",", ""))
 
@@ -60,7 +75,7 @@ def _init_from_release_report(row_raw: list[str], filename: str) -> BrokerTransa
     if row["Type"] != "Release":
         raise ParsingError(filename, f"Unknown type: {row_raw[3]}")
 
-    if row["Status"] != "Complete":
+    if row["Status"] != "Complete" and row["Status"] != "Staged":
         raise ParsingError(filename, f"Unknown status: {row_raw[5]}")
 
     if row["Price"][0] != "$":
@@ -79,7 +94,7 @@ def _init_from_release_report(row_raw: list[str], filename: str) -> BrokerTransa
     symbol = TICKER_RENAMES.get(symbol, symbol)
 
     return BrokerTransaction(
-        date=datetime.strptime(row["Vest Date"], "%d-%b-%Y").date(),
+        date=datetime.datetime.strptime(row["Vest Date"], "%d-%b-%Y").date(),
         action=ActionType.STOCK_ACTIVITY,
         symbol=symbol,
         description=row["Plan"],
@@ -92,9 +107,38 @@ def _init_from_release_report(row_raw: list[str], filename: str) -> BrokerTransa
     )
 
 
+# Morgan Stanley decided to put a notice in the end of the withdrawal report that looks
+# like that:
+# "Please note that any Alphabet share sales, transfers, or deposits that occurred on
+# or prior to the July 15, 2022 stock split are reflected in pre-split. Any sales,
+# transfers, or deposits that occurred after July 15, 2022 are in post-split values.
+# For GSU vests, your activity is displayed in post-split values."
+# It makes sense, but it totally breaks the CSV parsing
+def _is_notice(row: list[str]) -> bool:
+    return row[0][:11] == "Please note"
+
+
+def _handle_stock_split(transaction: BrokerTransaction) -> BrokerTransaction:
+    for split in STOCK_SPLIT_INFO:
+        if (
+            transaction.symbol == split.symbol
+            and transaction.action == ActionType.SELL
+            and transaction.date < split.date
+        ):
+            if transaction.quantity:
+                transaction.quantity *= split.factor
+            if transaction.price:
+                transaction.price /= split.factor
+
+    return transaction
+
+
 def _init_from_withdrawal_report(
     row_raw: list[str], filename: str
-) -> BrokerTransaction:
+) -> BrokerTransaction | None:
+    if _is_notice(row_raw):
+        return None
+
     if len(COLUMNS_WITHDRAWAL) != len(row_raw):
         raise UnexpectedColumnCountError(row_raw, len(COLUMNS_WITHDRAWAL), filename)
     row = {col: row_raw[i] for i, col in enumerate(COLUMNS_WITHDRAWAL)}
@@ -122,8 +166,8 @@ def _init_from_withdrawal_report(
     else:
         action = ActionType.SELL
 
-    return BrokerTransaction(
-        date=datetime.strptime(row["Date"], "%d-%b-%Y").date(),
+    transaction = BrokerTransaction(
+        date=datetime.datetime.strptime(row["Date"], "%d-%b-%Y").date(),
         action=action,
         symbol=KNOWN_SYMBOL_DICT[row["Plan"]],
         description=row["Plan"],
@@ -134,6 +178,8 @@ def _init_from_withdrawal_report(
         currency="USD",
         broker="Morgan Stanley",
     )
+
+    return _handle_stock_split(transaction)
 
 
 def _validate_header(
@@ -172,4 +218,4 @@ def read_mssb_transactions(transactions_folder: str) -> list[BrokerTransaction]:
                     _init_from_release_report(row, str(file)) for row in lines
                 ]
 
-    return transactions
+    return [transaction for transaction in transactions if transaction]
