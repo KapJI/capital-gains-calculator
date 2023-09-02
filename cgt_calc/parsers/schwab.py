@@ -25,7 +25,7 @@ class AwardPrices:
 
     award_prices: dict[datetime.date, dict[str, Decimal]]
 
-    def get(self, date: datetime.date, symbol: str) -> Decimal:
+    def get(self, date: datetime.date, symbol: str) -> tuple[datetime.date, Decimal]:
         """Get initial stock price at given date."""
         # Award dates may go back for few days, depending on
         # holidays or weekends, so we do a linear search
@@ -38,7 +38,7 @@ class AwardPrices:
                 to_search in self.award_prices
                 and symbol in self.award_prices[to_search]
             ):
-                return self.award_prices[to_search][symbol]
+                return (to_search, self.award_prices[to_search][symbol])
         raise KeyError(f"Award price is not found for symbol {symbol} for date {date}")
 
 
@@ -161,7 +161,13 @@ class SchwabTransaction(BrokerTransaction):
             symbol = transaction.symbol
             if symbol is None:
                 raise SymbolMissingError(transaction)
-            transaction.price = awards_prices.get(transaction.date, symbol)
+            # Schwab transaction list contains sometimes incorrect date
+            # for awards which don't match the PDF statements.
+            # We want to make sure to match date and price form the awards
+            # spreadsheet.
+            transaction.date, transaction.price = awards_prices.get(
+                transaction.date, symbol
+            )
         return transaction
 
 
