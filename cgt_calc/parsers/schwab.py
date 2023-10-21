@@ -128,7 +128,7 @@ class SchwabTransaction(BrokerTransaction):
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
         description = row[3]
-        quantity = Decimal(row[4]) if row[4] != "" else None
+        quantity = Decimal(row[4].replace(",", "")) if row[4] != "" else None
         price = Decimal(row[5].replace("$", "")) if row[5] != "" else None
         fees = Decimal(row[6].replace("$", "")) if row[6] != "" else Decimal(0)
         amount = Decimal(row[7].replace("$", "")) if row[7] != "" else None
@@ -180,7 +180,17 @@ def read_schwab_transactions(
         with Path(transactions_file).open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))
 
-            if "Transactions" not in lines[0][0]:
+            headers = [
+                "Date",
+                "Action",
+                "Symbol",
+                "Description",
+                "Quantity",
+                "Price",
+                "Fees & Comm",
+                "Amount",
+            ]
+            if not lines[0] == headers:
                 raise ParsingError(
                     transactions_file,
                     "First line of Schwab transactions file must be something like "
@@ -201,7 +211,7 @@ def read_schwab_transactions(
                 )
 
             # Remove headers and footer
-            lines = lines[2:-1]
+            lines = lines[1:-1]
             transactions = [
                 SchwabTransaction.create(row, transactions_file, awards_prices)
                 for row in lines
