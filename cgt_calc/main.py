@@ -676,6 +676,7 @@ def main() -> int:
         args.trading212,
         args.mssb,
         args.sharesight,
+        args.raw,
     )
     converter = CurrencyConverter(args.exchange_rates_file)
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
