@@ -5,7 +5,6 @@ import csv
 import datetime
 from decimal import Decimal
 import importlib.resources
-import operator
 from pathlib import Path
 
 from cgt_calc.const import DEFAULT_INITIAL_PRICES_FILE
