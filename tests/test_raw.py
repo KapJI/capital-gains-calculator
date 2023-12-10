@@ -20,11 +20,7 @@ def test_run_with_raw_files_no_balance_check() -> None:
     ]
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"
-    expected_file = (
-        Path("tests")
-        / "test_data"
-        / "raw/expected_output.txt"
-    )
+    expected_file = Path("tests") / "test_data" / "raw/expected_output.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param if param else "''" for param in cmd])
     assert result.stdout.decode("utf-8") == expected, (
