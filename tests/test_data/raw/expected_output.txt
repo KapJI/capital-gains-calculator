@@ -1,0 +1,37 @@
+INFO: No schwab file provided
+INFO: No schwab Equity Award JSON file provided
+INFO: No trading212 folder provided
+INFO: No mssb folder provided
+INFO: No sharesight file provided
+First pass completed
+Final portfolio:
+  AMZN: 210.00
+  OPRA: 120.00
+  BABA: 30.00
+  META: 119.00
+Final balance:
+  Unknown: -28486.60 (USD)
+Dividends: £2719.29
+Dividend taxes: £0.00
+Interest: £0.00
+Disposal proceeds: £11421.84
+
+WARNING: Bed and breakfasting for META. Disposed on 2022-08-10 and acquired again on 2022-08-15
+
+Second pass completed
+Portfolio at the end of 2022/2023 tax year:
+  AMZN: 210.00, £1900.67
+  OPRA: 120.00, £492.03
+  BABA: 30.00, £1942.83
+  META: 119.00, £18042.21
+For tax year 2022/2023:
+Number of disposals: 3
+Disposal proceeds: £11421.84
+Allowable costs: £13587.96
+Capital gain: £0.00
+Capital loss: £2166.12
+Total capital gain: £-2166.12
+Taxable capital gain: £0
+
+Generate calculations report
+All done!

@@ -2,6 +2,7 @@ INFO: No schwab file provided
 INFO: No schwab Equity Award JSON file provided
 INFO: No trading212 folder provided
 INFO: No mssb folder provided
+INFO: No raw file provided
 First pass completed
 Final portfolio:
   FX:ETH: 2.59

@@ -26,6 +26,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="First year of the tax year to calculate gains on (default: %(default)d)",
     )
     parser.add_argument(
+        "--raw",
+        type=str,
+        nargs="?",
+        help="file containing the exported transactions in a raw format csv format",
+    )
+    parser.add_argument(
         "--schwab",
         type=str,
         nargs="?",
