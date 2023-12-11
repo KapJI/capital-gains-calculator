@@ -1,4 +1,4 @@
-"""Test ShareSight support."""
+"""Test raw format support."""
 
 from pathlib import Path
 import subprocess
