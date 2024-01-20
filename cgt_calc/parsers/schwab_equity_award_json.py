@@ -264,7 +264,9 @@ class SchwabTransaction(BrokerTransaction):
                     # sub-transactions have the same price:
 
                     first_subtransac = row[names.transac_details][0]
-                    first_subtransac = first_subtransac.get(OPTIONAL_DETAILS_NAME, first_subtransac)
+                    first_subtransac = first_subtransac.get(
+                        OPTIONAL_DETAILS_NAME, first_subtransac
+                    )
                     price_str = first_subtransac[names.sale_price]
                     price = _decimal_from_str(price_str)
 
