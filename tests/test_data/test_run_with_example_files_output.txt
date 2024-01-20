@@ -1,17 +1,18 @@
 WARNING: No schwab award file provided
-WARNING: No schwab Equity Award JSON file provided
+INFO: No schwab Equity Award JSON file provided
 Parsing tests/test_data/trading212/from_2020-09-11_to_2021-04-02.csv
-WARNING: No sharesight file provided
+INFO: No sharesight file provided
+INFO: No raw file provided
 First pass completed
 Final portfolio:
   GE: 1.00
   NVDA: 1.00
-  GOOG: 8.60
+  GOOG: 163.20
   FOO: 30.50
 Final balance:
   Charles Schwab: 9477.90 (USD)
   Trading212: 33391.30 (GBP)
-  Morgan Stanley: 4219.95 (USD)
+  Morgan Stanley: 1.00 (USD)
 Dividends: £0.10
 Dividend taxes: £0.00
 Interest: £0.00
@@ -24,15 +25,15 @@ Portfolio at the end of 2020/2021 tax year:
   GE: 1.00, £8.07
   NVDA: 1.00, £401.01
   FOO: 30.50, £543.97
-  GOOG: 8.60, £12516.92
+  GOOG: 172.00, £12516.55
 For tax year 2020/2021:
 Number of disposals: 4
 Disposal proceeds: £42769.56
-Allowable costs: £17656.17
-Capital gain: £25113.39
+Allowable costs: £17656.08
+Capital gain: £25113.48
 Capital loss: £0.00
-Total capital gain: £25113.39
-Taxable capital gain: £12813.39
+Total capital gain: £25113.48
+Taxable capital gain: £12813.48
 
 Generate calculations report
 All done!

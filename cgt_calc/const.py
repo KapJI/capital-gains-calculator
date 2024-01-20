@@ -15,6 +15,8 @@ CAPITAL_GAIN_ALLOWANCES: Final[dict[int, int]] = {
     2019: 12000,
     2020: 12300,
     2021: 12300,
+    2022: 12300,
+    2023: 6000,
 }
 
 DEFAULT_REPORT_PATH: Final = "calculations.pdf"
@@ -35,3 +37,7 @@ DEFAULT_INITIAL_PRICES_FILE: Final = "initial_prices.csv"
 TEMPLATE_NAME: Final = "template.tex.j2"
 
 BED_AND_BREAKFAST_DAYS: Final = 30
+
+TICKER_RENAMES: Final[dict[str, str]] = {
+    "FB": "META",
+}

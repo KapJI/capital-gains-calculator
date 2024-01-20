@@ -40,6 +40,7 @@ class ActionType(Enum):
     REINVEST_SHARES = 12
     REINVEST_DIVIDENDS = 13
     WIRE_FUNDS_RECEIVED = 14
+    STOCK_SPLIT = 15
 
 
 @dataclass

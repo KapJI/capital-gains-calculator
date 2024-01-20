@@ -7,6 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Final
 
+from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 
@@ -76,6 +77,8 @@ class Trading212Transaction(BrokerTransaction):
         self.raw_action = row["Action"]
         action = action_from_str(self.raw_action, filename)
         symbol = row["Ticker"] if row["Ticker"] != "" else None
+        if symbol is not None:
+            symbol = TICKER_RENAMES.get(symbol, symbol)
         description = row["Name"]
         quantity = decimal_or_none(row["No. of shares"])
         self.price_foreign = decimal_or_none(row["Price / share"])

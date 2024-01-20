@@ -5,7 +5,6 @@ import csv
 import datetime
 from decimal import Decimal
 import importlib.resources
-import operator
 from pathlib import Path
 
 from cgt_calc.const import DEFAULT_INITIAL_PRICES_FILE
@@ -14,6 +13,7 @@ from cgt_calc.model import BrokerTransaction
 from cgt_calc.resources import RESOURCES_PACKAGE
 
 from .mssb import read_mssb_transactions
+from .raw import read_raw_transactions
 from .schwab import read_schwab_transactions
 from .schwab_equity_award_json import read_schwab_equity_award_json_transactions
 from .sharesight import read_sharesight_transactions
@@ -49,6 +49,7 @@ def read_broker_transactions(
     trading212_transactions_folder: str | None,
     mssb_transactions_folder: str | None,
     sharesight_transactions_folder: str | None,
+    raw_transactions_file: str | None,
 ) -> list[BrokerTransaction]:
     """Read transactions for all brokers."""
     transactions = []
@@ -57,31 +58,36 @@ def read_broker_transactions(
             schwab_transactions_file, schwab_awards_transactions_file
         )
     else:
-        print("WARNING: No schwab file provided")
+        print("INFO: No schwab file provided")
 
     if schwab_equity_award_json_transactions_file is not None:
         transactions += read_schwab_equity_award_json_transactions(
             schwab_equity_award_json_transactions_file
         )
     else:
-        print("WARNING: No schwab Equity Award JSON file provided")
+        print("INFO: No schwab Equity Award JSON file provided")
 
     if trading212_transactions_folder is not None:
         transactions += read_trading212_transactions(trading212_transactions_folder)
     else:
-        print("WARNING: No trading212 folder provided")
+        print("INFO: No trading212 folder provided")
 
     if mssb_transactions_folder is not None:
         transactions += read_mssb_transactions(mssb_transactions_folder)
     else:
-        print("WARNING: No mssb folder provided")
+        print("INFO: No mssb folder provided")
 
     if sharesight_transactions_folder is not None:
         transactions += read_sharesight_transactions(sharesight_transactions_folder)
     else:
-        print("WARNING: No sharesight file provided")
+        print("INFO: No sharesight file provided")
 
-    transactions.sort(key=operator.attrgetter("date"))
+    if raw_transactions_file is not None:
+        transactions += read_raw_transactions(raw_transactions_file)
+    else:
+        print("INFO: No raw file provided")
+
+    transactions.sort(key=lambda k: k.date)
     return transactions
 
 

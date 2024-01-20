@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Final, Iterable, Iterator, List
 
+from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import InvalidTransactionError, ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 
@@ -80,6 +81,7 @@ def parse_dividend_payments(
 
         dividend_date = parse_date(row_dict["Date Paid"])
         symbol = row_dict["Code"]
+        symbol = TICKER_RENAMES.get(symbol, symbol)
         description = row_dict["Comments"]
         broker = "Sharesight"
 

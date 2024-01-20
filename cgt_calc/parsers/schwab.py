@@ -9,6 +9,7 @@ from decimal import Decimal
 import itertools
 from pathlib import Path
 
+from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
     ParsingError,
     SymbolMissingError,
@@ -24,11 +25,12 @@ class AwardPrices:
 
     award_prices: dict[datetime.date, dict[str, Decimal]]
 
-    def get(self, date: datetime.date, symbol: str) -> Decimal:
+    def get(self, date: datetime.date, symbol: str) -> tuple[datetime.date, Decimal]:
         """Get initial stock price at given date."""
         # Award dates may go back for few days, depending on
         # holidays or weekends, so we do a linear search
         # in the past to find the award price
+        symbol = TICKER_RENAMES.get(symbol, symbol)
         for i in range(7):
             to_search = date - datetime.timedelta(days=i)
 
@@ -36,8 +38,8 @@ class AwardPrices:
                 to_search in self.award_prices
                 and symbol in self.award_prices[to_search]
             ):
-                return self.award_prices[to_search][symbol]
-        raise Exception(f"Award price is not found for symbol {symbol} for date {date}")
+                return (to_search, self.award_prices[to_search][symbol])
+        raise KeyError(f"Award price is not found for symbol {symbol} for date {date}")
 
 
 def action_from_str(label: str) -> ActionType:
@@ -53,6 +55,7 @@ def action_from_str(label: str) -> ActionType:
         "Misc Cash Entry",
         "Service Fee",
         "Wire Funds",
+        "Wire Sent",
         "Funds Received",
         "Journal",
         "Cash In Lieu",
@@ -92,6 +95,9 @@ def action_from_str(label: str) -> ActionType:
     if label == "Wire Funds Received":
         return ActionType.WIRE_FUNDS_RECEIVED
 
+    if label == "Stock Split":
+        return ActionType.STOCK_SPLIT
+
     raise ParsingError("schwab transactions", f"Unknown action: {label}")
 
 
@@ -104,9 +110,10 @@ class SchwabTransaction(BrokerTransaction):
         file: str,
     ):
         """Create transaction from CSV row."""
-        if len(row) != 9:
-            raise UnexpectedColumnCountError(row, 9, file)
-        if row[8] != "":
+        if len(row) < 8 or len(row) > 9:
+            # Old transactions had empty 9th column.
+            raise UnexpectedColumnCountError(row, 8, file)
+        if len(row) == 9 and row[8] != "":
             raise ParsingError(file, "Column 9 should be empty")
         as_of_str = " as of "
         if as_of_str in row[0]:
@@ -118,8 +125,10 @@ class SchwabTransaction(BrokerTransaction):
         self.raw_action = row[1]
         action = action_from_str(self.raw_action)
         symbol = row[2] if row[2] != "" else None
+        if symbol is not None:
+            symbol = TICKER_RENAMES.get(symbol, symbol)
         description = row[3]
-        quantity = Decimal(row[4]) if row[4] != "" else None
+        quantity = Decimal(row[4].replace(",", "")) if row[4] != "" else None
         price = Decimal(row[5].replace("$", "")) if row[5] != "" else None
         fees = Decimal(row[6].replace("$", "")) if row[6] != "" else Decimal(0)
         amount = Decimal(row[7].replace("$", "")) if row[7] != "" else None
@@ -152,7 +161,13 @@ class SchwabTransaction(BrokerTransaction):
             symbol = transaction.symbol
             if symbol is None:
                 raise SymbolMissingError(transaction)
-            transaction.price = awards_prices.get(transaction.date, symbol)
+            # Schwab transaction list contains sometimes incorrect date
+            # for awards which don't match the PDF statements.
+            # We want to make sure to match date and price form the awards
+            # spreadsheet.
+            transaction.date, transaction.price = awards_prices.get(
+                transaction.date, symbol
+            )
         return transaction
 
 
@@ -165,18 +180,28 @@ def read_schwab_transactions(
         with Path(transactions_file).open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))
 
-            if "Transactions" not in lines[0][0]:
+            headers = [
+                "Date",
+                "Action",
+                "Symbol",
+                "Description",
+                "Quantity",
+                "Price",
+                "Fees & Comm",
+                "Amount",
+            ]
+            if not lines[0] == headers:
                 raise ParsingError(
                     transactions_file,
                     "First line of Schwab transactions file must be something like "
                     "'Transactions for account ...'",
                 )
 
-            if len(lines[1]) != 9:
+            if len(lines[1]) < 8 or len(lines[1]) > 9:
                 raise ParsingError(
                     transactions_file,
                     "Second line of Schwab transactions file must be a header"
-                    " with 9 columns",
+                    " with 8 columns",
                 )
 
             if "Total" not in lines[-1][0]:
@@ -186,7 +211,7 @@ def read_schwab_transactions(
                 )
 
             # Remove headers and footer
-            lines = lines[2:-1]
+            lines = lines[1:-1]
             transactions = [
                 SchwabTransaction.create(row, transactions_file, awards_prices)
                 for row in lines
@@ -239,15 +264,19 @@ def _read_schwab_awards(
             raise UnexpectedColumnCountError(
                 lapse_main, 8, schwab_award_transactions_file or ""
             )
-        if len(lapse_data) != 8:
+        if len(lapse_data) < 8 or len(lapse_data) > 9:
             raise UnexpectedColumnCountError(
-                lapse_data, 7, schwab_award_transactions_file or ""
+                lapse_data, 8, schwab_award_transactions_file or ""
             )
 
         date_str = lapse_main[0]
-        date = datetime.datetime.strptime(date_str, "%Y/%m/%d").date()
+        try:
+            date = datetime.datetime.strptime(date_str, "%Y/%m/%d").date()
+        except ValueError:
+            date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
         symbol = lapse_main[2] if lapse_main[2] != "" else None
         price = Decimal(lapse_data[3].replace("$", "")) if lapse_data[3] != "" else None
         if symbol is not None and price is not None:
+            symbol = TICKER_RENAMES.get(symbol, symbol)
             initial_prices[date][symbol] = price
     return AwardPrices(award_prices=dict(initial_prices))
