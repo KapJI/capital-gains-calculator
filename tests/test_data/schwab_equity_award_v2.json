@@ -1,0 +1,144 @@
+{
+    "FromDate": "01/01/2020",
+    "ToDate": "12/23/2023",
+    "Transactions": [
+        {
+            "Date": "09/27/2023",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "13.6",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2019",
+                        "AwardId": "C987654",
+                        "VestDate": "09/25/2023",
+                        "VestFairMarketValue": "$131.25"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "09/27/2023",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "4.911",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "03/01/2020",
+                        "AwardId": "C1234567",
+                        "VestDate": "09/25/2023",
+                        "VestFairMarketValue": "$131.25"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "09/01/2023",
+            "Action": "Journal",
+            "Symbol": "GOOG",
+            "Quantity": null,
+            "Description": "Journal To Account ...123",
+            "FeesAndCommissions": "",
+            "DisbursementElection": null,
+            "Amount": "-$1,382.75",
+            "TransactionDetails": []
+        },
+
+        {
+            "Date": "08/31/2023",
+            "Action": "Sale",
+            "Symbol": "GOOG",
+            "Quantity": "14.40",
+            "Description": "Share Sale",
+            "FeesAndCommissions": "$0.02",
+            "DisbursementElection": "Journal",
+            "Amount": "$1,985.74",
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "14",
+                        "SalePrice": "$137.90",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "C1234567",
+                        "VestDate": "07/25/2023",
+                        "VestFairMarketValue": "$121.88",
+                        "GrossProceeds": "$1,930.60"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "0.40",
+                        "SalePrice": "$137.90",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "C1234567",
+                        "VestDate": "07/25/2023",
+                        "VestFairMarketValue": "$121.88",
+                        "GrossProceeds": "$55.16"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "04/27/2023",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "13.6",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2019",
+                        "AwardId": "C987654",
+                        "VestDate": "04/25/2023",
+                        "VestFairMarketValue": "$106.78"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "04/27/2023",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "4.911",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "03/01/2020",
+                        "AwardId": "C1234567",
+                        "VestDate": "04/25/2023",
+                        "VestFairMarketValue": "$106.78"
+                    }
+                }
+            ]
+        }
+    ]
+}
