@@ -49,7 +49,7 @@ You will need several input files:
 -   Exported transaction history from Schwab in CSV format since the beginning.
     Or at least since you first acquired the shares, which you were holding during the tax year. Schwab only allows to download transaction for the last 4 years so keep it safe. After that you may need to restore transactions from PDF statements.
     [See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/test_data/schwab_transactions.csv).
--   Exported transaction history from Schwab Equity Awards (e.g. for Alphabet/Google employees) since the beginning. These are to be downloaded in JSON format. Instructions are available at the top of the [parser file](../main/cgt_calc/parsers/schwab_equity_award_json.py).
+-   Exported transaction history from Schwab Equity Awards (e.g. for Alphabet/Google employees) since the beginning (Note: Schwab now allows for the whole history of Equity Awards account transactions to be downloaded). These are to be downloaded in JSON format. Instructions are available at the top of the [parser file](../main/cgt_calc/parsers/schwab_equity_award_json.py).
 -   Exported transaction history from Trading 212.
     You can use several files here since Trading 212 limit the statements to 1 year periods.
     [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/trading212).
