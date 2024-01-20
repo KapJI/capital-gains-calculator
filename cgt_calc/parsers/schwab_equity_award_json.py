@@ -10,6 +10,7 @@ To get the data from Schwab:
 """
 from __future__ import annotations
 
+from dataclasses import InitVar, dataclass
 import datetime
 from decimal import Decimal
 import json
@@ -24,6 +25,57 @@ from cgt_calc.model import ActionType, BrokerTransaction
 
 # Delay between a (sale) trade, and when it is settled.
 SETTLEMENT_DELAY = 2 * CustomBusinessDay(calendar=USFederalHolidayCalendar())
+
+OPTIONAL_DETAILS_NAME = "Details"
+
+field2schema = {"transactions": 1, "Transactions": 2}
+
+
+@dataclass
+class FieldNames:
+    """Names of the fields in the Schwab JSON data, depending on the schema version."""
+
+    # Note that the schema version is not an official Schwab one, just something
+    # we use internally in this code:
+    schema_version: InitVar[int] = 2
+
+    transactions: str = "Transactions"
+    description: str = "Description"
+    action: str = "Action"
+    symbol: str = "Symbol"
+    quantity: str = "Quantity"
+    amount: str = "Amount"
+    fees: str = "FeesAndCommissions"
+    transac_details: str = "TransactionDetails"
+    vest_date: str = "VestDate"
+    vest_fair_market_value: str = "VestFairMarketValue"
+    award_date: str = "AwardDate"
+    award_id: str = "AwardId"
+    date: str = "Date"
+    sale_price: str = "SalePrice"
+
+    def __post_init__(self, schema_version: int) -> None:
+        """Set correct field names if the schema is not the default one.
+
+        Automatically run on object initialization.
+        """
+        print(f"{schema_version=}")
+        if schema_version == 1:
+            self.transactions = "transactions"
+            self.description = "description"
+            self.action = "action"
+            self.symbol = "symbol"
+            self.quantity = "quantitySortValue"
+            self.amount = "amount"
+            self.fees = "totalCommissionsAndFeesSortValue"
+            self.transac_details = "transactionDetails"
+            self.vest_date = "vestDate"
+            self.vest_fair_market_value = "vestFairMarketValue"
+            self.award_date = "awardDate"
+            self.award_id = "awardName"
+            self.date = "eventDate"
+            self.sale_price = "salePrice"
+
 
 JsonRowType = Any  # type: ignore
 
@@ -100,8 +152,8 @@ def _get_decimal_or_default(
     if key in row and row[key]:
         if isinstance(row[key], float):
             return _round_decimal(Decimal.from_float(row[key]))
-
-        return Decimal(row[key])
+        if row[key] is not None:
+            return Decimal(row[key])
 
     return default
 
@@ -110,61 +162,83 @@ def _get_decimal(row: JsonRowType, key: str) -> Decimal:
     return _get_decimal_or_default(row, key, Decimal(0))  # type: ignore
 
 
-def _price_from_str(price_str: str) -> Decimal:
+def _price_from_str(price_str: str | None) -> Decimal:
     # example: "$1,250.00",
     # remove $ sign, and coma thousand separators:
+    if price_str is None:
+        return Decimal(0)
+
     return Decimal(price_str.replace("$", "").replace(",", ""))
+
+
+def _get_decimal_from_price(row: JsonRowType, key: str) -> Decimal:
+    if key in row and isinstance(row[key], str):
+        return _price_from_str(row[key])
+
+    return _get_decimal_or_default(row, key, Decimal(0))  # type: ignore
 
 
 class SchwabTransaction(BrokerTransaction):
     """Represent single Schwab transaction."""
 
-    def __init__(
-        self,
-        row: JsonRowType,
-        file: str,
-    ) -> None:
+    def __init__(self, row: JsonRowType, file: str, field_names: FieldNames) -> None:
         """Create a new SchwabTransaction from a JSON row."""
-        description = row["description"]
-        self.raw_action = row["action"]
+        names = field_names
+        description = row[names.description]
+        self.raw_action = row[names.action]
         action = action_from_str(self.raw_action)
-        symbol = row.get("symbol")
-        quantity = _get_decimal_or_default(row, "quantitySortValue")
-        amount = _get_decimal(row, "amountSortValue")
-        fees = _get_decimal(row, "totalCommissionsAndFeesSortValue")
-        if row["action"] == "Deposit":
-            if len(row["transactionDetails"]) != 1:
+        symbol = row.get(names.symbol)
+        quantity = _get_decimal_or_default(row, names.quantity)
+        amount = _get_decimal_from_price(row, names.amount)
+        fees = _get_decimal_from_price(row, names.fees)
+        if row[names.action] == "Deposit":
+            if len(row[names.transac_details]) != 1:
                 raise ParsingError(
                     file,
-                    "Expected a single transactionDetails for a Deposit, but "
-                    f"found {len(row['transactionDetails'])}",
+                    "Expected a single Transaction Details for a Deposit, but "
+                    f"found {len(row[names.transac_details])}",
                 )
+            if OPTIONAL_DETAILS_NAME in row[names.transac_details][0]:
+                details = row[names.transac_details][0]["Details"]
+            else:
+                details = row[names.transac_details][0]
             date = datetime.datetime.strptime(
-                row["transactionDetails"][0]["vestDate"], "%m/%d/%Y"
+                details[names.vest_date], "%m/%d/%Y"
             ).date()
-            price = _price_from_str(row["transactionDetails"][0]["vestFairMarketValue"])
+            price = _price_from_str(details[names.vest_fair_market_value])
             description = (
                 f"Vest from Award Date "
-                f'{row["transactionDetails"][0]["awardDate"]} '
-                f'(ID {row["transactionDetails"][0]["awardName"]})'
+                f"{details[names.award_date]} "
+                f"(ID {details[names.award_id]})"
             )
-        elif row["action"] == "Sale":
+        elif row[names.action] == "Sale":
             # Schwab's data export shows the settlement date,
             # whereas HMRC wants the trade date:
             date = (
-                datetime.datetime.strptime(row["eventDate"], "%m/%d/%Y").date()
+                datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
                 - SETTLEMENT_DELAY
             ).date()
+
+            if OPTIONAL_DETAILS_NAME in row[names.transac_details][0]:
+                details = row[names.transac_details][0]["Details"]
+            else:
+                details = row[names.transac_details][0]
+
             # Schwab's data export lacks decimals on Sales quantities,
             # so we infer it from the amount and salePrice.
-            price_str = row["transactionDetails"][0]["salePrice"]
+            price_str = details[names.sale_price]
             price = _price_from_str(price_str)
 
             # Schwab only gives us overall transaction amount, and sale price
             # of the sub-transactions. We can only work-out the correct
             # quantity if all sub-transactions have the same price:
-            for subtransac in row["transactionDetails"][1:]:
-                if subtransac["salePrice"] != price_str:
+            for subtransac in row[names.transac_details][1:]:
+                if OPTIONAL_DETAILS_NAME in subtransac:
+                    subtransac_details = subtransac["Details"]
+                else:
+                    subtransac_details = subtransac
+
+                if subtransac_details[names.sale_price] != price_str:
                     raise ParsingError(
                         file,
                         "Impossible to work out quantity of sale of date"
@@ -175,7 +249,7 @@ class SchwabTransaction(BrokerTransaction):
             quantity = (amount + fees) / price
         else:
             raise ParsingError(
-                file, f'Parsing for action {row["action"]} is not implemented!'
+                file, f"Parsing for action {row[names.action]} is not implemented!"
             )
 
         currency = "USD"
@@ -232,18 +306,29 @@ def read_schwab_equity_award_json_transactions(
                     "Cloud not parse content as JSON",
                 ) from exception
 
-            if "transactions" not in data or not isinstance(data["transactions"], list):
+            for field_name, schema_version in field2schema.items():
+                if field_name in data:
+                    fields = FieldNames(schema_version)
+                    break
+            if not fields:
                 raise ParsingError(
                     transactions_file,
-                    "no 'transactions' list found: the JSON data is not "
+                    f"Expected top level field ({', '.join(field2schema.keys())}) "
+                    "not found: the JSON data is not in the expected format",
+                )
+
+            if not isinstance(data[fields.transactions], list):
+                raise ParsingError(
+                    transactions_file,
+                    f"'{fields.transactions}' is not a list: the JSON data is not "
                     "in the expected format",
                 )
 
             transactions = [
-                SchwabTransaction(transac, transactions_file)
-                for transac in data["transactions"]
+                SchwabTransaction(transac, transactions_file, fields)
+                for transac in data[fields.transactions]
                 # Skip as not relevant for CGT
-                if transac["action"] not in {"Journal", "Wire Transfer"}
+                if transac[fields.action] not in {"Journal", "Wire Transfer"}
             ]
             transactions.reverse()
             return list(transactions)
