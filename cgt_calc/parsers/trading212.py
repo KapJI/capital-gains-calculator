@@ -22,7 +22,11 @@ COLUMNS: Final[list[str]] = [
     "Currency (Price / share)",
     "Exchange rate",
     "Result (GBP)",
+    "Result",
+    "Currency (Result)",
     "Total (GBP)",
+    "Total",
+    "Currency (Total)",
     "Withholding tax",
     "Currency (Withholding tax)",
     "Charge amount (GBP)",
@@ -59,8 +63,15 @@ def action_from_str(label: str, filename: str) -> ActionType:
     ]:
         return ActionType.TRANSFER
 
-    if label in ["Dividend (Ordinary)"]:
+    if label in [
+        "Dividend (Ordinary)",
+        "Dividend (Dividend)",
+        "Dividend (Dividends paid by us corporations)",
+    ]:
         return ActionType.DIVIDEND
+
+    if label in ["Interest on cash"]:
+        return ActionType.INTEREST
 
     raise ParsingError(filename, f"Unknown action: {label}")
 
@@ -72,7 +83,8 @@ class Trading212Transaction(BrokerTransaction):
         """Create transaction from CSV row."""
         row = dict(zip(header, row_raw))
         time_str = row["Time"]
-        self.datetime = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+        time_format = "%Y-%m-%d %H:%M:%S.%f" if "." in time_str else "%Y-%m-%d %H:%M:%S"
+        self.datetime = datetime.strptime(time_str, time_format)
         date = self.datetime.date()
         self.raw_action = row["Action"]
         action = action_from_str(self.raw_action, filename)
@@ -94,7 +106,12 @@ class Trading212Transaction(BrokerTransaction):
             + (self.finra_fee or Decimal(0))
             + (self.conversion_fee or Decimal(0))
         )
-        amount = decimal_or_none(row["Total (GBP)"])
+        if "Total" in row:
+            amount = decimal_or_none(row["Total"])
+            currency = row["Currency (Total)"]
+        else:
+            amount = decimal_or_none(row["Total (GBP)"])
+            currency = "GBP"
         price = (
             abs(amount / quantity)
             if amount is not None and quantity is not None
@@ -105,8 +122,8 @@ class Trading212Transaction(BrokerTransaction):
                 amount *= -1
             amount -= fees
         self.isin = row["ISIN"]
-        self.transaction_id = row["ID"]
-        self.notes = row["Notes"]
+        self.transaction_id = row["ID"] if "ID" in row else None
+        self.notes = row["Notes"] if "Notes" in row else None
         broker = "Trading212"
         super().__init__(
             date,
@@ -117,7 +134,7 @@ class Trading212Transaction(BrokerTransaction):
             price,
             fees,
             amount,
-            "GBP",
+            currency,
             broker,
         )
 
