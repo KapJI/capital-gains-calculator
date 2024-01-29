@@ -1,4 +1,5 @@
 """Parse command line arguments."""
+
 import argparse
 import datetime
 

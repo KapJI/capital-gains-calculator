@@ -1,4 +1,5 @@
 """Additional tests for calc."""
+
 from __future__ import annotations
 
 import datetime

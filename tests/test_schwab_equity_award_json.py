@@ -1,4 +1,5 @@
 """Unit tests on schwab_equity_award_json.py."""
+
 from __future__ import annotations
 
 import datetime
