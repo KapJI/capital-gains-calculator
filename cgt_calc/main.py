@@ -431,7 +431,11 @@ class CapitalGainsCalculator:
                             _same_day_amount,
                             _same_day_fees,
                         ) = astuple(disposal_list[search_index][symbol])
-                    assert same_day_quantity <= acquisition_quantity
+                    if same_day_quantity > acquisition_quantity:
+                        # If the number of shares disposed of exceeds the number
+                        # acquired on the same day the excess shares will be identified
+                        # in the normal way.
+                        continue
 
                     # This can be some management fee entry or already used
                     # by bed and breakfast rule
