@@ -17,8 +17,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from pandas.tseries.holiday import USFederalHolidayCalendar  # type: ignore
-from pandas.tseries.offsets import CustomBusinessDay  # type: ignore
+from pandas.tseries.holiday import USFederalHolidayCalendar
+from pandas.tseries.offsets import CustomBusinessDay
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
@@ -36,7 +36,7 @@ SETTLEMENT_DELAY = 2 * CustomBusinessDay(calendar=USFederalHolidayCalendar())
 # into float, but we want to get Decimal('1.0001'))
 ROUND_DIGITS = 6
 
-JsonRowType = Any  # type: ignore
+JsonRowType = Any  # type: ignore[misc]
 
 
 def action_from_str(label: str) -> ActionType:
@@ -173,7 +173,7 @@ class SchwabTransaction(BrokerTransaction):
             date = (
                 datetime.datetime.strptime(row["eventDate"], "%m/%d/%Y").date()
                 - SETTLEMENT_DELAY
-            ).date()
+            ).date()  # type: ignore[attr-defined]
 
             # Schwab's data export sometimes lacks decimals on Sales
             # quantities, in which case we infer it from number of shares in
