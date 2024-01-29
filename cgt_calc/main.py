@@ -193,7 +193,10 @@ class CapitalGainsCalculator:
             new_balance = balance[(transaction.broker, transaction.currency)]
             if transaction.action is ActionType.TRANSFER:
                 new_balance += get_amount_or_fail(transaction)
-            elif transaction.action is ActionType.BUY:
+            elif transaction.action in [
+                ActionType.BUY,
+                ActionType.REINVEST_SHARES,
+            ]:
                 new_balance += get_amount_or_fail(transaction)
                 self.add_acquisition(portfolio, acquisition_list, transaction)
             elif transaction.action is ActionType.SELL:
@@ -221,7 +224,6 @@ class CapitalGainsCalculator:
             elif transaction.action in [
                 ActionType.STOCK_ACTIVITY,
                 ActionType.SPIN_OFF,
-                ActionType.REINVEST_SHARES,
                 ActionType.STOCK_SPLIT,
             ]:
                 self.add_acquisition(portfolio, acquisition_list, transaction)
