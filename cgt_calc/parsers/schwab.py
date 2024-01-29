@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 import csv
 from dataclasses import dataclass
 import datetime
 from decimal import Decimal
-import itertools
+from enum import Enum
 from pathlib import Path
 
 from cgt_calc.const import TICKER_RENAMES
@@ -18,6 +18,27 @@ from cgt_calc.exceptions import (
     UnexpectedRowCountError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction
+
+
+class SchwabTransactionsFileRequiredHeaders(str, Enum):
+    """Enum to list the headers in Schwab transactions file that we will use."""
+
+    DATE = "Date"
+    ACTION = "Action"
+    SYMBOL = "Symbol"
+    DESCRIPTION = "Description"
+    PRICE = "Price"
+    QUANTITY = "Quantity"
+    FEES_AND_COMM = "Fees & Comm"
+    AMOUNT = "Amount"
+
+
+class AwardsTransactionsFileRequiredHeaders(str, Enum):
+    """Enum to list the headers in Awards transactions file that we will use."""
+
+    DATE = "Date"
+    SYMBOL = "Symbol"
+    FAIR_MARKET_VALUE_PRICE = "FairMarketValuePrice"
 
 
 @dataclass
@@ -109,32 +130,56 @@ class SchwabTransaction(BrokerTransaction):
 
     def __init__(
         self,
-        row: list[str],
+        row_dict: OrderedDict[str, str],
         file: str,
     ):
         """Create transaction from CSV row."""
-        if len(row) < 8 or len(row) > 9:
+        if len(row_dict) < 8 or len(row_dict) > 9:
             # Old transactions had empty 9th column.
-            raise UnexpectedColumnCountError(row, 8, file)
-        if len(row) == 9 and row[8] != "":
+            raise UnexpectedColumnCountError(list(row_dict.values()), 8, file)
+        if len(row_dict) == 9 and list(row_dict.values())[8] != "":
             raise ParsingError(file, "Column 9 should be empty")
         as_of_str = " as of "
-        if as_of_str in row[0]:
-            index = row[0].find(as_of_str) + len(as_of_str)
-            date_str = row[0][index:]
+        date_header = SchwabTransactionsFileRequiredHeaders.DATE.value
+        if as_of_str in row_dict[date_header]:
+            index = row_dict[date_header].find(as_of_str) + len(as_of_str)
+            date_str = row_dict[date_header][index:]
         else:
-            date_str = row[0]
+            date_str = row_dict[date_header]
         date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
-        self.raw_action = row[1]
+        action_header = SchwabTransactionsFileRequiredHeaders.ACTION.value
+        self.raw_action = row_dict[action_header]
         action = action_from_str(self.raw_action)
-        symbol = row[2] if row[2] != "" else None
+        symbol_header = SchwabTransactionsFileRequiredHeaders.SYMBOL.value
+        symbol = row_dict[symbol_header] if row_dict[symbol_header] != "" else None
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
-        description = row[3]
-        quantity = Decimal(row[4].replace(",", "")) if row[4] != "" else None
-        price = Decimal(row[5].replace("$", "")) if row[5] != "" else None
-        fees = Decimal(row[6].replace("$", "")) if row[6] != "" else Decimal(0)
-        amount = Decimal(row[7].replace("$", "")) if row[7] != "" else None
+        description_header = SchwabTransactionsFileRequiredHeaders.DESCRIPTION.value
+        description = row_dict[description_header]
+        price_header = SchwabTransactionsFileRequiredHeaders.PRICE.value
+        price = (
+            Decimal(row_dict[price_header].replace("$", ""))
+            if row_dict[price_header] != ""
+            else None
+        )
+        quantity_header = SchwabTransactionsFileRequiredHeaders.QUANTITY.value
+        quantity = (
+            Decimal(row_dict[quantity_header].replace(",", ""))
+            if row_dict[quantity_header] != ""
+            else None
+        )
+        fees_header = SchwabTransactionsFileRequiredHeaders.FEES_AND_COMM.value
+        fees = (
+            Decimal(row_dict[fees_header].replace("$", ""))
+            if row_dict[fees_header] != ""
+            else Decimal(0)
+        )
+        amount_header = SchwabTransactionsFileRequiredHeaders.AMOUNT.value
+        amount = (
+            Decimal(row_dict[amount_header].replace("$", ""))
+            if row_dict[amount_header] != ""
+            else None
+        )
 
         currency = "USD"
         broker = "Charles Schwab"
@@ -153,10 +198,10 @@ class SchwabTransaction(BrokerTransaction):
 
     @staticmethod
     def create(
-        row: list[str], file: str, awards_prices: AwardPrices
+        row_dict: OrderedDict[str, str], file: str, awards_prices: AwardPrices
     ) -> SchwabTransaction:
         """Create and post process a SchwabTransaction."""
-        transaction = SchwabTransaction(row, file)
+        transaction = SchwabTransaction(row_dict, file)
         if (
             transaction.price is None
             and transaction.action == ActionType.STOCK_ACTIVITY
@@ -182,41 +227,24 @@ def read_schwab_transactions(
     try:
         with Path(transactions_file).open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))
+            headers = lines[0]
 
-            headers = [
-                "Date",
-                "Action",
-                "Symbol",
-                "Description",
-                "Quantity",
-                "Price",
-                "Fees & Comm",
-                "Amount",
-            ]
-            if not lines[0] == headers:
+            required_headers = set(
+                {header.value for header in SchwabTransactionsFileRequiredHeaders}
+            )
+            if not required_headers.issubset(headers):
                 raise ParsingError(
                     transactions_file,
-                    "First line of Schwab transactions file must be something like "
-                    "'Transactions for account ...'",
+                    "Missing columns in Schwab transaction file: "
+                    f"{required_headers.difference(headers)}",
                 )
 
-            if len(lines[1]) < 8 or len(lines[1]) > 9:
-                raise ParsingError(
-                    transactions_file,
-                    "Second line of Schwab transactions file must be a header"
-                    " with 8 columns",
-                )
-
-            if "Total" not in lines[-1][0]:
-                raise ParsingError(
-                    transactions_file,
-                    "Last line of Schwab transactions file must be total",
-                )
-
-            # Remove headers and footer
-            lines = lines[1:-1]
+            # Remove header
+            lines = lines[1:]
             transactions = [
-                SchwabTransaction.create(row, transactions_file, awards_prices)
+                SchwabTransaction.create(
+                    OrderedDict(zip(headers, row)), transactions_file, awards_prices
+                )
                 for row in lines
             ]
             transactions.reverse()
@@ -232,6 +260,8 @@ def _read_schwab_awards(
     """Read initial stock prices from CSV file."""
     initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
 
+    headers = []
+
     lines = []
     if schwab_award_transactions_file is not None:
         try:
@@ -239,8 +269,19 @@ def _read_schwab_awards(
                 encoding="utf-8"
             ) as csv_file:
                 lines = list(csv.reader(csv_file))
+                headers = lines[0]
+                required_headers = set(
+                    {header.value for header in AwardsTransactionsFileRequiredHeaders}
+                )
+                if not required_headers.issubset(headers):
+                    raise ParsingError(
+                        schwab_award_transactions_file,
+                        "Missing columns in awards file: "
+                        f"{required_headers.difference(headers)}",
+                    )
+
                 # Remove headers
-                lines = lines[2:]
+                lines = lines[1:]
         except FileNotFoundError:
             print(
                 "WARNING: Couldn't locate Schwab award "
@@ -249,36 +290,42 @@ def _read_schwab_awards(
     else:
         print("WARNING: No schwab award file provided")
 
-    modulo = len(lines) % 3
+    modulo = len(lines) % 2
     if modulo != 0:
         raise UnexpectedRowCountError(
-            len(lines) - modulo + 3, schwab_award_transactions_file or ""
+            len(lines) - modulo + 2, schwab_award_transactions_file or ""
         )
 
-    for row in zip(lines[::3], lines[1::3], lines[2::3]):
-        if len(row) != 3:
+    for upper_row, lower_row in zip(lines[::2], lines[1::2]):
+        # in this format each row is split into two rows,
+        # so we combine them safely below
+        row = []
+        for upper_col, lower_col in zip(upper_row, lower_row):
+            assert upper_col == "" or lower_col == ""
+            row.append(upper_col + lower_col)
+
+        if len(row) != len(headers):
             raise UnexpectedColumnCountError(
-                list(itertools.chain(*row)), 3, schwab_award_transactions_file or ""
+                row, len(headers), schwab_award_transactions_file or ""
             )
 
-        lapse_main, _, lapse_data = row
-
-        if len(lapse_main) != 8:
-            raise UnexpectedColumnCountError(
-                lapse_main, 8, schwab_award_transactions_file or ""
-            )
-        if len(lapse_data) < 8 or len(lapse_data) > 9:
-            raise UnexpectedColumnCountError(
-                lapse_data, 8, schwab_award_transactions_file or ""
-            )
-
-        date_str = lapse_main[0]
+        row_dict = OrderedDict(zip(headers, row))
+        date_header = AwardsTransactionsFileRequiredHeaders.DATE.value
+        date_str = row_dict[date_header]
         try:
             date = datetime.datetime.strptime(date_str, "%Y/%m/%d").date()
         except ValueError:
             date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
-        symbol = lapse_main[2] if lapse_main[2] != "" else None
-        price = Decimal(lapse_data[3].replace("$", "")) if lapse_data[3] != "" else None
+        symbol_header = AwardsTransactionsFileRequiredHeaders.SYMBOL.value
+        symbol = row_dict[symbol_header] if row_dict[symbol_header] != "" else None
+        fair_market_value_price_header = (
+            AwardsTransactionsFileRequiredHeaders.FAIR_MARKET_VALUE_PRICE.value
+        )
+        price = (
+            Decimal(row_dict[fair_market_value_price_header].replace("$", ""))
+            if row_dict[fair_market_value_price_header] != ""
+            else None
+        )
         if symbol is not None and price is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
             initial_prices[date][symbol] = price
