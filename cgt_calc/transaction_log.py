@@ -1,4 +1,5 @@
 """Functions to work with HMRC transaction log."""
+
 from dataclasses import astuple
 import datetime
 from decimal import Decimal

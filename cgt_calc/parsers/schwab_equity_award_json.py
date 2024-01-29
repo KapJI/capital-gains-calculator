@@ -11,6 +11,7 @@ To get the data from Schwab:
    * repeat the process to export older data
    * manually combine the data into a single file
 """
+
 from __future__ import annotations
 
 from dataclasses import InitVar, dataclass
@@ -20,8 +21,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from pandas.tseries.holiday import USFederalHolidayCalendar  # type: ignore
-from pandas.tseries.offsets import CustomBusinessDay  # type: ignore
+from pandas.tseries.holiday import USFederalHolidayCalendar
+from pandas.tseries.offsets import CustomBusinessDay
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
@@ -91,7 +92,7 @@ class FieldNames:
 # into float, but we want to get Decimal('1.0001'))
 ROUND_DIGITS = 6
 
-JsonRowType = Any  # type: ignore
+JsonRowType = Any  # type: ignore[misc]
 
 
 def action_from_str(label: str) -> ActionType:
@@ -227,7 +228,7 @@ class SchwabTransaction(BrokerTransaction):
             date = (
                 datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
                 - SETTLEMENT_DELAY
-            ).date()
+            ).date()  # type: ignore[attr-defined]
 
             # Schwab's data export sometimes lacks decimals on Sales
             # quantities, in which case we infer it from number of shares in

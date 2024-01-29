@@ -1,4 +1,5 @@
 """Utility functions."""
+
 import decimal
 from decimal import Decimal
 
