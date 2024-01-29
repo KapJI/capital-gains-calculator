@@ -1,4 +1,5 @@
 """Function to work with dates."""
+
 import datetime
 
 

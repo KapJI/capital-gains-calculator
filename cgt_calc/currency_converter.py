@@ -1,4 +1,5 @@
 """Convert currencies to GBP using rate history."""
+
 from __future__ import annotations
 
 from collections import defaultdict

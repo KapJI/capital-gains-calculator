@@ -8,6 +8,7 @@ To get the data from Schwab:
    https://ausgateway.schwab.com/api/is.TransactionHistoryWeb/TransactionHistoryInterface/TransactionHistory/equity-award-center/transactions
 5. Copy response JSON inside schwab_input.json and run schwab.py
 """
+
 from __future__ import annotations
 
 import datetime

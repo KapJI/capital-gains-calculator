@@ -1,4 +1,5 @@
 """Render PDF report with LaTeX."""
+
 from decimal import Decimal
 import os
 from pathlib import Path
