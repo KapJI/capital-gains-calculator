@@ -1,4 +1,5 @@
 """Charles Schwab parser."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -59,13 +60,15 @@ def action_from_str(label: str) -> ActionType:
         "Funds Received",
         "Journal",
         "Cash In Lieu",
+        "Visa Purchase",
+        "MoneyLink Deposit",
     ]:
         return ActionType.TRANSFER
 
     if label == "Stock Plan Activity":
         return ActionType.STOCK_ACTIVITY
 
-    if label in ["Qualified Dividend", "Cash Dividend"]:
+    if label in ["Qualified Dividend", "Cash Dividend", "Qual Div Reinvest"]:
         return ActionType.DIVIDEND
 
     if label in ["NRA Tax Adj", "NRA Withholding", "Foreign Tax Paid"]:
