@@ -89,7 +89,12 @@ def action_from_str(label: str) -> ActionType:
     if label == "Stock Plan Activity":
         return ActionType.STOCK_ACTIVITY
 
-    if label in ["Qualified Dividend", "Cash Dividend", "Qual Div Reinvest"]:
+    if label in [
+        "Qualified Dividend",
+        "Cash Dividend",
+        "Qual Div Reinvest",
+        "Div Adjustment",
+    ]:
         return ActionType.DIVIDEND
 
     if label in ["NRA Tax Adj", "NRA Withholding", "Foreign Tax Paid"]:
