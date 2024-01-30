@@ -1,4 +1,4 @@
-Action,Time,ISIN,Ticker,Name,No. of shares,Price / share,Currency (Price / share),Exchange rate,Result (GBP),Total (GBP),Withholding tax,Currency (Withholding tax),Charge amount (GBP),Transaction fee (GBP),Finra fee (GBP),Notes,ID
+Action,Time,ISIN,Ticker,Name,No. of shares,Price / share,Currency (Price / share),Exchange rate,Result,Currency (Result),Total,Currency (Total),Withholding tax,Currency (Withholding tax),Stamp duty reserve tax,Currency (Stamp duty reserve tax),Notes,ID,Currency conversion fee,Currency (Currency conversion fee)
 Deposit,2020-11-24 04:06:06,,,,,,,,,9000.00,,,9000.00,,,"Transaction ID: xxxxxxx",123
 Market buy,2020-11-24 14:33:50,US3696041033,GE,"General Electric",1.0000000000,10.74,USD,1.33080,,8.07,,,,,,,124
 Deposit,2020-11-24 14:33:50,,,,,,,,,8.08,,,8.08,,,"Free Shares Promotion",125
