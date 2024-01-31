@@ -100,7 +100,9 @@ class Trading212Transaction(BrokerTransaction):
         if "Total" in row:
             amount = decimal_or_none(row["Total"])
             currency = row["Currency (Total)"]
-
+        else:
+            amount = 0
+            currency = "GBP"
         price = (
             abs(amount / quantity)
             if amount is not None and quantity is not None
