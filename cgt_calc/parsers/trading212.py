@@ -22,20 +22,18 @@ COLUMNS: Final[list[str]] = [
     "Price / share",
     "Currency (Price / share)",
     "Exchange rate",
-    "Result (GBP)",
     "Result",
     "Currency (Result)",
-    "Total (GBP)",
     "Total",
     "Currency (Total)",
     "Withholding tax",
     "Currency (Withholding tax)",
-    "Charge amount (GBP)",
-    "Transaction fee (GBP)",
-    "Finra fee (GBP)",
+    "Stamp duty reserve tax",
+    "Currency (Stamp duty reserve tax)",
     "Notes",
     "ID",
-    "Currency conversion fee (GBP)",
+    "Currency conversion fee",
+    "Currency (Currency conversion fee)",
 ]
 
 
@@ -97,22 +95,12 @@ class Trading212Transaction(BrokerTransaction):
         self.price_foreign = decimal_or_none(row["Price / share"])
         self.currency_foreign = row["Currency (Price / share)"]
         self.exchange_rate = decimal_or_none(row["Exchange rate"])
-        self.transaction_fee = decimal_or_none(row.get("Transaction fee (GBP)", "0"))
-        self.finra_fee = decimal_or_none(row.get("Finra fee (GBP)", "0"))
-        self.conversion_fee = decimal_or_none(
-            row.get("Currency conversion fee (GBP)", "0")
-        )
-        fees = (
-            (self.transaction_fee or Decimal(0))
-            + (self.finra_fee or Decimal(0))
-            + (self.conversion_fee or Decimal(0))
-        )
+        self.conversion_fee = decimal_or_none(row.get("Currency conversion fee", "0"))
+        fees = self.conversion_fee or Decimal(0)
         if "Total" in row:
             amount = decimal_or_none(row["Total"])
             currency = row["Currency (Total)"]
-        else:
-            amount = decimal_or_none(row["Total (GBP)"])
-            currency = "GBP"
+
         price = (
             abs(amount / quantity)
             if amount is not None and quantity is not None
