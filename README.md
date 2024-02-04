@@ -23,6 +23,7 @@ pipx install cgt-calc
 
 -   Python 3.8 or above.
 -   `pdflatex` is required to generate the report.
+-   [Optional] Docker
 
 ## Install LaTeX
 
@@ -41,6 +42,26 @@ apt install texlive-latex-base
 ### Windows
 
 [Install MiKTeX.](https://miktex.org/download)
+
+### Docker
+
+These steps will build and run the calculator in a self-contained environment, in case you would rather not have a systemwide LaTeX installation (or don't want to interfere with an existing one).
+The following steps are tested on an Apple silicon Mac and may need to be slightly modified on other platforms.
+With the cloned repository as the current working directory:
+
+```shell
+$ docker buildx build --platform linux/amd64 --tag capital-gains-calculator
+```
+
+Now you've built and tagged the calculator image, you can drop into a shell with `cgt-calc` installed on `$PATH`. Navigate to where you store your transaction data, and run:
+```shell
+$ cd ~/Taxes/Transactions
+$ docker run --rm -it -v "$PWD":/data capital-gains-calculator:latest
+a4800eca1914:/data# cgt-calc [...]
+```
+
+This will create a temporary Docker container with the current directory on the host (where your transaction data is) mounted inside the container at `/path`. Go ahead and follow the usage instructions below, 
+and when you're done, simply exit the shell. You will be dropped back into the shell on your host, with your output report pdf etc..
 
 ## Usage
 
