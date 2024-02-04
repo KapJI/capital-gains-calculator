@@ -33,6 +33,7 @@ COLUMNS: Final[list[str]] = [
     "Charge amount (GBP)",
     "Transaction fee (GBP)",
     "Finra fee (GBP)",
+    "Stamp duty (GBP)",
     "Notes",
     "ID",
     "Currency conversion fee (GBP)",
@@ -99,6 +100,7 @@ class Trading212Transaction(BrokerTransaction):
         self.exchange_rate = decimal_or_none(row["Exchange rate"])
         self.transaction_fee = decimal_or_none(row.get("Transaction fee (GBP)", "0"))
         self.finra_fee = decimal_or_none(row.get("Finra fee (GBP)", "0"))
+        self.stamp_duty = decimal_or_none(row.get("Stamp duty (GBP)", "0"))
         self.conversion_fee = decimal_or_none(
             row.get("Currency conversion fee (GBP)", "0")
         )
