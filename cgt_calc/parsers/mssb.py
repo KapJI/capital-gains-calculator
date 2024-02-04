@@ -3,6 +3,7 @@
 Note, that I only had access to an Alphabet export. I have no idea how it looks like
 for another company, or for a full profile.
 """
+
 from __future__ import annotations
 
 import csv
@@ -190,7 +191,7 @@ def _validate_header(
         raise UnexpectedColumnCountError(header, len(golden_header), filename)
     for i, (expected, actual) in enumerate(zip(golden_header, header)):
         if expected != actual:
-            msg = f"Expected column {i+1} to be {expected} but found {actual}"
+            msg = f"Expected column {i + 1} to be {expected} but found {actual}"
             raise ParsingError(filename, msg)
 
 
