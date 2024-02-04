@@ -60,7 +60,7 @@ $ docker run --rm -it -v "$PWD":/data capital-gains-calculator:latest
 a4800eca1914:/data# cgt-calc [...]
 ```
 
-This will create a temporary Docker container with the current directory on the host (where your transaction data is) mounted inside the container at `/path`. Go ahead and follow the usage instructions below, 
+This will create a temporary Docker container with the current directory on the host (where your transaction data is) mounted inside the container at `/data`. Follow the usage instructions below as normal,
 and when you're done, simply exit the shell. You will be dropped back into the shell on your host, with your output report pdf etc..
 
 ## Usage
