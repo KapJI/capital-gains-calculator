@@ -25,8 +25,6 @@ RUN apk --no-cache add py3-pandas
 RUN apk --no-cache add pipx
 RUN pipx install cgt-calc
 RUN pipx ensurepath
-# workaround https://github.com/KapJI/capital-gains-calculator/issues/470
-RUN pipx inject cgt-calc pandas
 
 WORKDIR /data
 
