@@ -54,6 +54,7 @@ $ docker buildx build --platform linux/amd64 --tag capital-gains-calculator
 ```
 
 Now you've built and tagged the calculator image, you can drop into a shell with `cgt-calc` installed on `$PATH`. Navigate to where you store your transaction data, and run:
+
 ```shell
 $ cd ~/Taxes/Transactions
 $ docker run --rm -it -v "$PWD":/data capital-gains-calculator:latest
