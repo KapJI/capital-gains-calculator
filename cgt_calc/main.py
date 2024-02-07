@@ -16,6 +16,7 @@ from . import render_latex
 from .args_parser import create_parser
 from .const import BED_AND_BREAKFAST_DAYS, CAPITAL_GAIN_ALLOWANCES, INTERNAL_START_DATE
 from .currency_converter import CurrencyConverter
+from .current_price_fetcher import CurrentPriceFetcher
 from .dates import get_tax_year_end, get_tax_year_start, is_date
 from .exceptions import (
     AmountMissingError,
@@ -34,6 +35,7 @@ from .model import (
     CalculationLog,
     CapitalGainsReport,
     HmrcTransactionLog,
+    PortfolioEntry,
     RuleType,
 )
 from .parsers import read_broker_transactions, read_initial_prices
@@ -64,8 +66,10 @@ class CapitalGainsCalculator:
         self,
         tax_year: int,
         converter: CurrencyConverter,
+        price_fetcher: CurrentPriceFetcher,
         initial_prices: InitialPrices,
         balance_check: bool = True,
+        calc_unrealized_gains: bool = False,
     ):
         """Create calculator object."""
         self.tax_year = tax_year
@@ -74,8 +78,10 @@ class CapitalGainsCalculator:
         self.tax_year_end_date = get_tax_year_end(tax_year)
 
         self.converter = converter
+        self.price_fetcher = price_fetcher
         self.initial_prices = initial_prices
         self.balance_check = balance_check
+        self.calc_unrealized_gains = calc_unrealized_gains
 
     def date_in_tax_year(self, date: datetime.date) -> bool:
         """Check if date is within current tax year."""
@@ -646,7 +652,10 @@ class CapitalGainsCalculator:
         allowance = CAPITAL_GAIN_ALLOWANCES.get(self.tax_year)
         return CapitalGainsReport(
             self.tax_year,
-            portfolio,
+            [
+                self.make_portfolio_entry(symbol, quantity, amount)
+                for symbol, (quantity, amount) in portfolio.items()
+            ],
             disposal_count,
             round_decimal(disposal_proceeds, 2),
             round_decimal(allowable_costs, 2),
@@ -654,6 +663,28 @@ class CapitalGainsCalculator:
             round_decimal(capital_loss, 2),
             Decimal(allowance) if allowance is not None else None,
             calculation_log,
+            show_unrealized_gains=self.calc_unrealized_gains,
+        )
+
+    def make_portfolio_entry(
+        self, symbol: str, quantity: Decimal, amount: Decimal
+    ) -> PortfolioEntry:
+        """Create a portfolio entry in the report."""
+        # (by calculating the unrealized gains)
+        unrealized_gains = None
+        if self.calc_unrealized_gains:
+            current_price = (
+                self.price_fetcher.get_current_market_price(symbol)
+                if quantity > 0
+                else 0
+            )
+            if current_price is not None:
+                unrealized_gains = current_price * quantity - amount
+        return PortfolioEntry(
+            symbol,
+            quantity,
+            amount,
+            unrealized_gains,
         )
 
 
@@ -686,9 +717,15 @@ def main() -> int:
     )
     converter = CurrencyConverter(args.exchange_rates_file)
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
+    price_fetcher = CurrentPriceFetcher(converter)
 
     calculator = CapitalGainsCalculator(
-        args.year, converter, initial_prices, balance_check=args.balance_check
+        args.year,
+        converter,
+        price_fetcher,
+        initial_prices,
+        balance_check=args.balance_check,
+        calc_unrealized_gains=args.calc_unrealized_gains,
     )
     # First pass converts broker transactions to HMRC transactions.
     # This means applying same day rule and collapsing all transactions with

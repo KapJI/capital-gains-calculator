@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from .util import round_decimal
 
@@ -117,12 +117,49 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
 CalculationLog = Dict[datetime.date, Dict[str, List[CalculationEntry]]]
 
 
+class PortfolioEntry:
+    """A single symbol entry for the portfolio in the final report."""
+
+    def __init__(
+        self,
+        symbol: str,
+        quantity: Decimal,
+        amount: Decimal,
+        unrealized_gains: Optional[Decimal],
+    ):
+        """Create portfolio entry."""
+        self.symbol = symbol
+        self.quantity = quantity
+        self.amount = amount
+        self.unrealized_gains = unrealized_gains
+
+    def unrealized_gains_str(self) -> str:
+        """Format the unrealized gains to show in the report."""
+        if self.unrealized_gains is None:
+            str_val = "unknown"
+        else:
+            str_val = f"£{round_decimal(self.unrealized_gains, 2)}"
+
+        return f" (unrealized gains: {str_val})"
+
+    def __repr__(self) -> str:
+        """Return print representation."""
+        return f"<PortfolioEntry {str(self)}>"
+
+    def __str__(self) -> str:
+        """Return string representation."""
+        return (
+            f"  {self.symbol}: {round_decimal(self.quantity, 2)}, "
+            f"£{round_decimal(self.amount, 2)}"
+        )
+
+
 @dataclass
 class CapitalGainsReport:
     """Store calculated report."""
 
     tax_year: int
-    portfolio: dict[str, tuple[Decimal, Decimal]]
+    portfolio: List[PortfolioEntry]
     disposal_count: int
     disposal_proceeds: Decimal
     allowable_costs: Decimal
@@ -130,6 +167,18 @@ class CapitalGainsReport:
     capital_loss: Decimal
     capital_gain_allowance: Decimal | None
     calculation_log: CalculationLog
+    show_unrealized_gains: bool
+
+    def total_unrealized_gains(self) -> Decimal:
+        """Total unrealized gains across portfolio."""
+        return sum(
+            (
+                h.unrealized_gains
+                for h in self.portfolio
+                if h.unrealized_gains is not None
+            ),
+            Decimal(0),
+        )
 
     def total_gain(self) -> Decimal:
         """Total capital gain."""
@@ -147,12 +196,12 @@ class CapitalGainsReport:
     def __str__(self) -> str:
         """Return string representation."""
         out = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year:\n"
-        for symbol, (quantity, amount) in self.portfolio.items():
-            if quantity > 0:
-                out += (
-                    f"  {symbol}: {round_decimal(quantity, 2)}, "
-                    f"£{round_decimal(amount, 2)}\n"
+        for entry in self.portfolio:
+            if entry.quantity > 0:
+                unrealized_gains_str = (
+                    entry.unrealized_gains_str() if self.show_unrealized_gains else ""
                 )
+                out += f"{str(entry)}{unrealized_gains_str}\n"
         out += f"For tax year {self.tax_year}/{self.tax_year + 1}:\n"
         out += f"Number of disposals: {self.disposal_count}\n"
         out += f"Disposal proceeds: £{self.disposal_proceeds}\n"
@@ -164,4 +213,13 @@ class CapitalGainsReport:
             out += f"Taxable capital gain: £{self.taxable_gain()}\n"
         else:
             out += "WARNING: Missing allowance for this tax year\n"
+        if self.show_unrealized_gains:
+            total_unrealized_gains = round_decimal(self.total_unrealized_gains(), 2)
+            out += f"Total unrealized gains: £{total_unrealized_gains}\n"
+            if any(h.unrealized_gains is None for h in self.portfolio):
+                out += (
+                    "WARNING: Some unrealized gains couldn't be calculated."
+                    " Take a look at the symbols with unknown unrealized gains above"
+                    " and factor in their prices.\n"
+                )
         return out

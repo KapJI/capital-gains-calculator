@@ -104,6 +104,16 @@ def create_parser() -> argparse.ArgumentParser:
         default=True,
     )
     parser.add_argument(
+        "--unrealized-gains",
+        dest="calc_unrealized_gains",
+        action="store_true",
+        default=False,
+        help=(
+            "show an estimation of the gains/loss you would incur"
+            " if you were to sell your holdings, under the standard 104 rule."
+        ),
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="enable extra logging",
