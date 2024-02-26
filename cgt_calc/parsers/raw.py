@@ -23,7 +23,7 @@ def action_from_str(label: str) -> ActionType:
 class RawTransaction(BrokerTransaction):
     """
     Represents a single raw transaction.
-    
+
     Example format:
     2023-02-09,DIVIDEND,OPRA,4200,0.80,0.0,USD
     2022-11-14,SELL,META,19,116.00,0.05,USD
