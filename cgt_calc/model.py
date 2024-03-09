@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from .util import round_decimal
 
@@ -125,7 +125,7 @@ class PortfolioEntry:
         symbol: str,
         quantity: Decimal,
         amount: Decimal,
-        unrealized_gains: Optional[Decimal],
+        unrealized_gains: Decimal | None,
     ):
         """Create portfolio entry."""
         self.symbol = symbol
@@ -159,7 +159,7 @@ class CapitalGainsReport:
     """Store calculated report."""
 
     tax_year: int
-    portfolio: List[PortfolioEntry]
+    portfolio: list[PortfolioEntry]
     disposal_count: int
     disposal_proceeds: Decimal
     allowable_costs: Decimal
