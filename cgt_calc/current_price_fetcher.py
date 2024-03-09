@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
-from typing import Optional
 
 import yfinance as yf  # type: ignore
 
@@ -23,7 +22,7 @@ class CurrentPriceFetcher:
         self.current_prices_data = current_prices_data
         self.converter = converter
 
-    def get_current_market_price(self, symbol: str) -> Optional[Decimal]:
+    def get_current_market_price(self, symbol: str) -> Decimal | None:
         """Given a symbol gets the current market price."""
         if self.current_prices_data is not None and symbol in self.current_prices_data:
             return self.current_prices_data[symbol]
