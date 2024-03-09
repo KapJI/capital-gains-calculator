@@ -11,12 +11,14 @@ import sys
 import pytest
 
 from cgt_calc.currency_converter import CurrencyConverter
+from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import BrokerTransaction, CalculationLog, CapitalGainsReport
 from cgt_calc.util import round_decimal
 
 from .test_data.calc_test_data import calc_basic_data
+from .test_data.calc_test_data_2 import calc_basic_data_2
 
 
 def get_report(
@@ -30,23 +32,39 @@ def get_report(
 
 
 @pytest.mark.parametrize(
-    "tax_year,broker_transactions,expected,gbp_prices,calculation_log", calc_basic_data
+    "tax_year,broker_transactions,expected,expected_unrealized,"
+    "gbp_prices,current_prices,calculation_log",
+    calc_basic_data + calc_basic_data_2,
 )
 def test_basic(
     tax_year: int,
     broker_transactions: list[BrokerTransaction],
     expected: float,
+    expected_unrealized: float | None,
     gbp_prices: dict[datetime.date, dict[str, Decimal]] | None,
+    current_prices: dict[str, Decimal | None] | None,
     calculation_log: CalculationLog | None,
 ) -> None:
     """Generate basic tests for test data."""
     if gbp_prices is None:
         gbp_prices = {t.date: {"USD": Decimal(1)} for t in broker_transactions}
     converter = CurrencyConverter(None, gbp_prices)
+    price_fetcher = CurrentPriceFetcher(converter, current_prices)
     initial_prices = InitialPrices({})
-    calculator = CapitalGainsCalculator(tax_year, converter, initial_prices)
+    calculator = CapitalGainsCalculator(
+        tax_year,
+        converter,
+        price_fetcher,
+        initial_prices,
+        calc_unrealized_gains=expected_unrealized is not None,
+    )
     report = get_report(calculator, broker_transactions)
     assert report.total_gain() == round_decimal(Decimal(expected), 2)
+    print(str(report))
+    if expected_unrealized is not None:
+        assert report.total_unrealized_gains() == round_decimal(
+            Decimal(expected_unrealized), 2
+        )
     if calculation_log is not None:
         result_log = report.calculation_log
         assert len(result_log) == len(calculation_log)
