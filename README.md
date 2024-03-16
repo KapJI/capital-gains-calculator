@@ -50,7 +50,7 @@ The following steps are tested on an Apple silicon Mac and may need to be slight
 With the cloned repository as the current working directory:
 
 ```shell
-$ docker buildx build --platform linux/amd64 --tag capital-gains-calculator
+$ docker buildx build --platform linux/amd64 --tag capital-gains-calculator .
 ```
 
 Now you've built and tagged the calculator image, you can drop into a shell with `cgt-calc` installed on `$PATH`. Navigate to where you store your transaction data, and run:
