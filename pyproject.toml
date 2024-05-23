@@ -30,6 +30,7 @@ Jinja2 = ">=2.11.3,<4.0.0"
 pandas = "^2.0.3"
 requests = "^2.27.1"
 types-requests = "^2.27.7"
+yfinance = "^0.2.36"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.1"

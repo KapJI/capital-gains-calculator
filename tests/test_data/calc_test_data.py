@@ -100,7 +100,9 @@ calc_basic_data = [
             ),
         ],
         1.00,  # Expected capital gain/loss
-        None,
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
         {
             datetime.date(day=1, month=5, year=2020): {
                 "buy$FOO": [
@@ -169,7 +171,9 @@ calc_basic_data = [
         ],
         # exact amount would be £629+2/3
         629.66,  # Expected capital gain/loss
-        None,
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
         {
             datetime.date(day=1, month=5, year=2020): {
                 "sell$LOB": [
@@ -233,7 +237,9 @@ calc_basic_data = [
             ),
         ],
         -100,  # Expected capital gain/loss
-        None,
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
         {
             datetime.date(day=30, month=8, year=2020): {
                 "sell$MSP": [
@@ -325,7 +331,9 @@ calc_basic_data = [
             ),
         ],
         222.82,  # Expected capital gain/loss
-        None,
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
         {
             datetime.date(day=2, month=3, year=2021): {
                 "buy$FOO": [
@@ -458,7 +466,9 @@ calc_basic_data = [
             ),
         ],
         62.05,  # Expected capital gain/loss
-        None,
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
         {
             datetime.date(day=2, month=3, year=2021): {
                 "buy$FOO": [
@@ -617,7 +627,9 @@ calc_basic_data = [
             ),
         ],
         62.05,  # Expected capital gain/loss
-        None,
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
         {
             datetime.date(day=2, month=3, year=2021): {
                 "buy$FOO": [
@@ -778,7 +790,9 @@ calc_basic_data = [
             ),
         ],
         -41.16,  # Expected capital gain/loss
-        None,
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
         {
             datetime.date(day=25, month=6, year=2023): {
                 "sell$FOO": [
@@ -879,7 +893,9 @@ calc_basic_data = [
             ),
         ],
         62.94,  # Expected capital gain/loss
-        None,
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
         {
             datetime.date(day=25, month=6, year=2023): {
                 "sell$FOO": [
