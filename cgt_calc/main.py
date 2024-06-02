@@ -120,7 +120,7 @@ class CapitalGainsCalculator:
             if price is None:
                 price = self.initial_prices.get(transaction.date, symbol)
             amount = round_decimal(quantity * price, 2)
-        if transaction.action is ActionType.SPIN_OFF:
+        elif transaction.action is ActionType.SPIN_OFF:
             price, amount, spin_off = self.handle_spin_off(transaction)
         elif transaction.action is ActionType.STOCK_SPLIT:
             price = Decimal(0)
@@ -155,10 +155,11 @@ class CapitalGainsCalculator:
         Doc basing on SOLV spin off out of MMM.
 
         # 1. Determine the Cost Basis (Acquisition Cost) of the SOLV Shares
-        In the UK, the cost basis (or acquisition cost) of the new SOLV shares received
-        from the spin-off needs to be determined. This is usually done by apportioning
-        part of the original cost basis of the MMM shares to the new SOLV shares based
-        on their market values at the time of the spin-off.
+        In the UK, the cost basis (or acquisition cost) of the new SOLV shares
+        received from the spin-off needs to be determined. This is usually done
+        by apportioning part of the original cost basis of the MMM shares to
+        the new SOLV shares based on their market values at the time of the
+        spin-off.
 
         ## Step-by-Step Allocation
         * Find the Market Values:
@@ -168,25 +169,25 @@ class CapitalGainsCalculator:
 
         * Calculate the Apportionment:
 
-        Divide the market value of the MMM shares by the total market value of both MMM
-        and SOLV shares to find the percentage allocated to MMM.
+        Divide the market value of the MMM shares by the total market value of
+        both MMM and SOLV shares to find the percentage allocated to MMM.
         Do the same for SOLV shares to find the percentage allocated to SOLV.
 
         * Allocate the Original Cost Basis:
 
-        Multiply the original cost basis of your MMM shares by the respective percentages
-        to allocate the cost basis between the MMM and SOLV shares.
+        Multiply the original cost basis of your MMM shares by the respective
+        percentages to allocate the cost basis between the MMM and SOLV shares.
 
         ## Example Allocation
         * Original Investment:
 
-        Assume you bought 100 shares of MMM at £100 per share, so your total cost basis
-        is £10,000.
+        Assume you bought 100 shares of MMM at £100 per share, so your total
+        cost basis is £10,000.
 
         * Market Values Post Spin-off:
 
-        Assume the market value of MMM shares is £90 per share and SOLV shares is £10 per
-        share immediately after the spin-off.
+        Assume the market value of MMM shares is £90 per share and SOLV shares
+        is £10 per share immediately after the spin-off.
         The total market value is £90 + £10 = £100.
 
         * Allocation Percentages:
@@ -201,8 +202,8 @@ class CapitalGainsCalculator:
 
         # 2. Determine the Holding Period
         The holding period for the SOLV shares typically includes the holding
-        period of the original MMM shares. This means the date you acquired the MMM shares
-        will be used as the acquisition date for the SOLV shares.
+        period of the original MMM shares. This means the date you acquired the
+        MMM shares will be used as the acquisition date for the SOLV shares.
         """
         symbol = transaction.symbol
         quantity = transaction.quantity
@@ -211,7 +212,6 @@ class CapitalGainsCalculator:
 
         price = self.price_fetcher.get_closing_price(symbol, transaction.date)
         amount = quantity * price
-        share_of_original_cost = 0
 
         while True:
             # This would ideally be fetched from some stock DB but yfinance does not
@@ -272,7 +272,8 @@ class CapitalGainsCalculator:
         if self.portfolio[symbol] < quantity:
             raise InvalidTransactionError(
                 transaction,
-                f"Tried to sell more than the available balance({self.portfolio[symbol]})",
+                "Tried to sell more than the available "
+                f"balance({self.portfolio[symbol]})",
             )
         # This is basically only for data validation
         self.portfolio[symbol] -= quantity
@@ -398,22 +399,24 @@ class CapitalGainsCalculator:
     ) -> list[CalculationEntry]:
         """Process single acquisition."""
         acquisition = self.acquisition_list[date_index][symbol]
-        original_acquisition_amount = acquisition_amount = acquisition.amount
+        modified_amount = acquisition.amount
         current_quantity, current_amount = self.final_portfolio[symbol]
         calculation_entries = []
-
         # Management fee transaction can have 0 quantity
         assert acquisition.quantity >= 0
         # Stock split can have 0 amount
         assert acquisition.amount >= 0
+
         bnb_acquisition = HmrcTransactionData()
+        bed_and_breakfast_fees = Decimal(0)
+
         if acquisition.quantity > 0 and has_key(self.bnb_list, date_index, symbol):
             acquisition_price = acquisition.amount / acquisition.quantity
             bnb_acquisition = self.bnb_list[date_index][symbol]
             assert bnb_acquisition.quantity <= acquisition.quantity
-            acquisition_amount -= bnb_acquisition.quantity * acquisition_price
-            acquisition_amount += bnb_acquisition.amount
-            assert acquisition_amount > 0
+            modified_amount -= bnb_acquisition.quantity * acquisition_price
+            modified_amount += bnb_acquisition.amount
+            assert modified_amount > 0
             bed_and_breakfast_fees = (
                 acquisition.fees * bnb_acquisition.quantity / acquisition.quantity
             )
@@ -425,13 +428,13 @@ class CapitalGainsCalculator:
                     new_quantity=current_quantity + bnb_acquisition.quantity,
                     new_pool_cost=current_amount + bnb_acquisition.amount,
                     fees=bed_and_breakfast_fees,
-                    allowable_cost=original_acquisition_amount,
+                    allowable_cost=acquisition.amount,
                     spin_off=acquisition.spin_off,
                 )
             )
         self.final_portfolio[symbol] = (
             current_quantity + acquisition.quantity,
-            current_amount + acquisition.amount,
+            current_amount + modified_amount,
         )
         if (
             acquisition.quantity - bnb_acquisition.quantity > 0
@@ -441,11 +444,11 @@ class CapitalGainsCalculator:
                 CalculationEntry(
                     rule_type=RuleType.SECTION_104,
                     quantity=acquisition.quantity - bnb_acquisition.quantity,
-                    amount=-(acquisition.amount - bnb_acquisition.amount),
+                    amount=-(modified_amount - bnb_acquisition.amount),
                     new_quantity=current_quantity + acquisition.quantity,
-                    new_pool_cost=current_amount + acquisition.amount,
-                    fees=acquisition.fees - bnb_acquisition.fees,
-                    allowable_cost=original_acquisition_amount,
+                    new_pool_cost=current_amount + modified_amount,
+                    fees=acquisition.fees - bed_and_breakfast_fees,
+                    allowable_cost=acquisition.amount,
                     spin_off=acquisition.spin_off,
                 )
             )
@@ -529,7 +532,7 @@ class CapitalGainsCalculator:
                         if has_key(self.disposal_list, search_index, symbol)
                         else HmrcTransactionData()
                     )
-                    if sd_disposal.quantity > bnb_acquisition.quantity:
+                    if sd_disposal.quantity > acquisition.quantity:
                         # If the number of shares disposed of exceeds the number
                         # acquired on the same day the excess shares will be identified
                         # in the normal way.

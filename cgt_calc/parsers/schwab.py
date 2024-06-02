@@ -155,10 +155,10 @@ class SchwabTransaction(BrokerTransaction):
             date_str = row_dict[date_header]
         try:
             date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
-        except ValueError:
+        except ValueError as exc:
             raise ParsingError(
                 file, f"Invalid date format: {date_str} from row: {row_dict}"
-            )
+            ) from exc
         action_header = SchwabTransactionsFileRequiredHeaders.ACTION.value
         self.raw_action = row_dict[action_header]
         action = action_from_str(self.raw_action)

@@ -118,7 +118,13 @@ def test_run_with_example_files() -> None:
         "tests/test_data/mssb/",
         "--no-pdflatex",
     ]
-    result = subprocess.run(cmd, check=True, capture_output=True)
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(e.stderr.decode("utf-8"))
+        raise
+
+    assert result.returncode == 0
     assert result.stderr == b"", "Run with example files generated errors"
     expected_file = (
         Path("tests") / "test_data" / "test_run_with_example_files_output.txt"

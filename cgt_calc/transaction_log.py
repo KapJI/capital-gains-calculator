@@ -1,5 +1,7 @@
 """Functions to work with HMRC transaction log."""
 
+from __future__ import annotations
+
 import datetime
 from decimal import Decimal
 
