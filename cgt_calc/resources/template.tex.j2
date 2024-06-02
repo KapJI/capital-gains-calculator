@@ -82,6 +82,15 @@
     \BLOCK{ endif }
 \BLOCK{ else } % if is_aquisition
     actual cost: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2)) }.
+    \BLOCK{ if entry.spin_off }
+        \BLOCK{ if entry.spin_off.source == symbol }
+
+            \mbox Total amount was adjusted from £\VAR{ "{:.2f}".format(entry.spin_off.amount) } to £\VAR{ "{:.2f}".format(-entry.amount) } due to spin-off of \VAR{ entry.spin_off.dest } on \VAR{ entry.spin_off.date }
+        \BLOCK{ else }
+
+            \mbox Acquisition amount was set to based on existing cost basis of \VAR{ entry.spin_off.source } shares as this position was acquires as a spin-off on \VAR{ entry.spin_off.date }
+        \BLOCK{ endif }
+    \BLOCK{ endif }
 \BLOCK{ endif}
 
 \BLOCK{ if is_disposal }

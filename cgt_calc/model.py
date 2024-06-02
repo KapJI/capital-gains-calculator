@@ -12,12 +12,39 @@ from .util import round_decimal
 
 
 @dataclass
+class SpinOff:
+    """Class representing spin-off event on a share."""
+
+    # Original amount before spin-off
+    amount: Decimal
+    # Source of the Spin-off, e.g MMM for SOLV
+    source: str
+    # Dest ticker to which SpinOff happened, e.g. SOLV for MMM
+    dest: str
+    # When the spin-off happened
+    date: datetime.date
+
+
+@dataclass
 class HmrcTransactionData:
     """Hmrc transaction figures."""
 
-    quantity: Decimal
-    amount: Decimal
-    fees: Decimal
+    quantity: Decimal = Decimal(0)
+    amount: Decimal = Decimal(0)
+    fees: Decimal = Decimal(0)
+    spin_off: SpinOff | None = None
+
+    def __add__(self, transaction: HmrcTransactionData) -> HmrcTransactionData:
+        """Add two transactions."""
+        assert not (
+            transaction.spin_off and self.spin_off
+        ), "Cannot add transactions with spin-off data!"
+        return self.__class__(
+            self.quantity + transaction.quantity,
+            self.amount + transaction.amount,
+            self.fees + transaction.fees,
+            self.spin_off or transaction.spin_off,
+        )
 
 
 # For mapping of dates to int
@@ -82,6 +109,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         gain: Decimal | None = None,
         allowable_cost: Decimal | None = None,
         bed_and_breakfast_date_index: datetime.date | None = None,
+        spin_off: SpinOff | None = None,
     ):
         """Create calculation entry."""
         self.rule_type = rule_type
@@ -97,6 +125,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         self.bed_and_breakfast_date_index = bed_and_breakfast_date_index
         if self.amount >= 0:
             assert self.gain == self.amount - self.allowable_cost
+        self.spin_off = spin_off
 
     def __repr__(self) -> str:
         """Return print representation."""

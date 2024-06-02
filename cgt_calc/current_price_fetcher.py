@@ -35,3 +35,18 @@ class CurrentPriceFetcher:
         return self.converter.to_gbp(
             market_price_usd, "USD", datetime.datetime.now().date()
         )
+
+    def get_closing_price(self, symbol: str, date: datetime.date) -> Decimal:
+        """Get the price of the share on closing time."""
+
+        prices = yf.Ticker(symbol).history(
+            period="1d",
+            interval="1d",
+            start=date.strftime("%Y-%m-%d"),
+            end=(date + datetime.timedelta(days=1)).strftime("%Y-%m-%d"),
+        )
+        closing_price = prices.iloc[0]["Close"]
+        market_price_usd = Decimal(format(closing_price, ".15g"))
+        return self.converter.to_gbp(
+            market_price_usd, "USD", datetime.datetime.now().date()
+        )

@@ -25,10 +25,8 @@ def get_report(
     calculator: CapitalGainsCalculator, broker_transactions: list[BrokerTransaction]
 ) -> CapitalGainsReport:
     """Get calculation report."""
-    acquisition_list, disposal_list = calculator.convert_to_hmrc_transactions(
-        broker_transactions
-    )
-    return calculator.calculate_capital_gain(acquisition_list, disposal_list)
+    calculator.convert_to_hmrc_transactions(broker_transactions)
+    return calculator.calculate_capital_gain()
 
 
 @pytest.mark.parametrize(

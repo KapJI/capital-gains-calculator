@@ -94,6 +94,8 @@ def action_from_str(label: str) -> ActionType:
         "Cash Dividend",
         "Qual Div Reinvest",
         "Div Adjustment",
+        "Special Qual Div",
+        "Non-Qualified Div",
     ]:
         return ActionType.DIVIDEND
 
@@ -103,7 +105,7 @@ def action_from_str(label: str) -> ActionType:
     if label == "ADR Mgmt Fee":
         return ActionType.FEE
 
-    if label in ["Adjustment", "IRS Withhold Adj"]:
+    if label in ["Adjustment", "IRS Withhold Adj", "Wire Funds Adj"]:
         return ActionType.ADJUSTMENT
 
     if label in ["Short Term Cap Gain", "Long Term Cap Gain"]:
@@ -151,7 +153,12 @@ class SchwabTransaction(BrokerTransaction):
             date_str = row_dict[date_header][index:]
         else:
             date_str = row_dict[date_header]
-        date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
+        try:
+            date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
+        except ValueError:
+            raise ParsingError(
+                file, f"Invalid date format: {date_str} from row: {row_dict}"
+            )
         action_header = SchwabTransactionsFileRequiredHeaders.ACTION.value
         self.raw_action = row_dict[action_header]
         action = action_from_str(self.raw_action)
@@ -251,6 +258,7 @@ def read_schwab_transactions(
                     OrderedDict(zip(headers, row)), transactions_file, awards_prices
                 )
                 for row in lines
+                if any(row)
             ]
             transactions.reverse()
             return list(transactions)
