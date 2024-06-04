@@ -31,7 +31,7 @@ COLUMNS_RELEASE: Final[list[str]] = [
 ]
 
 COLUMNS_WITHDRAWAL: Final[list[str]] = [
-    "Date",
+    "Execution Date",
     "Order Number",
     "Plan",
     "Type",
@@ -168,7 +168,7 @@ def _init_from_withdrawal_report(
         action = ActionType.SELL
 
     transaction = BrokerTransaction(
-        date=datetime.datetime.strptime(row["Date"], "%d-%b-%Y").date(),
+        date=datetime.datetime.strptime(row["Execution Date"], "%d-%b-%Y").date(),
         action=action,
         symbol=KNOWN_SYMBOL_DICT[row["Plan"]],
         description=row["Plan"],
