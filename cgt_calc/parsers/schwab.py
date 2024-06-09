@@ -254,7 +254,7 @@ def _unify_schwab_cash_merger_trxs(
                 "WARNING: Cash Merger support is not complete and doesn't cover the "
                 "cases when shares are received aside from cash,  "
                 "please review this transaction carefully: "
-                f"{filtered}"
+                f"{filtered[-1]}"
             )
         else:
             filtered.append(transaction)
