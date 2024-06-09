@@ -5,9 +5,9 @@ INFO: No mssb folder provided
 INFO: No raw file provided
 First pass completed
 Final portfolio:
-  FX:ETH: 2.59
-  NASDAQ:FOO: 5.00
-  FundUK:FUND1: 50.00
+  FX:ETH: 2.59 (cost basis: 5352.48)
+  NASDAQ:FOO: 5.00 (cost basis: 5.00)
+  FundUK:FUND1: 50.00 (cost basis: 13775.00)
 Final balance:
   Sharesight: -17855.31 (GBP)
   Sharesight: 7474.05 (USD)

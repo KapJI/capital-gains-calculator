@@ -146,6 +146,35 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
 CalculationLog = Dict[datetime.date, Dict[str, List[CalculationEntry]]]
 
 
+@dataclass(frozen=True)
+class Position:
+    """A single position in the portfolio."""
+
+    quantity: Decimal = Decimal(0)
+    amount: Decimal = Decimal(0)
+
+    def __add__(self, other: Position) -> Position:
+        """Add two positions."""
+        return Position(
+            self.quantity + other.quantity,
+            self.amount + other.amount,
+        )
+
+    def __sub__(self, other: Position) -> Position:
+        """Subtract two positions."""
+        return Position(
+            self.quantity - other.quantity,
+            self.amount - other.amount,
+        )
+
+    def __str__(self) -> str:
+        """Return string representation."""
+        return (
+            f"{round_decimal(self.quantity, 2)} "
+            f"(cost basis: {round_decimal(self.amount, 2)})"
+        )
+
+
 class PortfolioEntry:
     """A single symbol entry for the portfolio in the final report."""
 

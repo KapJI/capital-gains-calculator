@@ -36,6 +36,7 @@ from .model import (
     HmrcTransactionData,
     HmrcTransactionLog,
     PortfolioEntry,
+    Position,
     RuleType,
     SpinOff,
 )
@@ -88,10 +89,7 @@ class CapitalGainsCalculator:
         self.disposal_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
 
-        self.portfolio: dict[str, Decimal] = defaultdict(Decimal)
-        self.final_portfolio: dict[str, tuple[Decimal, Decimal]] = defaultdict(
-            lambda: (Decimal(0), Decimal(0))
-        )
+        self.portfolio: dict[str, Position] = defaultdict(Position)
 
     def date_in_tax_year(self, date: datetime.date) -> bool:
         """Check if date is within current tax year."""
@@ -112,8 +110,6 @@ class CapitalGainsCalculator:
             raise SymbolMissingError(transaction)
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
-        # This is basically only for data validation
-        self.portfolio[symbol] += quantity
 
         # Add to acquisition_list to apply same day rule
         if transaction.action is ActionType.STOCK_ACTIVITY:
@@ -134,6 +130,8 @@ class CapitalGainsCalculator:
             if not _approx_equal(amount, -calculated_amount):
                 raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
             amount = -amount
+
+        self.portfolio[symbol] += Position(quantity, amount)
 
         add_to_list(
             self.acquisition_list,
@@ -218,22 +216,18 @@ class CapitalGainsCalculator:
             # provide any info on SpinOffs
             ticker = input(
                 "For a spin off, please enter the original ticker from which the new "
-                "stock was spinned off: "
+                f"stock (symbol: {symbol}) was spinned off on {transaction.date}: "
             )
             if ticker in self.portfolio:
                 break
             print(f"Invalid ticker: {ticker}, couldn't find it in the portfolio!")
+            if len(self.portfolio) <= 10:
+                print(f"Available choices: {sorted(self.portfolio)}")
 
-        total_amount = sum(
-            t.amount
-            for transactions in self.acquisition_list.values()
-            if (t := transactions.get(ticker))
-        ) - sum(
-            t.amount
-            for transactions in self.disposal_list.values()
-            if (t := transactions.get(ticker))
+        original_ticket_amount = self.portfolio[ticker].amount
+        share_of_original_cost = original_ticket_amount / (
+            amount + original_ticket_amount
         )
-        share_of_original_cost = total_amount / (amount + total_amount)
 
         for transactions in self.acquisition_list.values():
             if old_transaction := transactions.get(ticker):
@@ -251,7 +245,7 @@ class CapitalGainsCalculator:
             source=ticker,
             date=transaction.date,
         )
-        amount = (1 - share_of_original_cost) * total_amount
+        amount = (1 - share_of_original_cost) * original_ticket_amount
         return price, round_decimal(amount, 2), spin_off
 
     def add_disposal(
@@ -269,20 +263,20 @@ class CapitalGainsCalculator:
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
-        if self.portfolio[symbol] < quantity:
+        if self.portfolio[symbol].quantity < quantity:
             raise InvalidTransactionError(
                 transaction,
                 "Tried to sell more than the available "
-                f"balance({self.portfolio[symbol]})",
+                f"balance({self.portfolio[symbol].quantity})",
             )
-        # This is basically only for data validation
-        self.portfolio[symbol] -= quantity
-        if self.portfolio[symbol] == 0:
-            del self.portfolio[symbol]
-        # Add to disposal_list to apply same day rule
 
         amount = get_amount_or_fail(transaction)
         price = transaction.price
+
+        self.portfolio[symbol] -= Position(quantity, amount)
+
+        if self.portfolio[symbol].quantity == 0:
+            del self.portfolio[symbol]
 
         if price is None:
             raise PriceMissingError(transaction)
@@ -381,8 +375,8 @@ class CapitalGainsCalculator:
             balance[(transaction.broker, transaction.currency)] = new_balance
         print("First pass completed")
         print("Final portfolio:")
-        for stock, quantity in self.portfolio.items():
-            print(f"  {stock}: {round_decimal(quantity, 2)}")
+        for stock, position in self.portfolio.items():
+            print(f"  {stock}: {position}")
         print("Final balance:")
         for (broker, currency), amount in balance.items():
             print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
@@ -400,7 +394,7 @@ class CapitalGainsCalculator:
         """Process single acquisition."""
         acquisition = self.acquisition_list[date_index][symbol]
         modified_amount = acquisition.amount
-        current_quantity, current_amount = self.final_portfolio[symbol]
+        position = self.portfolio[symbol]
         calculation_entries = []
         # Management fee transaction can have 0 quantity
         assert acquisition.quantity >= 0
@@ -425,16 +419,16 @@ class CapitalGainsCalculator:
                     rule_type=RuleType.BED_AND_BREAKFAST,
                     quantity=bnb_acquisition.quantity,
                     amount=-bnb_acquisition.amount,
-                    new_quantity=current_quantity + bnb_acquisition.quantity,
-                    new_pool_cost=current_amount + bnb_acquisition.amount,
+                    new_quantity=position.quantity + bnb_acquisition.quantity,
+                    new_pool_cost=position.amount + bnb_acquisition.amount,
                     fees=bed_and_breakfast_fees,
                     allowable_cost=acquisition.amount,
                     spin_off=acquisition.spin_off,
                 )
             )
-        self.final_portfolio[symbol] = (
-            current_quantity + acquisition.quantity,
-            current_amount + modified_amount,
+        self.portfolio[symbol] += Position(
+            acquisition.quantity,
+            modified_amount,
         )
         if (
             acquisition.quantity - bnb_acquisition.quantity > 0
@@ -445,8 +439,8 @@ class CapitalGainsCalculator:
                     rule_type=RuleType.SECTION_104,
                     quantity=acquisition.quantity - bnb_acquisition.quantity,
                     amount=-(modified_amount - bnb_acquisition.amount),
-                    new_quantity=current_quantity + acquisition.quantity,
-                    new_pool_cost=current_amount + modified_amount,
+                    new_quantity=position.quantity + acquisition.quantity,
+                    new_pool_cost=position.amount + modified_amount,
                     fees=acquisition.fees - bed_and_breakfast_fees,
                     allowable_cost=acquisition.amount,
                     spin_off=acquisition.spin_off,
@@ -463,20 +457,22 @@ class CapitalGainsCalculator:
         disposal = self.disposal_list[date_index][symbol]
         disposal_quantity = disposal.quantity
         proceeds_amount = disposal.amount
-        disposal_fees = disposal.fees
         original_disposal_quantity = disposal_quantity
         disposal_price = proceeds_amount / disposal_quantity
-        current_quantity, current_amount = self.final_portfolio[symbol]
+        current_quantity = self.portfolio[symbol].quantity
+        current_amount = self.portfolio[symbol].amount
         assert disposal_quantity <= current_quantity
         chargeable_gain = Decimal(0)
         calculation_entries = []
         # Same day rule is first
         if has_key(self.acquisition_list, date_index, symbol):
-            sd_acquisition = self.acquisition_list[date_index][symbol]
+            same_day_acquisition = self.acquisition_list[date_index][symbol]
 
-            available_quantity = min(disposal_quantity, sd_acquisition.quantity)
+            available_quantity = min(disposal_quantity, same_day_acquisition.quantity)
             if available_quantity > 0:
-                acquisition_price = sd_acquisition.amount / sd_acquisition.quantity
+                acquisition_price = (
+                    same_day_acquisition.amount / same_day_acquisition.quantity
+                )
                 same_day_proceeds = available_quantity * disposal_price
                 same_day_allowable_cost = available_quantity * acquisition_price
                 same_day_gain = same_day_proceeds - same_day_allowable_cost
@@ -498,7 +494,7 @@ class CapitalGainsCalculator:
                     assert (
                         round_decimal(current_amount, 23) == 0
                     ), f"current amount {current_amount}"
-                fees = disposal_fees * available_quantity / original_disposal_quantity
+                fees = disposal.fees * available_quantity / original_disposal_quantity
                 calculation_entries.append(
                     CalculationEntry(
                         rule_type=RuleType.SAME_DAY,
@@ -509,7 +505,6 @@ class CapitalGainsCalculator:
                         fees=fees,
                         new_quantity=current_quantity,
                         new_pool_cost=current_amount,
-                        spin_off=None,
                     )
                 )
 
@@ -527,12 +522,12 @@ class CapitalGainsCalculator:
                     )
                     assert bnb_acquisition.quantity <= acquisition.quantity
 
-                    sd_disposal = (
+                    same_day_disposal = (
                         self.disposal_list[search_index][symbol]
                         if has_key(self.disposal_list, search_index, symbol)
                         else HmrcTransactionData()
                     )
-                    if sd_disposal.quantity > acquisition.quantity:
+                    if same_day_disposal.quantity > acquisition.quantity:
                         # If the number of shares disposed of exceeds the number
                         # acquired on the same day the excess shares will be identified
                         # in the normal way.
@@ -542,7 +537,7 @@ class CapitalGainsCalculator:
                     # by bed and breakfast rule
                     if (
                         acquisition.quantity
-                        - sd_disposal.quantity
+                        - same_day_disposal.quantity
                         - bnb_acquisition.quantity
                         == 0
                     ):
@@ -555,7 +550,7 @@ class CapitalGainsCalculator:
                     available_quantity = min(
                         disposal_quantity,
                         acquisition.quantity
-                        - sd_disposal.quantity
+                        - same_day_disposal.quantity
                         - bnb_acquisition.quantity,
                     )
                     acquisition_price = acquisition.amount / acquisition.quantity
@@ -594,7 +589,7 @@ class CapitalGainsCalculator:
                         Decimal(0),
                     )
                     fees = (
-                        disposal_fees * available_quantity / original_disposal_quantity
+                        disposal.fees * available_quantity / original_disposal_quantity
                     )
                     calculation_entries.append(
                         CalculationEntry(
@@ -626,7 +621,7 @@ class CapitalGainsCalculator:
                 assert (
                     round_decimal(current_amount, 10) == 0
                 ), f"current amount {current_amount}"
-            fees = disposal_fees * disposal_quantity / original_disposal_quantity
+            fees = disposal.fees * disposal_quantity / original_disposal_quantity
             calculation_entries.append(
                 CalculationEntry(
                     rule_type=RuleType.SECTION_104,
@@ -644,7 +639,7 @@ class CapitalGainsCalculator:
         assert (
             round_decimal(disposal_quantity, 23) == 0
         ), f"disposal quantity {disposal_quantity}"
-        self.final_portfolio[symbol] = (current_quantity, current_amount)
+        self.portfolio[symbol] = Position(current_quantity, current_amount)
         chargeable_gain = round_decimal(chargeable_gain, 2)
         return chargeable_gain, calculation_entries
 
@@ -661,6 +656,8 @@ class CapitalGainsCalculator:
         capital_gain = Decimal(0)
         capital_loss = Decimal(0)
         calculation_log: CalculationLog = {}
+        self.portfolio.clear()
+
         for date_index in (
             begin_index + datetime.timedelta(days=x)
             for x in range(0, (end_index - begin_index).days + 1)
@@ -736,8 +733,8 @@ class CapitalGainsCalculator:
         return CapitalGainsReport(
             self.tax_year,
             [
-                self.make_portfolio_entry(symbol, quantity, amount)
-                for symbol, (quantity, amount) in self.final_portfolio.items()
+                self.make_portfolio_entry(symbol, position.quantity, position.amount)
+                for symbol, position in self.portfolio.items()
             ],
             disposal_count,
             round_decimal(disposal_proceeds, 2),
