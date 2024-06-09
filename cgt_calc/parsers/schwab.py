@@ -127,6 +127,9 @@ def action_from_str(label: str) -> ActionType:
     if label == "Stock Split":
         return ActionType.STOCK_SPLIT
 
+    if label in ["Cash Merger", "Cash Merger Adj"]:
+        return ActionType.CASH_MERGER
+
     raise ParsingError("schwab transactions", f"Unknown action: {label}")
 
 
@@ -224,6 +227,40 @@ class SchwabTransaction(BrokerTransaction):
         return transaction
 
 
+def _unify_schwab_cash_merger_trxs(
+    transactions: list[SchwabTransaction],
+) -> list[SchwabTransaction]:
+    filtered: list[SchwabTransaction] = []
+    for transaction in transactions:
+        if transaction.raw_action == "Cash Merger Adj":
+            assert (
+                len(filtered) > 0
+            ), "Cash Merger Adj must be precedeed by a Cash Merger transaction"
+            assert filtered[-1].raw_action == "Cash Merger"
+            assert filtered[-1].description == transaction.description
+            assert filtered[-1].symbol == transaction.symbol
+            assert filtered[-1].date == transaction.date
+            assert filtered[-1].quantity is None
+            assert filtered[-1].price is None
+            assert filtered[-1].amount is not None
+            assert transaction.amount is None
+            assert transaction.quantity is not None
+            # the quantity is negative but
+            # because we store it as a 'sell' we need it positive
+            filtered[-1].quantity = -1 * transaction.quantity
+            filtered[-1].price = filtered[-1].amount / filtered[-1].quantity
+            filtered[-1].fees += transaction.fees
+            print(
+                "WARNING: Cash Merger support is not complete and doesn't cover the "
+                "cases when shares are received aside from cash,  "
+                "please review this transaction carefully: "
+                f"{filtered[-1]}"
+            )
+        else:
+            filtered.append(transaction)
+    return filtered
+
+
 def read_schwab_transactions(
     transactions_file: str, schwab_award_transactions_file: str | None
 ) -> list[BrokerTransaction]:
@@ -252,6 +289,7 @@ def read_schwab_transactions(
                 )
                 for row in lines
             ]
+            transactions = _unify_schwab_cash_merger_trxs(transactions)
             transactions.reverse()
             return list(transactions)
     except FileNotFoundError:

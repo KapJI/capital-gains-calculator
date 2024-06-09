@@ -206,7 +206,7 @@ class CapitalGainsCalculator:
             ]:
                 new_balance += get_amount_or_fail(transaction)
                 self.add_acquisition(portfolio, acquisition_list, transaction)
-            elif transaction.action is ActionType.SELL:
+            elif transaction.action in [ActionType.SELL, ActionType.CASH_MERGER]:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 self.add_disposal(portfolio, disposal_list, transaction)

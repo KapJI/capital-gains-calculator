@@ -42,6 +42,7 @@ class ActionType(Enum):
     REINVEST_DIVIDENDS = 13
     WIRE_FUNDS_RECEIVED = 14
     STOCK_SPLIT = 15
+    CASH_MERGER = 16
 
 
 @dataclass
