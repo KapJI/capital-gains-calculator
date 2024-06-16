@@ -17,9 +17,12 @@
 \BLOCK{ if symbol.startswith("sell$") }
     \BLOCK{ set symbol = symbol[5:] }
     \BLOCK{ set is_disposal = True }
-\BLOCK{ else }
+\BLOCK{ elif symbol.startswith("buy$") }
     \BLOCK{ set symbol = symbol[4:] }
-    \BLOCK{ set is_disposal = False }
+    \BLOCK{ set is_aquisition = True }
+\BLOCK{ elif symbol.startswith("spin-off$") }
+    \BLOCK{ set symbol = symbol[9:] }
+    \BLOCK{ set is_spin_off = True }
 \BLOCK{ endif }
 \BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
 \BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
@@ -45,7 +48,7 @@
         \BLOCK{ set total_loss.value = total_loss.value - overall_gain }
         Capital loss to date is £\VAR{ "{:,}".format(total_loss.value) }
     \BLOCK{ endif }
-\BLOCK{ else } % if is_aquisition
+\BLOCK{ elif is_aquisition } % if is_aquisition
     \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
     \BLOCK{ if overall_quantity > 0 }
         \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
@@ -59,6 +62,14 @@
     \BLOCK{ else }
         \subsection*{Management fee for \VAR{ symbol } of £\VAR{ "{:,}".format(acquisition_cost) }}
     \BLOCK{ endif}
+\BLOCK{ elif is_spin_off } % if is_spin_off
+    \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
+    \BLOCK{ if overall_quantity > 0 }
+        \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
+        \subsection*{
+            Spin-off adjustment \VAR{ acquisition_count.value }: \VAR{ entries[0].spin_off.source } cost adjusted because of \VAR{ entries[0].spin_off.dest } shares spinned off
+        }
+    \BLOCK{ endif }
 \BLOCK{ endif }
 
 \begin{enumerate}
@@ -80,17 +91,10 @@
     \BLOCK{ else }
         \mbox{loss: £\VAR{ "{:,}".format(round_decimal(-entry.gain, 2)) }.}
     \BLOCK{ endif }
+\BLOCK{ elif is_spin_off }
+    original cost of \VAR{ entry.spin_off.source }: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2))}, after spin-off: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2))}
 \BLOCK{ else } % if is_aquisition
     actual cost: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2)) }.
-    \BLOCK{ if entry.spin_off }
-        \BLOCK{ if entry.spin_off.source == symbol }
-
-            \mbox Total amount was adjusted from £\VAR{ "{:.2f}".format(entry.spin_off.amount) } to £\VAR{ "{:.2f}".format(-entry.amount) } due to spin-off of \VAR{ entry.spin_off.dest } on \VAR{ entry.spin_off.date }
-        \BLOCK{ else }
-
-            \mbox Acquisition amount was set to based on existing cost basis of \VAR{ entry.spin_off.source } shares as this position was acquires as a spin-off on \VAR{ entry.spin_off.date }
-        \BLOCK{ endif }
-    \BLOCK{ endif }
 \BLOCK{ endif}
 
 \BLOCK{ if is_disposal }
@@ -102,6 +106,10 @@
 \BLOCK{ if entry.new_quantity > 0 },
     new pool cost: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2)) }
     (£\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost/entry.new_quantity, 2)) }/unit)%
+    \BLOCK{ if is_aquisition and entry.spin_off}
+
+    Cost basis calculated based on cost of \VAR{entry.spin_off.source} share pool from which \VAR{ symbol } shares were spinned off
+    \BLOCK{ endif }
 \BLOCK{ endif }.
 
 \BLOCK{ endfor}

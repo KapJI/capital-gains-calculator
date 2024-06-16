@@ -5,10 +5,10 @@ INFO: No sharesight file provided
 INFO: No raw file provided
 First pass completed
 Final portfolio:
-  GE: 1.00 (cost basis: 8.07)
-  NVDA: 1.00 (cost basis: 401.01)
-  GOOG: 163.20 (cost basis: 16865.01)
-  FOO: 30.50 (cost basis: 925.10)
+  GE: 1.00
+  NVDA: 1.00
+  GOOG: 163.20
+  FOO: 30.50
 Final balance:
   Charles Schwab: 9477.90 (USD)
   Trading212: 33391.30 (GBP)

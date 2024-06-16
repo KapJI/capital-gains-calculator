@@ -3,7 +3,11 @@
 import argparse
 import datetime
 
-from .const import DEFAULT_EXCHANGE_RATES_FILE, DEFAULT_REPORT_PATH
+from .const import (
+    DEFAULT_EXCHANGE_RATES_FILE,
+    DEFAULT_REPORT_PATH,
+    DEFAULT_SPIN_OFF_FILE,
+)
 
 
 def get_last_elapsed_tax_year() -> int:
@@ -77,6 +81,13 @@ def create_parser() -> argparse.ArgumentParser:
         default=DEFAULT_EXCHANGE_RATES_FILE,
         nargs="?",
         help="output file for monthly exchange rates from HMRC",
+    )
+    parser.add_argument(
+        "--spin-offs-file",
+        type=str,
+        default=DEFAULT_SPIN_OFF_FILE,
+        nargs="?",
+        help="output file for spin offs data",
     )
     parser.add_argument(
         "--initial-prices",

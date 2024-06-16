@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 import datetime
 from decimal import Decimal
 
@@ -17,9 +18,11 @@ class CurrentPriceFetcher:
         self,
         converter: CurrencyConverter,
         current_prices_data: dict[str, Decimal | None] | None = None,
+        historical_prices_data: dict[str, dict[datetime.date, Decimal]] | None = None,
     ):
         """Load data from exchange_rates_file and optionally from initial_data."""
         self.current_prices_data = current_prices_data
+        self.historical_prices_data = historical_prices_data or {}
         self.converter = converter
 
     def get_current_market_price(self, symbol: str) -> Decimal | None:
@@ -38,6 +41,8 @@ class CurrentPriceFetcher:
 
     def get_closing_price(self, symbol: str, date: datetime.date) -> Decimal:
         """Get the price of the share on closing time."""
+        with suppress(KeyError):
+            return self.historical_prices_data[symbol][date]
 
         prices = yf.Ticker(symbol).history(
             period="1d",

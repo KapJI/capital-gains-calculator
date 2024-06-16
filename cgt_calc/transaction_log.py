@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 
-from .model import HmrcTransactionData, HmrcTransactionLog, SpinOff
+from .model import HmrcTransactionData, HmrcTransactionLog
 
 
 def has_key(
@@ -22,7 +22,6 @@ def add_to_list(
     quantity: Decimal,
     amount: Decimal,
     fees: Decimal,
-    spin_off: SpinOff | None = None,
 ) -> None:
     """Add entry to given transaction log."""
     current_list.setdefault(date_index, {})
@@ -31,5 +30,4 @@ def add_to_list(
         quantity=quantity,
         amount=amount,
         fees=fees,
-        spin_off=spin_off,
     )

@@ -15,8 +15,9 @@ from .util import round_decimal
 class SpinOff:
     """Class representing spin-off event on a share."""
 
-    # Original amount before spin-off
-    amount: Decimal
+    # Cost proportion to be applied to the cost of original shares from which
+    # Spin-off originated
+    cost_proportion: Decimal
     # Source of the Spin-off, e.g MMM for SOLV
     source: str
     # Dest ticker to which SpinOff happened, e.g. SOLV for MMM
@@ -32,18 +33,13 @@ class HmrcTransactionData:
     quantity: Decimal = Decimal(0)
     amount: Decimal = Decimal(0)
     fees: Decimal = Decimal(0)
-    spin_off: SpinOff | None = None
 
     def __add__(self, transaction: HmrcTransactionData) -> HmrcTransactionData:
         """Add two transactions."""
-        assert not (
-            transaction.spin_off and self.spin_off
-        ), "Cannot add transactions with spin-off data!"
         return self.__class__(
             self.quantity + transaction.quantity,
             self.amount + transaction.amount,
             self.fees + transaction.fees,
-            self.spin_off or transaction.spin_off,
         )
 
 
@@ -93,6 +89,7 @@ class RuleType(Enum):
     SECTION_104 = 1
     SAME_DAY = 2
     BED_AND_BREAKFAST = 3
+    SPIN_OFF = 4
 
 
 class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
@@ -123,9 +120,9 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         self.new_quantity = new_quantity
         self.new_pool_cost = new_pool_cost
         self.bed_and_breakfast_date_index = bed_and_breakfast_date_index
-        if self.amount >= 0:
-            assert self.gain == self.amount - self.allowable_cost
         self.spin_off = spin_off
+        if self.amount >= 0 and self.rule_type is not RuleType.SPIN_OFF:
+            assert self.gain == self.amount - self.allowable_cost
 
     def __repr__(self) -> str:
         """Return print representation."""
@@ -146,7 +143,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
 CalculationLog = Dict[datetime.date, Dict[str, List[CalculationEntry]]]
 
 
-@dataclass(frozen=True)
+@dataclass
 class Position:
     """A single position in the portfolio."""
 
@@ -169,10 +166,7 @@ class Position:
 
     def __str__(self) -> str:
         """Return string representation."""
-        return (
-            f"{round_decimal(self.quantity, 2)} "
-            f"(cost basis: {round_decimal(self.amount, 2)})"
-        )
+        return str(round_decimal(self.quantity, 2))
 
 
 class PortfolioEntry:

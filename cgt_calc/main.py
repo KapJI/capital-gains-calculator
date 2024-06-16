@@ -41,6 +41,7 @@ from .model import (
     SpinOff,
 )
 from .parsers import read_broker_transactions, read_initial_prices
+from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
 from .util import round_decimal
 
@@ -69,6 +70,7 @@ class CapitalGainsCalculator:
         tax_year: int,
         converter: CurrencyConverter,
         price_fetcher: CurrentPriceFetcher,
+        spin_off_handler: SpinOffHandler,
         initial_prices: InitialPrices,
         balance_check: bool = True,
         calc_unrealized_gains: bool = False,
@@ -81,6 +83,7 @@ class CapitalGainsCalculator:
 
         self.converter = converter
         self.price_fetcher = price_fetcher
+        self.spin_off_handler = spin_off_handler
         self.initial_prices = initial_prices
         self.balance_check = balance_check
         self.calc_unrealized_gains = calc_unrealized_gains
@@ -90,6 +93,7 @@ class CapitalGainsCalculator:
         self.bnb_list: HmrcTransactionLog = {}
 
         self.portfolio: dict[str, Position] = defaultdict(Position)
+        self.spin_offs: dict[datetime.date, list[SpinOff]] = defaultdict(list)
 
     def date_in_tax_year(self, date: datetime.date) -> bool:
         """Check if date is within current tax year."""
@@ -104,7 +108,6 @@ class CapitalGainsCalculator:
         symbol = transaction.symbol
         quantity = transaction.quantity
         price = transaction.price
-        spin_off = None
 
         if symbol is None:
             raise SymbolMissingError(transaction)
@@ -117,7 +120,7 @@ class CapitalGainsCalculator:
                 price = self.initial_prices.get(transaction.date, symbol)
             amount = round_decimal(quantity * price, 2)
         elif transaction.action is ActionType.SPIN_OFF:
-            price, amount, spin_off = self.handle_spin_off(transaction)
+            price, amount = self.handle_spin_off(transaction)
         elif transaction.action is ActionType.STOCK_SPLIT:
             price = Decimal(0)
             amount = Decimal(0)
@@ -140,13 +143,12 @@ class CapitalGainsCalculator:
             quantity,
             self.converter.to_gbp_for(amount, transaction),
             self.converter.to_gbp_for(transaction.fees, transaction),
-            spin_off,
         )
 
     def handle_spin_off(
         self,
         transaction: BrokerTransaction,
-    ) -> tuple[Decimal, Decimal, SpinOff]:
+    ) -> tuple[Decimal, Decimal]:
         """
         Handle spin off transaction.
 
@@ -208,45 +210,27 @@ class CapitalGainsCalculator:
         assert symbol is not None
         assert quantity is not None
 
-        price = self.price_fetcher.get_closing_price(symbol, transaction.date)
-        amount = quantity * price
+        ticker = self.spin_off_handler.get_spin_off_source(
+            symbol, transaction.date, self.portfolio
+        )
+        dst_price = self.price_fetcher.get_closing_price(symbol, transaction.date)
+        src_price = self.price_fetcher.get_closing_price(ticker, transaction.date)
+        dst_amount = quantity * dst_price
+        src_amount = self.portfolio[ticker].quantity * src_price
+        original_src_amount = self.portfolio[ticker].amount
 
-        while True:
-            # This would ideally be fetched from some stock DB but yfinance does not
-            # provide any info on SpinOffs
-            ticker = input(
-                "For a spin off, please enter the original ticker from which the new "
-                f"stock (symbol: {symbol}) was spinned off on {transaction.date}: "
+        share_of_original_cost = src_amount / (dst_amount + src_amount)
+        self.spin_offs[transaction.date].append(
+            SpinOff(
+                dest=symbol,
+                source=ticker,
+                cost_proportion=share_of_original_cost,
+                date=transaction.date,
             )
-            if ticker in self.portfolio:
-                break
-            print(f"Invalid ticker: {ticker}, couldn't find it in the portfolio!")
-            if len(self.portfolio) <= 10:
-                print(f"Available choices: {sorted(self.portfolio)}")
-
-        original_ticket_amount = self.portfolio[ticker].amount
-        share_of_original_cost = original_ticket_amount / (
-            amount + original_ticket_amount
         )
 
-        for transactions in self.acquisition_list.values():
-            if old_transaction := transactions.get(ticker):
-                new_amount = share_of_original_cost * old_transaction.amount
-                old_transaction.spin_off = SpinOff(
-                    dest=symbol,
-                    source=ticker,
-                    amount=old_transaction.amount,
-                    date=transaction.date,
-                )
-                old_transaction.amount = new_amount
-        spin_off = SpinOff(
-            amount=amount,
-            dest=symbol,
-            source=ticker,
-            date=transaction.date,
-        )
-        amount = (1 - share_of_original_cost) * original_ticket_amount
-        return price, round_decimal(amount, 2), spin_off
+        amount = (1 - share_of_original_cost) * original_src_amount
+        return amount / quantity, round_decimal(amount, 2)
 
     def add_disposal(
         self,
@@ -423,7 +407,6 @@ class CapitalGainsCalculator:
                     new_pool_cost=position.amount + bnb_acquisition.amount,
                     fees=bed_and_breakfast_fees,
                     allowable_cost=acquisition.amount,
-                    spin_off=acquisition.spin_off,
                 )
             )
         self.portfolio[symbol] += Position(
@@ -434,6 +417,14 @@ class CapitalGainsCalculator:
             acquisition.quantity - bnb_acquisition.quantity > 0
             or bnb_acquisition.quantity == 0
         ):
+            spin_off = next(
+                (
+                    spin_off
+                    for spin_off in self.spin_offs[date_index]
+                    if spin_off.dest == symbol
+                ),
+                None,
+            )
             calculation_entries.append(
                 CalculationEntry(
                     rule_type=RuleType.SECTION_104,
@@ -443,7 +434,7 @@ class CapitalGainsCalculator:
                     new_pool_cost=position.amount + modified_amount,
                     fees=acquisition.fees - bed_and_breakfast_fees,
                     allowable_cost=acquisition.amount,
-                    spin_off=acquisition.spin_off,
+                    spin_off=spin_off,
                 )
             )
         return calculation_entries
@@ -452,7 +443,7 @@ class CapitalGainsCalculator:
         self,
         symbol: str,
         date_index: datetime.date,
-    ) -> tuple[Decimal, list[CalculationEntry]]:
+    ) -> tuple[Decimal, list[CalculationEntry], CalculationEntry | None]:
         """Process single disposal."""
         disposal = self.disposal_list[date_index][symbol]
         disposal_quantity = disposal.quantity
@@ -460,6 +451,44 @@ class CapitalGainsCalculator:
         original_disposal_quantity = disposal_quantity
         disposal_price = proceeds_amount / disposal_quantity
         current_quantity = self.portfolio[symbol].quantity
+        spin_off_entry = None
+
+        for date, spin_offs in self.spin_offs.items():
+            if date > date_index:
+                continue
+            for spin_off in spin_offs:
+                # Up to the actual spin-off happening all the sales has to happen based
+                # on original cost basis, after spin-off we have to consider its impact
+                # for all future trades
+                amount = self.portfolio[spin_off.source].amount
+                quantity = self.portfolio[spin_off.source].quantity
+                new_amount = amount * spin_off.cost_proportion
+                LOGGER.debug(
+                    "Detected spin-off of %s to %s on %s, modyfing the cost amount "
+                    "from %d to %d according to cost-proportion: %.2f",
+                    spin_off.source,
+                    spin_off.dest,
+                    spin_off.date,
+                    amount,
+                    new_amount,
+                    spin_off.cost_proportion,
+                )
+                self.spin_offs[date] = spin_offs[1:]
+                self.portfolio[spin_off.source].amount = new_amount
+                spin_off_entry = CalculationEntry(
+                    RuleType.SPIN_OFF,
+                    quantity=quantity,
+                    amount=-amount,
+                    new_quantity=quantity,
+                    gain=None,
+                    # Fees, if any are already accounted on the acquisition of
+                    # spined off shares
+                    fees=Decimal(0),
+                    new_pool_cost=new_amount,
+                    allowable_cost=new_amount,
+                    spin_off=spin_off,
+                )
+
         current_amount = self.portfolio[symbol].amount
         assert disposal_quantity <= current_quantity
         chargeable_gain = Decimal(0)
@@ -641,7 +670,7 @@ class CapitalGainsCalculator:
         ), f"disposal quantity {disposal_quantity}"
         self.portfolio[symbol] = Position(current_quantity, current_amount)
         chargeable_gain = round_decimal(chargeable_gain, 2)
-        return chargeable_gain, calculation_entries
+        return chargeable_gain, calculation_entries, spin_off_entry
 
     def calculate_capital_gain(
         self,
@@ -655,7 +684,7 @@ class CapitalGainsCalculator:
         allowable_costs = Decimal(0)
         capital_gain = Decimal(0)
         capital_loss = Decimal(0)
-        calculation_log: CalculationLog = {}
+        calculation_log: CalculationLog = defaultdict(dict)
         self.portfolio.clear()
 
         for date_index in (
@@ -669,8 +698,6 @@ class CapitalGainsCalculator:
                         date_index,
                     )
                     if date_index >= tax_year_start_index:
-                        if date_index not in calculation_log:
-                            calculation_log[date_index] = {}
                         calculation_log[date_index][
                             f"buy${symbol}"
                         ] = calculation_entries
@@ -679,6 +706,7 @@ class CapitalGainsCalculator:
                     (
                         transaction_capital_gain,
                         calculation_entries,
+                        spin_off_entry,
                     ) = self.process_disposal(
                         symbol,
                         date_index,
@@ -718,8 +746,6 @@ class CapitalGainsCalculator:
                         assert transaction_capital_gain == round_decimal(
                             calculated_gain, 2
                         )
-                        if date_index not in calculation_log:
-                            calculation_log[date_index] = {}
                         calculation_log[date_index][
                             f"sell${symbol}"
                         ] = calculation_entries
@@ -727,6 +753,12 @@ class CapitalGainsCalculator:
                             capital_gain += transaction_capital_gain
                         else:
                             capital_loss += transaction_capital_gain
+                        if spin_off_entry is not None:
+                            spin_off = spin_off_entry.spin_off
+                            assert spin_off is not None
+                            calculation_log[spin_off.date][
+                                f"spin-off${spin_off.source}"
+                            ] = [spin_off_entry]
         print("\nSecond pass completed")
         allowance = CAPITAL_GAIN_ALLOWANCES.get(self.tax_year)
 
@@ -798,11 +830,13 @@ def main() -> int:
     converter = CurrencyConverter(args.exchange_rates_file)
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
     price_fetcher = CurrentPriceFetcher(converter)
+    spin_off_handler = SpinOffHandler(args.spin_offs_file)
 
     calculator = CapitalGainsCalculator(
         args.year,
         converter,
         price_fetcher,
+        spin_off_handler,
         initial_prices,
         balance_check=args.balance_check,
         calc_unrealized_gains=args.calc_unrealized_gains,

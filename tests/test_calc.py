@@ -15,6 +15,7 @@ from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import BrokerTransaction, CalculationLog, CapitalGainsReport
+from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
 
 from .test_data.calc_test_data import calc_basic_data
@@ -47,12 +48,19 @@ def test_basic(
     if gbp_prices is None:
         gbp_prices = {t.date: {"USD": Decimal(1)} for t in broker_transactions}
     converter = CurrencyConverter(None, gbp_prices)
-    price_fetcher = CurrentPriceFetcher(converter, current_prices)
+    historical_prices = {
+        "FOO": {datetime.date(day=5, month=7, year=2023): Decimal(90)},
+        "BAR": {datetime.date(day=5, month=7, year=2023): Decimal(12)},
+    }
+    price_fetcher = CurrentPriceFetcher(converter, current_prices, historical_prices)
+    spin_off_handler = SpinOffHandler()
+    spin_off_handler.cache = {"BAR": "FOO"}
     initial_prices = InitialPrices({})
     calculator = CapitalGainsCalculator(
         tax_year,
         converter,
         price_fetcher,
+        spin_off_handler,
         initial_prices,
         calc_unrealized_gains=expected_unrealized is not None,
     )
