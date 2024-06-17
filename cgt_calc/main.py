@@ -287,6 +287,7 @@ class CapitalGainsCalculator:
         dividends_tax = Decimal(0)
         interest = Decimal(0)
         total_sells = Decimal(0)
+        balance_history: list[Decimal] = []
 
         for i, transaction in enumerate(transactions):
             new_balance = balance[(transaction.broker, transaction.currency)]
@@ -298,7 +299,7 @@ class CapitalGainsCalculator:
             ]:
                 new_balance += get_amount_or_fail(transaction)
                 self.add_acquisition(transaction)
-            elif transaction.action is ActionType.SELL:
+            elif transaction.action in [ActionType.SELL, ActionType.CASH_MERGER]:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 self.add_disposal(transaction)
@@ -350,11 +351,19 @@ class CapitalGainsCalculator:
                 raise InvalidTransactionError(
                     transaction, f"Action not processed({transaction.action})"
                 )
+            balance_history.append(new_balance)
             if self.balance_check and new_balance < 0:
                 msg = f"Reached a negative balance({new_balance})"
                 msg += f" for broker {transaction.broker} ({transaction.currency})"
                 msg += " after processing the following transactions:\n"
-                msg += "\n".join(map(str, transactions[: i + 1]))
+                msg += "\n".join(
+                    [
+                        f"{trx}\nBalance after transaction={balance_after}"
+                        for trx, balance_after in zip(
+                            transactions[: i + 1], balance_history
+                        )
+                    ]
+                )
                 raise CalculationError(msg)
             balance[(transaction.broker, transaction.currency)] = new_balance
         print("First pass completed")
