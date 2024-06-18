@@ -35,6 +35,8 @@ DEFAULT_EXCHANGE_RATES_FILE: Final = "exchange_rates.csv"
 # Initial vesting and spin-off prices
 DEFAULT_INITIAL_PRICES_FILE: Final = "initial_prices.csv"
 
+DEFAULT_SPIN_OFF_FILE: Final = "spin_offs.csv"
+
 # Latex template for calculations report
 TEMPLATE_NAME: Final = "template.tex.j2"
 

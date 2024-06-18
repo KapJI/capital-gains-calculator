@@ -20,17 +20,14 @@ def buy_transaction(
     amount: float,
 ) -> BrokerTransaction:
     """Create buy transaction."""
-    return BrokerTransaction(
+    return transaction(
         date,
         ActionType.BUY,
         symbol,
-        f"Description for symbol {symbol}",
-        round_decimal(Decimal(quantity), 6),
-        round_decimal(Decimal(price), 6),
-        round_decimal(Decimal(fees), 6),
-        round_decimal(Decimal(amount), 6),
-        "USD",
-        "Testing",
+        quantity,
+        price,
+        fees,
+        amount,
     )
 
 
@@ -43,17 +40,14 @@ def sell_transaction(
     amount: float,
 ) -> BrokerTransaction:
     """Create sell transaction."""
-    return BrokerTransaction(
+    return transaction(
         date,
         ActionType.SELL,
         symbol,
-        f"Description for symbol {symbol}",
-        round_decimal(Decimal(quantity), 6),
-        round_decimal(Decimal(price), 6),
-        round_decimal(Decimal(fees), 6),
-        round_decimal(Decimal(amount), 6),
-        "USD",
-        "Testing",
+        quantity,
+        price,
+        fees,
+        amount,
     )
 
 
@@ -63,15 +57,33 @@ def transfer_transaction(
     fees: float = 0,
 ) -> BrokerTransaction:
     """Create transfer transaction."""
-    return BrokerTransaction(
+    return transaction(
         date,
         ActionType.TRANSFER,
-        symbol=None,
-        description="Test Transfer",
-        quantity=None,
-        price=None,
+        fees=fees,
+        amount=amount,
+    )
+
+
+def transaction(
+    date: datetime.date,
+    action_type: ActionType,
+    symbol: str | None = None,
+    quantity: float | None = None,
+    price: float | None = None,
+    fees: float = 0.0,
+    amount: float | None = None,
+) -> BrokerTransaction:
+    """Create transaction."""
+    return BrokerTransaction(
+        date,
+        action_type,
+        symbol=symbol,
+        description=f"Description for symbol {symbol}",
+        quantity=round_decimal(Decimal(quantity), 6) if quantity else None,
+        price=round_decimal(Decimal(price), 6) if price else None,
         fees=round_decimal(Decimal(fees), 6),
-        amount=round_decimal(Decimal(amount), 6),
+        amount=round_decimal(Decimal(amount), 6) if amount else None,
         currency="USD",
         broker="Testing",
     )

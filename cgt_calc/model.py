@@ -12,12 +12,35 @@ from .util import round_decimal
 
 
 @dataclass
+class SpinOff:
+    """Class representing spin-off event on a share."""
+
+    # Cost proportion to be applied to the cost of original shares from which
+    # Spin-off originated
+    cost_proportion: Decimal
+    # Source of the Spin-off, e.g MMM for SOLV
+    source: str
+    # Dest ticker to which SpinOff happened, e.g. SOLV for MMM
+    dest: str
+    # When the spin-off happened
+    date: datetime.date
+
+
+@dataclass
 class HmrcTransactionData:
     """Hmrc transaction figures."""
 
-    quantity: Decimal
-    amount: Decimal
-    fees: Decimal
+    quantity: Decimal = Decimal(0)
+    amount: Decimal = Decimal(0)
+    fees: Decimal = Decimal(0)
+
+    def __add__(self, transaction: HmrcTransactionData) -> HmrcTransactionData:
+        """Add two transactions."""
+        return self.__class__(
+            self.quantity + transaction.quantity,
+            self.amount + transaction.amount,
+            self.fees + transaction.fees,
+        )
 
 
 # For mapping of dates to int
@@ -67,6 +90,7 @@ class RuleType(Enum):
     SECTION_104 = 1
     SAME_DAY = 2
     BED_AND_BREAKFAST = 3
+    SPIN_OFF = 4
 
 
 class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
@@ -83,6 +107,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         gain: Decimal | None = None,
         allowable_cost: Decimal | None = None,
         bed_and_breakfast_date_index: datetime.date | None = None,
+        spin_off: SpinOff | None = None,
     ):
         """Create calculation entry."""
         self.rule_type = rule_type
@@ -96,7 +121,8 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         self.new_quantity = new_quantity
         self.new_pool_cost = new_pool_cost
         self.bed_and_breakfast_date_index = bed_and_breakfast_date_index
-        if self.amount >= 0:
+        self.spin_off = spin_off
+        if self.amount >= 0 and self.rule_type is not RuleType.SPIN_OFF:
             assert self.gain == self.amount - self.allowable_cost
 
     def __repr__(self) -> str:
@@ -116,6 +142,32 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
 
 
 CalculationLog = Dict[datetime.date, Dict[str, List[CalculationEntry]]]
+
+
+@dataclass
+class Position:
+    """A single position in the portfolio."""
+
+    quantity: Decimal = Decimal(0)
+    amount: Decimal = Decimal(0)
+
+    def __add__(self, other: Position) -> Position:
+        """Add two positions."""
+        return Position(
+            self.quantity + other.quantity,
+            self.amount + other.amount,
+        )
+
+    def __sub__(self, other: Position) -> Position:
+        """Subtract two positions."""
+        return Position(
+            self.quantity - other.quantity,
+            self.amount - other.amount,
+        )
+
+    def __str__(self) -> str:
+        """Return string representation."""
+        return str(round_decimal(self.quantity, 2))
 
 
 class PortfolioEntry:

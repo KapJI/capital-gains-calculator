@@ -15,6 +15,7 @@ from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import BrokerTransaction, CalculationLog, CapitalGainsReport
+from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
 
 from .test_data.calc_test_data import calc_basic_data
@@ -25,10 +26,8 @@ def get_report(
     calculator: CapitalGainsCalculator, broker_transactions: list[BrokerTransaction]
 ) -> CapitalGainsReport:
     """Get calculation report."""
-    acquisition_list, disposal_list = calculator.convert_to_hmrc_transactions(
-        broker_transactions
-    )
-    return calculator.calculate_capital_gain(acquisition_list, disposal_list)
+    calculator.convert_to_hmrc_transactions(broker_transactions)
+    return calculator.calculate_capital_gain()
 
 
 @pytest.mark.parametrize(
@@ -49,12 +48,19 @@ def test_basic(
     if gbp_prices is None:
         gbp_prices = {t.date: {"USD": Decimal(1)} for t in broker_transactions}
     converter = CurrencyConverter(None, gbp_prices)
-    price_fetcher = CurrentPriceFetcher(converter, current_prices)
+    historical_prices = {
+        "FOO": {datetime.date(day=5, month=7, year=2023): Decimal(90)},
+        "BAR": {datetime.date(day=5, month=7, year=2023): Decimal(12)},
+    }
+    price_fetcher = CurrentPriceFetcher(converter, current_prices, historical_prices)
+    spin_off_handler = SpinOffHandler()
+    spin_off_handler.cache = {"BAR": "FOO"}
     initial_prices = InitialPrices({})
     calculator = CapitalGainsCalculator(
         tax_year,
         converter,
         price_fetcher,
+        spin_off_handler,
         initial_prices,
         calc_unrealized_gains=expected_unrealized is not None,
     )
@@ -120,7 +126,13 @@ def test_run_with_example_files() -> None:
         "tests/test_data/mssb/",
         "--no-pdflatex",
     ]
-    result = subprocess.run(cmd, check=True, capture_output=True)
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(e.stderr.decode("utf-8"))
+        raise
+
+    assert result.returncode == 0
     assert result.stderr == b"", "Run with example files generated errors"
     expected_file = (
         Path("tests") / "test_data" / "test_run_with_example_files_output.txt"
