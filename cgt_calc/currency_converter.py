@@ -1,4 +1,5 @@
 """Convert currencies to GBP using rate history."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -89,8 +90,15 @@ class CurrencyConverter:
                 "https://www.trade-tariff.service.gov.uk/api/v2/"
                 f"exchange_rates/files/monthly_xml_{month_str}.xml"
             )
-
-        response = self.session.get(url, timeout=10)
+        try:
+            response = self.session.get(url, timeout=10)
+        except Exception as err:
+            msg = f"Error while fetching HMRC exchange rates for the month {month_str} "
+            msg += f"from the following url: {url}.\n"
+            msg += "Either try again or if you're sure about the rates you can "
+            msg += f"add them manually in {self.exchange_rates_file}.\n"
+            msg += f"The error was: {err}\n"
+            raise ParsingError(url, msg) from err
 
         if not response.ok:
             raise ParsingError(

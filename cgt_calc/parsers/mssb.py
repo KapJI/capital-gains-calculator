@@ -3,6 +3,7 @@
 Note, that I only had access to an Alphabet export. I have no idea how it looks like
 for another company, or for a full profile.
 """
+
 from __future__ import annotations
 
 import csv
@@ -30,7 +31,7 @@ COLUMNS_RELEASE: Final[list[str]] = [
 ]
 
 COLUMNS_WITHDRAWAL: Final[list[str]] = [
-    "Date",
+    "Execution Date",
     "Order Number",
     "Plan",
     "Type",
@@ -167,7 +168,7 @@ def _init_from_withdrawal_report(
         action = ActionType.SELL
 
     transaction = BrokerTransaction(
-        date=datetime.datetime.strptime(row["Date"], "%d-%b-%Y").date(),
+        date=datetime.datetime.strptime(row["Execution Date"], "%d-%b-%Y").date(),
         action=action,
         symbol=KNOWN_SYMBOL_DICT[row["Plan"]],
         description=row["Plan"],
@@ -190,7 +191,7 @@ def _validate_header(
         raise UnexpectedColumnCountError(header, len(golden_header), filename)
     for i, (expected, actual) in enumerate(zip(golden_header, header)):
         if expected != actual:
-            msg = f"Expected column {i+1} to be {expected} but found {actual}"
+            msg = f"Expected column {i + 1} to be {expected} but found {actual}"
             raise ParsingError(filename, msg)
 
 

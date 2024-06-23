@@ -1,8 +1,13 @@
 """Parse command line arguments."""
+
 import argparse
 import datetime
 
-from .const import DEFAULT_EXCHANGE_RATES_FILE, DEFAULT_REPORT_PATH
+from .const import (
+    DEFAULT_EXCHANGE_RATES_FILE,
+    DEFAULT_REPORT_PATH,
+    DEFAULT_SPIN_OFF_FILE,
+)
 
 
 def get_last_elapsed_tax_year() -> int:
@@ -78,6 +83,13 @@ def create_parser() -> argparse.ArgumentParser:
         help="output file for monthly exchange rates from HMRC",
     )
     parser.add_argument(
+        "--spin-offs-file",
+        type=str,
+        default=DEFAULT_SPIN_OFF_FILE,
+        nargs="?",
+        help="output file for spin offs data",
+    )
+    parser.add_argument(
         "--initial-prices",
         type=str,
         default=None,
@@ -101,6 +113,16 @@ def create_parser() -> argparse.ArgumentParser:
         dest="balance_check",
         action="store_false",
         default=True,
+    )
+    parser.add_argument(
+        "--unrealized-gains",
+        dest="calc_unrealized_gains",
+        action="store_true",
+        default=False,
+        help=(
+            "show an estimation of the gains/loss you would incur"
+            " if you were to sell your holdings, under the standard 104 rule."
+        ),
     )
     parser.add_argument(
         "--verbose",

@@ -1,4 +1,5 @@
 """Constants."""
+
 from __future__ import annotations
 
 import datetime
@@ -17,6 +18,7 @@ CAPITAL_GAIN_ALLOWANCES: Final[dict[int, int]] = {
     2021: 12300,
     2022: 12300,
     2023: 6000,
+    2024: 3000,
 }
 
 DEFAULT_REPORT_PATH: Final = "calculations.pdf"
@@ -32,6 +34,8 @@ DEFAULT_EXCHANGE_RATES_FILE: Final = "exchange_rates.csv"
 
 # Initial vesting and spin-off prices
 DEFAULT_INITIAL_PRICES_FILE: Final = "initial_prices.csv"
+
+DEFAULT_SPIN_OFF_FILE: Final = "spin_offs.csv"
 
 # Latex template for calculations report
 TEMPLATE_NAME: Final = "template.tex.j2"
