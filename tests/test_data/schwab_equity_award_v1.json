@@ -1,6 +1,44 @@
 {
     "transactions": [
         {
+            "typeName": "DisbursementViewModel",
+            "eventDateSortValue": "2022-11-20T00:00:00",
+            "eventDate": "11/20/2022",
+            "action": "Gift",
+            "symbol": "GOOG",
+            "quantitySortValue": 2.0,
+            "quantity": "2",
+            "description": "Share Transfer",
+            "totalCommissionsAndFeesSortValue": null,
+            "totalCommissionsAndFees": null,
+            "disbursementElection": null,
+            "amountSortValue": null,
+            "amount": null,
+            "transactionDetails": [
+                {
+                    "shareLotType": "RS",
+                    "quantity": "2",
+                    "vestDate": "03/25/2021",
+                    "vestFMV": "$2,045.06",
+                    "grantId": "C111111",
+                    "typeName": "DisbursementDetail",
+                    "fieldNameToDisplayValueLookup": {
+                        "Type": "RS",
+                        "Shares": "53",
+                        "PurchaseDate": null,
+                        "PurchasePrice": null,
+                        "PurchaseFairMarketValue": null,
+                        "SubscriptionDate": null,
+                        "SubscriptionFairMarketValue": null,
+                        "DispositionType": null,
+                        "VestDate": "03/25/2021",
+                        "VestFairMarketValue": "$2,045.06",
+                        "GrantId": "C111111"
+                    }
+                }
+            ]
+        },
+        {
             "typeName": "ShareSaleViewModel",
             "eventDateSortValue": "2022-11-16:00:00",
             "eventDate": "11/16/2022",
