@@ -95,6 +95,15 @@ def test_schwab_transaction_v1() -> None:
     assert transactions[3].amount == Decimal("25745")
     assert transactions[3].fees == Decimal("0.50")
 
+    assert transactions[4].date == datetime.date(2022, 11, 20)
+    assert transactions[4].action == ActionType.GIFT
+    assert transactions[4].symbol == "GOOG"
+    assert transactions[4].quantity == Decimal("2")
+    assert transactions[4].price is None
+    assert transactions[4].fees == Decimal("0")
+    assert transactions[4].currency == "USD"
+    assert transactions[4].broker == "Charles Schwab"
+
 
 def test_schwab_transaction_v2() -> None:
     """Test read_schwab_equity_award_json_transactions() on v2 data."""
@@ -137,3 +146,12 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[4].fees == Decimal("0")
     assert transactions[4].currency == "USD"
     assert transactions[4].broker == "Charles Schwab"
+
+    assert transactions[5].date == datetime.date(2023, 9, 29)
+    assert transactions[5].action == ActionType.GIFT
+    assert transactions[5].symbol == "GOOG"
+    assert transactions[5].quantity == Decimal("2")
+    assert transactions[5].price is None
+    assert transactions[5].fees == Decimal("0")
+    assert transactions[5].currency == "USD"
+    assert transactions[5].broker == "Charles Schwab"

@@ -66,6 +66,7 @@ class ActionType(Enum):
     WIRE_FUNDS_RECEIVED = 14
     STOCK_SPLIT = 15
     CASH_MERGER = 16
+    GIFT = 17
 
 
 @dataclass

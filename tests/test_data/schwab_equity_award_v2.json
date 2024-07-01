@@ -3,6 +3,33 @@
     "ToDate": "12/23/2023",
     "Transactions": [
         {
+            "Date": "09/29/2023",
+            "Action": "Gift",
+            "Symbol": "GOOG",
+            "Quantity": "2",
+            "Description": "Share Transfer",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "2",
+                        "PurchaseDate": null,
+                        "PurchasePrice": null,
+                        "PurchaseFairMarketValue": null,
+                        "SubscriptionDate": null,
+                        "SubscriptionFairMarketValue": null,
+                        "DispositionType": null,
+                        "VestDate": "09/25/2023",
+                        "VestFairMarketValue": "$131.25",
+                        "GrantId": "C987654"
+                    }
+                }
+            ]
+        },
+        {
             "Date": "09/27/2023",
             "Action": "Deposit",
             "Symbol": "GOOG",
