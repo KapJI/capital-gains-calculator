@@ -148,6 +148,26 @@ def transaction(
     )
 
 
+def split_transaction(
+    date: datetime.date,
+    symbol: str,
+    quantity: float,
+) -> BrokerTransaction:
+    """Create sell transaction."""
+    return BrokerTransaction(
+        date,
+        ActionType.STOCK_SPLIT,
+        symbol,
+        f"Split of {symbol}",
+        round_decimal(Decimal(quantity), 6),
+        price=Decimal(0),
+        fees=Decimal(0),
+        amount=Decimal(0),
+        currency="USD",
+        broker="Testing",
+    )
+
+
 calc_basic_data = [
     pytest.param(
         2020,  # tax year
@@ -1091,5 +1111,102 @@ calc_basic_data = [
         },
         {},  # Calculation Log Other
         id="sell_on_30/6_is_split_into_104+same_day+b&d",
+    ),
+    pytest.param(
+        2023,  # tax year
+        [
+            transfer_transaction(datetime.date(day=1, month=5, year=2020), 100),
+            buy_transaction(
+                date=datetime.date(day=2, month=5, year=2023),
+                symbol="FOO",
+                quantity=12,
+                price=5,
+                amount=-60,
+                fees=0,
+            ),
+            sell_transaction(
+                date=datetime.date(day=10, month=5, year=2023),
+                symbol="FOO",
+                quantity=2,
+                price=6,
+                amount=12,  # 2.00 gain
+                fees=0,
+            ),
+            split_transaction(
+                date=datetime.date(day=15, month=5, year=2023),
+                symbol="FOO",
+                quantity=10,  # 2x split
+            ),
+            sell_transaction(
+                date=datetime.date(day=10, month=6, year=2023),
+                symbol="FOO",
+                quantity=2,
+                price=5,
+                amount=10,  # 5.00 gain
+                fees=0,
+            ),
+        ],
+        7.00,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        {
+            datetime.date(day=2, month=5, year=2023): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(12),
+                        amount=Decimal(-60),
+                        allowable_cost=Decimal(60),
+                        new_quantity=Decimal(12),
+                        fees=Decimal(0),
+                        new_pool_cost=Decimal(60),
+                    ),
+                ],
+            },
+            datetime.date(day=10, month=5, year=2023): {
+                "sell$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(2),
+                        amount=Decimal(12),
+                        gain=Decimal(2),
+                        allowable_cost=Decimal(10),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(10),
+                        new_pool_cost=Decimal(50),
+                    ),
+                ],
+            },
+            datetime.date(day=15, month=5, year=2023): {
+                "split$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(10),
+                        amount=Decimal(0),
+                        gain=Decimal(0),
+                        fees=Decimal(0),
+                        allowable_cost=Decimal(0),
+                        new_quantity=Decimal(20),
+                        new_pool_cost=Decimal(50),
+                    ),
+                ],
+            },
+            datetime.date(day=10, month=6, year=2023): {
+                "sell$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(2),
+                        amount=Decimal(10),
+                        gain=Decimal(5),
+                        fees=Decimal(0),
+                        allowable_cost=Decimal(5),
+                        new_quantity=Decimal(18),
+                        new_pool_cost=Decimal(45),
+                    ),
+                ],
+            },
+        },
+        id="split",
     ),
 ]
