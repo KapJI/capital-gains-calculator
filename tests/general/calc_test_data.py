@@ -1155,10 +1155,10 @@ calc_basic_data = [
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
-                        quantity=Decimal(12),
+                        quantity=Decimal(24),
                         amount=Decimal(-60),
                         allowable_cost=Decimal(60),
-                        new_quantity=Decimal(12),
+                        new_quantity=Decimal(24),
                         fees=Decimal(0),
                         new_pool_cost=Decimal(60),
                     ),
@@ -1168,25 +1168,11 @@ calc_basic_data = [
                 "sell$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
-                        quantity=Decimal(2),
+                        quantity=Decimal(4),
                         amount=Decimal(12),
                         gain=Decimal(2),
                         allowable_cost=Decimal(10),
                         fees=Decimal(0),
-                        new_quantity=Decimal(10),
-                        new_pool_cost=Decimal(50),
-                    ),
-                ],
-            },
-            datetime.date(day=15, month=5, year=2023): {
-                "split$FOO": [
-                    CalculationEntry(
-                        RuleType.SECTION_104,
-                        quantity=Decimal(10),
-                        amount=Decimal(0),
-                        gain=Decimal(0),
-                        fees=Decimal(0),
-                        allowable_cost=Decimal(0),
                         new_quantity=Decimal(20),
                         new_pool_cost=Decimal(50),
                     ),

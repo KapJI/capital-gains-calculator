@@ -35,3 +35,15 @@ def add_to_list(
     current_list[date_index][symbol] += HmrcTransactionData(
         quantity=quantity, amount=amount, fees=fees, eris=eris or []
     )
+
+def multiply_entries(
+    current_list: HmrcTransactionLog,
+    symbol: str,
+    multiple: Decimal,
+    multiply_date: datetime.date | None = None
+) -> None:
+    for date, entries in current_list.items():
+        if multiply_date is not None:
+            assert multiply_date >= date
+        entries[symbol].quantity *= multiple
+
