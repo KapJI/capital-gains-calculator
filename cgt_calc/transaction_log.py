@@ -31,3 +31,15 @@ def add_to_list(
         amount=amount,
         fees=fees,
     )
+
+def multiply_entries(
+    current_list: HmrcTransactionLog,
+    symbol: str,
+    multiple: Decimal,
+    multiply_date: datetime.date | None = None
+) -> None:
+    for date, entries in current_list.items():
+        if multiply_date is not None:
+            assert multiply_date >= date
+        entries[symbol].quantity *= multiple
+
