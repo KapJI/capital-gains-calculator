@@ -42,7 +42,7 @@ from .model import (
 )
 from .parsers import read_broker_transactions, read_initial_prices
 from .spin_off_handler import SpinOffHandler
-from .transaction_log import add_to_list, has_key
+from .transaction_log import add_to_list, has_key, multiply_entries
 from .util import round_decimal
 
 LOGGER = logging.getLogger(__name__)
@@ -123,7 +123,16 @@ class CapitalGainsCalculator:
             price, amount = self.handle_spin_off(transaction)
         elif transaction.action is ActionType.STOCK_SPLIT:
             price = Decimal(0)
-            amount = Decimal(0)
+            original = self.portfolio[symbol].quantity
+            multiple = Decimal((original + quantity) / original)
+            # Retroactively alter the acquisition / disposal list, instead of
+            # adding the split as a separate acquisition event.
+            multiply_entries(
+                self.acquisition_list, symbol, multiple, transaction.date)
+            multiply_entries(
+                self.disposal_list, symbol, multiple, transaction.date)
+            self.portfolio[symbol] += Position(quantity, Decimal(0))
+            return
         else:
             if price is None:
                 raise PriceMissingError(transaction)
