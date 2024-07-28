@@ -66,6 +66,7 @@ class ActionType(Enum):
     WIRE_FUNDS_RECEIVED = 14
     STOCK_SPLIT = 15
     CASH_MERGER = 16
+    TRANSFER_TO_SPOUSE = 17
 
 
 @dataclass
@@ -91,6 +92,7 @@ class RuleType(Enum):
     SAME_DAY = 2
     BED_AND_BREAKFAST = 3
     SPIN_OFF = 4
+    TRANSFER_TO_SPOUSE = 5
 
 
 class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
