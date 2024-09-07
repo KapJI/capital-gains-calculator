@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 import csv
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Final, Iterable, Iterator, List
+from typing import Final
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import InvalidTransactionError, ParsingError
@@ -41,7 +42,7 @@ class SharesightTransaction(BrokerTransaction):
     """
 
 
-class RowIterator(Iterator[List[str]]):
+class RowIterator(Iterator[list[str]]):
     """Iterator for CSV rows that keeps track of line number."""
 
     def __init__(self, rows: Iterable[list[str]]) -> None:
