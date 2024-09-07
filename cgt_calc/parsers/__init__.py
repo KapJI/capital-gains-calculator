@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import datetime
 from decimal import Decimal
-import importlib.resources
+from importlib import resources
 from pathlib import Path
 
 from cgt_calc.const import DEFAULT_INITIAL_PRICES_FILE
@@ -98,11 +98,10 @@ def read_initial_prices(
     """Read initial stock prices from CSV file."""
     initial_prices: dict[datetime.date, dict[str, Decimal]] = {}
     if initial_prices_file is None:
-        csv_file = importlib.resources.open_text(
-            RESOURCES_PACKAGE, DEFAULT_INITIAL_PRICES_FILE
-        )
-        lines = list(csv.reader(csv_file))
-        csv_file.close()
+        with resources.files(RESOURCES_PACKAGE).joinpath(
+            DEFAULT_INITIAL_PRICES_FILE
+        ).open(encoding="utf-8") as csv_file:
+            lines = list(csv.reader(csv_file))
     else:
         with Path(initial_prices_file).open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))

@@ -10,7 +10,7 @@ repository = "https://github.com/KapJI/capital-gains-calculator"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
     "Topic :: Office/Business :: Financial",
     "Typing :: Typed",
 ]
@@ -25,9 +25,9 @@ keywords = [
 "Release Notes" = "https://github.com/KapJI/capital-gains-calculator/releases"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 Jinja2 = ">=2.11.3,<4.0.0"
-pandas = "^2.0.3"
+pandas = "^2.2"
 requests = "^2.27.1"
 types-requests = "^2.27.7"
 yfinance = "^0.2.36"
@@ -44,7 +44,7 @@ flake8-use-fstring = "^1.4"
 flake8-use-pathlib = "^0.3.0"
 isort = "^5.13.2"
 mypy = "^1.8"
-pandas-stubs = "^2.0.3.230814"
+pandas-stubs = "^2.2"
 pre-commit = "^3.5.0"
 pylint = "^3.0.3"
 pytest = ">=7.4.4,<9.0.0"
@@ -84,10 +84,14 @@ disable = [
 ]
 
 [tool.mypy]
-python_version = 3.8
+python_version = "3.9"
 show_error_codes = true
 strict = true
 disallow_any_explicit = true
 disallow_any_unimported = true
 warn_no_return = true
 warn_unreachable = true
+
+[tool.codespell]
+quiet-level = 2
+skip = "poetry.lock,./.git/*,./.mypy_cache/*,./dist/*,*.csv,./env/*"
