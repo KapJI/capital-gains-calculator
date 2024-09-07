@@ -6,7 +6,6 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List
 
 from .util import round_decimal
 
@@ -44,7 +43,7 @@ class HmrcTransactionData:
 
 
 # For mapping of dates to int
-HmrcTransactionLog = Dict[datetime.date, Dict[str, HmrcTransactionData]]
+HmrcTransactionLog = dict[datetime.date, dict[str, HmrcTransactionData]]
 
 
 class ActionType(Enum):
@@ -141,7 +140,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         )
 
 
-CalculationLog = Dict[datetime.date, Dict[str, List[CalculationEntry]]]
+CalculationLog = dict[datetime.date, dict[str, list[CalculationEntry]]]
 
 
 @dataclass
