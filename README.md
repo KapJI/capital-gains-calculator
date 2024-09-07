@@ -21,7 +21,7 @@ pipx install cgt-calc
 
 ## Prerequisites
 
--   Python 3.8 or above.
+-   Python 3.9 or above.
 -   `pdflatex` is required to generate the report.
 -   [Optional] Docker
 
