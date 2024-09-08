@@ -707,9 +707,9 @@ class CapitalGainsCalculator:
                         date_index,
                     )
                     if date_index >= tax_year_start_index:
-                        calculation_log[date_index][f"buy${symbol}"] = (
-                            calculation_entries
-                        )
+                        calculation_log[date_index][
+                            f"buy${symbol}"
+                        ] = calculation_entries
             if date_index in self.disposal_list:
                 for symbol in self.disposal_list[date_index]:
                     (
@@ -755,9 +755,9 @@ class CapitalGainsCalculator:
                         assert transaction_capital_gain == round_decimal(
                             calculated_gain, 2
                         )
-                        calculation_log[date_index][f"sell${symbol}"] = (
-                            calculation_entries
-                        )
+                        calculation_log[date_index][
+                            f"sell${symbol}"
+                        ] = calculation_entries
                         if transaction_capital_gain > 0:
                             capital_gain += transaction_capital_gain
                         else:
