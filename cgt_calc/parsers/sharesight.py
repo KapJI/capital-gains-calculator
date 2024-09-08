@@ -156,14 +156,14 @@ def parse_income_report(file: Path) -> Iterable[SharesightTransaction]:
 
     # Use our custom iterator for error reporting
     rows_iter = RowIterator(rows)
-    for row in rows_iter:
-        try:
+    try:
+        for row in rows_iter:
             if row[0] == "Local Income":
                 yield from parse_local_income(rows_iter)
             elif row[0] == "Foreign Income":
                 yield from parse_foreign_income(rows_iter)
-        except ValueError as err:
-            raise ParsingError(f"{file}:{rows_iter.line}", str(err)) from None
+    except ValueError as err:
+        raise ParsingError(f"{file}:{rows_iter.line}", str(err)) from None
 
 
 def parse_trades(

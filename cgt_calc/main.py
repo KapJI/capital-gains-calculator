@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Capital Gain Calculator main module."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -149,8 +150,7 @@ class CapitalGainsCalculator:
         self,
         transaction: BrokerTransaction,
     ) -> tuple[Decimal, Decimal]:
-        """
-        Handle spin off transaction.
+        """Handle spin off transaction.
 
         Doc basing on SOLV spin off out of MMM.
 
@@ -377,7 +377,7 @@ class CapitalGainsCalculator:
         print(f"Dividend taxes: £{round_decimal(-dividends_tax, 2)}")
         print(f"Interest: £{round_decimal(interest, 2)}")
         print(f"Disposal proceeds: £{round_decimal(total_sells, 2)}")
-        print("")
+        print()
 
     def process_acquisition(
         self,
@@ -698,7 +698,7 @@ class CapitalGainsCalculator:
 
         for date_index in (
             begin_index + datetime.timedelta(days=x)
-            for x in range(0, (end_index - begin_index).days + 1)
+            for x in range((end_index - begin_index).days + 1)
         ):
             if date_index in self.acquisition_list:
                 for symbol in self.acquisition_list[date_index]:

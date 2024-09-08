@@ -126,7 +126,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
 
     def __repr__(self) -> str:
         """Return print representation."""
-        return f"<CalculationEntry {str(self)}>"
+        return f"<CalculationEntry {self!s}>"
 
     def __str__(self) -> str:
         """Return string representation."""
@@ -196,7 +196,7 @@ class PortfolioEntry:
 
     def __repr__(self) -> str:
         """Return print representation."""
-        return f"<PortfolioEntry {str(self)}>"
+        return f"<PortfolioEntry {self!s}>"
 
     def __str__(self) -> str:
         """Return string representation."""
@@ -243,7 +243,7 @@ class CapitalGainsReport:
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return f"<CalculationEntry: {str(self)}>"
+        return f"<CalculationEntry: {self!s}>"
 
     def __str__(self) -> str:
         """Return string representation."""
@@ -253,7 +253,7 @@ class CapitalGainsReport:
                 unrealized_gains_str = (
                     entry.unrealized_gains_str() if self.show_unrealized_gains else ""
                 )
-                out += f"{str(entry)}{unrealized_gains_str}\n"
+                out += f"{entry!s}{unrealized_gains_str}\n"
         out += f"For tax year {self.tax_year}/{self.tax_year + 1}:\n"
         out += f"Number of disposals: {self.disposal_count}\n"
         out += f"Disposal proceeds: £{self.disposal_proceeds}\n"
