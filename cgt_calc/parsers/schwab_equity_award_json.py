@@ -19,7 +19,7 @@ import datetime
 from decimal import Decimal
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from pandas.tseries.holiday import USFederalHolidayCalendar
 from pandas.tseries.offsets import CustomBusinessDay
@@ -30,11 +30,9 @@ from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.util import round_decimal
 
 # Delay between a (sale) trade, and when it is settled.
-SETTLEMENT_DELAY = 2 * CustomBusinessDay(calendar=USFederalHolidayCalendar())
-
-OPTIONAL_DETAILS_NAME = "Details"
-
-field2schema = {"transactions": 1, "Transactions": 2}
+SETTLEMENT_DELAY: Final = 2 * CustomBusinessDay(calendar=USFederalHolidayCalendar())
+OPTIONAL_DETAILS_NAME: Final = "Details"
+FIELD_TO_SCHEMA: Final = {"transactions": 1, "Transactions": 2}
 
 
 @dataclass
@@ -196,6 +194,12 @@ class SchwabTransaction(BrokerTransaction):
         action = action_from_str(self.raw_action)
         symbol = row.get(names.symbol)
         symbol = TICKER_RENAMES.get(symbol, symbol)
+        if symbol != "GOOG":
+            # Stock split hardcoded for GOOG
+            raise ParsingError(
+                file,
+                f"Schwab Equity Award JSON only supports GOOG stock but found {symbol}",
+            )
         quantity = _decimal_from_number_or_str(row, names.quantity)
         amount = _decimal_from_number_or_str(row, names.amount)
         fees = _decimal_from_number_or_str(row, names.fees)
@@ -312,20 +316,21 @@ class SchwabTransaction(BrokerTransaction):
     def _normalize_split(self) -> None:
         """Ensure past transactions are normalized to split values.
 
-        This is in the context of the 20:1 stock split which happened at close
-        on 2022-07-15 20:1.
+        This is in the context of the 20:1 GOOG stock split which happened at
+        close on 2022-07-15 20:1.
 
         As of 2022-08-07, Schwab's data exports have some past transactions
         corrected for the 20:1 split on 2022-07-15, whereas others are not.
         """
         split_factor = 20
+        threshold_price = 175
 
         # The share price has never been above $175*20=$3500 before 2022-07-15
         # so this price is expressed in pre-split amounts: normalize to post-split
         if (
             self.date <= datetime.date(2022, 7, 15)
             and self.price
-            and self.price > 175
+            and self.price > threshold_price
             and self.quantity
         ):
             self.price = round_decimal(self.price / split_factor, ROUND_DIGITS)
@@ -346,14 +351,14 @@ def read_schwab_equity_award_json_transactions(
                     "Cloud not parse content as JSON",
                 ) from exception
 
-            for field_name, schema_version in field2schema.items():
+            for field_name, schema_version in FIELD_TO_SCHEMA.items():
                 if field_name in data:
                     fields = FieldNames(schema_version)
                     break
             if not fields:
                 raise ParsingError(
                     transactions_file,
-                    f"Expected top level field ({', '.join(field2schema.keys())}) "
+                    f"Expected top level field ({', '.join(FIELD_TO_SCHEMA.keys())}) "
                     "not found: the JSON data is not in the expected format",
                 )
 

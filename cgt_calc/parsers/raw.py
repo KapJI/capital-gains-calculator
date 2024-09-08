@@ -6,10 +6,13 @@ import csv
 import datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Final
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
+
+CSV_COLUMNS_NUM: Final = 7
 
 
 def action_from_str(label: str) -> ActionType:
@@ -21,8 +24,7 @@ def action_from_str(label: str) -> ActionType:
 
 
 class RawTransaction(BrokerTransaction):
-    """
-    Represents a single raw transaction.
+    """Represents a single raw transaction.
 
     Example format:
     2023-02-09,DIVIDEND,OPRA,4200,0.80,0.0,USD
@@ -40,8 +42,8 @@ class RawTransaction(BrokerTransaction):
         file: str,
     ):
         """Create transaction from CSV row."""
-        if len(row) != 7:
-            raise UnexpectedColumnCountError(row, 7, file)
+        if len(row) != CSV_COLUMNS_NUM:
+            raise UnexpectedColumnCountError(row, CSV_COLUMNS_NUM, file)
 
         date_str = row[0]
         date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
