@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-import datetime
-from decimal import Decimal
+from typing import TYPE_CHECKING
 
-from .model import BrokerTransaction
+if TYPE_CHECKING:
+    import datetime
+    from decimal import Decimal
+
+    from .model import BrokerTransaction
 
 
 class ParsingError(Exception):
