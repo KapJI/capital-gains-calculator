@@ -18,14 +18,38 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
+        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install Poetry
-        uses: abatilo/actions-poetry@v3.0.0
+        uses: abatilo/actions-poetry@v3
 
-      - name: Install dependencies
+      - name: Use local virtual environment
+        run: |
+          poetry config virtualenvs.create true --local
+          poetry config virtualenvs.in-project true --local
+
+      - uses: actions/cache@v4
+        id: cache-poetry-deps
+        name: Cache Poetry dependencies
+        with:
+          path: ./.venv
+          key: venv-${{ hashFiles('poetry.lock') }}
+
+      - uses: actions/cache@v4
+        name: Cache pre-commit hooks
+        with:
+          path: ~/.cache/pre-commit/
+          key: >
+            ${{ format('pre-commit-{0}-{1}',
+            steps.setup-python.outputs.python-version,
+            hashFiles('.pre-commit-config.yaml')
+            ) }}
+
+      - name: Install dependencies with Poetry
+        if: steps.cache-poetry-deps.outputs.cache-hit != 'true'
         run: poetry install
 
       - name: Run pre-commit on all files
