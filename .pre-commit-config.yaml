@@ -39,21 +39,24 @@ repos:
         language: system
         types: [python]
         require_serial: true
+      - id: ruff
+        name: ruff check
+        entry: poetry run ruff check --fix
+        language: system
+        types: [python]
+        require_serial: true
       - id: mypy
         name: mypy
         entry: poetry run mypy
         language: system
         types: [python]
-      - id: flake8
-        name: flake8
-        entry: poetry run flake8
-        language: system
-        types: [python]
+        require_serial: true
       - id: pylint
         name: pylint
         entry: poetry run pylint
         language: system
         types: [python]
+        require_serial: true
       - id: pytest
         name: pytest
         language: system
@@ -62,7 +65,7 @@ repos:
         always_run: true
       - id: codespell
         name: codespell
-        entry: poetry run codespell
+        entry: poetry run codespell --write-changes
         language: system
         pass_filenames: false
         always_run: true
