@@ -37,6 +37,8 @@ jobs:
         with:
           path: ./.venv
           key: venv-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            venv-
 
       - uses: actions/cache@v4
         name: Cache pre-commit hooks
@@ -47,6 +49,9 @@ jobs:
             steps.setup-python.outputs.python-version,
             hashFiles('.pre-commit-config.yaml')
             ) }}
+          restore-keys: |
+            pre-commit-${{ steps.setup-python.outputs.python-version }}-
+            pre-commit-
 
       - name: Install dependencies with Poetry
         if: steps.cache-poetry-deps.outputs.cache-hit != 'true'
