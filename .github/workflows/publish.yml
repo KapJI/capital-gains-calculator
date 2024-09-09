@@ -16,7 +16,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -34,9 +33,9 @@ jobs:
         name: Cache Poetry dependencies
         with:
           path: ./.venv
-          key: venv-${{ hashFiles('poetry.lock') }}
+          key: venv-${{ env.PYTHON_VERSION }}-${{ hashFiles('poetry.lock') }}
           restore-keys: |
-            venv-
+            venv-${{ env.PYTHON_VERSION }}-
 
       - name: Install dependencies with Poetry
         if: steps.cache-poetry-deps.outputs.cache-hit != 'true'
