@@ -17,15 +17,23 @@ RUN apk --no-cache add \
     texmf-dist-latexextra \
     texmf-dist-pictures \
     texmf-dist-science \
-    wget
+    wget \
+    curl \
+    git
 
 
 RUN luaotfload-tool --update
 RUN apk --no-cache add py3-pandas
-RUN apk --no-cache add pipx
-RUN pipx install cgt-calc
-RUN pipx ensurepath
+
+WORKDIR /build
+
+RUN curl -sSL https://install.python-poetry.org | python3 -
+RUN ln -s /root/.local/share/pypoetry/venv/bin/poetry /bin/
+COPY . /build
+RUN /bin/poetry build
+RUN /bin/poetry install
+RUN echo "/bin/poetry -C /build run cgt-calc \$@" > /bin/cgt-calc
+RUN chmod +x /bin/cgt-calc
 
 WORKDIR /data
-
 ENTRYPOINT ["/bin/bash"]
