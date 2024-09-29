@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Final
 
 from cgt_calc.const import DEFAULT_INITIAL_PRICES_FILE
 from cgt_calc.exceptions import UnexpectedColumnCountError
+from cgt_calc.parsers.freetrade import read_freetrade_transactions
 from cgt_calc.resources import RESOURCES_PACKAGE
 
 from .mssb import read_mssb_transactions
@@ -56,6 +57,7 @@ def read_broker_transactions(
     mssb_transactions_folder: str | None,
     sharesight_transactions_folder: str | None,
     raw_transactions_file: str | None,
+    freetrade_transactions_file: str | None,
 ) -> list[BrokerTransaction]:
     """Read transactions for all brokers."""
     transactions = []
@@ -92,6 +94,11 @@ def read_broker_transactions(
         transactions += read_raw_transactions(raw_transactions_file)
     else:
         print("INFO: No raw file provided")
+
+    if freetrade_transactions_file is not None:
+        transactions += read_freetrade_transactions(freetrade_transactions_file)
+    else:
+        print("INFO: No freetrade file provided")
 
     transactions.sort(key=lambda k: k.date)
     return transactions
