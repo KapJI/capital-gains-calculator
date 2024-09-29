@@ -21,16 +21,11 @@ import json
 from pathlib import Path
 from typing import Any, Final
 
-from pandas.tseries.holiday import USFederalHolidayCalendar
-from pandas.tseries.offsets import CustomBusinessDay
-
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.util import round_decimal
 
-# Delay between a (sale) trade, and when it is settled.
-SETTLEMENT_DELAY: Final = 2 * CustomBusinessDay(calendar=USFederalHolidayCalendar())
 OPTIONAL_DETAILS_NAME: Final = "Details"
 FIELD_TO_SCHEMA: Final = {"transactions": 1, "Transactions": 2}
 
@@ -227,12 +222,7 @@ class SchwabTransaction(BrokerTransaction):
                 f"(ID {details[names.award_id]})"
             )
         elif row[names.action] == "Sale":
-            # Schwab's data export shows the settlement date,
-            # whereas HMRC wants the trade date:
-            date = (
-                datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
-                - SETTLEMENT_DELAY
-            ).date()  # type: ignore[attr-defined]
+            date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
 
             # Schwab's data export sometimes lacks decimals on Sales
             # quantities, in which case we infer it from number of shares in
