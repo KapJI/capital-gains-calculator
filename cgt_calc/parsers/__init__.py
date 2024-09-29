@@ -5,12 +5,12 @@ from __future__ import annotations
 import csv
 import datetime
 from decimal import Decimal
-import importlib.resources
+from importlib import resources
 from pathlib import Path
+from typing import TYPE_CHECKING, Final
 
 from cgt_calc.const import DEFAULT_INITIAL_PRICES_FILE
 from cgt_calc.exceptions import UnexpectedColumnCountError
-from cgt_calc.model import BrokerTransaction
 from cgt_calc.resources import RESOURCES_PACKAGE
 
 from .mssb import read_mssb_transactions
@@ -20,14 +20,19 @@ from .schwab_equity_award_json import read_schwab_equity_award_json_transactions
 from .sharesight import read_sharesight_transactions
 from .trading212 import read_trading212_transactions
 
+if TYPE_CHECKING:
+    from cgt_calc.model import BrokerTransaction
+
+INITIAL_PRICES_COLUMNS_NUM: Final = 3
+
 
 class InitialPricesEntry:
     """Entry from initial stock prices file."""
 
     def __init__(self, row: list[str], file: str):
         """Create entry from CSV row."""
-        if len(row) != 3:
-            raise UnexpectedColumnCountError(row, 3, file)
+        if len(row) != INITIAL_PRICES_COLUMNS_NUM:
+            raise UnexpectedColumnCountError(row, INITIAL_PRICES_COLUMNS_NUM, file)
         # date,symbol,price
         self.date = self._parse_date(row[0])
         self.symbol = row[1]
@@ -98,11 +103,12 @@ def read_initial_prices(
     """Read initial stock prices from CSV file."""
     initial_prices: dict[datetime.date, dict[str, Decimal]] = {}
     if initial_prices_file is None:
-        csv_file = importlib.resources.open_text(
-            RESOURCES_PACKAGE, DEFAULT_INITIAL_PRICES_FILE
-        )
-        lines = list(csv.reader(csv_file))
-        csv_file.close()
+        with (
+            resources.files(RESOURCES_PACKAGE)
+            .joinpath(DEFAULT_INITIAL_PRICES_FILE)
+            .open(encoding="utf-8") as csv_file
+        ):
+            lines = list(csv.reader(csv_file))
     else:
         with Path(initial_prices_file).open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))

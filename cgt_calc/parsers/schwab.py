@@ -9,6 +9,7 @@ import datetime
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
+from typing import Final
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
@@ -18,6 +19,9 @@ from cgt_calc.exceptions import (
     UnexpectedRowCountError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction
+
+OLD_COLUMNS_NUM: Final = 9
+NEW_COLUMNS_NUM: Final = 8
 
 
 class SchwabTransactionsFileRequiredHeaders(str, Enum):
@@ -144,11 +148,13 @@ class SchwabTransaction(BrokerTransaction):
         file: str,
     ):
         """Create transaction from CSV row."""
-        if len(row_dict) < 8 or len(row_dict) > 9:
+        if len(row_dict) < NEW_COLUMNS_NUM or len(row_dict) > OLD_COLUMNS_NUM:
             # Old transactions had empty 9th column.
-            raise UnexpectedColumnCountError(list(row_dict.values()), 8, file)
-        if len(row_dict) == 9 and list(row_dict.values())[8] != "":
-            raise ParsingError(file, "Column 9 should be empty")
+            raise UnexpectedColumnCountError(
+                list(row_dict.values()), NEW_COLUMNS_NUM, file
+            )
+        if len(row_dict) == OLD_COLUMNS_NUM and list(row_dict.values())[-1] != "":
+            raise ParsingError(file, f"Column {OLD_COLUMNS_NUM} should be empty")
         as_of_str = " as of "
         date_header = SchwabTransactionsFileRequiredHeaders.DATE.value
         if as_of_str in row_dict[date_header]:

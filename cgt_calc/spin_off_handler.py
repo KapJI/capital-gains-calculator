@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import csv
-import datetime
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from .exceptions import ParsingError
-from .model import Position
 
+if TYPE_CHECKING:
+    import datetime
+
+    from .model import Position
+
+CHOICES_TO_SHOW: Final = 10
 SPIN_OFFS_HEADER: Final = ["dst", "src"]
 
 
@@ -70,7 +74,7 @@ class SpinOffHandler:
             if ticker in portfolio:
                 break
             print(f"Invalid ticker: {ticker}, couldn't find it in the portfolio!")
-            if len(portfolio) <= 10:
+            if len(portfolio) <= CHOICES_TO_SHOW:
                 print(f"Available choices: {sorted(portfolio)}")
         self.cache[symbol] = ticker
         self._write_spin_off_file()

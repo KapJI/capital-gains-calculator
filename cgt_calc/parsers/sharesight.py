@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 import csv
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Final, Iterable, Iterator, List
+from typing import Final
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import InvalidTransactionError, ParsingError
@@ -41,7 +42,7 @@ class SharesightTransaction(BrokerTransaction):
     """
 
 
-class RowIterator(Iterator[List[str]]):
+class RowIterator(Iterator[list[str]]):
     """Iterator for CSV rows that keeps track of line number."""
 
     def __init__(self, rows: Iterable[list[str]]) -> None:
@@ -155,14 +156,14 @@ def parse_income_report(file: Path) -> Iterable[SharesightTransaction]:
 
     # Use our custom iterator for error reporting
     rows_iter = RowIterator(rows)
-    for row in rows_iter:
-        try:
+    try:
+        for row in rows_iter:
             if row[0] == "Local Income":
                 yield from parse_local_income(rows_iter)
             elif row[0] == "Foreign Income":
                 yield from parse_foreign_income(rows_iter)
-        except ValueError as err:
-            raise ParsingError(f"{file}:{rows_iter.line}", str(err)) from None
+    except ValueError as err:
+        raise ParsingError(f"{file}:{rows_iter.line}", str(err)) from None
 
 
 def parse_trades(

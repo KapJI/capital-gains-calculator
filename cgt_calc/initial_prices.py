@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import datetime
-from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from .dates import is_date
 from .exceptions import ExchangeRateMissingError
+
+if TYPE_CHECKING:
+    import datetime
+    from decimal import Decimal
 
 
 @dataclass

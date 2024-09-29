@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-import datetime
-from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from .model import HmrcTransactionData, HmrcTransactionLog
+
+if TYPE_CHECKING:
+    import datetime
+    from decimal import Decimal
 
 
 def has_key(

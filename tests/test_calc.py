@@ -7,6 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 import subprocess
 import sys
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -14,12 +15,14 @@ from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.main import CapitalGainsCalculator
-from cgt_calc.model import BrokerTransaction, CalculationLog, CapitalGainsReport
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
 
 from .test_data.calc_test_data import calc_basic_data
 from .test_data.calc_test_data_2 import calc_basic_data_2
+
+if TYPE_CHECKING:
+    from cgt_calc.model import BrokerTransaction, CalculationLog, CapitalGainsReport
 
 
 def get_report(
@@ -31,8 +34,15 @@ def get_report(
 
 
 @pytest.mark.parametrize(
-    "tax_year,broker_transactions,expected,expected_unrealized,"
-    "gbp_prices,current_prices,calculation_log",
+    (
+        "tax_year",
+        "broker_transactions",
+        "expected",
+        "expected_unrealized",
+        "gbp_prices",
+        "current_prices",
+        "calculation_log",
+    ),
     calc_basic_data + calc_basic_data_2,
 )
 def test_basic(

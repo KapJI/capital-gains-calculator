@@ -160,8 +160,8 @@ class Trading212Transaction(BrokerTransaction):
                 )
 
         self.isin = row["ISIN"]
-        self.transaction_id = row["ID"] if "ID" in row else None
-        self.notes = row["Notes"] if "Notes" in row else None
+        self.transaction_id = row.get("ID")
+        self.notes = row.get("Notes")
         broker = "Trading212"
         super().__init__(
             date,

@@ -7,16 +7,19 @@ import csv
 import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Final
-from xml.etree import ElementTree
+from typing import TYPE_CHECKING, Final
 
+from defusedxml import ElementTree as ET
 import requests
 
 from .dates import is_date
 from .exceptions import ExchangeRateMissingError, ParsingError
-from .model import BrokerTransaction
+
+if TYPE_CHECKING:
+    from .model import BrokerTransaction
 
 EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
+NEW_ENDPOINT_FROM_YEAR: Final = 2021
 
 
 class CurrencyConverter:
@@ -78,7 +81,7 @@ class CurrencyConverter:
 
     def _query_hmrc_api(self, date: datetime.date) -> None:
         # Pre 2021 we need to use the old HMRC endpoint
-        if date.year < 2021:
+        if date.year < NEW_ENDPOINT_FROM_YEAR:
             month_str = date.strftime("%m%y")
             url = (
                 "http://www.hmrc.gov.uk/softwaredevelopers/rates/"
@@ -105,7 +108,7 @@ class CurrencyConverter:
                 url, f"HMRC API returned a {response.status_code} response"
             )
 
-        tree = ElementTree.fromstring(response.text)
+        tree = ET.fromstring(response.text)
         rates = {
             str(getattr(row.find("currencyCode"), "text", None)).upper(): Decimal(
                 str(getattr(row.find("rateNew"), "text", None))

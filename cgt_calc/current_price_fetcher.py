@@ -5,10 +5,12 @@ from __future__ import annotations
 from contextlib import suppress
 import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
-import yfinance as yf  # type: ignore
+import yfinance as yf  # type: ignore[import-untyped]
 
-from .currency_converter import CurrencyConverter
+if TYPE_CHECKING:
+    from .currency_converter import CurrencyConverter
 
 
 class CurrentPriceFetcher:
