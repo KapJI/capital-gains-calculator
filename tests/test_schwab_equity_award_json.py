@@ -93,38 +93,70 @@ def test_schwab_transaction_v2() -> None:
         "tests/test_data/schwab_equity_award_v2.json"
     )
 
-    assert transactions[0].date == datetime.date(2023, 4, 25)
-    assert transactions[0].action == ActionType.STOCK_ACTIVITY
-    assert transactions[0].quantity == Decimal("4.911")
-    assert transactions[0].price == Decimal("106.78")
-    assert transactions[0].fees == Decimal("0")
+    i = 0
+    assert transactions[i].date == datetime.date(2023, 4, 25)
+    assert transactions[i].action == ActionType.STOCK_ACTIVITY
+    assert transactions[i].quantity == Decimal("4.911")
+    assert transactions[i].price == Decimal("106.78")
+    assert transactions[i].fees == Decimal("0")
 
-    assert transactions[1].date == datetime.date(2023, 4, 25)
-    assert transactions[1].action == ActionType.STOCK_ACTIVITY
-    assert transactions[1].quantity == Decimal("13.6")
-    assert transactions[1].price == Decimal("106.78")
-    assert transactions[1].fees == Decimal("0")
+    i += 1
+    assert transactions[i].date == datetime.date(2023, 4, 25)
+    assert transactions[i].action == ActionType.STOCK_ACTIVITY
+    assert transactions[i].quantity == Decimal("13.6")
+    assert transactions[i].price == Decimal("106.78")
+    assert transactions[i].fees == Decimal("0")
 
-    assert transactions[2].date == datetime.date(2023, 8, 29)
-    assert transactions[2].action == ActionType.SELL
-    assert transactions[2].quantity == Decimal("14.40")
-    assert transactions[2].price == Decimal("137.90")
-    assert transactions[2].fees == Decimal("0.02")
+    i += 1
+    assert transactions[i].date == datetime.date(2023, 8, 29)
+    assert transactions[i].action == ActionType.SELL
+    assert transactions[i].quantity == Decimal("14.40")
+    assert transactions[i].price == Decimal("137.90")
+    assert transactions[i].fees == Decimal("0.02")
 
-    assert transactions[3].date == datetime.date(2023, 9, 25)
-    assert transactions[3].action == ActionType.STOCK_ACTIVITY
-    assert transactions[3].symbol == "GOOG"
-    assert transactions[3].quantity == Decimal("4.911")
-    assert transactions[3].price == Decimal("131.25")
-    assert transactions[3].fees == Decimal("0")
-    assert transactions[3].currency == "USD"
-    assert transactions[3].broker == "Charles Schwab"
+    i += 1
+    assert transactions[i].date == datetime.date(2023, 9, 25)
+    assert transactions[i].action == ActionType.STOCK_ACTIVITY
+    assert transactions[i].symbol == "GOOG"
+    assert transactions[i].quantity == Decimal("4.911")
+    assert transactions[i].price == Decimal("131.25")
+    assert transactions[i].fees == Decimal("0")
+    assert transactions[i].currency == "USD"
+    assert transactions[i].broker == "Charles Schwab"
 
-    assert transactions[4].date == datetime.date(2023, 9, 25)
-    assert transactions[4].action == ActionType.STOCK_ACTIVITY
-    assert transactions[4].symbol == "GOOG"
-    assert transactions[4].quantity == Decimal("13.6")
-    assert transactions[4].price == Decimal("131.25")
-    assert transactions[4].fees == Decimal("0")
-    assert transactions[4].currency == "USD"
-    assert transactions[4].broker == "Charles Schwab"
+    i += 1
+    assert transactions[i].date == datetime.date(2023, 9, 25)
+    assert transactions[i].action == ActionType.STOCK_ACTIVITY
+    assert transactions[i].symbol == "GOOG"
+    assert transactions[i].quantity == Decimal("13.6")
+    assert transactions[i].price == Decimal("131.25")
+    assert transactions[i].fees == Decimal("0")
+    assert transactions[i].currency == "USD"
+    assert transactions[i].broker == "Charles Schwab"
+
+    i += 1
+    assert transactions[i].date == datetime.date(2024, 6, 17)
+    assert transactions[i].action == ActionType.DIVIDEND
+    assert transactions[i].symbol == "GOOG"
+    assert transactions[i].amount == Decimal("74.62")
+    assert transactions[i].fees == Decimal("0")
+    assert transactions[i].currency == "USD"
+    assert transactions[i].broker == "Charles Schwab"
+
+    i += 1
+    assert transactions[i].date == datetime.date(2024, 6, 17)
+    assert transactions[i].action == ActionType.TAX
+    assert transactions[i].symbol == "GOOG"
+    assert transactions[i].amount == Decimal("-22.39")
+    assert transactions[i].fees == Decimal("0")
+    assert transactions[i].currency == "USD"
+    assert transactions[i].broker == "Charles Schwab"
+
+    i += 1
+    assert transactions[i].date == datetime.date(2024, 7, 12)
+    assert transactions[i].action == ActionType.TAX
+    assert transactions[i].symbol == "GOOG"
+    assert transactions[i].amount == Decimal("11.20")
+    assert transactions[i].fees == Decimal("0")
+    assert transactions[i].currency == "USD"
+    assert transactions[i].broker == "Charles Schwab"
