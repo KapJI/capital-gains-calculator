@@ -3,6 +3,39 @@
     "ToDate": "12/23/2023",
     "Transactions": [
         {
+            "Date": "07/12/2024",
+            "Action": "Tax Reversal",
+            "Symbol": "GOOG",
+            "Quantity": null,
+            "Description": "Credit",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": "$11.20",
+            "TransactionDetails": []
+        },
+        {
+            "Date": "06/17/2024",
+            "Action": "Tax Withholding",
+            "Symbol": "GOOG",
+            "Quantity": null,
+            "Description": "Debit",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": "-$22.39",
+            "TransactionDetails": []
+        },
+        {
+            "Date": "06/17/2024",
+            "Action": "Dividend",
+            "Symbol": "GOOG",
+            "Quantity": null,
+            "Description": "Credit",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": "$74.62",
+            "TransactionDetails": []
+        },
+        {
             "Date": "09/27/2023",
             "Action": "Deposit",
             "Symbol": "GOOG",
