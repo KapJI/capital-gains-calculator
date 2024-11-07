@@ -141,6 +141,9 @@ def action_from_str(label: str) -> ActionType:
     if label == "Wire Funds Received":
         return ActionType.WIRE_FUNDS_RECEIVED
 
+    if label == "Gift":
+        return ActionType.GIFT
+
     raise ParsingError("schwab transactions", f"Unknown action: {label}")
 
 
@@ -221,6 +224,17 @@ class SchwabTransaction(BrokerTransaction):
                 f"{details[names.award_date]} "
                 f"(ID {details[names.award_id]})"
             )
+        elif row[names.action] == "Gift":
+            if OPTIONAL_DETAILS_NAME in row[names.transac_details][0]:
+                details = row[names.transac_details][0]["Details"]
+            else:
+                details = row[names.transac_details][0]
+            date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
+            if any((row[names.amount], row[names.fees])):
+                raise ParsingError(file, "Unexpected fees or amount for gifted shares.")
+            price = None
+            # Note that currently the default currency is used, because the model does
+            # not support a None currency.
         elif row[names.action] == "Sale":
             date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
 
