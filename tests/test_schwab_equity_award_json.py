@@ -64,7 +64,7 @@ def test_schwab_transaction_v1() -> None:
     assert transactions[0].currency == "USD"
     assert transactions[0].broker == "Charles Schwab"
 
-    assert transactions[1].date == datetime.date(2022, 6, 10)
+    assert transactions[1].date == datetime.date(2022, 6, 14)
     assert transactions[1].action == ActionType.SELL
     assert transactions[1].quantity == Decimal("62.601495")
     assert transactions[1].price == Decimal("113.75")
@@ -76,7 +76,7 @@ def test_schwab_transaction_v1() -> None:
     assert transactions[2].price == Decimal("112.42")
     assert transactions[2].fees == Decimal("0")
 
-    assert transactions[3].date == datetime.date(2022, 11, 14)
+    assert transactions[3].date == datetime.date(2022, 11, 16)
     assert transactions[3].action == ActionType.SELL
     assert transactions[3].quantity == Decimal("12.549")
     assert transactions[3].price is not None
@@ -105,7 +105,7 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[1].price == Decimal("106.78")
     assert transactions[1].fees == Decimal("0")
 
-    assert transactions[2].date == datetime.date(2023, 8, 29)
+    assert transactions[2].date == datetime.date(2023, 8, 31)
     assert transactions[2].action == ActionType.SELL
     assert transactions[2].quantity == Decimal("14.40")
     assert transactions[2].price == Decimal("137.90")
