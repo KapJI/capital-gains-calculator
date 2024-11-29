@@ -60,6 +60,7 @@ def action_from_str(label: str, filename: str) -> ActionType:
     if label in [
         "Market sell",
         "Limit sell",
+        "Stop sell",
     ]:
         return ActionType.SELL
 
