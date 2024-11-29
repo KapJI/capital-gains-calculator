@@ -54,6 +54,7 @@ def action_from_str(label: str, filename: str) -> ActionType:
     if label in [
         "Market buy",
         "Limit buy",
+        "Stop buy",
     ]:
         return ActionType.BUY
 
