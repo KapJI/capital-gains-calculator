@@ -305,6 +305,10 @@ class CapitalGainsCalculator:
                 self.add_disposal(transaction)
                 if self.date_in_tax_year(transaction.date):
                     total_sells += self.converter.to_gbp_for(amount, transaction)
+            elif transaction.action is ActionType.GIFT:
+                raise NotImplementedError(
+                    f"{transaction.action} is not currently supported ({transaction})"
+                )
             elif transaction.action is ActionType.FEE:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
