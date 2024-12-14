@@ -196,7 +196,8 @@ class SchwabTransaction(BrokerTransaction):
                 f"Schwab Equity Award JSON only supports GOOG stock but found {symbol}",
             )
         quantity = _decimal_from_number_or_str(row, names.quantity)
-        amount = _decimal_from_number_or_str(row, names.amount)
+        initially_parsed_amount = _decimal_from_number_or_str(row, names.amount)
+        amount = initially_parsed_amount
         fees = _decimal_from_number_or_str(row, names.fees)
         if row[names.action] == "Deposit":
             if len(row[names.transac_details]) != 1:
@@ -279,7 +280,19 @@ class SchwabTransaction(BrokerTransaction):
                                 " prices",
                             )
 
-                    quantity = (amount + fees) / price
+                    # Check if the transaction was lacking decimals. Sometimes
+                    # we did just sell an integer number of shares.
+                    # If we unconditionally perform the quantity update step
+                    # here, small roundings that were necessary to determine
+                    # the initially_parsed_amount on the broker side can cause
+                    # tiny decimal deviations in the quantity, which can then
+                    # cause errors later on, e.g. triggering assertions about
+                    # selling more than was available.
+                    if (
+                        round_decimal(quantity * price - fees, 2)
+                        != initially_parsed_amount
+                    ):
+                        quantity = (amount + fees) / price
 
         else:
             raise ParsingError(
