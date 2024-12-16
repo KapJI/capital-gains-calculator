@@ -128,3 +128,34 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[4].fees == Decimal("0")
     assert transactions[4].currency == "USD"
     assert transactions[4].broker == "Charles Schwab"
+
+
+def test_schwab_transaction_v2_rounding() -> None:
+    """Test read_schwab_equity_award_json_transactions() on v2_rounding data.
+
+    This tests 13 vesting events with 7 shares each, which are then sold.
+    """
+    transactions = schwab_equity_award_json.read_schwab_equity_award_json_transactions(
+        "tests/test_data/schwab_equity_award_v2_rounding.json"
+    )
+
+    assert transactions[0].date == datetime.date(2020, 4, 24)
+    assert transactions[0].action == ActionType.SELL
+    assert transactions[0].symbol == "GOOG"
+    assert transactions[0].quantity == Decimal("91")
+    assert transactions[0].price == Decimal("102.4935")
+    assert transactions[0].fees == Decimal("0.49")
+    assert transactions[0].currency == "USD"
+    assert transactions[0].broker == "Charles Schwab"
+
+    num_vested = Decimal("0")
+    for transaction_id in range(1, len(transactions)):
+        assert transactions[transaction_id].date == (
+            datetime.date(2020, 1, 1) + datetime.timedelta(days=transaction_id)
+        )
+        assert transactions[transaction_id].action == ActionType.STOCK_ACTIVITY
+        assert transactions[transaction_id].quantity == Decimal("7")
+        num_vested += transactions[transaction_id].quantity or Decimal("0")
+        assert transactions[transaction_id].price == Decimal("123.45")
+        assert transactions[transaction_id].fees == Decimal("0")
+    assert num_vested == transactions[0].quantity
