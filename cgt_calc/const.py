@@ -21,7 +21,15 @@ CAPITAL_GAIN_ALLOWANCES: Final[dict[int, int]] = {
     2024: 3000,
 }
 
-DEFAULT_REPORT_PATH: Final = "calculations.pdf"
+DIVIDEND_ALLOWANCES: Final[dict[int, int]] = {
+    2021: 2000,
+    2022: 2000,
+    2023: 1000,
+    2024: 500,
+}
+
+DEFAULT_CG_REPORT_PATH: Final = "calculations.pdf"
+DEFAULT_DG_REPORT_PATH: Final = "dividends.pdf"
 
 INTERNAL_START_DATE: Final = datetime.date(2010, 1, 1)
 
@@ -38,7 +46,8 @@ DEFAULT_INITIAL_PRICES_FILE: Final = "initial_prices.csv"
 DEFAULT_SPIN_OFF_FILE: Final = "spin_offs.csv"
 
 # Latex template for calculations report
-TEMPLATE_NAME: Final = "template.tex.j2"
+CG_TEMPLATE_NAME: Final = "template.tex.j2"
+DG_TEMPLATE_NAME: Final = "dividend.template.tex.j2"
 
 BED_AND_BREAKFAST_DAYS: Final = 30
 

@@ -10,7 +10,7 @@ Final portfolio:
 Final balance:
   Charles Schwab: 1000.00 (USD)
 Dividends: £0.00
-Dividend taxes: £0.00
+Dividend taxes at source: £0.00
 Interest: £0.00
 Disposal proceeds: £711.69
 
@@ -26,5 +26,13 @@ Capital loss: £1071.81
 Total capital gain: £-1071.81
 Taxable capital gain: £0
 
-Generate calculations report
+Dividends for tax year 2020/2021:
+Number of dividends received: 0
+Amount of dividends received: £0.00
+Amount of taxes taken at source: £0.00
+Amount of taxes allowance due to tax treaties: £0.00
+WARNING: Missing allowance for this tax year
+Taxable dividend gain: £0.00
+
+Generate calculations reports
 All done!

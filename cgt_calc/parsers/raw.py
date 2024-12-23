@@ -60,7 +60,7 @@ class RawTransaction(BrokerTransaction):
         if price is not None and quantity is not None:
             amount = price * quantity
 
-            if action is ActionType.BUY:
+            if action in (ActionType.BUY, ActionType.DIVIDEND_TAX):
                 amount = -abs(amount)
             amount -= fees
         else:

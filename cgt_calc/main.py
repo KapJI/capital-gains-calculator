@@ -14,10 +14,16 @@ import sys
 
 from . import render_latex
 from .args_parser import create_parser
-from .const import BED_AND_BREAKFAST_DAYS, CAPITAL_GAIN_ALLOWANCES, INTERNAL_START_DATE
+from .const import (
+    BED_AND_BREAKFAST_DAYS,
+    CAPITAL_GAIN_ALLOWANCES,
+    DIVIDEND_ALLOWANCES,
+    INTERNAL_START_DATE,
+)
 from .currency_converter import CurrencyConverter
 from .current_price_fetcher import CurrentPriceFetcher
 from .dates import get_tax_year_end, get_tax_year_start, is_date
+from .dividends import process_dividend
 from .exceptions import (
     AmountMissingError,
     CalculatedAmountDiscrepancyError,
@@ -34,6 +40,8 @@ from .model import (
     CalculationEntry,
     CalculationLog,
     CapitalGainsReport,
+    Dividend,
+    DividendsReport,
     HmrcTransactionData,
     HmrcTransactionLog,
     PortfolioEntry,
@@ -44,7 +52,7 @@ from .model import (
 from .parsers import read_broker_transactions, read_initial_prices
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
-from .util import round_decimal
+from .util import approx_equal, round_decimal
 
 LOGGER = logging.getLogger(__name__)
 
@@ -55,12 +63,6 @@ def get_amount_or_fail(transaction: BrokerTransaction) -> Decimal:
     if amount is None:
         raise AmountMissingError(transaction)
     return amount
-
-
-# It is not clear how Schwab or other brokers round the dollar value,
-# so assume the values are equal if they are within $0.01.
-def _approx_equal(val_a: Decimal, val_b: Decimal) -> bool:
-    return abs(val_a - val_b) < Decimal("0.01")
 
 
 class CapitalGainsCalculator:
@@ -95,6 +97,8 @@ class CapitalGainsCalculator:
 
         self.portfolio: dict[str, Position] = defaultdict(Position)
         self.spin_offs: dict[datetime.date, list[SpinOff]] = defaultdict(list)
+
+        self.dividends: list[Dividend] = []
 
     def date_in_tax_year(self, date: datetime.date) -> bool:
         """Check if date is within current tax year."""
@@ -131,7 +135,7 @@ class CapitalGainsCalculator:
 
             amount = get_amount_or_fail(transaction)
             calculated_amount = quantity * price + transaction.fees
-            if not _approx_equal(amount, -calculated_amount):
+            if not approx_equal(amount, -calculated_amount):
                 raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
             amount = -amount
 
@@ -265,7 +269,7 @@ class CapitalGainsCalculator:
         if price is None:
             raise PriceMissingError(transaction)
         calculated_amount = quantity * price - transaction.fees
-        if not _approx_equal(amount, calculated_amount):
+        if not approx_equal(amount, calculated_amount):
             raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
         add_to_list(
             self.disposal_list,
@@ -276,6 +280,20 @@ class CapitalGainsCalculator:
             self.converter.to_gbp_for(transaction.fees, transaction),
         )
 
+    def _handle_dividends(
+        self,
+        dividends: dict[tuple[str, datetime.date], tuple[Decimal, str]],
+        dividends_taxes: dict[tuple[str, datetime.date], Decimal],
+    ) -> tuple[Decimal, Decimal]:
+        sum_dividends, sum_taxes = Decimal(0), Decimal(0)
+        for (ticker, date), (amount, currency) in dividends.items():
+            tax = dividends_taxes.get((ticker, date), Decimal(0))
+            sum_taxes += tax
+            sum_dividends += amount
+            dividend = process_dividend(date, ticker, amount, tax, currency)
+            self.dividends.append(dividend)
+        return sum_dividends, sum_taxes
+
     def convert_to_hmrc_transactions(
         self,
         transactions: list[BrokerTransaction],
@@ -283,8 +301,8 @@ class CapitalGainsCalculator:
         """Convert broker transactions to HMRC transactions."""
         # We keep a balance per broker,currency pair
         balance: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal(0))
-        dividends = Decimal(0)
-        dividends_tax = Decimal(0)
+        dividends: dict[tuple[str, datetime.date], tuple[Decimal, str]] = {}
+        dividends_tax: dict[tuple[str, datetime.date], Decimal] = {}
         interest = Decimal(0)
         total_sells = Decimal(0)
         balance_history: list[Decimal] = []
@@ -331,12 +349,21 @@ class CapitalGainsCalculator:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 if self.date_in_tax_year(transaction.date):
-                    dividends += self.converter.to_gbp_for(amount, transaction)
-            elif transaction.action in [ActionType.TAX, ActionType.ADJUSTMENT]:
+                    symbol = transaction.symbol
+                    assert symbol is not None
+                    dividends[(symbol, transaction.date)] = (
+                        self.converter.to_gbp_for(amount, transaction),
+                        transaction.currency,
+                    )
+            elif transaction.action in [ActionType.DIVIDEND_TAX, ActionType.ADJUSTMENT]:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 if self.date_in_tax_year(transaction.date):
-                    dividends_tax += self.converter.to_gbp_for(amount, transaction)
+                    symbol = transaction.symbol
+                    assert symbol is not None
+                    dividends_tax[(symbol, transaction.date)] = (
+                        self.converter.to_gbp_for(amount, transaction)
+                    )
             elif transaction.action is ActionType.INTEREST:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
@@ -366,6 +393,11 @@ class CapitalGainsCalculator:
                 )
                 raise CalculationError(msg)
             balance[(transaction.broker, transaction.currency)] = new_balance
+
+        sum_dividends, sum_dividends_tax = self._handle_dividends(
+            dividends, dividends_tax
+        )
+
         print("First pass completed")
         print("Final portfolio:")
         for stock, position in self.portfolio.items():
@@ -373,8 +405,8 @@ class CapitalGainsCalculator:
         print("Final balance:")
         for (broker, currency), amount in balance.items():
             print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
-        print(f"Dividends: £{round_decimal(dividends, 2)}")
-        print(f"Dividend taxes: £{round_decimal(-dividends_tax, 2)}")
+        print(f"Dividends: £{round_decimal(sum_dividends, 2)}")
+        print(f"Dividend taxes at source: £{round_decimal(-sum_dividends_tax, 2)}")
         print(f"Interest: £{round_decimal(interest, 2)}")
         print(f"Disposal proceeds: £{round_decimal(total_sells, 2)}")
         print()
@@ -787,6 +819,13 @@ class CapitalGainsCalculator:
             show_unrealized_gains=self.calc_unrealized_gains,
         )
 
+    def calculate_dividends_gain(self) -> DividendsReport:
+        """Prepare report for dividend gains."""
+        allowance = DIVIDEND_ALLOWANCES.get(self.tax_year)
+        return DividendsReport(
+            self.tax_year, self.dividends, Decimal(allowance) if allowance else None
+        )
+
     def make_portfolio_entry(
         self, symbol: str, quantity: Decimal, amount: Decimal
     ) -> PortfolioEntry:
@@ -860,11 +899,16 @@ def main() -> int:
     report = calculator.calculate_capital_gain()
     print(report)
 
+    dividends_report = calculator.calculate_dividends_gain()
+    print(dividends_report)
+
     # Generate PDF report.
     if not args.no_report:
         render_latex.render_calculations(
             report,
-            output_path=Path(args.report),
+            dividends_report,
+            cg_output_path=Path(args.report),
+            dg_output_path=Path(args.dividend_report),
             skip_pdflatex=args.no_pdflatex,
         )
     print("All done!")

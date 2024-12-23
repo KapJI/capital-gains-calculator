@@ -14,3 +14,8 @@ def round_decimal(value: Decimal, digits: int = 0) -> Decimal:
 def strip_zeros(value: Decimal) -> str:
     """Strip trailing zeros from Decimal."""
     return f"{value:.10f}".rstrip("0").rstrip(".")
+
+
+def approx_equal(val_a: Decimal, val_b: Decimal) -> bool:
+    """Equal within 0.01 error margin."""
+    return abs(val_a - val_b) < Decimal("0.01")

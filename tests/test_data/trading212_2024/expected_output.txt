@@ -9,7 +9,7 @@ Final portfolio:
 Final balance:
   Trading212: 1758.05 (GBP)
 Dividends: £0.00
-Dividend taxes: £0.00
+Dividend taxes at source: £0.00
 Interest: £0.00
 Disposal proceeds: £3138.50
 
@@ -25,5 +25,12 @@ Capital loss: £0.00
 Total capital gain: £757.15
 Taxable capital gain: £0
 
-Generate calculations report
+Dividends for tax year 2024/2025:
+Number of dividends received: 0
+Amount of dividends received: £0.00
+Amount of taxes taken at source: £0.00
+Amount of taxes allowance due to tax treaties: £0.00
+Taxable dividend gain: £0.00
+
+Generate calculations reports
 All done!

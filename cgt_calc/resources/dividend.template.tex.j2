@@ -1,0 +1,27 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=3cm]{geometry}
+\setlength{\parindent}{0pt} %--don't indent paragraphs
+\title{\Large\bfseries Dividend Gains Tax Calculations for \VAR{ report.tax_year }-\VAR{ ("{:02d}".format((report.tax_year + 1) % 100)) }}
+\begin{document}
+\date{} % Remove the date
+\maketitle
+\BLOCK{ set dividend_count = namespace(value=0) }
+\BLOCK{ for dividend in report.dividends }
+\section*{\VAR{ dividend.date.strftime("%d %B %Y") }}
+\BLOCK{ set dividend_count.value = dividend_count.value + 1 }
+    Dividend \VAR{ dividend_count.value }: \VAR{ dividend.symbol } for £\VAR{ "{:,}".format(round_decimal(dividend.amount, 2)) }
+    (tax paid at source: £\VAR{ "{:,}".format(round_decimal(-dividend.tax_at_source, 2)) })
+    \BLOCK{ if dividend.tax_treaty and dividend.tax_treaty.country != "UK" }
+        , tax treaty amount: £\VAR{ "{:,}".format(round_decimal(dividend.tax_treaty_amount, 2)) } (treaty rate for \VAR{ dividend.tax_treaty.country }: \VAR{ round_decimal(100 * dividend.tax_treaty.treaty_rate, 2) }\%)
+    \BLOCK{ endif }
+\BLOCK{ endfor }
+
+\section*{Overall}
+\subsection*{Number of dividends: \VAR{ dividend_count.value }}
+\subsection*{Total amount of dividends: £\VAR{ "{:,}".format(round_decimal(report.total_dividends_amount(), 2)) }}
+\subsection*{Total amount of tax allowance due to double taxation treaties: £\VAR{ "{:,}".format(round_decimal(report.total_taxes_in_tax_treaties(), 2)) }}
+\subsection*{Dividend allowance: £\VAR{ "{:,}".format(round_decimal(report.dividend_allowance or Decimal(0), 2)) }}
+\subsection*{Total amount of taxable dividends: £\VAR{ "{:,}".format(round_decimal(report.taxable_gain(), 2)) }}
+
+\end{document}

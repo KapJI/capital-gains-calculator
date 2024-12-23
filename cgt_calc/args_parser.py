@@ -4,8 +4,9 @@ import argparse
 import datetime
 
 from .const import (
+    DEFAULT_CG_REPORT_PATH,
+    DEFAULT_DG_REPORT_PATH,
     DEFAULT_EXCHANGE_RATES_FILE,
-    DEFAULT_REPORT_PATH,
     DEFAULT_SPIN_OFF_FILE,
 )
 
@@ -99,9 +100,18 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--report",
         type=str,
-        default=DEFAULT_REPORT_PATH,
+        default=DEFAULT_CG_REPORT_PATH,
         nargs="?",
-        help="where to save the generated PDF report (default: %(default)s)",
+        help="where to save the generated PDF with Capital Gains report "
+        "(default: %(default)s)",
+    )
+    parser.add_argument(
+        "--dividend-report",
+        type=str,
+        default=DEFAULT_DG_REPORT_PATH,
+        nargs="?",
+        help="where to save the generated PDF with Dividend Gains report "
+        "(default: %(default)s)",
     )
     parser.add_argument(
         "--no-report",

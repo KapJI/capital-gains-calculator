@@ -12,7 +12,7 @@ Final balance:
   Sharesight: -17855.31 (GBP)
   Sharesight: 7474.05 (USD)
 Dividends: £6.92
-Dividend taxes: £1.78
+Dividend taxes at source: £1.78
 Interest: £0.00
 Disposal proceeds: £12995.82
 
@@ -31,5 +31,13 @@ Capital loss: £195.34
 Total capital gain: £1981.64
 Taxable capital gain: £0
 
-Generate calculations report
+Dividends for tax year 2020/2021:
+Number of dividends received: 2
+Amount of dividends received: £6.92
+Amount of taxes taken at source: £1.78
+Amount of taxes allowance due to tax treaties: £0.59
+WARNING: Missing allowance for this tax year
+Taxable dividend gain: £6.33
+
+Generate calculations reports
 All done!
