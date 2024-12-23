@@ -1,16 +1,17 @@
 """Render PDF report with LaTeX."""
 
+from __future__ import annotations
+
 from decimal import Decimal
 import os
 from pathlib import Path
 import subprocess
 import tempfile
-from typing import Union
 
 import jinja2
 
 from .const import CG_TEMPLATE_NAME, DG_TEMPLATE_NAME, PACKAGE_NAME
-from .model import CapitalGainsReport, DividendsReport
+from .model import CapitalGainsReport, DividendsReport  # noqa: TCH001
 from .util import round_decimal, strip_zeros
 
 
@@ -45,7 +46,7 @@ def render_calculations(
 
 
 def _render(
-    report: Union[CapitalGainsReport, DividendsReport],
+    report: CapitalGainsReport | DividendsReport,
     latex_template_env: jinja2.Environment,
     template_name: str,
     output_path: Path,
