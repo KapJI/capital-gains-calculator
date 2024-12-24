@@ -21,16 +21,11 @@ import json
 from pathlib import Path
 from typing import Any, Final
 
-from pandas.tseries.holiday import USFederalHolidayCalendar
-from pandas.tseries.offsets import CustomBusinessDay
-
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.util import round_decimal
 
-# Delay between a (sale) trade, and when it is settled.
-SETTLEMENT_DELAY: Final = 2 * CustomBusinessDay(calendar=USFederalHolidayCalendar())
 OPTIONAL_DETAILS_NAME: Final = "Details"
 FIELD_TO_SCHEMA: Final = {"transactions": 1, "Transactions": 2}
 
@@ -201,7 +196,8 @@ class SchwabTransaction(BrokerTransaction):
                 f"Schwab Equity Award JSON only supports GOOG stock but found {symbol}",
             )
         quantity = _decimal_from_number_or_str(row, names.quantity)
-        amount = _decimal_from_number_or_str(row, names.amount)
+        initially_parsed_amount = _decimal_from_number_or_str(row, names.amount)
+        amount = initially_parsed_amount
         fees = _decimal_from_number_or_str(row, names.fees)
         if row[names.action] == "Deposit":
             if len(row[names.transac_details]) != 1:
@@ -227,12 +223,7 @@ class SchwabTransaction(BrokerTransaction):
                 f"(ID {details[names.award_id]})"
             )
         elif row[names.action] == "Sale":
-            # Schwab's data export shows the settlement date,
-            # whereas HMRC wants the trade date:
-            date = (
-                datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
-                - SETTLEMENT_DELAY
-            ).date()  # type: ignore[attr-defined]
+            date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
 
             # Schwab's data export sometimes lacks decimals on Sales
             # quantities, in which case we infer it from number of shares in
@@ -289,7 +280,19 @@ class SchwabTransaction(BrokerTransaction):
                                 " prices",
                             )
 
-                    quantity = (amount + fees) / price
+                    # Check if the transaction was lacking decimals. Sometimes
+                    # we did just sell an integer number of shares.
+                    # If we unconditionally perform the quantity update step
+                    # here, small roundings that were necessary to determine
+                    # the initially_parsed_amount on the broker side can cause
+                    # tiny decimal deviations in the quantity, which can then
+                    # cause errors later on, e.g. triggering assertions about
+                    # selling more than was available.
+                    if (
+                        round_decimal(quantity * price - fees, 2)
+                        != initially_parsed_amount
+                    ):
+                        quantity = (amount + fees) / price
 
         else:
             raise ParsingError(
