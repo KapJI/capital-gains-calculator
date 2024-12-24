@@ -2,4 +2,6 @@ Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount
 03/02/2021,Cash Merger,FOO,FOO INC,,,,$1000
 03/02/2021,Cash Merger Adj,FOO,FOO INC,,-100,,
 03/02/2021,Buy,FOO,FOO INC,$25,100,$6,-$2506
+07/01/2016,MoneyLink Adj,,Tfr BANK,,,,$10.00
+05/01/2016,MoneyLink Transfer,,Tfr BANK,,,,-$10.00
 03/01/2016,MoneyLink Transfer,,Tfr BANK,,,,$2506.00
