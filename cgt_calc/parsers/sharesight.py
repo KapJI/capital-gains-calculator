@@ -115,7 +115,7 @@ def parse_dividend_payments(
         if tax:
             yield SharesightTransaction(
                 date=dividend_date,
-                action=ActionType.TAX,
+                action=ActionType.DIVIDEND_TAX,
                 symbol=symbol,
                 description=description,
                 broker=broker,

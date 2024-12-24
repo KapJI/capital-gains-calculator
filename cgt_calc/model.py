@@ -26,6 +26,33 @@ class SpinOff:
 
 
 @dataclass
+class TaxTreaty:
+    """Class representing a treaty between UK and different countries."""
+
+    country: str
+    country_rate: Decimal
+    treaty_rate: Decimal
+
+
+@dataclass
+class Dividend:
+    """Class representing a dividend event."""
+
+    date: datetime.date
+    symbol: str
+    amount: Decimal
+    tax_at_source: Decimal
+    tax_treaty: TaxTreaty | None
+
+    @property
+    def tax_treaty_amount(self) -> Decimal:
+        """As title."""
+        if self.tax_treaty is None:
+            return Decimal(0)
+        return self.amount * self.tax_treaty.treaty_rate
+
+
+@dataclass
 class HmrcTransactionData:
     """Hmrc transaction figures."""
 
@@ -54,7 +81,7 @@ class ActionType(Enum):
     TRANSFER = 3
     STOCK_ACTIVITY = 4
     DIVIDEND = 5
-    TAX = 6
+    DIVIDEND_TAX = 6
     FEE = 7
     ADJUSTMENT = 8
     CAPITAL_GAIN = 9
@@ -275,3 +302,56 @@ class CapitalGainsReport:
                     " and factor in their prices.\n"
                 )
         return out
+
+
+@dataclass
+class DividendsReport:
+    """Report of dividends gain."""
+
+    tax_year: int
+    dividends: list[Dividend]
+    dividend_allowance: Decimal | None
+
+    def __str__(self) -> str:
+        """Return string representation."""
+        out = f"Dividends for tax year {self.tax_year}/{self.tax_year + 1}:\n"
+        out += f"Number of dividends received: {len(self.dividends)}\n"
+        out += (
+            "Amount of dividends received: "
+            f"£{round_decimal(self.total_dividends_amount(), 2)}\n"
+        )
+        out += (
+            "Amount of taxes taken at source: "
+            f"£{abs(round_decimal(self.total_taxes_at_source_amount(), 2))}\n"
+        )
+        out += (
+            "Amount of taxes allowance due to tax treaties: "
+            f"£{round_decimal(self.total_taxes_in_tax_treaties(), 2)}\n"
+        )
+        if self.dividend_allowance is None:
+            out += "WARNING: Missing allowance for this tax year\n"
+        out += f"Taxable dividend gain: £{round_decimal(self.taxable_gain(), 2)}\n"
+        return out
+
+    def total_dividends_amount(self) -> Decimal:
+        """Total dividends amount."""
+        return sum(dividend.amount for dividend in self.dividends) or Decimal(0)
+
+    def total_taxes_at_source_amount(self) -> Decimal:
+        """Total taxes at source."""
+        return sum(dividend.tax_at_source for dividend in self.dividends) or Decimal(0)
+
+    def total_taxes_in_tax_treaties(self) -> Decimal:
+        """Total taxes to be reclaimed due to tax treaties."""
+        return sum(
+            dividend.tax_treaty_amount for dividend in self.dividends
+        ) or Decimal(0)
+
+    def taxable_gain(self) -> Decimal:
+        """Total taxable gain after all allowances."""
+        return max(
+            Decimal(0),
+            self.total_dividends_amount()
+            - (self.dividend_allowance or Decimal(0))
+            - self.total_taxes_in_tax_treaties(),
+        )

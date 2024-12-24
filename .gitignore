@@ -7,5 +7,6 @@ __pycache__
 env
 dist
 calculations.pdf
+dividends.pdf
 exchange_rates.csv
 spin_offs.csv
