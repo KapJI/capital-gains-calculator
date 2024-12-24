@@ -84,6 +84,9 @@ def action_from_str(label: str, filename: str) -> ActionType:
     if label == "Stock Split":
         return ActionType.STOCK_SPLIT
 
+    if label in ["Result adjustment"]:
+        return ActionType.ADJUSTMENT
+
     raise ParsingError(filename, f"Unknown action: {label}")
 
 
