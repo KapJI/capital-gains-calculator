@@ -27,6 +27,7 @@ class RawTransaction(BrokerTransaction):
     """Represents a single raw transaction.
 
     Example format:
+    2023-03-16,TRANSFER_TO_SPOUSE,META,21.5,0.0,0.0,USD
     2023-02-09,DIVIDEND,OPRA,4200,0.80,0.0,USD
     2022-11-14,SELL,META,19,116.00,0.05,USD
     2022-08-15,BUY,META,105,180.50,0.00,USD
