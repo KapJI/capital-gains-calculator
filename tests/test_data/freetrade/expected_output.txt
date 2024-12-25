@@ -1,0 +1,29 @@
+INFO: No schwab file provided
+INFO: No schwab Equity Award JSON file provided
+INFO: No trading212 folder provided
+INFO: No mssb folder provided
+INFO: No sharesight file provided
+INFO: No raw file provided
+First pass completed
+Final portfolio:
+Final balance:
+  Freetrade: 10278.93 (GBP)
+Dividends: £1.78
+Dividend taxes: £0.00
+Interest: £9.02
+Disposal proceeds: £4262.50
+
+
+Second pass completed
+Portfolio at the end of 2023/2024 tax year:
+For tax year 2023/2024:
+Number of disposals: 4
+Disposal proceeds: £4262.50
+Allowable costs: £4006.53
+Capital gain: £460.18
+Capital loss: £204.21
+Total capital gain: £255.97
+Taxable capital gain: £0
+
+Generate calculations report
+All done!
