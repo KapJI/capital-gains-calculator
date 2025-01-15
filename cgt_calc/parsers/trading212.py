@@ -34,6 +34,7 @@ COLUMNS: Final[list[str]] = [
     "Transaction fee (GBP)",
     "Transaction fee",
     "Finra fee (GBP)",
+    "Finra fee",
     "Stamp duty (GBP)",
     "Notes",
     "ID",
@@ -41,6 +42,7 @@ COLUMNS: Final[list[str]] = [
     "Currency conversion fee",
     "Currency (Currency conversion fee)",
     "Currency (Transaction fee)",
+    "Currency (Finra fee)",
 ]
 
 
@@ -120,6 +122,14 @@ class Trading212Transaction(BrokerTransaction):
                 )
             self.transaction_fee += transaction_fee_foreign
         self.finra_fee = Decimal(row.get("Finra fee (GBP)") or "0")
+        finra_fee_foreign = Decimal(row.get("Finra fee") or "0")
+        if finra_fee_foreign > 0:
+            if row.get("Currency (Finra fee)") != "GBP":
+                raise ParsingError(
+                    filename,
+                    "Finra fee is not in GBP which is not supported yet",
+                )
+            self.finra_fee += finra_fee_foreign
         self.stamp_duty = Decimal(row.get("Stamp duty (GBP)") or "0")
         self.conversion_fee = Decimal(row.get("Currency conversion fee (GBP)") or "0")
         conversion_fee_foreign = Decimal(row.get("Currency conversion fee") or "0")
