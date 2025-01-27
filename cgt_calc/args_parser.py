@@ -125,6 +125,13 @@ def create_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--exchange-rate-type",
+        type=str,
+        choices=["monthly", "annual"],
+        default="monthly",
+        help="Type of HRMC exchange rate to use (default: %(default)s)",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="enable extra logging",
@@ -140,4 +147,5 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=argparse.SUPPRESS,
     )
+   
     return parser

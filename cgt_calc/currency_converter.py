@@ -5,15 +5,18 @@ from __future__ import annotations
 from collections import defaultdict
 import csv
 import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from defusedxml import ElementTree as ET
 import requests
+import pycountry
 
 from .dates import is_date
 from .exceptions import ExchangeRateMissingError, ParsingError
+from enum import Enum
+from .model import ExchangeRateType
 
 if TYPE_CHECKING:
     from .model import BrokerTransaction
@@ -29,6 +32,7 @@ class CurrencyConverter:
         self,
         exchange_rates_file: str | None = None,
         initial_data: dict[datetime.date, dict[str, Decimal]] | None = None,
+        rate_type: ExchangeRateType = ExchangeRateType.MONTHLY,
     ):
         """Load data from exchange_rates_file and optionally from initial_data."""
         self.exchange_rates_file = exchange_rates_file
@@ -38,6 +42,8 @@ class CurrencyConverter:
             **(initial_data or {}),
         }
         self.session = requests.Session()
+        self.rate_type = rate_type
+        print(f"Using {self.rate_type.value} exchange rates from HMRC")
 
     @staticmethod
     def _read_exchange_rates_file(
@@ -79,24 +85,37 @@ class CurrencyConverter:
             writer = csv.writer(fout)
             writer.writerows([EXCHANGE_RATES_HEADER, *data_rows])
 
+
     def _query_hmrc_api(self, date: datetime.date) -> None:
-        # Pre 2021 we need to use the old HMRC endpoint
-        if date.year < NEW_ENDPOINT_FROM_YEAR:
-            month_str = date.strftime("%m%y")
-            url = (
-                "http://www.hmrc.gov.uk/softwaredevelopers/rates/"
-                f"exrates-monthly-{month_str}.xml"
-            )
-        else:
-            month_str = date.strftime("%Y-%m")
+        """Query HMRC API for exchange rates."""
+
+        if self.rate_type == ExchangeRateType.MONTHLY:
+            # Pre 2021 we need to use the old HMRC endpoint
+            if date.year < NEW_ENDPOINT_FROM_YEAR:
+                month_str = date.strftime("%m%y")
+                url = (
+                    "http://www.hmrc.gov.uk/softwaredevelopers/rates/"
+                    f"exrates-monthly-{month_str}.xml"
+                )
+            else:
+                month_str = date.strftime("%Y-%m")
+                url = (
+                    "https://www.trade-tariff.service.gov.uk/api/v2/"
+                    f"exchange_rates/files/monthly_xml_{month_str}.xml"
+                )
+        else:  # ExchangeRateType.ANNUAL
+            year_str = date.strftime("%Y")
+            month_str = "12"  # Annual rates are published in December
             url = (
                 "https://www.trade-tariff.service.gov.uk/api/v2/"
-                f"exchange_rates/files/monthly_xml_{month_str}.xml"
+                f"exchange_rates/files/average_csv_{year_str}-{month_str}.csv"
             )
+
         try:
             response = self.session.get(url, timeout=10)
         except Exception as err:
-            msg = f"Error while fetching HMRC exchange rates for the month {month_str} "
+            period = "month" if self.rate_type == ExchangeRateType.MONTHLY else "year"
+            msg = f"Error while fetching HMRC exchange rates for the {period} {date.strftime('%Y-%m')} "
             msg += f"from the following url: {url}.\n"
             msg += "Either try again or if you're sure about the rates you can "
             msg += f"add them manually in {self.exchange_rates_file}.\n"
@@ -108,17 +127,51 @@ class CurrencyConverter:
                 url, f"HMRC API returned a {response.status_code} response"
             )
 
-        tree = ET.fromstring(response.text)
-        rates = {
-            str(getattr(row.find("currencyCode"), "text", None)).upper(): Decimal(
-                str(getattr(row.find("rateNew"), "text", None))
-            )
-            for row in tree
-        }
+        if self.rate_type == ExchangeRateType.MONTHLY:
+            tree = ET.fromstring(response.text)
+            rates = {
+                str(getattr(row.find("currencyCode"), "text", None)).upper(): Decimal(
+                    str(getattr(row.find("rateNew"), "text", None))
+                )
+                for row in tree
+            }
+        else:  # ExchangeRateType.ANNUAL
+            csv_data = csv.DictReader(response.text.splitlines())
+            rates = self.parse_annual_rates_csv(csv_data)
+
         if None in rates or None in rates.values():
             raise ParsingError(url, "HMRC API produced invalid/unknown data")
         self.cache[date] = rates
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
+
+    def parse_annual_rates_csv(self, csv_data):
+        """Parse annual rates CSV data from HMRC."""
+        rates = {}
+        for row in csv_data:
+            try:
+                if 'Currency Code' in row:
+                    # Use currencyCode if available
+                    currency = row['Currency Code'].strip().upper()
+                    rate = Decimal(row['Currency Units per £1'])
+                    rates[currency] = rate
+                else:
+                    # Fall back to checking country name
+                    first_col = next(iter(row))
+                    country_name = row[first_col].strip()
+                    rate = Decimal(row['Currency Units per pound'])
+                    
+                    # Try to find country by name or code
+                    country = (
+                        pycountry.countries.get(name=country_name) or 
+                        pycountry.countries.get(alpha_3=country_name)
+                    )
+                    if country:
+                        currency = pycountry.currencies.get(numeric=country.numeric)
+                        if currency:
+                            rates[currency.alpha_3] = rate
+            except (KeyError, InvalidOperation, AttributeError):
+                continue
+        return rates
 
     def currency_to_gbp_rate(self, currency: str, date: datetime.date) -> Decimal:
         """Get GBP/currency rate at given date."""

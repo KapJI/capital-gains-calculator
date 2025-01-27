@@ -40,6 +40,7 @@ from .model import (
     Position,
     RuleType,
     SpinOff,
+    ExchangeRateType,
 )
 from .parsers import read_broker_transactions, read_initial_prices
 from .spin_off_handler import SpinOffHandler
@@ -836,7 +837,10 @@ def main() -> int:
         args.sharesight,
         args.raw,
     )
-    converter = CurrencyConverter(args.exchange_rates_file)
+    converter = CurrencyConverter(
+        args.exchange_rates_file,
+        rate_type=ExchangeRateType(args.exchange_rate_type),
+    )
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
     price_fetcher = CurrentPriceFetcher(converter)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
