@@ -279,5 +279,6 @@ class CapitalGainsReport:
 
 class ExchangeRateType(Enum):
     """Type of exchange rate to use from HMRC."""
+
     MONTHLY = "monthly"
     ANNUAL = "annual"

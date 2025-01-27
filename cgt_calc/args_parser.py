@@ -147,5 +147,5 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=argparse.SUPPRESS,
     )
-   
+
     return parser

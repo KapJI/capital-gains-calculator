@@ -34,13 +34,13 @@ from .model import (
     CalculationEntry,
     CalculationLog,
     CapitalGainsReport,
+    ExchangeRateType,
     HmrcTransactionData,
     HmrcTransactionLog,
     PortfolioEntry,
     Position,
     RuleType,
     SpinOff,
-    ExchangeRateType,
 )
 from .parsers import read_broker_transactions, read_initial_prices
 from .spin_off_handler import SpinOffHandler
