@@ -67,6 +67,13 @@ class ActionType(Enum):
     CASH_MERGER = 16
 
 
+class CalcuationType(Enum):
+    """Calculation type enumeration."""
+
+    ACQUISITION = 1
+    DISPOSAL = 2
+
+
 @dataclass
 class BrokerTransaction:
     """Broken transaction data."""
