@@ -80,7 +80,10 @@ def action_from_str(label: str, filename: str) -> ActionType:
     ]:
         return ActionType.DIVIDEND
 
-    if label in ["Interest on cash"]:
+    if label in [
+        "Interest on cash",
+        "Lending interest",
+    ]:
         return ActionType.INTEREST
 
     if label == "Stock Split":
