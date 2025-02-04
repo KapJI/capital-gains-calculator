@@ -491,7 +491,7 @@ class CapitalGainsCalculator:
                     new_quantity=quantity,
                     gain=None,
                     # Fees, if any are already accounted on the acquisition of
-                    # spined off shares
+                    # spinned off shares
                     fees=Decimal(0),
                     new_pool_cost=new_amount,
                     allowable_cost=new_amount,
