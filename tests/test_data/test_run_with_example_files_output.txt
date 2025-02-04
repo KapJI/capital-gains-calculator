@@ -14,7 +14,7 @@ Final balance:
   Trading212: 33391.30 (GBP)
   Morgan Stanley: 1.00 (USD)
 Dividends: £0.10
-Dividend taxes: £0.00
+Dividend taxes at source: £0.00
 Interest: £0.00
 Disposal proceeds: £42769.56
 
@@ -35,5 +35,13 @@ Capital loss: £0.00
 Total capital gain: £25113.48
 Taxable capital gain: £12813.48
 
-Generate calculations report
+Dividends for tax year 2020/2021:
+Number of dividends received: 1
+Amount of dividends received: £0.10
+Amount of taxes taken at source: £0.00
+Amount of taxes allowance due to tax treaties: £0.00
+WARNING: Missing allowance for this tax year
+Taxable dividend gain: £0.10
+
+Generate calculations reports
 All done!

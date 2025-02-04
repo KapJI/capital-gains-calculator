@@ -12,7 +12,7 @@ Final portfolio:
 Final balance:
   Unknown: -28486.60 (USD)
 Dividends: £2719.29
-Dividend taxes: £0.00
+Dividend taxes at source: £0.00
 Interest: £0.00
 Disposal proceeds: £11421.84
 
@@ -33,5 +33,12 @@ Capital loss: £2166.12
 Total capital gain: £-2166.12
 Taxable capital gain: £0
 
-Generate calculations report
+Dividends for tax year 2022/2023:
+Number of dividends received: 2
+Amount of dividends received: £2719.29
+Amount of taxes taken at source: £0.00
+Amount of taxes allowance due to tax treaties: £407.89
+Taxable dividend gain: £311.40
+
+Generate calculations reports
 All done!
