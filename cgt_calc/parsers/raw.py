@@ -39,6 +39,7 @@ class RawTransaction(BrokerTransaction):
     def __init__(
         self,
         row: list[str],
+        file: str,
     ):
         """Create transaction from CSV row."""
         if len(row) != CSV_COLUMNS_NUM:
@@ -100,7 +101,7 @@ def read_raw_transactions(transactions_file_or_folder: str) -> list[BrokerTransa
         try:
             with file.open(encoding="utf-8") as csv_file:
                 lines = list(csv.reader(csv_file))
-                transactions.extend(RawTransaction(row) for row in lines)
+                transactions.extend(RawTransaction(row, file) for row in lines)
         except FileNotFoundError:
             print(f"WARNING: Couldn't locate file({file})")
 
