@@ -39,7 +39,6 @@ class RawTransaction(BrokerTransaction):
     def __init__(
         self,
         row: list[str],
-        file: str,
     ):
         """Create transaction from CSV row."""
         if len(row) != CSV_COLUMNS_NUM:
@@ -82,13 +81,27 @@ class RawTransaction(BrokerTransaction):
         )
 
 
-def read_raw_transactions(transactions_file: str) -> list[BrokerTransaction]:
-    """Read Raw transactions from file."""
-    try:
-        with Path(transactions_file).open(encoding="utf-8") as csv_file:
-            lines = list(csv.reader(csv_file))
-    except FileNotFoundError:
-        print(f"WARNING: Couldn't locate Raw transactions file({transactions_file})")
+def read_raw_transactions(transactions_file_or_folder: str) -> list[BrokerTransaction]:
+    """Read Raw transactions from file or folder."""
+
+    transactions = []
+
+    path = Path(transactions_file_or_folder)
+    if path.is_file():
+        files = [path]
+    elif path.is_dir():
+        files = list(path.glob("*.csv"))
+    else:
+        print(f"WARNING: {transactions_file_or_folder} is neither a file nor a folder")
         return []
 
-    return [RawTransaction(row, transactions_file) for row in lines]
+    for file in files:
+        print(f"Parsing {file}")
+        try:
+            with file.open(encoding="utf-8") as csv_file:
+                lines = list(csv.reader(csv_file))
+                transactions.extend(RawTransaction(row) for row in lines)
+        except FileNotFoundError:
+            print(f"WARNING: Couldn't locate file({file})")
+
+    return transactions
