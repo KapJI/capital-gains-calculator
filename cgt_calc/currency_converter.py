@@ -90,7 +90,7 @@ class CurrencyConverter:
         else:
             month_str = date.strftime("%Y-%m")
             url = (
-                "https://www.trade-tariff.service.gov.uk/api/v2/"
+                "https://www.trade-tariff.service.gov.uk/api/"
                 f"exchange_rates/files/monthly_xml_{month_str}.xml"
             )
         try:
