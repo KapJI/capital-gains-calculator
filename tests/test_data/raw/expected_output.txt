@@ -3,6 +3,7 @@ INFO: No schwab Equity Award JSON file provided
 INFO: No trading212 folder provided
 INFO: No mssb folder provided
 INFO: No sharesight file provided
+Parsing tests/test_data/raw/test_data.csv
 First pass completed
 Final portfolio:
   AMZN: 210.00
