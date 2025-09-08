@@ -91,6 +91,12 @@ You will need several input files:
 
     [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight).
 
+-   Exported transaction history from Freetrade.
+
+    Go to Activity -> GIA -> Last 12 Months -> Export CSV. (for some reason it exports longer periods, this is useful for our purpose as it may include purchase price)
+
+    [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/freetrade/transactions.csv)
+
 -   CSV file with initial stock prices in USD at the moment of vesting, split, etc.
     [`initial_prices.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format.
 -   (Optional) Monthly exchange rates prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).
@@ -99,7 +105,7 @@ You will need several input files:
 Then run (you can omit the brokers you don't use):
 
 ```shell
-cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/
+cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/ --freetrade freetrade_GIA.csv
 ```
 
 See `cgt-calc --help` for the full list of settings.
