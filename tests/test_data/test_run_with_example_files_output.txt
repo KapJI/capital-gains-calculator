@@ -3,6 +3,7 @@ INFO: No schwab Equity Award JSON file provided
 Parsing tests/test_data/trading212/from_2020-09-11_to_2021-04-02.csv
 INFO: No sharesight file provided
 INFO: No raw file provided
+INFO: No vanguard file provided
 First pass completed
 Final portfolio:
   GE: 1.00
