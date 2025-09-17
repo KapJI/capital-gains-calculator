@@ -91,6 +91,10 @@ You will need several input files:
 
     [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight).
 
+-   Exported transaction history from Vanguard.
+    Vanguard can generate a report in Excel format with all transactions across all periods of time and all accounts (ISA, GA, etc). Grab the ones you're interested into (normally GA account) and put them in a single CSV file.
+    [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/vanguard).
+
 -   CSV file with initial stock prices in USD at the moment of vesting, split, etc.
     [`initial_prices.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format.
 -   (Optional) Monthly exchange rates prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).
