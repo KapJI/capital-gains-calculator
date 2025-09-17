@@ -10,7 +10,7 @@ repository = "https://github.com/KapJI/capital-gains-calculator"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Office/Business :: Financial",
     "Typing :: Typed",
 ]
@@ -25,7 +25,7 @@ keywords = [
 "Release Notes" = "https://github.com/KapJI/capital-gains-calculator/releases"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.12"
 defusedxml = "^0.7.1"
 Jinja2 = ">=2.11.3,<4.0.0"
 pandas = "^2.2"
@@ -51,7 +51,7 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pylint.main]
-py-version = "3.9"
+py-version = "3.12"
 load-plugins = [
     "pylint.extensions.code_style",
     "pylint.extensions.typing",
@@ -84,6 +84,7 @@ disable = [
     "too-many-locals",
     "too-many-return-statements",
     "too-many-statements",
+    "too-many-positional-arguments",
     "wrong-import-order",
     "consider-using-namedtuple-or-dataclass",
     "consider-using-assignment-expr",
@@ -316,7 +317,7 @@ max-line-length-suggestions = 72
 
 [tool.ruff]
 required-version = ">=0.6.0"
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -423,7 +424,7 @@ mark-parentheses = false
 max-complexity = 25
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.12"
 show_error_codes = true
 strict = true
 disallow_any_explicit = true
