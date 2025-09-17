@@ -88,6 +88,7 @@ def action_from_str(label: str) -> ActionType:
         "Visa Purchase",
         "MoneyLink Deposit",
         "MoneyLink Adj",  # likely a returned transfer
+        "Security Transfer",
     ]:
         return ActionType.TRANSFER
 
