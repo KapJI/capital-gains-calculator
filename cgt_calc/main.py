@@ -31,6 +31,7 @@ from .initial_prices import InitialPrices
 from .model import (
     ActionType,
     BrokerTransaction,
+    CalcuationType,
     CalculationEntry,
     CalculationLog,
     CapitalGainsReport,
@@ -55,6 +56,52 @@ def get_amount_or_fail(transaction: BrokerTransaction) -> Decimal:
     if amount is None:
         raise AmountMissingError(transaction)
     return amount
+
+
+# Amount difference can be caused by rounding errors in the price.
+# Schwab rounds down the price to 4 decimal places
+#  so that the error in amount can be more than $0.01.
+# Fox example:
+# 500 shares of FOO sold at $100.00016 with $1.23 fees.
+# "01/01/2024,"Sell","FOO","FOO","500","$100.0001","$1.23","$49,998.85"
+# calculated_amount = 500 * 100.0001 - 1.23 = 49998.82
+# amount_on_record = 49998.85 vs calculated_amount = 49998.82
+def _approx_equal_price_rounding(
+    amount_on_record: Decimal,
+    quantity_on_record: Decimal,
+    price_on_record: Decimal,
+    fees_on_record: Decimal,
+    calcuationType: CalcuationType,
+) -> bool:
+    calculated_amount = Decimal(0)
+    calculated_price = Decimal(0)
+    if calcuationType is CalcuationType.ACQUISITION:
+        calculated_amount = Decimal(-1) * (
+            quantity_on_record * price_on_record + fees_on_record
+        )
+        calculated_price = (
+            Decimal(-1) * amount_on_record - fees_on_record
+        ) / quantity_on_record
+    elif calcuationType is CalcuationType.DISPOSAL:
+        calculated_amount = quantity_on_record * price_on_record - fees_on_record
+        calculated_price = (amount_on_record + fees_on_record) / quantity_on_record
+    in_acceptable_range = abs(calculated_price - price_on_record) < Decimal("0.0001")
+    LOGGER.debug(
+        "Price calculated_price %.6f vs price_on_record %s in %s",
+        calculated_price,
+        price_on_record,
+        "acceptable range" if in_acceptable_range else "error",
+    )
+    if in_acceptable_range:
+        return True
+    accptable_amount = _approx_equal(amount_on_record, calculated_amount)
+    LOGGER.debug(
+        "Amount amount_on_record %.6f vs calculated_amount %s in %s",
+        amount_on_record,
+        calculated_amount,
+        "acceptable range" if accptable_amount else "error",
+    )
+    return accptable_amount
 
 
 # It is not clear how Schwab or other brokers round the dollar value,
@@ -131,7 +178,13 @@ class CapitalGainsCalculator:
 
             amount = get_amount_or_fail(transaction)
             calculated_amount = quantity * price + transaction.fees
-            if not _approx_equal(amount, -calculated_amount):
+            if not _approx_equal_price_rounding(
+                amount,
+                quantity,
+                price,
+                transaction.fees,
+                CalcuationType.ACQUISITION,
+            ):
                 raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
             amount = -amount
 
@@ -265,7 +318,13 @@ class CapitalGainsCalculator:
         if price is None:
             raise PriceMissingError(transaction)
         calculated_amount = quantity * price - transaction.fees
-        if not _approx_equal(amount, calculated_amount):
+        if not _approx_equal_price_rounding(
+            amount,
+            quantity,
+            price,
+            transaction.fees,
+            CalcuationType.DISPOSAL,
+        ):
             raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
         add_to_list(
             self.disposal_list,
@@ -835,6 +894,7 @@ def main() -> int:
         args.mssb,
         args.sharesight,
         args.raw,
+        args.vanguard,
     )
     converter = CurrencyConverter(args.exchange_rates_file)
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))

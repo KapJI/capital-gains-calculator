@@ -1,0 +1,499 @@
+{
+    "FromDate": "01/01/2020",
+    "ToDate": "01/06/2020",
+    "Transactions": [
+        {
+            "Date": "01/15/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/14/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/14/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/13/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/13/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/12/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/12/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/11/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/11/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/10/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/10/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/09/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/09/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/08/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/08/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/07/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/07/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/06/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/06/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/05/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/05/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/04/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/04/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/03/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "01/03/2020",
+            "Action": "Deposit",
+            "Symbol": "GOOG",
+            "Quantity": "7",
+            "Description": "RS",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "01/01/2020",
+                        "AwardId": "A111",
+                        "VestDate": "01/02/2020",
+                        "VestFairMarketValue": "$123.45"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "04/24/2020",
+            "Action": "Sale",
+            "Symbol": "GOOG",
+            "Quantity": "91",
+            "Description": "Share Sale",
+            "FeesAndCommissions": "$0.49",
+            "DisbursementElection": "Journal",
+            "Amount": "$9,326.42",
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/02/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/03/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/04/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/05/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/06/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/07/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/08/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/09/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/10/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/11/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/12/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/13/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                },
+                {
+                    "Details": {
+                        "Type": "RS",
+                        "Shares": "7",
+                        "SalePrice": "$102.4935",
+                        "SubscriptionDate": "",
+                        "SubscriptionFairMarketValue": "",
+                        "PurchaseDate": "",
+                        "PurchasePrice": "",
+                        "PurchaseFairMarketValue": "",
+                        "DispositionType": null,
+                        "GrantId": "A111",
+                        "VestDate": "01/14/2020",
+                        "VestFairMarketValue": "$123.41",
+                        "GrossProceeds": "$717.45"
+                    }
+                }
+            ]
+        }
+    ]
+}
