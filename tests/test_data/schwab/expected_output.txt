@@ -1,0 +1,30 @@
+WARNING: No schwab award file provided
+INFO: No schwab Equity Award JSON file provided
+INFO: No trading212 folder provided
+INFO: No mssb folder provided
+INFO: No sharesight file provided
+INFO: No raw file provided
+INFO: No vanguard file provided
+First pass completed
+Final portfolio:
+Final balance:
+  Charles Schwab: 1019826.86 (USD)
+Dividends: £0.00
+Dividend taxes: £0.00
+Interest: £0.00
+Disposal proceeds: £248079.51
+
+
+Second pass completed
+Portfolio at the end of 2023/2024 tax year:
+For tax year 2023/2024:
+Number of disposals: 3
+Disposal proceeds: £248079.51
+Allowable costs: £232737.33
+Capital gain: £15342.18
+Capital loss: £0.00
+Total capital gain: £15342.18
+Taxable capital gain: £9342.18
+
+Generate calculations report
+All done!
