@@ -4,6 +4,7 @@ Parsing tests/test_data/trading212_2024/transactions.csv
 INFO: No mssb folder provided
 INFO: No sharesight file provided
 INFO: No raw file provided
+INFO: No vanguard file provided
 First pass completed
 Final portfolio:
 Final balance:
