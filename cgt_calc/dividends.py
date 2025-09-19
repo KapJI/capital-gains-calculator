@@ -32,7 +32,7 @@ def process_dividend(
     else:
         assert treaty is not None
         expected_tax = treaty.country_rate * amount
-        if approx_equal(expected_tax, tax):
+        if not approx_equal(expected_tax, tax):
             LOGGER.warning(
                 "Determined double taxation treaty does not match the base "
                 "taxation rules (expected %.2f base tax for %s but %.2f was deducted) "
