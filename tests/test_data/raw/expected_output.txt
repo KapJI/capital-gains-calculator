@@ -13,6 +13,8 @@ Final portfolio:
 Final balance:
   Unknown: -28486.60 (USD)
 Dividends: £2719.29
+  OTGLY: £7.86
+  OPRA: £2711.43
 Dividend taxes: £0.00
 Interest: £0.00
 Disposal proceeds: £11422.10

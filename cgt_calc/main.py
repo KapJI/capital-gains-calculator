@@ -110,6 +110,12 @@ def _approx_equal(val_a: Decimal, val_b: Decimal) -> bool:
     return abs(val_a - val_b) < Decimal("0.01")
 
 
+def _print_broken_down_gbp_amount_dict(data: dict[str, Decimal]) -> None:
+    """Print the data in the input dictionary assuming the amounts in GBP."""
+    for dimension, amount in data.items():
+        print(f"  {dimension}: £{round_decimal(amount, 2)}")
+
+
 class CapitalGainsCalculator:
     """Main calculator class."""
 
@@ -342,9 +348,9 @@ class CapitalGainsCalculator:
         """Convert broker transactions to HMRC transactions."""
         # We keep a balance per broker,currency pair
         balance: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal(0))
-        dividends = Decimal(0)
-        dividends_tax = Decimal(0)
-        interest = Decimal(0)
+        dividends: dict[str, Decimal] = defaultdict(lambda: Decimal(0))
+        dividends_tax: dict[str, Decimal] = defaultdict(lambda: Decimal(0))
+        interest: dict[str, Decimal] = defaultdict(lambda: Decimal(0))
         total_disposal_proceeds = Decimal(0)
         balance_history: list[Decimal] = []
 
@@ -392,17 +398,25 @@ class CapitalGainsCalculator:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 if self.date_in_tax_year(transaction.date):
-                    dividends += self.converter.to_gbp_for(amount, transaction)
+                    assert transaction.symbol
+                    dividends[transaction.symbol] += self.converter.to_gbp_for(
+                        amount, transaction
+                    )
             elif transaction.action in [ActionType.TAX, ActionType.ADJUSTMENT]:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 if self.date_in_tax_year(transaction.date):
-                    dividends_tax += self.converter.to_gbp_for(amount, transaction)
+                    assert transaction.symbol
+                    dividends_tax[transaction.symbol] -= self.converter.to_gbp_for(
+                        amount, transaction
+                    )
             elif transaction.action is ActionType.INTEREST:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 if self.date_in_tax_year(transaction.date):
-                    interest += self.converter.to_gbp_for(amount, transaction)
+                    interest[transaction.broker] += self.converter.to_gbp_for(
+                        amount, transaction
+                    )
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
@@ -434,9 +448,19 @@ class CapitalGainsCalculator:
         print("Final balance:")
         for (broker, currency), amount in balance.items():
             print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
-        print(f"Dividends: £{round_decimal(dividends, 2)}")
-        print(f"Dividend taxes: £{round_decimal(-dividends_tax, 2)}")
-        print(f"Interest: £{round_decimal(interest, 2)}")
+
+        total_dividends = Decimal(0) + sum(dividends.values())
+        print(f"Dividends: £{round_decimal(total_dividends, 2)}")
+        _print_broken_down_gbp_amount_dict(dividends)
+
+        total_dividends_taxes = Decimal(0) + sum(dividends_tax.values())
+        print(f"Dividend taxes: £{round_decimal(total_dividends_taxes, 2)}")
+        _print_broken_down_gbp_amount_dict(dividends_tax)
+
+        total_interest = Decimal(0) + sum(interest.values())
+        print(f"Interest: £{round_decimal(total_interest, 2)}")
+        _print_broken_down_gbp_amount_dict(interest)
+
         print(f"Disposal proceeds: £{round_decimal(total_disposal_proceeds, 2)}")
         print()
 

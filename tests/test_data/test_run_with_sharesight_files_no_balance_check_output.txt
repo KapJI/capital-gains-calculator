@@ -13,7 +13,11 @@ Final balance:
   Sharesight: -17855.31 (GBP)
   Sharesight: 7474.05 (USD)
 Dividends: £6.92
+  FOO.NASDAQ: £3.92
+  FUND1.UKF: £3.00
 Dividend taxes: £1.78
+  FOO.NASDAQ: £0.78
+  FUND1.UKF: £1.00
 Interest: £0.00
 Disposal proceeds: £12999.61
 

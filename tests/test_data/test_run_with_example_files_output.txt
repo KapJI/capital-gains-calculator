@@ -15,6 +15,7 @@ Final balance:
   Trading212: 33391.30 (GBP)
   Morgan Stanley: 1.00 (USD)
 Dividends: £0.10
+  NVDA: £0.10
 Dividend taxes: £0.00
 Interest: £0.00
 Disposal proceeds: £42783.83

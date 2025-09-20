@@ -11,8 +11,10 @@ Final portfolio:
 Final balance:
   Vanguard: 1423.59 (GBP)
 Dividends: £396.66
+  FOO: £396.66
 Dividend taxes: £0.00
-Interest: £0.00
+Interest: £0.41
+  Vanguard: £0.41
 Disposal proceeds: £104.06
 
 
