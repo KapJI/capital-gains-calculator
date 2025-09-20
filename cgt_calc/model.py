@@ -8,7 +8,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from .util import round_decimal
+from .util import approx_equal, round_decimal
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -39,12 +39,51 @@ class TaxTreaty:
 
 
 @dataclass
+class ExcessReportedIncome:
+    """Class representing Excess Reported Income on a fund.
+
+    The income is reported on a fund at the end of its reporting period.
+    The income represent an increase of the cost basis at that date and a
+    taxable event at the distribution date.
+    """
+
+    price: Decimal
+    symbol: str
+    date: datetime.date
+    distribution_date: datetime.date
+    is_interest: bool
+
+
+@dataclass
+class ExcessReportedIncomeDistribution:
+    """Class representing Excess Reported Income distribution event on a fund.
+
+    This is when the income is distributed to you for tax purposes.
+    """
+
+    price: Decimal = Decimal(0)
+    amount: Decimal = Decimal(0)
+    quantity: Decimal = Decimal(0)
+
+    def __add__(
+        self, transaction: ExcessReportedIncomeDistribution
+    ) -> ExcessReportedIncomeDistribution:
+        """Add two tax transactions."""
+        return self.__class__(
+            price=transaction.price,
+            amount=self.amount + transaction.amount,
+            quantity=self.quantity + transaction.quantity,
+        )
+
+
+@dataclass
 class HmrcTransactionData:
     """Hmrc transaction figures."""
 
     quantity: Decimal = Decimal(0)
     amount: Decimal = Decimal(0)
     fees: Decimal = Decimal(0)
+    eri: ExcessReportedIncome | None = None
 
     def __add__(self, transaction: HmrcTransactionData) -> HmrcTransactionData:
         """Add two transactions."""
@@ -52,6 +91,7 @@ class HmrcTransactionData:
             self.quantity + transaction.quantity,
             self.amount + transaction.amount,
             self.fees + transaction.fees,
+            self.eri or transaction.eri,
         )
 
 
@@ -83,9 +123,12 @@ class ForeignCurrencyAmount:
         return result
 
 
-# For mapping of dates to int
 HmrcTransactionLog = dict[datetime.date, dict[str, HmrcTransactionData]]
 ForeignAmountLog = dict[tuple[str, datetime.date], ForeignCurrencyAmount]
+ExcessReportedIncomeLog = dict[datetime.date, dict[str, ExcessReportedIncome]]
+ExcessReportedIncomeDistributionLog = dict[
+    datetime.date, dict[str, ExcessReportedIncomeDistribution]
+]
 
 
 class ActionType(Enum):
@@ -107,6 +150,7 @@ class ActionType(Enum):
     WIRE_FUNDS_RECEIVED = 14
     STOCK_SPLIT = 15
     CASH_MERGER = 16
+    EXCESS_REPORTED_INCOME = 17
 
 
 class CalcuationType(Enum):
@@ -142,6 +186,8 @@ class RuleType(Enum):
     SPIN_OFF = 4
     DIVIDEND = 5
     INTEREST = 6
+    EXCESS_REPORTED_INCOME = 7
+    EXCESS_REPORTED_INCOME_DISTRIBUTION = 8
 
 
 @dataclass
@@ -179,6 +225,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         bed_and_breakfast_date_index: datetime.date | None = None,
         spin_off: SpinOff | None = None,
         dividend: Dividend | None = None,
+        eri: ExcessReportedIncome | None = None,
     ):
         """Create calculation entry."""
         self.rule_type = rule_type
@@ -194,10 +241,18 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         self.bed_and_breakfast_date_index = bed_and_breakfast_date_index
         self.spin_off = spin_off
         self.dividend = dividend
-        if self.amount >= 0 and self.rule_type not in (
+        self.eri = eri
+        if self.rule_type == RuleType.EXCESS_REPORTED_INCOME:
+            assert self.allowable_cost > 0, str(self)
+            assert approx_equal(
+                self.allowable_cost, self.amount + self.new_pool_cost
+            ), f"Mismatch: {self.allowable_cost} != "
+            f"{self.amount} + {self.new_pool_cost} (for {self})"
+        elif self.amount >= 0 and self.rule_type not in (
             RuleType.SPIN_OFF,
             RuleType.DIVIDEND,
             RuleType.INTEREST,
+            RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
         ):
             assert self.gain == self.amount + self.fees - self.allowable_cost, (
                 f"Mismatch: {self.gain} != "
@@ -216,7 +271,8 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
             f"amount: {self.amount}, "
             f"allowable cost: {self.allowable_cost}, "
             f"fees: {self.fees}, "
-            f"gain: {self.gain}"
+            f"gain: {self.gain}, "
+            f"new pool cost: {self.new_pool_cost}"
         )
 
 
@@ -343,6 +399,12 @@ class CapitalGainsReport:
             assert item.dividend is not None
             if not item.dividend.is_interest:
                 total += item.amount
+        for item in self._filter_calculation_log(
+            self.calculation_log_yields, RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION
+        ):
+            assert item.eri is not None
+            if not item.eri.is_interest:
+                total += item.amount
         return total
 
     def total_dividend_taxes_in_tax_treaties_amount(self) -> Decimal:
@@ -417,4 +479,5 @@ class CapitalGainsReport:
             )
         out += f"Total UK interest proceeds: £{self.total_uk_interest}\n"
         out += f"Total foreign interest proceeds: £{self.total_foreign_interest}\n"
+
         return out

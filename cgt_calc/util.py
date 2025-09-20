@@ -54,3 +54,12 @@ def is_isin(isin: str) -> bool:
 
     payload = "".join(str(ISIN_CHAR_IDXS.index(c)) for c in list(payload))
     return luhn_check_digit(payload) == check_digit
+
+
+def approx_equal(val_a: Decimal, val_b: Decimal) -> bool:
+    """Calculate if two decimal are the same within 0.01.
+
+    It is not clear how Schwab or other brokers round the dollar value,
+    so assume the values are equal if they are within 0.01.
+    """
+    return abs(val_a - val_b) < Decimal("0.01")
