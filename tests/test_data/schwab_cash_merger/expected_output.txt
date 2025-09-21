@@ -6,6 +6,7 @@ INFO: No mssb folder provided
 INFO: No sharesight file provided
 INFO: No raw file provided
 INFO: No vanguard file provided
+INFO: No freetrade folder provided
 First pass completed
 Final portfolio:
 Final balance:

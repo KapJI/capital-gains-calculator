@@ -3,7 +3,7 @@
 
 # UK capital gains calculator
 
-Calculate capital gains tax by transaction history exported from Charles Schwab, Trading 212 and Morgan Stanley. Generate PDF report with calculations.
+Calculate capital gains tax by transaction history exported from Charles Schwab, Trading 212, Morgan Stanley, and Freetrade. Generate PDF report with calculations.
 
 Automatically convert all prices to GBP and apply HMRC rules to calculate capital gains tax: "same day" rule, "bed and breakfast" rule, section 104 holding.
 
@@ -95,6 +95,11 @@ You will need several input files:
     Vanguard can generate a report in Excel format with all transactions across all periods of time and all accounts (ISA, GA, etc). Grab the ones you're interested into (normally GA account) and put them in a single CSV file.
     [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/vanguard).
 
+-   Exported transaction history from Freetrade.
+    Freetrade can export an activity feed in CSV format containing all transactions including trades, dividends, free shares, and cash transfers.
+    Download the activity feed export from your Freetrade account and place the CSV file in a folder.
+    [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/freetrade).
+
 -   CSV file with initial stock prices in USD at the moment of vesting, split, etc.
     [`initial_prices.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format.
 -   (Optional) Monthly exchange rates prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).
@@ -103,7 +108,7 @@ You will need several input files:
 Then run (you can omit the brokers you don't use):
 
 ```shell
-cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/
+cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/ --freetrade freetrade/
 ```
 
 See `cgt-calc --help` for the full list of settings.

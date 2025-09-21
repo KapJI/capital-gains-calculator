@@ -1,0 +1,43 @@
+INFO: No schwab file provided
+INFO: No schwab Equity Award JSON file provided
+INFO: No trading212 folder provided
+INFO: No mssb folder provided
+INFO: No sharesight file provided
+INFO: No raw file provided
+INFO: No vanguard file provided
+Parsing tests/test_data/freetrade/freetrade_transactions.csv
+First pass completed
+Final portfolio:
+  VUSA: 5.00
+  AAPL: 1.00
+  MSFT: 2.00
+  TSLA: 1.00
+  VOD: 50.00
+  BATS: 1.00
+Final balance:
+  Freetrade: 505.50 (GBP)
+Dividends: £8.00
+Dividend taxes: £0.00
+Interest: £2.50
+Disposal proceeds: £225.00
+
+
+Second pass completed
+Portfolio at the end of 2024/2025 tax year:
+  VUSA: 5.00, £500.00
+  AAPL: 1.00, £150.00
+  MSFT: 2.00, £250.00
+  TSLA: 1.00, £200.00
+  VOD: 50.00, £40.00
+  BATS: 1.00, £30.15
+For tax year 2024/2025:
+Number of disposals: 2
+Disposal proceeds: £225.00
+Allowable costs: £190.00
+Capital gain: £35.00
+Capital loss: £0.00
+Total capital gain: £35.00
+Taxable capital gain: £0
+
+Generate calculations report
+All done!

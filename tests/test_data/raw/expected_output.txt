@@ -4,6 +4,7 @@ INFO: No trading212 folder provided
 INFO: No mssb folder provided
 INFO: No sharesight file provided
 INFO: No vanguard file provided
+INFO: No freetrade folder provided
 First pass completed
 Final portfolio:
   AMZN: 210.00
