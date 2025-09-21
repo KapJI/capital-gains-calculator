@@ -129,7 +129,10 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         self.bed_and_breakfast_date_index = bed_and_breakfast_date_index
         self.spin_off = spin_off
         if self.amount >= 0 and self.rule_type is not RuleType.SPIN_OFF:
-            assert self.gain == self.amount - self.allowable_cost
+            assert self.gain == self.amount + self.fees - self.allowable_cost, (
+                f"Mismatch: {self.gain} != "
+                f"{self.amount} + {self.fees} - {self.allowable_cost} (for {self})"
+            )
 
     def __repr__(self) -> str:
         """Return print representation."""
@@ -140,7 +143,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         return (
             f"{self.rule_type.name.replace('_', ' ')}, "
             f"quantity: {self.quantity}, "
-            f"disposal proceeds: {self.amount}, "
+            f"amount: {self.amount}, "
             f"allowable cost: {self.allowable_cost}, "
             f"fees: {self.fees}, "
             f"gain: {self.gain}"

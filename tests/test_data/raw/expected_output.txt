@@ -15,7 +15,7 @@ Final balance:
 Dividends: £2719.29
 Dividend taxes: £0.00
 Interest: £0.00
-Disposal proceeds: £11421.84
+Disposal proceeds: £11422.10
 
 WARNING: Bed and breakfasting for META. Disposed on 2022-08-10 and acquired again on 2022-08-15
 
@@ -27,8 +27,8 @@ Portfolio at the end of 2022/2023 tax year:
   META: 119.00, £18042.21
 For tax year 2022/2023:
 Number of disposals: 3
-Disposal proceeds: £11421.84
-Allowable costs: £13587.96
+Disposal proceeds: £11422.10
+Allowable costs: £13588.22
 Capital gain: £0.00
 Capital loss: £2166.12
 Total capital gain: £-2166.12

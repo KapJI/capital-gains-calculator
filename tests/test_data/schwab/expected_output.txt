@@ -12,15 +12,15 @@ Final balance:
 Dividends: £0.00
 Dividend taxes: £0.00
 Interest: £0.00
-Disposal proceeds: £248079.51
+Disposal proceeds: £248082.51
 
 
 Second pass completed
 Portfolio at the end of 2023/2024 tax year:
 For tax year 2023/2024:
 Number of disposals: 3
-Disposal proceeds: £248079.51
-Allowable costs: £232737.33
+Disposal proceeds: £248082.51
+Allowable costs: £232740.33
 Capital gain: £15342.18
 Capital loss: £0.00
 Total capital gain: £15342.18
