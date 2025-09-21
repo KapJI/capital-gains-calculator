@@ -895,6 +895,7 @@ def main() -> int:
         args.sharesight,
         args.raw,
         args.vanguard,
+        args.freetrade,
     )
     converter = CurrencyConverter(args.exchange_rates_file)
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))

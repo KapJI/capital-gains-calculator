@@ -80,6 +80,12 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="file containing the exported transactions from Vanguard in CSV format",
     )
+    parser.add_argument(
+        "--freetrade",
+        type=str,
+        nargs="?",
+        help="folder containing the exported transaction files from Freetrade",
+    )
 
     parser.add_argument(
         "--exchange-rates-file",
