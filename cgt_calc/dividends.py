@@ -1,6 +1,11 @@
 """Dividends."""
 
-import datetime
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import datetime
 from decimal import Decimal
 import logging
 
@@ -16,7 +21,11 @@ DOUBLE_TAXATION_RULES = {
 
 
 def process_dividend(
-    date: datetime.date, symbol: str, amount: Decimal, tax: Decimal, currency: str
+    date: datetime.date,
+    symbol: str,
+    amount: Decimal,
+    tax: Decimal | None,
+    currency: str,
 ) -> Dividend:
     """Create dividend with matching tax treaty rule based on currency."""
     try:
@@ -31,8 +40,8 @@ def process_dividend(
         treaty = None
     else:
         assert treaty is not None
-        expected_tax = treaty.country_rate * amount
-        if not approx_equal(expected_tax, tax):
+        expected_tax = treaty.country_rate * -amount
+        if tax is not None and not approx_equal(expected_tax, tax):
             LOGGER.warning(
                 "Determined double taxation treaty does not match the base "
                 "taxation rules (expected %.2f base tax for %s but %.2f was deducted) "
@@ -44,4 +53,4 @@ def process_dividend(
             )
             treaty = None
 
-    return Dividend(date, symbol, amount, tax, treaty)
+    return Dividend(date, symbol, amount, tax or Decimal(0), treaty)

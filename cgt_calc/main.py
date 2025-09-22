@@ -53,7 +53,7 @@ from .model import (
 from .parsers import read_broker_transactions, read_initial_prices
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
-from .util import approx_equal, round_decimal
+from .util import round_decimal
 
 LOGGER = logging.getLogger(__name__)
 
@@ -352,10 +352,10 @@ class CapitalGainsCalculator:
     ) -> tuple[Decimal, Decimal]:
         sum_dividends, sum_taxes = Decimal(0), Decimal(0)
         for (ticker, date), (amount, currency) in dividends.items():
-            tax = dividends_taxes.get((ticker, date), Decimal(0))
-            sum_taxes += tax
-            sum_dividends += amount
+            tax = dividends_taxes.get((ticker, date))
             dividend = process_dividend(date, ticker, amount, tax, currency)
+            sum_taxes += dividend.tax_at_source
+            sum_dividends += dividend.amount
             self.dividends.append(dividend)
         return sum_dividends, sum_taxes
 
@@ -418,10 +418,22 @@ class CapitalGainsCalculator:
                 if self.date_in_tax_year(transaction.date):
                     symbol = transaction.symbol
                     assert symbol is not None
+                    converted_amount = self.converter.to_gbp_for(amount, transaction)
+                    if (symbol, transaction.date) not in dividends:
+                        existing_amount = Decimal(0)
+                    else:
+                        existing_amount, existing_currency = dividends[
+                            (symbol, transaction.date)
+                        ]
+                        assert transaction.currency == existing_currency, f"""
+Detected several dividend transaction for the symbol {symbol} on {transaction.date}.
+One uses currency {existing_currency} and the other {transaction.currency}.
+This is not supported.""".strip()
                     dividends[(symbol, transaction.date)] = (
-                        self.converter.to_gbp_for(amount, transaction),
+                        existing_amount + converted_amount,
                         transaction.currency,
                     )
+
             elif transaction.action in [ActionType.DIVIDEND_TAX, ActionType.ADJUSTMENT]:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount

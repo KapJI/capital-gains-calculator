@@ -11,7 +11,7 @@ Final portfolio:
 Final balance:
   Vanguard: 1423.59 (GBP)
 Dividends: £396.66
-Dividend taxes: £0.00
+Dividend taxes at source: £0.00
 Interest: £0.00
 Disposal proceeds: £104.06
 
@@ -29,5 +29,12 @@ Capital loss: £0.00
 Total capital gain: £2.20
 Taxable capital gain: £0
 
-Generate calculations report
+Dividends for tax year 2022/2023:
+Number of dividends received: 2
+Amount of dividends received: £396.66
+Amount of taxes taken at source: £0.00
+Amount of taxes allowance due to tax treaties: £0.00
+Taxable dividend gain: £0.00
+
+Generate calculations reports
 All done!

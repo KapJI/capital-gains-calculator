@@ -10,10 +10,10 @@ Final portfolio:
   NASDAQ:FOO: 5.00
   FundUK:FUND1: 50.00
 Final balance:
-  Sharesight: -17855.31 (GBP)
-  Sharesight: 7474.05 (USD)
+  Sharesight: -17854.31 (GBP)
+  Sharesight: 7474.30 (USD)
 Dividends: £6.92
-Dividend taxes at source: £1.78
+Dividend taxes at source: £0.59
 Interest: £0.00
 Disposal proceeds: £12999.61
 
@@ -35,7 +35,7 @@ Taxable capital gain: £0
 Dividends for tax year 2020/2021:
 Number of dividends received: 2
 Amount of dividends received: £6.92
-Amount of taxes taken at source: £1.78
+Amount of taxes taken at source: £0.59
 Amount of taxes allowance due to tax treaties: £0.59
 WARNING: Missing allowance for this tax year
 Taxable dividend gain: £6.33
