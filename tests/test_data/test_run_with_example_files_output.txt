@@ -17,7 +17,7 @@ Final balance:
 Dividends: £0.10
 Dividend taxes at source: £0.00
 Interest: £0.00
-Disposal proceeds: £42769.56
+Disposal proceeds: £42783.83
 
 WARNING: Bed and breakfasting for FOO. Disposed on 2021-03-03 and acquired again on 2021-04-02
 
@@ -29,8 +29,8 @@ Portfolio at the end of 2020/2021 tax year:
   GOOG: 172.00, £12516.55
 For tax year 2020/2021:
 Number of disposals: 4
-Disposal proceeds: £42769.56
-Allowable costs: £17656.08
+Disposal proceeds: £42783.83
+Allowable costs: £17670.35
 Capital gain: £25113.48
 Capital loss: £0.00
 Total capital gain: £25113.48

@@ -37,6 +37,7 @@ from .initial_prices import InitialPrices
 from .model import (
     ActionType,
     BrokerTransaction,
+    CalcuationType,
     CalculationEntry,
     CalculationLog,
     CapitalGainsReport,
@@ -63,6 +64,58 @@ def get_amount_or_fail(transaction: BrokerTransaction) -> Decimal:
     if amount is None:
         raise AmountMissingError(transaction)
     return amount
+
+
+# Amount difference can be caused by rounding errors in the price.
+# Schwab rounds down the price to 4 decimal places
+#  so that the error in amount can be more than $0.01.
+# Fox example:
+# 500 shares of FOO sold at $100.00016 with $1.23 fees.
+# "01/01/2024,"Sell","FOO","FOO","500","$100.0001","$1.23","$49,998.85"
+# calculated_amount = 500 * 100.0001 - 1.23 = 49998.82
+# amount_on_record = 49998.85 vs calculated_amount = 49998.82
+def _approx_equal_price_rounding(
+    amount_on_record: Decimal,
+    quantity_on_record: Decimal,
+    price_on_record: Decimal,
+    fees_on_record: Decimal,
+    calcuationType: CalcuationType,
+) -> bool:
+    calculated_amount = Decimal(0)
+    calculated_price = Decimal(0)
+    if calcuationType is CalcuationType.ACQUISITION:
+        calculated_amount = Decimal(-1) * (
+            quantity_on_record * price_on_record + fees_on_record
+        )
+        calculated_price = (
+            Decimal(-1) * amount_on_record - fees_on_record
+        ) / quantity_on_record
+    elif calcuationType is CalcuationType.DISPOSAL:
+        calculated_amount = quantity_on_record * price_on_record - fees_on_record
+        calculated_price = (amount_on_record + fees_on_record) / quantity_on_record
+    in_acceptable_range = abs(calculated_price - price_on_record) < Decimal("0.0001")
+    LOGGER.debug(
+        "Price calculated_price %.6f vs price_on_record %s in %s",
+        calculated_price,
+        price_on_record,
+        "acceptable range" if in_acceptable_range else "error",
+    )
+    if in_acceptable_range:
+        return True
+    accptable_amount = _approx_equal(amount_on_record, calculated_amount)
+    LOGGER.debug(
+        "Amount amount_on_record %.6f vs calculated_amount %s in %s",
+        amount_on_record,
+        calculated_amount,
+        "acceptable range" if accptable_amount else "error",
+    )
+    return accptable_amount
+
+
+# It is not clear how Schwab or other brokers round the dollar value,
+# so assume the values are equal if they are within $0.01.
+def _approx_equal(val_a: Decimal, val_b: Decimal) -> bool:
+    return abs(val_a - val_b) < Decimal("0.01")
 
 
 class CapitalGainsCalculator:
@@ -135,7 +188,13 @@ class CapitalGainsCalculator:
 
             amount = get_amount_or_fail(transaction)
             calculated_amount = quantity * price + transaction.fees
-            if not approx_equal(amount, -calculated_amount):
+            if not _approx_equal_price_rounding(
+                amount,
+                quantity,
+                price,
+                transaction.fees,
+                CalcuationType.ACQUISITION,
+            ):
                 raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
             amount = -amount
 
@@ -269,7 +328,13 @@ class CapitalGainsCalculator:
         if price is None:
             raise PriceMissingError(transaction)
         calculated_amount = quantity * price - transaction.fees
-        if not approx_equal(amount, calculated_amount):
+        if not _approx_equal_price_rounding(
+            amount,
+            quantity,
+            price,
+            transaction.fees,
+            CalcuationType.DISPOSAL,
+        ):
             raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
         add_to_list(
             self.disposal_list,
@@ -304,7 +369,7 @@ class CapitalGainsCalculator:
         dividends: dict[tuple[str, datetime.date], tuple[Decimal, str]] = {}
         dividends_tax: dict[tuple[str, datetime.date], Decimal] = {}
         interest = Decimal(0)
-        total_sells = Decimal(0)
+        total_disposal_proceeds = Decimal(0)
         balance_history: list[Decimal] = []
 
         for i, transaction in enumerate(transactions):
@@ -322,7 +387,9 @@ class CapitalGainsCalculator:
                 new_balance += amount
                 self.add_disposal(transaction)
                 if self.date_in_tax_year(transaction.date):
-                    total_sells += self.converter.to_gbp_for(amount, transaction)
+                    total_disposal_proceeds += self.converter.to_gbp_for(
+                        amount + transaction.fees, transaction
+                    )
             elif transaction.action is ActionType.FEE:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
@@ -408,7 +475,7 @@ class CapitalGainsCalculator:
         print(f"Dividends: £{round_decimal(sum_dividends, 2)}")
         print(f"Dividend taxes at source: £{round_decimal(-sum_dividends_tax, 2)}")
         print(f"Interest: £{round_decimal(interest, 2)}")
-        print(f"Disposal proceeds: £{round_decimal(total_sells, 2)}")
+        print(f"Disposal proceeds: £{round_decimal(total_disposal_proceeds, 2)}")
         print()
 
     def process_acquisition(
@@ -540,11 +607,13 @@ class CapitalGainsCalculator:
 
             available_quantity = min(disposal_quantity, same_day_acquisition.quantity)
             if available_quantity > 0:
+                fees = disposal.fees * available_quantity / original_disposal_quantity
                 acquisition_price = (
                     same_day_acquisition.amount / same_day_acquisition.quantity
                 )
-                same_day_proceeds = available_quantity * disposal_price
-                same_day_allowable_cost = available_quantity * acquisition_price
+                same_day_amount = available_quantity * disposal_price
+                same_day_proceeds = same_day_amount + fees
+                same_day_allowable_cost = available_quantity * acquisition_price + fees
                 same_day_gain = same_day_proceeds - same_day_allowable_cost
                 chargeable_gain += same_day_gain
                 LOGGER.debug(
@@ -564,12 +633,11 @@ class CapitalGainsCalculator:
                     assert (
                         round_decimal(current_amount, 23) == 0
                     ), f"current amount {current_amount}"
-                fees = disposal.fees * available_quantity / original_disposal_quantity
                 calculation_entries.append(
                     CalculationEntry(
                         rule_type=RuleType.SAME_DAY,
                         quantity=available_quantity,
-                        amount=same_day_proceeds,
+                        amount=same_day_amount,
                         gain=same_day_gain,
                         allowable_cost=same_day_allowable_cost,
                         fees=fees,
@@ -623,11 +691,15 @@ class CapitalGainsCalculator:
                         - same_day_disposal.quantity
                         - bnb_acquisition.quantity,
                     )
+                    fees = (
+                        disposal.fees * available_quantity / original_disposal_quantity
+                    )
                     acquisition_price = acquisition.amount / acquisition.quantity
-                    bed_and_breakfast_proceeds = available_quantity * disposal_price
+                    bed_and_breakfast_amount = available_quantity * disposal_price
+                    bed_and_breakfast_proceeds = bed_and_breakfast_amount + fees
                     bed_and_breakfast_allowable_cost = (
                         available_quantity * acquisition_price
-                    )
+                    ) + fees
                     bed_and_breakfast_gain = (
                         bed_and_breakfast_proceeds - bed_and_breakfast_allowable_cost
                     )
@@ -658,14 +730,11 @@ class CapitalGainsCalculator:
                         amount_delta,
                         Decimal(0),
                     )
-                    fees = (
-                        disposal.fees * available_quantity / original_disposal_quantity
-                    )
                     calculation_entries.append(
                         CalculationEntry(
                             rule_type=RuleType.BED_AND_BREAKFAST,
                             quantity=available_quantity,
-                            amount=bed_and_breakfast_proceeds,
+                            amount=bed_and_breakfast_amount,
                             gain=bed_and_breakfast_gain,
                             allowable_cost=bed_and_breakfast_allowable_cost,
                             fees=fees,
@@ -675,30 +744,39 @@ class CapitalGainsCalculator:
                         )
                     )
         if disposal_quantity > 0:
-            allowable_cost = current_amount * disposal_quantity / current_quantity
-            chargeable_gain += proceeds_amount - allowable_cost
+            available_quantity = disposal_quantity
+            fees = disposal.fees * available_quantity / original_disposal_quantity
+            acquisition_price = current_amount / current_quantity
+            r104_amount = available_quantity * disposal_price
+            r104_proceeds = r104_amount + fees
+            r104_allowable_cost = available_quantity * acquisition_price + fees
+            r104_gain = r104_proceeds - r104_allowable_cost
+            chargeable_gain += r104_gain
             LOGGER.debug(
                 "SECTION 104, quantity %d, gain %s, proceeds amount %s, "
                 "allowable cost %s",
-                disposal_quantity,
-                proceeds_amount - allowable_cost,
-                proceeds_amount,
-                allowable_cost,
+                available_quantity,
+                r104_gain,
+                r104_proceeds,
+                r104_allowable_cost,
             )
-            current_quantity -= disposal_quantity
-            current_amount -= allowable_cost
+            disposal_quantity -= available_quantity
+            proceeds_amount -= available_quantity * disposal_price
+            current_price = current_amount / current_quantity
+            amount_delta = available_quantity * current_price
+            current_quantity -= available_quantity
+            current_amount -= amount_delta
             if current_quantity == 0:
                 assert (
                     round_decimal(current_amount, 10) == 0
                 ), f"current amount {current_amount}"
-            fees = disposal.fees * disposal_quantity / original_disposal_quantity
             calculation_entries.append(
                 CalculationEntry(
                     rule_type=RuleType.SECTION_104,
-                    quantity=disposal_quantity,
-                    amount=proceeds_amount,
-                    gain=proceeds_amount - allowable_cost,
-                    allowable_cost=allowable_cost,
+                    quantity=available_quantity,
+                    amount=r104_amount,
+                    gain=r104_gain,
+                    allowable_cost=r104_allowable_cost,
                     fees=fees,
                     new_quantity=current_quantity,
                     new_pool_cost=current_amount,
@@ -754,9 +832,13 @@ class CapitalGainsCalculator:
                     )
                     if date_index >= tax_year_start_index:
                         disposal_count += 1
-                        transaction_disposal_proceeds = self.disposal_list[date_index][
+                        transaction_amount = self.disposal_list[date_index][
                             symbol
                         ].amount
+                        transaction_fees = self.disposal_list[date_index][symbol].fees
+                        transaction_disposal_proceeds = (
+                            transaction_amount + transaction_fees
+                        )
                         disposal_proceeds += transaction_disposal_proceeds
                         allowable_costs += (
                             transaction_disposal_proceeds - transaction_capital_gain
@@ -776,7 +858,7 @@ class CapitalGainsCalculator:
                         calculated_gain = Decimal(0)
                         for entry in calculation_entries:
                             calculated_quantity += entry.quantity
-                            calculated_proceeds += entry.amount
+                            calculated_proceeds += entry.amount + entry.fees
                             calculated_gain += entry.gain
                         assert transaction_quantity == calculated_quantity
                         assert round_decimal(
