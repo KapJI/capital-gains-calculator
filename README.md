@@ -23,7 +23,6 @@ pipx install cgt-calc
 
 -   Python 3.9 or above.
 -   `pdflatex` is required to generate the report.
--   [Optional] Docker
 
 ## Install LaTeX
 
@@ -43,7 +42,132 @@ apt install texlive-latex-base
 
 [Install MiKTeX.](https://miktex.org/download)
 
-### Docker
+## Usage
+
+- You need to supply transaction history for each account you have. See below for per-broker instructions. The history needs to contain all transactions since the beginning, or at least since you first acquired the shares owned during the relevant tax years.
+- Once you have all your transactions from all your brokers you need to supply them together, for example to generate the report for the tax year 2020/21:
+```shell
+cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/
+```
+- Run `cgt-calc --help` for the full list of settings.
+- If your broker is not listed below you can still try to use the raw format. We also welcome PRs for new parsers.
+
+## Broker-specific instructions
+
+<details>
+    <summary>🔍 Instructions for broker "Charles Schwab"</summary>
+
+You will need:
+-   **Exported transaction history in CSV format.**
+    Schwab only allows to download transaction for the last 4 years. If you require more, you can download the history in 4-year chunks and combine them.
+    [See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/test_data/schwab_transactions.csv).
+-   **Exported transaction history from Schwab Equity Awards in CSV format.**
+    Only applicable if you receive equity awards in your account (e.g. for Alphabet/Google employees). Follow the same procedure as in the normal transaction history but selecting your Equity Award account.
+
+Example usage for the tax year 2020/21:
+```shell
+cgt-calc --year 2020 --schwab schwab_transactions.csv --schwab-award schwab_awards.csv
+```
+
+*Note: For historic reasons, it is possible to provide the Equity Awards history in JSON format with `--schwab_equity_award_json`. Instructions are available at the top of this [parser file](../main/cgt_calc/parsers/schwab_equity_award_json.py). Please use the CSV method above if possible.*
+
+</details>
+ <br />
+<details>
+    <summary>🔍 Instructions for broker "Trading212"</summary>
+
+You will need:
+-   **Exported transaction history from Trading 212.**
+    You can provide a folder containing several files since Trading 212 limit the statements to 1 year periods.
+    [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/trading212).
+
+
+Example usage for the tax year 2024/25:
+```shell
+cgt-calc --year 2024 --trading212 trading212_trxs_dir/
+```
+
+</details>
+ <br />
+<details>
+    <summary>🔍 Instructions for broker "Morgan Stanley"</summary>
+
+You will need:
+-   **Exported transaction history from Morgan Stanley.**
+    Since Morgan Stanley generates multiple files in a single report, please specify a directory produced from the report download page.
+[See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/mssb).
+
+
+Example usage for the tax year 2024/25:
+```shell
+cgt-calc --year 2024 --mssb morgan_stanley_trxs_dir/
+```
+
+</details>
+ <br />
+<details>
+    <summary>🔍 Instructions for broker "Sharesight"</summary>
+
+You will need:
+-   **Exported transaction history from Sharesight.**
+    Sharesight is a portfolio tracking tool with support for multiple brokers.
+    - You will need the "All Trades" and "Taxable Income" reports since the beginning. Make sure to select "Since Inception" for the period, and "Not Grouping".
+    - Export both reports to Excel or Google Sheets, save as CSV, and place them in the same folder.
+    - [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight).
+
+Comments:
+- Sharesight aggregates transactions from multiple brokers, but doesn't necessarily have balance information.
+Use the `--no-balance-check` flag to avoid spurious errors.
+
+- Since there is no direct support for equity grants, add `Stock Activity` as part of the comment associated with any vesting transactions - making sure they have the grant price filled ([see example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight)).
+
+Example usage for the tax year 2024/25:
+```shell
+cgt-calc --year 2024 --no-balance-check --sharesight sharesight_trxs_dir/
+```
+
+</details>
+ <br />
+<details>
+    <summary>🔍 Instructions for broker "Vanguard"</summary>
+
+You will need:
+-   **Exported transaction history from Vanguard.**
+    Vanguard can generate a report in Excel format with all transactions across all periods of time and all accounts (ISA, GA, etc). Grab the ones you're interested into (normally GA account) and put them in a single CSV file.
+    [See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/test_data/vanguard/report.csv).
+
+Example usage for the tax year 2024/25:
+```shell
+cgt-calc --year 2024 --vanguard vanguard.csv
+```
+
+</details>
+ <br />
+<details>
+    <summary>🔍 Instructions for RAW format</summary>
+
+You will need:
+- **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert whatever report you can produce into this basic format. 
+[See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/test_data/raw/test_data.csv)
+
+Example usage for the tax year 2024/25:
+```shell
+cgt-calc --year 2024 --raw sharesight_trxs_dir/
+```
+
+</details>
+ <br />
+
+### Extra files that might be needed
+
+-   **CSV file with initial stock prices in USD.** This is needed under special circumstances for example at the moment of vesting, split, etc.
+    [`initial_prices.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format. The program will inform when some required price is missing.
+-   **(Automatic) Monthly exchange rates prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).** This is needed to convert foreign currencies into GBP amounts. `exchange_rates.csv` gets generated automatically using HMRC API, you need to use the same format if you want to override it.
+-   **Spin-off file.** Supplies extra information needed for spin-offs transactions through `--spin-offs-file`.
+
+
+
+## Docker
 
 These steps will build and run the calculator in a self-contained environment, in case you would rather not have a systemwide LaTeX installation (or don't want to interfere with an existing one).
 The following steps are tested on an Apple silicon Mac and may need to be slightly modified on other platforms.
@@ -63,50 +187,6 @@ a4800eca1914:/data# cgt-calc [...]
 
 This will create a temporary Docker container with the current directory on the host (where your transaction data is) mounted inside the container at `/data`. Follow the usage instructions below as normal,
 and when you're done, simply exit the shell. You will be dropped back into the shell on your host, with your output report pdf etc..
-
-## Usage
-
-You will need several input files:
-
--   Exported transaction history from Schwab in CSV format since the beginning.
-    Or at least since you first acquired the shares, which you were holding during the tax year. Schwab only allows to download transaction for the last 4 years so keep it safe. After that you may need to restore transactions from PDF statements.
-    [See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/test_data/schwab_transactions.csv).
--   Exported transaction history from Schwab Equity Awards (e.g. for Alphabet/Google employees) since the beginning (Note: Schwab now allows for the whole history of Equity Awards account transactions to be downloaded). These are to be downloaded in JSON format. Instructions are available at the top of the [parser file](../main/cgt_calc/parsers/schwab_equity_award_json.py).
--   Exported transaction history from Trading 212.
-    You can use several files here since Trading 212 limit the statements to 1 year periods.
-    [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/trading212).
--   Exported transaction history from Morgan Stanley.
-    Since Morgan Stanley generates multiple files in a single report, please specify a directory produced from the report download page.
--   Exported transaction history from Sharesight
-    Sharesight is a portfolio tracking tool with support for multiple brokers.
-
-    You will need the "All Trades" and "Taxable Income" reports since the beginning.
-    Make sure to select "Since Inception" for the period, and "Not Grouping".
-    Export both reports to Excel or Google Sheets, save as CSV, and place them in the same folder.
-
-    Sharesight aggregates transactions from multiple brokers, but doesn't necessarily have balance information.
-    Use the `--no-balance-check` flag to avoid spurious errors.
-
-    Since there is no direct support for equity grants, add `Stock Activity` as part of the comment associated with any vesting transactions - making sure they have the grant price filled.
-
-    [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight).
-
--   Exported transaction history from Vanguard.
-    Vanguard can generate a report in Excel format with all transactions across all periods of time and all accounts (ISA, GA, etc). Grab the ones you're interested into (normally GA account) and put them in a single CSV file.
-    [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/vanguard).
-
--   CSV file with initial stock prices in USD at the moment of vesting, split, etc.
-    [`initial_prices.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format.
--   (Optional) Monthly exchange rates prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).
-    `exchange_rates.csv` gets generated automatically using HMRC API, you need to use the same format if you want to override it.
-
-Then run (you can omit the brokers you don't use):
-
-```shell
-cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/
-```
-
-See `cgt-calc --help` for the full list of settings.
 
 ## Disclaimer
 
