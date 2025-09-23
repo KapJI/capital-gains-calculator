@@ -44,14 +44,14 @@ apt install texlive-latex-base
 
 ## Usage
 
--  You need to supply transaction history for each account you have. See below for per-broker instructions. The history needs to contain all transactions since the beginning, or at least since you first acquired the shares owned during the relevant tax years.
--  Once you have all your transactions from all your brokers you need to supply them together, for example to generate the report for the tax year 2020/21:
+-   You need to supply transaction history for each account you have. See below for per-broker instructions. The history needs to contain all transactions since the beginning, or at least since you first acquired the shares owned during the relevant tax years.
+-   Once you have all your transactions from all your brokers you need to supply them together, for example to generate the report for the tax year 2020/21:
 
 ```shell
 cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/
 ```
--  Run `cgt-calc --help` for the full list of settings.
--  If your broker is not listed below you can still try to use the raw format. We also welcome PRs for new parsers.
+-   Run `cgt-calc --help` for the full list of settings.
+-   If your broker is not listed below you can still try to use the raw format. We also welcome PRs for new parsers.
 
 ## Broker-specific instructions
 
@@ -85,7 +85,6 @@ You will need:
     You can provide a folder containing several files since Trading 212 limit the statements to 1 year periods.
     [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/trading212).
 
-
 Example usage for the tax year 2024/25:
 
 ```shell
@@ -103,7 +102,6 @@ You will need:
     Since Morgan Stanley generates multiple files in a single report, please specify a directory produced from the report download page.
     [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/mssb).
 
-
 Example usage for the tax year 2024/25:
 
 ```shell
@@ -119,16 +117,16 @@ You will need:
 
 -   **Exported transaction history from Sharesight.**
     Sharesight is a portfolio tracking tool with support for multiple brokers.
-    -  You will need the "All Trades" and "Taxable Income" reports since the beginning. Make sure to select "Since Inception" for the period, and "Not Grouping".
-    -  Export both reports to Excel or Google Sheets, save as CSV, and place them in the same folder.
-    -  [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight).
+    -   You will need the "All Trades" and "Taxable Income" reports since the beginning. Make sure to select "Since Inception" for the period, and "Not Grouping".
+    -   Export both reports to Excel or Google Sheets, save as CSV, and place them in the same folder.
+    -   [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight).
 
 Comments:
 
--  Sharesight aggregates transactions from multiple brokers, but doesn't necessarily have balance information.
-Use the `--no-balance-check` flag to avoid spurious errors.
+-   Sharesight aggregates transactions from multiple brokers, but doesn't necessarily have balance information.
+    Use the `--no-balance-check` flag to avoid spurious errors.
 
--  Since there is no direct support for equity grants, add `Stock Activity` as part of the comment associated with any vesting transactions - making sure they have the grant price filled ([see example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight)).
+-   Since there is no direct support for equity grants, add `Stock Activity` as part of the comment associated with any vesting transactions - making sure they have the grant price filled ([see example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight)).
 
 Example usage for the tax year 2024/25:
 
@@ -160,8 +158,8 @@ cgt-calc --year 2024 --vanguard vanguard.csv
 
 You will need:
 
--  **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert whatever report you can produce into this basic format. 
-[See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/test_data/raw/test_data.csv)
+-   **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert whatever report you can produce into this basic format. 
+    [See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/test_data/raw/test_data.csv)
 
 Example usage for the tax year 2024/25:
 
