@@ -50,7 +50,7 @@ apt install texlive-latex-base
 ```shell
 cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/
 ```
-cberrbblucd
+
 -   Run `cgt-calc --help` for the full list of settings.
 -   If your broker is not listed below you can still try to use the raw format. We also welcome PRs for new parsers.
 
@@ -159,7 +159,7 @@ cgt-calc --year 2024 --vanguard vanguard.csv
 
 You will need:
 
--   **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert whatever report you can produce into this basic format. 
+-   **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert whatever report you can produce into this basic format.
     [See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/test_data/raw/test_data.csv)
 
 Example usage for the tax year 2024/25:
