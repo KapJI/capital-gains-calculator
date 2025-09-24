@@ -15,6 +15,8 @@ def test_run_with_vanguard_files() -> None:
         "2022",
         "--vanguard",
         "tests/test_data/vanguard/report.csv",
+        "--interest-fund-tickers",
+        "FOO",
         "--no-pdflatex",
     ]
     result = subprocess.run(cmd, check=True, capture_output=True)
