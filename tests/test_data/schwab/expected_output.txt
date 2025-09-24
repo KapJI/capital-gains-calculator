@@ -9,9 +9,9 @@ First pass completed
 Final portfolio:
 Final balance:
   Charles Schwab: 1019826.86 (USD)
-Dividends: £0.00
-Dividend taxes: £0.00
-Interest: £0.00
+Dividends:
+UK Interest: £0.00
+Foreign Interest: £0.00
 Disposal proceeds: £248082.51
 
 
@@ -25,6 +25,10 @@ Capital gain: £15342.18
 Capital loss: £0.00
 Total capital gain: £15342.18
 Taxable capital gain: £9342.18
+Total dividends proceeds: £0.00
+Total taxable dividends proceeds: £0.00
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £0.00
 
 Generate calculations report
 All done!

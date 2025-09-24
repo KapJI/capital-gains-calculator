@@ -9,10 +9,14 @@
 \BLOCK{ set total_loss = namespace(value=Decimal(0)) }
 \BLOCK{ set acquisition_count = namespace(value=0) }
 \BLOCK{ set disposal_count = namespace(value=0) }
+\BLOCK{ set dividend_count = namespace(value=0) }
+\BLOCK{ set interest_count = namespace(value=0) }
+
+\section*{Captail Gains Events}
 
 \BLOCK{ for date_index, symbol_dict in report.calculation_log.items() }
 
-\section*{\VAR{ date_index.strftime("%d %B %Y") }}
+\subsection*{\VAR{ date_index.strftime("%d %B %Y") }}
 \BLOCK{ for symbol, entries in symbol_dict.items() }
 \BLOCK{ if symbol.startswith("sell$") }
     \BLOCK{ set symbol = symbol[5:] }
@@ -30,7 +34,7 @@
     \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount"), 2) }
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
-    \subsection*{
+    \subsubsection*{
         Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }
         (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
         \BLOCK{ if overall_fees > 0 }
@@ -52,7 +56,7 @@
     \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
     \BLOCK{ if overall_quantity > 0 }
         \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
-        \subsection*{
+        \subsubsection*{
             Acquisition \VAR{ acquisition_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(acquisition_cost) }
             (£\VAR{ "{:,}".format(round_decimal(acquisition_cost/overall_quantity, 2)) }/unit)%
             \BLOCK{ if overall_fees > 0 }
@@ -60,13 +64,13 @@
             \BLOCK{ endif }
         }
     \BLOCK{ else }
-        \subsection*{Management fee for \VAR{ symbol } of £\VAR{ "{:,}".format(acquisition_cost) }}
+        \subsubsection*{Management fee for \VAR{ symbol } of £\VAR{ "{:,}".format(acquisition_cost) }}
     \BLOCK{ endif}
 \BLOCK{ elif is_spin_off } % if is_spin_off
     \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
     \BLOCK{ if overall_quantity > 0 }
         \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
-        \subsection*{
+        \subsubsection*{
             Spin-off adjustment \VAR{ acquisition_count.value }: \VAR{ entries[0].spin_off.source } cost adjusted because of \VAR{ entries[0].spin_off.dest } shares spinned off
         }
     \BLOCK{ endif }
@@ -119,12 +123,65 @@
 
 \BLOCK{ endfor }
 
-\section*{Overall}
+\BLOCK{ if report.calculation_log_yields }
+    \clearpage
+    \section*{Interest and Diviends Events}
+
+    \BLOCK{ for date_index, symbol_dict in report.calculation_log_yields.items() }
+
+    \subsection*{\VAR{ date_index.strftime("%d %B %Y") }}
+    \BLOCK{ for symbol, entries in symbol_dict.items() }
+    \BLOCK{ if symbol.startswith("dividend$") }
+        \BLOCK{ set symbol = symbol[9:] }
+        \BLOCK{ set is_dividend = True }
+    \BLOCK{ elif symbol.startswith("interestUK$") }
+        \BLOCK{ set symbol = symbol[11:] }
+        \BLOCK{ set is_interest = True }
+        \BLOCK{ set interest_str = "UK" }
+    \BLOCK{ elif symbol.startswith("interestForeign$") }
+        \BLOCK{ set symbol = symbol[16:] }
+        \BLOCK{ set is_interest = True }
+        \BLOCK{ set interest_str = "Foreign" }
+    \BLOCK{ endif }
+    \BLOCK{ if is_dividend }
+        \BLOCK{ set type_str = "" }
+        \BLOCK{ set dividend_count.value = dividend_count.value + 1 }
+        \BLOCK{ if entries[0].dividend.is_interest }
+            \BLOCK{ set type_str = " (interest)" }
+        \BLOCK{ endif }
+        \textbf{Dividend \VAR{ dividend_count.value }:} \VAR{ symbol + type_str } for £\VAR{ "{:,}".format(round_decimal(entries[0].amount, 2)) }
+        \BLOCK{ if not entries[0].dividend.is_interest }
+            (tax paid at source: £\VAR{ "{:,}".format(round_decimal(-entries[0].dividend.tax_at_source, 2)) })
+        \BLOCK{ endif }
+        \BLOCK{ if entries[0].dividend.tax_treaty }
+            , tax treaty amount: £\VAR{ "{:,}".format(round_decimal(entries[0].dividend.tax_treaty_amount, 2)) } (treaty rate for \VAR{ entries[0].dividend.tax_treaty.country }: \VAR{ round_decimal(100 * entries[0].dividend.tax_treaty.treaty_rate, 2) }\%)
+        \BLOCK{ endif }
+    \BLOCK{ elif is_interest } % if is_interest
+        \BLOCK{ set interest_count.value = interest_count.value + 1 }
+        \textbf{Interest \VAR{ interest_str } \VAR{ interest_count.value }:} \VAR{ symbol } for £\VAR{ "{:,}".format(round_decimal(entries[0].amount, 2)) }
+    \BLOCK{ endif }
+
+    \BLOCK{ endfor }
+
+    \BLOCK{ endfor }
+\BLOCK{ endif }
+
+\clearpage
+\section*{Overall - Capital Gains}
 \subsection*{Number of acquisitions: \VAR{ acquisition_count.value }}
 \subsection*{Number of disposals: \VAR{ disposal_count.value }}
 \subsection*{Total disposal proceeds: £\VAR{ "{:,}".format(report.disposal_proceeds) }}
 \subsection*{Total capital gain before loss: £\VAR{ "{:,}".format(total_gain.value) }}
 \subsection*{Total capital loss: £\VAR{ "{:,}".format(total_loss.value) }}
 \subsection*{Total capital gain after loss: £\VAR{ "{:,}".format(total_gain.value - total_loss.value) }}
-
+\vspace{1em}
+\section*{Overall - Dividends and Interests}
+\subsection*{Number of dividend distributions: \VAR{ dividend_count.value }}
+\subsection*{Number of interest transactions: \VAR{ interest_count.value }}
+\subsection*{Total amount of dividends proceeds: £\VAR{ "{:,}".format(round_decimal(report.total_dividends_amount(), 2)) }}
+\subsection*{Total amount of dividends tax allowance due to double taxation treaties £\VAR{ "{:,}".format(round_decimal(report.total_dividend_taxes_in_tax_treaties_amount(), 2)) }}
+\subsection*{Total amount of dividends tax yearly allowance £\VAR{ "{:,}".format(round_decimal(report.dividend_allowance or Decimal(), 2)) }}
+\subsection*{Total amount of taxable dividends proceeds: £\VAR{ "{:,}".format(round_decimal(report.total_dividend_taxable_gain(), 2)) }}
+\subsection*{Total amount of UK interests proceeds: £\VAR{ "{:,}".format(report.total_uk_interest) }}
+\subsection*{Total amount of foreign interests proceeds: £\VAR{ "{:,}".format(report.total_foreign_interest) }}
 \end{document}

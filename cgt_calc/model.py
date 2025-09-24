@@ -6,8 +6,12 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from .util import round_decimal
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 @dataclass
@@ -23,6 +27,15 @@ class SpinOff:
     dest: str
     # When the spin-off happened
     date: datetime.date
+
+
+@dataclass
+class TaxTreaty:
+    """Class representing a treaty between UK and different countries."""
+
+    country: str
+    country_rate: Decimal
+    treaty_rate: Decimal
 
 
 @dataclass
@@ -42,8 +55,37 @@ class HmrcTransactionData:
         )
 
 
+@dataclass
+class ForeignCurrencyAmount:
+    """Represent a decimal amount in foreign currency."""
+
+    amount: Decimal = Decimal(0)
+    currency: str = ""
+
+    def __add__(self, amount: ForeignCurrencyAmount) -> ForeignCurrencyAmount:
+        """Add two amounts."""
+        assert (
+            self.currency or not self.amount
+        ), f"Invalid foreign currency amount {self}"
+        assert (
+            amount.currency or not amount.amount
+        ), f"Invalid foreign currency amount {amount}"
+        assert (
+            not self.currency or not amount.currency or self.currency == amount.currency
+        ), f"Incompatible currency operation {self.currency} vs {amount.currency}"
+        result = ForeignCurrencyAmount(
+            amount=self.amount + amount.amount,
+            currency=self.currency or amount.currency,
+        )
+        assert (
+            result.currency or not result.amount
+        ), f"Invalid foreign currency result {result}"
+        return result
+
+
 # For mapping of dates to int
 HmrcTransactionLog = dict[datetime.date, dict[str, HmrcTransactionData]]
+DividendLog = dict[tuple[str, datetime.date], ForeignCurrencyAmount]
 
 
 class ActionType(Enum):
@@ -54,7 +96,7 @@ class ActionType(Enum):
     TRANSFER = 3
     STOCK_ACTIVITY = 4
     DIVIDEND = 5
-    TAX = 6
+    DIVIDEND_TAX = 6
     FEE = 7
     ADJUSTMENT = 8
     CAPITAL_GAIN = 9
@@ -97,6 +139,27 @@ class RuleType(Enum):
     SAME_DAY = 2
     BED_AND_BREAKFAST = 3
     SPIN_OFF = 4
+    DIVIDEND = 5
+    INTEREST = 6
+
+
+@dataclass
+class Dividend:
+    """Class representing a dividend event."""
+
+    date: datetime.date
+    symbol: str
+    amount: Decimal
+    tax_at_source: Decimal
+    is_interest: bool
+    tax_treaty: TaxTreaty | None
+
+    @property
+    def tax_treaty_amount(self) -> Decimal:
+        """As title."""
+        if self.tax_treaty is None:
+            return Decimal(0)
+        return self.amount * self.tax_treaty.treaty_rate
 
 
 class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
@@ -114,6 +177,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         allowable_cost: Decimal | None = None,
         bed_and_breakfast_date_index: datetime.date | None = None,
         spin_off: SpinOff | None = None,
+        dividend: Dividend | None = None,
     ):
         """Create calculation entry."""
         self.rule_type = rule_type
@@ -128,7 +192,12 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         self.new_pool_cost = new_pool_cost
         self.bed_and_breakfast_date_index = bed_and_breakfast_date_index
         self.spin_off = spin_off
-        if self.amount >= 0 and self.rule_type is not RuleType.SPIN_OFF:
+        self.dividend = dividend
+        if self.amount >= 0 and self.rule_type not in (
+            RuleType.SPIN_OFF,
+            RuleType.DIVIDEND,
+            RuleType.INTEREST,
+        ):
             assert self.gain == self.amount + self.fees - self.allowable_cost, (
                 f"Mismatch: {self.gain} != "
                 f"{self.amount} + {self.fees} - {self.allowable_cost} (for {self})"
@@ -228,8 +297,21 @@ class CapitalGainsReport:
     capital_gain: Decimal
     capital_loss: Decimal
     capital_gain_allowance: Decimal | None
+    dividend_allowance: Decimal | None
     calculation_log: CalculationLog
+    calculation_log_yields: CalculationLog
+    total_uk_interest: Decimal
+    total_foreign_interest: Decimal
     show_unrealized_gains: bool
+
+    def _filter_calculation_log(
+        self, calculation_log: CalculationLog, rule_type: RuleType
+    ) -> Generator[CalculationEntry]:
+        for data in calculation_log.values():
+            for entry_list in data.values():
+                for entry in entry_list:
+                    if entry.rule_type == rule_type:
+                        yield entry
 
     def total_unrealized_gains(self) -> Decimal:
         """Total unrealized gains across portfolio."""
@@ -250,6 +332,37 @@ class CapitalGainsReport:
         """Taxable gain with current allowance."""
         assert self.capital_gain_allowance is not None
         return max(Decimal(0), self.total_gain() - self.capital_gain_allowance)
+
+    def total_dividends_amount(self) -> Decimal:
+        """Total dividends amount."""
+        total = Decimal(0)
+        for item in self._filter_calculation_log(
+            self.calculation_log_yields, RuleType.DIVIDEND
+        ):
+            assert item.dividend is not None
+            if not item.dividend.is_interest:
+                total += item.amount
+        return total
+
+    def total_dividend_taxes_in_tax_treaties_amount(self) -> Decimal:
+        """Total taxes to be reclaimed due to tax treaties."""
+        total = Decimal(0)
+        for item in self._filter_calculation_log(
+            self.calculation_log_yields, RuleType.DIVIDEND
+        ):
+            assert item.dividend is not None
+            if not item.dividend.is_interest:
+                total += item.dividend.tax_treaty_amount
+        return total
+
+    def total_dividend_taxable_gain(self) -> Decimal:
+        """Total taxable gain after all allowances."""
+        return max(
+            Decimal(0),
+            self.total_dividends_amount()
+            - (self.dividend_allowance or Decimal(0))
+            - self.total_dividend_taxes_in_tax_treaties_amount(),
+        )
 
     def __repr__(self) -> str:
         """Return string representation."""
@@ -284,4 +397,18 @@ class CapitalGainsReport:
                     " Take a look at the symbols with unknown unrealized gains above"
                     " and factor in their prices.\n"
                 )
+        out += (
+            "Total dividends proceeds: "
+            f"£{round_decimal(self.total_dividends_amount(),2)}\n"
+        )
+        if (
+            self.dividend_allowance is not None
+            or self.total_dividend_taxes_in_tax_treaties_amount() > 0
+        ):
+            out += (
+                "Total taxable dividends proceeds: "
+                f"£{round_decimal(self.total_dividend_taxable_gain(),2)}\n"
+            )
+        out += f"Total UK interest proceeds: £{self.total_uk_interest}\n"
+        out += f"Total foreign interest proceeds: £{self.total_foreign_interest}\n"
         return out

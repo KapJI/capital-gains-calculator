@@ -10,9 +10,10 @@ Final portfolio:
   BAR: 293.00
 Final balance:
   Vanguard: 1423.59 (GBP)
-Dividends: £396.66
-Dividend taxes: £0.00
-Interest: £0.00
+Dividends:
+  FOO: 396.66 (GBP)
+UK Interest: £0.00
+Foreign Interest: £0.00
 Disposal proceeds: £104.06
 
 
@@ -28,6 +29,10 @@ Capital gain: £2.20
 Capital loss: £0.00
 Total capital gain: £2.20
 Taxable capital gain: £0
+Total dividends proceeds: £0.00
+Total taxable dividends proceeds: £0.00
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £396.66
 
 Generate calculations report
 All done!

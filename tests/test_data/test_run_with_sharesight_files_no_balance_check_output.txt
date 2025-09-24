@@ -10,11 +10,13 @@ Final portfolio:
   NASDAQ:FOO: 5.00
   FundUK:FUND1: 50.00
 Final balance:
-  Sharesight: -17855.31 (GBP)
-  Sharesight: 7474.05 (USD)
-Dividends: £6.92
-Dividend taxes: £1.78
-Interest: £0.00
+  Sharesight: -17854.31 (GBP)
+  Sharesight: 7474.30 (USD)
+Dividends:
+  FOO.NASDAQ: 5.00 -0.75 taxed at source (USD)
+  FUND1.UKF: 3.00 (GBP)
+UK Interest: £0.00
+Foreign Interest: £0.00
 Disposal proceeds: £12999.61
 
 
@@ -31,6 +33,10 @@ Capital gain: £2176.98
 Capital loss: £195.34
 Total capital gain: £1981.64
 Taxable capital gain: £0
+Total dividends proceeds: £6.92
+Total taxable dividends proceeds: £0.00
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £0.00
 
 Generate calculations report
 All done!
