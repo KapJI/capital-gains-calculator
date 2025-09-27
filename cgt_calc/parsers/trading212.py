@@ -100,7 +100,7 @@ class Trading212Transaction(BrokerTransaction):
 
     def __init__(self, header: list[str], row_raw: list[str], filename: str):
         """Create transaction from CSV row."""
-        row = dict(zip(header, row_raw))
+        row = dict(zip(header, row_raw, strict=False))
         time_str = row["Time"]
         time_format = "%Y-%m-%d %H:%M:%S.%f" if "." in time_str else "%Y-%m-%d %H:%M:%S"
         self.datetime = datetime.strptime(time_str, time_format)
