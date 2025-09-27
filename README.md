@@ -57,7 +57,7 @@ cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ -
 ## Broker-specific instructions
 
 <details>
-    <summary>🔍 Instructions for broker "Charles Schwab"</summary>
+    <summary>🏦 Instructions for Charles Schwab</summary>
 
 You will need:
 
@@ -78,7 +78,7 @@ _Note: For historic reasons, it is possible to provide the Equity Awards history
 </details>
  <br />
 <details>
-    <summary>🔍 Instructions for broker "Trading212"</summary>
+    <summary>🏦 Instructions for Trading212</summary>
 
 You will need:
 
@@ -95,7 +95,7 @@ cgt-calc --year 2024 --trading212 trading212_trxs_dir/
 </details>
  <br />
 <details>
-    <summary>🔍 Instructions for broker "Morgan Stanley"</summary>
+    <summary>🏦 Instructions for Morgan Stanley</summary>
 
 You will need:
 
@@ -112,7 +112,7 @@ cgt-calc --year 2024 --mssb morgan_stanley_trxs_dir/
 </details>
  <br />
 <details>
-    <summary>🔍 Instructions for broker "Sharesight"</summary>
+    <summary>🏦 Instructions for Sharesight</summary>
 
 You will need:
 
@@ -138,7 +138,7 @@ cgt-calc --year 2024 --no-balance-check --sharesight sharesight_trxs_dir/
 </details>
  <br />
 <details>
-    <summary>🔍 Instructions for broker "Vanguard"</summary>
+    <summary>🏦 Instructions for Vanguard</summary>
 
 You will need:
 
@@ -155,7 +155,7 @@ cgt-calc --year 2024 --vanguard vanguard.csv
 </details>
  <br />
 <details>
-    <summary>🔍 Instructions for RAW format</summary>
+    <summary>🏦 Instructions for RAW format</summary>
 
 You will need:
 
