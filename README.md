@@ -106,6 +106,8 @@ Then run (you can omit the brokers you don't use):
 cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/
 ```
 
+Note that to calculate dividends on bond funds/ETF properly you need to pass the list of funds ticker that are taxed as interest instead of dividends, using `--interest-fund-tickers` CLI option.
+
 See `cgt-calc --help` for the full list of settings.
 
 ## Disclaimer

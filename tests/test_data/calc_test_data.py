@@ -11,6 +11,49 @@ from cgt_calc.model import ActionType, BrokerTransaction, CalculationEntry, Rule
 from cgt_calc.util import round_decimal
 
 
+def interest_transaction(
+    date: datetime.date,
+    amount: float,
+    currency: str = "USD",
+) -> BrokerTransaction:
+    """Create interest transaction."""
+    return transaction(date, ActionType.INTEREST, None, None, None, 0, amount, currency)
+
+
+def dividend_transaction(
+    date: datetime.date,
+    symbol: str,
+    amount: float,
+) -> BrokerTransaction:
+    """Create dividend transaction."""
+    return transaction(
+        date,
+        ActionType.DIVIDEND,
+        symbol,
+        None,
+        None,
+        0,
+        amount,
+    )
+
+
+def dividend_tax_transaction(
+    date: datetime.date,
+    symbol: str,
+    amount: float,
+) -> BrokerTransaction:
+    """Create dividend tax transaction."""
+    return transaction(
+        date,
+        ActionType.DIVIDEND_TAX,
+        symbol,
+        None,
+        None,
+        0,
+        -amount,
+    )
+
+
 def buy_transaction(
     date: datetime.date,
     symbol: str,
@@ -73,6 +116,7 @@ def transaction(
     price: float | None = None,
     fees: float = 0.0,
     amount: float | None = None,
+    currency: str = "USD",
 ) -> BrokerTransaction:
     """Create transaction."""
     return BrokerTransaction(
@@ -84,7 +128,7 @@ def transaction(
         price=round_decimal(Decimal(price), 6) if price else None,
         fees=round_decimal(Decimal(fees), 6),
         amount=round_decimal(Decimal(amount), 6) if amount else None,
-        currency="USD",
+        currency=currency,
         broker="Testing",
     )
 
@@ -115,6 +159,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=1, month=5, year=2020): {
                 "buy$FOO": [
@@ -142,6 +190,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         id="same_day_gain",
     ),
     pytest.param(
@@ -186,6 +235,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=1, month=5, year=2020): {
                 "sell$LOB": [
@@ -216,6 +269,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         # https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/972646/HS284_Example_3_2021.pdf
         id="HS284_Example_3_2021",
     ),
@@ -252,6 +306,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=30, month=8, year=2020): {
                 "sell$MSP": [
@@ -294,6 +352,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         # https://www.gov.uk/government/publications/shares-and-capital-gains-tax-hs284-self-assessment-helpsheet/
         id="HS284_Example_2_2021",
     ),
@@ -346,6 +405,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=2, month=3, year=2021): {
                 "buy$FOO": [
@@ -421,6 +484,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         # Complex case when same day rule should be applied before bed & breakfast.
         id="bed_and_breakfast_vs_same_day",
     ),
@@ -481,6 +545,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=2, month=3, year=2021): {
                 "buy$FOO": [
@@ -582,6 +650,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         # Add real bed & breakfast entries.
         id="with_bed_and_breakfast",
     ),
@@ -642,6 +711,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=2, month=3, year=2021): {
                 "buy$FOO": [
@@ -762,6 +835,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         # Add real bed & breakfast entries.
         id="with_bed_and_breakfast_2",
     ),
@@ -806,6 +880,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=25, month=6, year=2023): {
                 "sell$FOO": [
@@ -858,6 +936,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         id="issue_460.sell_on_30/6_is_split_into_104+same_day",
     ),
     pytest.param(
@@ -909,6 +988,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=25, month=6, year=2023): {
                 "sell$FOO": [
@@ -991,6 +1074,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         id="sell_on_30/6_is_split_into_104+same_day+b&d",
     ),
 ]

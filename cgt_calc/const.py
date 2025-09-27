@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import datetime
+from decimal import Decimal
 from typing import Final
+
+from .model import TaxTreaty
 
 # Allowances from
 # https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances#tax-free-allowances-for-capital-gains-tax
@@ -20,6 +23,25 @@ CAPITAL_GAIN_ALLOWANCES: Final[dict[int, int]] = {
     2023: 6000,
     2024: 3000,
 }
+
+# Allowances from
+# https://www.gov.uk/tax-on-dividends
+DIVIDEND_ALLOWANCES: Final[dict[int, int]] = {
+    2019: 2000,
+    2020: 2000,
+    2021: 2000,
+    2022: 2000,
+    2023: 1000,
+    2024: 500,
+}
+
+# Rules from
+# https://www.gov.uk/hmrc-internal-manuals/double-taxation-relief
+DIVIDEND_DOUBLE_TAXATION_RULES = {
+    "USD": TaxTreaty("USA", Decimal(0.15), Decimal(0.15)),
+    "PLN": TaxTreaty("Poland", Decimal(0.19), Decimal(0.1)),
+}
+
 
 DEFAULT_REPORT_PATH: Final = "calculations.pdf"
 
@@ -45,3 +67,5 @@ BED_AND_BREAKFAST_DAYS: Final = 30
 TICKER_RENAMES: Final[dict[str, str]] = {
     "FB": "META",
 }
+
+COUNTRY_CURRENCY = "GBP"

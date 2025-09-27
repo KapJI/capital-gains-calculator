@@ -1,5 +1,7 @@
 """Parse command line arguments."""
 
+from __future__ import annotations
+
 import argparse
 import datetime
 
@@ -16,6 +18,22 @@ def get_last_elapsed_tax_year() -> int:
     if now.date() >= datetime.date(now.year, 4, 6):
         return now.year - 1
     return now.year - 2
+
+
+class SplitArgs(argparse.Action):
+    """Split arguments by comma then trim and set upper case."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str,  # type: ignore[override]
+        option_string: str | None = None,
+    ) -> None:
+        """Create a new SplitArgs."""
+        setattr(
+            namespace, self.dest, [value.strip().upper() for value in values.split(",")]
+        )
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -80,7 +98,6 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="file containing the exported transactions from Vanguard in CSV format",
     )
-
     parser.add_argument(
         "--exchange-rates-file",
         type=str,
@@ -128,6 +145,15 @@ def create_parser() -> argparse.ArgumentParser:
         help=(
             "show an estimation of the gains/loss you would incur"
             " if you were to sell your holdings, under the standard 104 rule."
+        ),
+    )
+    parser.add_argument(
+        "--interest-fund-tickers",
+        action=SplitArgs,
+        default="",
+        help=(
+            "list of funds/ETF tickers in your portfolio that contains bonds "
+            "and whose dividends in UK have to be taxed as interest"
         ),
     )
     parser.add_argument(
