@@ -23,6 +23,9 @@
 \BLOCK{ elif symbol.startswith("spin-off$") }
     \BLOCK{ set symbol = symbol[9:] }
     \BLOCK{ set is_spin_off = True }
+\BLOCK{ elif symbol.startswith("transfer-to-spouse$") }
+    \BLOCK{ set symbol = symbol[19:] }
+    \BLOCK{ set is_transfer_to_spouse = True }
 \BLOCK{ endif }
 \BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
 \BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }

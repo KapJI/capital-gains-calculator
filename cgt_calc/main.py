@@ -138,6 +138,7 @@ class CapitalGainsCalculator:
 
         self.acquisition_list: HmrcTransactionLog = {}
         self.disposal_list: HmrcTransactionLog = {}
+        self.transfer_to_spouse_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
 
         self.portfolio: dict[str, Position] = defaultdict(Position)
@@ -406,6 +407,32 @@ class CapitalGainsCalculator:
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
+            elif transaction.action is ActionType.TRANSFER_TO_SPOUSE:
+                symbol = transaction.symbol
+                quantity = transaction.quantity
+                if symbol is None:
+                    raise SymbolMissingError(transaction)
+                if quantity is None or quantity <= 0:
+                    raise QuantityNotPositiveError(transaction)
+                if self.portfolio[symbol].quantity < quantity:
+                    raise InvalidTransactionError(
+                        transaction,
+                        "Tried to give to spouse more than the available "
+                        f"balance({self.portfolio[symbol].quantity})",
+                    )
+                current_quantity = self.portfolio[symbol].quantity
+                current_amount = self.portfolio[symbol].amount
+                amount = current_amount * quantity / current_quantity
+                self.portfolio[symbol] -= Position(quantity, amount)
+                new_balance += amount
+                add_to_list(
+                    self.transfer_to_spouse_list,
+                    transaction.date,
+                    symbol,
+                    quantity,
+                    self.converter.to_gbp_for(amount, transaction),
+                    self.converter.to_gbp_for(transaction.fees, transaction),
+                )
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 print(f"WARNING: Ignoring unsupported action: {transaction.action}")
             else:
@@ -844,6 +871,25 @@ class CapitalGainsCalculator:
                             calculation_log[spin_off.date][
                                 f"spin-off${spin_off.source}"
                             ] = [spin_off_entry]
+            if date_index in self.transfer_to_spouse_list:
+                for symbol in self.transfer_to_spouse_list[date_index]:
+                    transaction = self.transfer_to_spouse_list[date_index][symbol]
+                    current_quantity = self.portfolio[symbol].quantity
+                    current_amount = self.portfolio[symbol].amount
+                    amount = current_amount * transaction.quantity / current_quantity
+                    self.portfolio[symbol] -= Position(transaction.quantity, amount)
+                    transfer_entry = CalculationEntry(
+                        rule_type=RuleType.TRANSFER_TO_SPOUSE,
+                        quantity=transaction.quantity,
+                        amount=-amount,
+                        new_quantity=self.portfolio[symbol].quantity,
+                        new_pool_cost=self.portfolio[symbol].amount,
+                        fees=transaction.fees,
+                        allowable_cost=amount,
+                    )
+                    calculation_log[date_index][f"transfer-to-spouse${symbol}"] = [
+                        transfer_entry
+                    ]
         print("\nSecond pass completed")
         allowance = CAPITAL_GAIN_ALLOWANCES.get(self.tax_year)
 
