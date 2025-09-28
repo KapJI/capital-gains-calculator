@@ -7,6 +7,9 @@ Calculate capital gains tax by transaction history exported from Charles Schwab,
 
 Automatically convert all prices to GBP and apply HMRC rules to calculate capital gains tax: "same day" rule, "bed and breakfast" rule, section 104 holding.
 
+The PDF is broken down in CGT and interest/dividend sections with an Overall summary for totals at the end.
+The interests are reported once per month per broker to avoid long reports with daily interest brokers.
+
 ## Report example
 
 [calculations_example.pdf](https://github.com/KapJI/capital-gains-calculator/blob/main/calculations_example.pdf)
@@ -171,12 +174,13 @@ cgt-calc --year 2024 --raw sharesight_trxs_dir/
 </details>
  <br />
 
-### Extra files that might be needed
+### Extra files/options that might be needed
 
 -   **CSV file with initial stock prices in USD.** This is needed under special circumstances for example at the moment of vesting, split, etc.
     [`initial_prices.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format. The program will inform when some required price is missing.
 -   **(Automatic) Monthly exchange rates prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).** This is needed to convert foreign currencies into GBP amounts. `exchange_rates.csv` gets generated automatically using HMRC API, you need to use the same format if you want to override it.
 -   **Spin-off file.** Supplies extra information needed for spin-offs transactions through `--spin-offs-file`.
+-   **Interest fund tickers.** To calculate dividends on bond funds/ETF properly you need to pass the comma separated list of funds ticker that are taxed as interest instead of dividends, using `--interest-fund-tickers` CLI option.
 
 ## Docker
 

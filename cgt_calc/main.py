@@ -14,7 +14,14 @@ import sys
 
 from . import render_latex
 from .args_parser import create_parser
-from .const import BED_AND_BREAKFAST_DAYS, CAPITAL_GAIN_ALLOWANCES, INTERNAL_START_DATE
+from .const import (
+    BED_AND_BREAKFAST_DAYS,
+    CAPITAL_GAIN_ALLOWANCES,
+    COUNTRY_CURRENCY,
+    DIVIDEND_ALLOWANCES,
+    DIVIDEND_DOUBLE_TAXATION_RULES,
+    INTERNAL_START_DATE,
+)
 from .currency_converter import CurrencyConverter
 from .current_price_fetcher import CurrentPriceFetcher
 from .dates import get_tax_year_end, get_tax_year_start, is_date
@@ -35,6 +42,9 @@ from .model import (
     CalculationEntry,
     CalculationLog,
     CapitalGainsReport,
+    Dividend,
+    ForeignAmountLog,
+    ForeignCurrencyAmount,
     HmrcTransactionData,
     HmrcTransactionLog,
     PortfolioEntry,
@@ -56,6 +66,14 @@ def get_amount_or_fail(transaction: BrokerTransaction) -> Decimal:
     if amount is None:
         raise AmountMissingError(transaction)
     return amount
+
+
+def get_symbol_or_fail(transaction: BrokerTransaction) -> str:
+    """Return the transaction symbol or throw an error."""
+    symbol = transaction.symbol
+    if symbol is None:
+        raise SymbolMissingError(transaction)
+    return symbol
 
 
 # Amount difference can be caused by rounding errors in the price.
@@ -120,6 +138,7 @@ class CapitalGainsCalculator:
         price_fetcher: CurrentPriceFetcher,
         spin_off_handler: SpinOffHandler,
         initial_prices: InitialPrices,
+        interest_fund_tickers: list[str],
         balance_check: bool = True,
         calc_unrealized_gains: bool = False,
     ):
@@ -135,10 +154,20 @@ class CapitalGainsCalculator:
         self.initial_prices = initial_prices
         self.balance_check = balance_check
         self.calc_unrealized_gains = calc_unrealized_gains
+        self.interest_fund_tickers = interest_fund_tickers
+        self.total_uk_interest = Decimal(0)
+        self.total_foreign_interest = Decimal(0)
 
         self.acquisition_list: HmrcTransactionLog = {}
         self.disposal_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
+
+        self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        self.interest_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+
+        # Log for the report section related only to interests and dividends
+        self.calculation_log_yields: CalculationLog = defaultdict(dict)
 
         self.portfolio: dict[str, Position] = defaultdict(Position)
         self.spin_offs: dict[datetime.date, list[SpinOff]] = defaultdict(list)
@@ -153,12 +182,10 @@ class CapitalGainsCalculator:
         transaction: BrokerTransaction,
     ) -> None:
         """Add new acquisition to the given list."""
-        symbol = transaction.symbol
+        symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
         price = transaction.price
 
-        if symbol is None:
-            raise SymbolMissingError(transaction)
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
 
@@ -258,9 +285,8 @@ class CapitalGainsCalculator:
         period of the original MMM shares. This means the date you acquired the
         MMM shares will be used as the acquisition date for the SOLV shares.
         """
-        symbol = transaction.symbol
+        symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
-        assert symbol is not None
         assert quantity is not None
 
         ticker = self.spin_off_handler.get_spin_off_source(
@@ -290,10 +316,8 @@ class CapitalGainsCalculator:
         transaction: BrokerTransaction,
     ) -> None:
         """Add new disposal to the given list."""
-        symbol = transaction.symbol
+        symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
-        if symbol is None:
-            raise SymbolMissingError(transaction)
         if symbol not in self.portfolio:
             raise InvalidTransactionError(
                 transaction, "Tried to sell not owned symbol, reversed order?"
@@ -342,9 +366,9 @@ class CapitalGainsCalculator:
         """Convert broker transactions to HMRC transactions."""
         # We keep a balance per broker,currency pair
         balance: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal(0))
-        dividends = Decimal(0)
-        dividends_tax = Decimal(0)
-        interest = Decimal(0)
+        dividends: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+        dividends_tax: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+        interests: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         total_disposal_proceeds = Decimal(0)
         balance_history: list[Decimal] = []
 
@@ -372,12 +396,11 @@ class CapitalGainsCalculator:
                 transaction.fees = -amount
                 transaction.quantity = Decimal(0)
                 gbp_fees = self.converter.to_gbp_for(transaction.fees, transaction)
-                if transaction.symbol is None:
-                    raise SymbolMissingError(transaction)
+                symbol = get_symbol_or_fail(transaction)
                 add_to_list(
                     self.acquisition_list,
                     transaction.date,
-                    transaction.symbol,
+                    symbol,
                     transaction.quantity,
                     gbp_fees,
                     gbp_fees,
@@ -390,19 +413,35 @@ class CapitalGainsCalculator:
                 self.add_acquisition(transaction)
             elif transaction.action in [ActionType.DIVIDEND, ActionType.CAPITAL_GAIN]:
                 amount = get_amount_or_fail(transaction)
+                symbol = get_symbol_or_fail(transaction)
+                currency = transaction.currency
                 new_balance += amount
+                self.dividend_list[(symbol, transaction.date)] += ForeignCurrencyAmount(
+                    amount, currency
+                )
                 if self.date_in_tax_year(transaction.date):
-                    dividends += self.converter.to_gbp_for(amount, transaction)
-            elif transaction.action in [ActionType.TAX, ActionType.ADJUSTMENT]:
+                    dividends[(symbol, currency)] += amount
+            elif transaction.action is ActionType.DIVIDEND_TAX:
+                amount = get_amount_or_fail(transaction)
+                symbol = get_symbol_or_fail(transaction)
+                currency = transaction.currency
+                new_balance += amount
+                self.dividend_tax_list[(symbol, transaction.date)] += (
+                    ForeignCurrencyAmount(amount, currency)
+                )
+                if self.date_in_tax_year(transaction.date):
+                    dividends_tax[(symbol, currency)] += amount
+            elif transaction.action is ActionType.ADJUSTMENT:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
-                if self.date_in_tax_year(transaction.date):
-                    dividends_tax += self.converter.to_gbp_for(amount, transaction)
             elif transaction.action is ActionType.INTEREST:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
+                self.interest_list[(transaction.broker, transaction.date)] += (
+                    ForeignCurrencyAmount(amount, transaction.currency)
+                )
                 if self.date_in_tax_year(transaction.date):
-                    interest += self.converter.to_gbp_for(amount, transaction)
+                    interests[(transaction.broker, transaction.currency)] += amount
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
@@ -427,6 +466,7 @@ class CapitalGainsCalculator:
                 )
                 raise CalculationError(msg)
             balance[(transaction.broker, transaction.currency)] = new_balance
+
         print("First pass completed")
         print("Final portfolio:")
         for stock, position in self.portfolio.items():
@@ -434,9 +474,16 @@ class CapitalGainsCalculator:
         print("Final balance:")
         for (broker, currency), amount in balance.items():
             print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
-        print(f"Dividends: £{round_decimal(dividends, 2)}")
-        print(f"Dividend taxes: £{round_decimal(-dividends_tax, 2)}")
-        print(f"Interest: £{round_decimal(interest, 2)}")
+        if dividends:
+            print("Dividends:")
+            for (symbol, currency), amount in dividends.items():
+                tax = dividends_tax[(symbol, currency)]
+                tax_str = f", excluding {-tax} taxed at source" if tax < 0 else ""
+                print(f"  {symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})")
+        if interests:
+            print("Interests:")
+            for (broker, currency), amount in interests.items():
+                print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
         print(f"Disposal proceeds: £{round_decimal(total_disposal_proceeds, 2)}")
         print()
 
@@ -753,6 +800,130 @@ class CapitalGainsCalculator:
         chargeable_gain = round_decimal(chargeable_gain, 2)
         return chargeable_gain, calculation_entries, spin_off_entry
 
+    def process_interests(self) -> None:
+        """Process all interest events.
+
+        It groups them by month, using the last date on each month for the report
+        and updates the interest totals for the year.
+        """
+        monthly_interests: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        last_date: datetime.date = datetime.date.min
+        last_broker: str | None = None
+        # sort by broker and date
+        for (broker, date), foreign_amount in sorted(self.interest_list.items()):
+            if self.date_in_tax_year(date):
+                # If it's still the same month bring forward the value to the current
+                # date
+                if broker == last_broker and date.replace(day=1) == last_date.replace(
+                    day=1
+                ):
+                    monthly_interests[(broker, date)] = monthly_interests.pop(
+                        (broker, last_date)
+                    )
+                monthly_interests[(broker, date)] += foreign_amount
+                last_date = date
+                last_broker = broker
+
+        for (broker, date), foreign_amount in monthly_interests.items():
+            gbp_amount = self.converter.to_gbp(
+                foreign_amount.amount, foreign_amount.currency, date
+            )
+            if foreign_amount.currency == COUNTRY_CURRENCY:
+                self.total_uk_interest += gbp_amount
+                rule_prefix = "interestUK"
+            else:
+                self.total_foreign_interest += gbp_amount
+                rule_prefix = "interestForeign"
+
+            self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
+                CalculationEntry(
+                    rule_type=RuleType.INTEREST,
+                    quantity=Decimal(1),
+                    amount=gbp_amount,
+                    new_quantity=Decimal(1),
+                    new_pool_cost=Decimal(0),
+                    fees=Decimal(0),
+                )
+            ]
+
+    def process_dividends(self) -> None:
+        """Process all dividends events and taxes.
+
+        It updates the interest total for the year if needed.
+        """
+        for (symbol, date), foreign_amount in self.dividend_list.items():
+            tax = self.dividend_tax_list[(symbol, date)]
+
+            treaty = None
+            is_interest_fund = symbol in self.interest_fund_tickers
+
+            if tax.amount < 0:
+                if is_interest_fund:
+                    LOGGER.warning(
+                        "Cannot apply taxation treaty for bond fund %s", symbol
+                    )
+                elif foreign_amount.currency != COUNTRY_CURRENCY:
+                    assert tax.currency == foreign_amount.currency, (
+                        f"Not matching currency for dividend {foreign_amount.currency} "
+                        f"and its tax {tax.currency}"
+                    )
+                    try:
+                        treaty = DIVIDEND_DOUBLE_TAXATION_RULES[foreign_amount.currency]
+                    except KeyError:
+                        LOGGER.warning(
+                            "Taxation treaty for %s country is missing (ticker: %s), "
+                            "double taxation rules cannot be determined!",
+                            foreign_amount.currency,
+                            symbol,
+                        )
+                        treaty = None
+                    else:
+                        assert treaty is not None
+                        expected_tax = treaty.country_rate * -foreign_amount.amount
+                        if not _approx_equal(expected_tax, tax.amount):
+                            LOGGER.warning(
+                                "Determined double taxation treaty does not match the "
+                                "base taxation rules (expected %.2f base tax for %s "
+                                "but %.2f was deducted) for %s ticker!",
+                                expected_tax,
+                                treaty.country,
+                                tax.amount,
+                                symbol,
+                            )
+                            treaty = None
+
+            amount = self.converter.to_gbp(
+                foreign_amount.amount, foreign_amount.currency, date
+            )
+            tax_amount = self.converter.to_gbp(
+                tax.amount, foreign_amount.currency, date
+            )
+
+            if self.date_in_tax_year(date):
+                dividend = Dividend(
+                    date=date,
+                    symbol=symbol,
+                    amount=amount,
+                    tax_at_source=tax_amount,
+                    is_interest=is_interest_fund,
+                    tax_treaty=treaty,
+                )
+
+                self.calculation_log_yields[date][f"dividend${symbol}"] = [
+                    CalculationEntry(
+                        rule_type=RuleType.DIVIDEND,
+                        quantity=Decimal(1),
+                        amount=amount,
+                        new_quantity=Decimal(1),
+                        new_pool_cost=Decimal(0),
+                        fees=Decimal(0),
+                        dividend=dividend,
+                    )
+                ]
+
+                if is_interest_fund:
+                    self.total_foreign_interest += amount
+
     def calculate_capital_gain(
         self,
     ) -> CapitalGainsReport:
@@ -765,8 +936,9 @@ class CapitalGainsCalculator:
         allowable_costs = Decimal(0)
         capital_gain = Decimal(0)
         capital_loss = Decimal(0)
-        calculation_log: CalculationLog = defaultdict(dict)
         self.portfolio.clear()
+
+        calculation_log: CalculationLog = defaultdict(dict)
 
         for date_index in (
             begin_index + datetime.timedelta(days=x)
@@ -844,8 +1016,13 @@ class CapitalGainsCalculator:
                             calculation_log[spin_off.date][
                                 f"spin-off${spin_off.source}"
                             ] = [spin_off_entry]
+
+        self.process_dividends()
+        self.process_interests()
+
         print("\nSecond pass completed")
         allowance = CAPITAL_GAIN_ALLOWANCES.get(self.tax_year)
+        dividend_allowance = DIVIDEND_ALLOWANCES.get(self.tax_year)
 
         return CapitalGainsReport(
             self.tax_year,
@@ -859,7 +1036,11 @@ class CapitalGainsCalculator:
             round_decimal(capital_gain, 2),
             round_decimal(capital_loss, 2),
             Decimal(allowance) if allowance is not None else None,
+            Decimal(dividend_allowance) if dividend_allowance is not None else None,
             calculation_log,
+            dict(sorted(self.calculation_log_yields.items())),
+            round_decimal(self.total_uk_interest, 2),
+            round_decimal(self.total_foreign_interest, 2),
             show_unrealized_gains=self.calc_unrealized_gains,
         )
 
@@ -924,6 +1105,7 @@ def main() -> int:
         price_fetcher,
         spin_off_handler,
         initial_prices,
+        args.interest_fund_tickers,
         balance_check=args.balance_check,
         calc_unrealized_gains=args.calc_unrealized_gains,
     )

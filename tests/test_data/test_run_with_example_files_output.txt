@@ -11,12 +11,13 @@ Final portfolio:
   GOOG: 163.20
   FOO: 30.50
 Final balance:
-  Charles Schwab: 9477.90 (USD)
+  Charles Schwab: 9479.30 (USD)
   Trading212: 33391.30 (GBP)
   Morgan Stanley: 1.00 (USD)
-Dividends: £0.10
-Dividend taxes: £0.00
-Interest: £0.00
+Dividends:
+  NVDA: 0.10 (GBP)
+Interests:
+  Charles Schwab: 1.40 (USD)
 Disposal proceeds: £42783.83
 
 WARNING: Bed and breakfasting for FOO. Disposed on 2021-03-03 and acquired again on 2021-04-02
@@ -35,6 +36,11 @@ Capital gain: £25113.48
 Capital loss: £0.00
 Total capital gain: £25113.48
 Taxable capital gain: £12813.48
+Total dividends proceeds: £0.10
+Total amount of dividends tax yearly allowance: £2000.00
+Total taxable dividends proceeds: £0.00
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £1.03
 
 Generate calculations report
 All done!

@@ -32,6 +32,7 @@ def render_calculations(
         trim_blocks=True,
         autoescape=False,
         loader=jinja2.PackageLoader(PACKAGE_NAME, "resources"),
+        extensions=["jinja2.ext.loopcontrols"],
     )
     template = latex_template_env.get_template(TEMPLATE_NAME)
     output_text = template.render(

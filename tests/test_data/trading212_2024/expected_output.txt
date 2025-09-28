@@ -9,9 +9,6 @@ First pass completed
 Final portfolio:
 Final balance:
   Trading212: 1758.05 (GBP)
-Dividends: £0.00
-Dividend taxes: £0.00
-Interest: £0.00
 Disposal proceeds: £3143.21
 
 
@@ -25,6 +22,11 @@ Capital gain: £757.15
 Capital loss: £0.00
 Total capital gain: £757.15
 Taxable capital gain: £0
+Total dividends proceeds: £0.00
+Total amount of dividends tax yearly allowance: £500.00
+Total taxable dividends proceeds: £0.00
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £0.00
 
 Generate calculations report
 All done!
