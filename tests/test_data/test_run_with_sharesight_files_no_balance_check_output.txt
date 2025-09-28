@@ -15,8 +15,6 @@ Final balance:
 Dividends:
   FOO.NASDAQ: 5.00, excluding 0.75 taxed at source (USD)
   FUND1.UKF: 3.00 (GBP)
-UK Interest: £0.00
-Foreign Interest: £0.00
 Disposal proceeds: £12999.61
 
 

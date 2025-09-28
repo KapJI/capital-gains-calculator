@@ -12,8 +12,6 @@ Final balance:
   Vanguard: 1423.59 (GBP)
 Dividends:
   FOO: 396.66 (GBP)
-UK Interest: £0.00
-Foreign Interest: £0.00
 Disposal proceeds: £104.06
 
 

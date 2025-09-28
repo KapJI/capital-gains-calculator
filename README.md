@@ -7,6 +7,9 @@ Calculate capital gains tax by transaction history exported from Charles Schwab,
 
 Automatically convert all prices to GBP and apply HMRC rules to calculate capital gains tax: "same day" rule, "bed and breakfast" rule, section 104 holding.
 
+The PDF is broken down in CGT and interest/dividend sections with an Overall summary for totals at the end.
+The interests are reported once per month per broker to avoid long reports with daily interest brokers.
+
 ## Report example
 
 [calculations_example.pdf](https://github.com/KapJI/capital-gains-calculator/blob/main/calculations_example.pdf)

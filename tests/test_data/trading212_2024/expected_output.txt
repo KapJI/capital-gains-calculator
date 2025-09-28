@@ -9,10 +9,6 @@ First pass completed
 Final portfolio:
 Final balance:
   Trading212: 1758.05 (GBP)
-Dividends:
-  FOO: 0.11 (GBP)
-UK Interest: £0.00
-Foreign Interest: £0.00
 Disposal proceeds: £3143.21
 
 

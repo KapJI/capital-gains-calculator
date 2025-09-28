@@ -85,7 +85,7 @@ class ForeignCurrencyAmount:
 
 # For mapping of dates to int
 HmrcTransactionLog = dict[datetime.date, dict[str, HmrcTransactionData]]
-DividendLog = dict[tuple[str, datetime.date], ForeignCurrencyAmount]
+ForeignAmountLog = dict[tuple[str, datetime.date], ForeignCurrencyAmount]
 
 
 class ActionType(Enum):

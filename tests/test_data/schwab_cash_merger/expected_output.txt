@@ -10,9 +10,6 @@ First pass completed
 Final portfolio:
 Final balance:
   Charles Schwab: 1000.00 (USD)
-Dividends:
-UK Interest: £0.00
-Foreign Interest: £0.00
 Disposal proceeds: £711.69
 
 
