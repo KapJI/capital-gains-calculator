@@ -401,6 +401,11 @@ class CapitalGainsReport:
             "Total dividends proceeds: "
             f"£{round_decimal(self.total_dividends_amount(),2)}\n"
         )
+        if self.dividend_allowance is not None:
+            out += (
+                "Total amount of dividends tax yearly allowance: "
+                f"£{round_decimal(self.dividend_allowance,2)}\n"
+            )
         if (
             self.dividend_allowance is not None
             or self.total_dividend_taxes_in_tax_treaties_amount() > 0

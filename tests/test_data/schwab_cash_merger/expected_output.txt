@@ -27,6 +27,7 @@ Capital loss: £1071.81
 Total capital gain: £-1071.81
 Taxable capital gain: £0
 Total dividends proceeds: £0.00
+Total amount of dividends tax yearly allowance: £2000.00
 Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00

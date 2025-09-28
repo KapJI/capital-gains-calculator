@@ -492,8 +492,8 @@ class CapitalGainsCalculator:
         print("Dividends:")
         for (symbol, currency), amount in dividends.items():
             tax = dividends_tax[(symbol, currency)]
-            tax_str = f"{tax} taxed at source " if tax < 0 else ""
-            print(f"  {symbol}: {round_decimal(amount, 2)} {tax_str}({currency})")
+            tax_str = f", excluding {-tax} taxed at source" if tax < 0 else ""
+            print(f"  {symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})")
         print(f"UK Interest: £{round_decimal(self.total_uk_interest, 2)}")
         print(f"Foreign Interest: £{round_decimal(self.total_foreign_interest, 2)}")
         print(f"Disposal proceeds: £{round_decimal(total_disposal_proceeds, 2)}")

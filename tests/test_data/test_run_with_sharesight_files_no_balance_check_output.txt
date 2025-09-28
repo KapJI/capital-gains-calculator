@@ -13,7 +13,7 @@ Final balance:
   Sharesight: -17854.31 (GBP)
   Sharesight: 7474.30 (USD)
 Dividends:
-  FOO.NASDAQ: 5.00 -0.75 taxed at source (USD)
+  FOO.NASDAQ: 5.00, excluding 0.75 taxed at source (USD)
   FUND1.UKF: 3.00 (GBP)
 UK Interest: £0.00
 Foreign Interest: £0.00
@@ -34,6 +34,7 @@ Capital loss: £195.34
 Total capital gain: £1981.64
 Taxable capital gain: £0
 Total dividends proceeds: £6.92
+Total amount of dividends tax yearly allowance: £2000.00
 Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00
