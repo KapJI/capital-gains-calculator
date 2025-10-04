@@ -61,6 +61,7 @@ def buy_transaction(
     price: float,
     fees: float,
     amount: float,
+    isin: str | None = None,
 ) -> BrokerTransaction:
     """Create buy transaction."""
     return transaction(
@@ -71,6 +72,7 @@ def buy_transaction(
         price,
         fees,
         amount,
+        isin=isin,
     )
 
 
@@ -81,6 +83,7 @@ def sell_transaction(
     price: float,
     fees: float,
     amount: float,
+    isin: str | None = None,
 ) -> BrokerTransaction:
     """Create sell transaction."""
     return transaction(
@@ -91,6 +94,7 @@ def sell_transaction(
         price,
         fees,
         amount,
+        isin=isin,
     )
 
 
@@ -117,6 +121,7 @@ def transaction(
     fees: float = 0.0,
     amount: float | None = None,
     currency: str = "USD",
+    isin: str | None = None,
 ) -> BrokerTransaction:
     """Create transaction."""
     return BrokerTransaction(
@@ -130,6 +135,7 @@ def transaction(
         amount=round_decimal(Decimal(amount), 6) if amount else None,
         currency=currency,
         broker="Testing",
+        isin=isin,
     )
 
 

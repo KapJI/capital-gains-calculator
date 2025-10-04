@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+import re
 from typing import Final
 
 from .model import TaxTreaty
@@ -69,3 +70,12 @@ TICKER_RENAMES: Final[dict[str, str]] = {
 }
 
 COUNTRY_CURRENCY = "GBP"
+
+# https://en.wikipedia.org/wiki/International_Securities_Identification_Number
+ISIN_REGEX = re.compile(r"^([A-Z]{2})([A-Z0-9]{9})([0-9])$")
+
+# ISIN to ticker translation file
+DEFAULT_ISIN_TRANSLATION_FILE: Final = "isin_translation.csv"
+
+# ISIN initial translation file
+INITIAL_ISIN_TRANSLATION_FILE: Final = "initial_isin_translation.csv"

@@ -109,6 +109,7 @@ def parse_dividend_payments(
             quantity=None,
             price=None,
             fees=Decimal(0),
+            isin=None,
         )
 
         # Generate the tax as a separate transaction
@@ -124,6 +125,7 @@ def parse_dividend_payments(
                 quantity=None,
                 price=None,
                 fees=Decimal(0),
+                isin=None,
             )
 
 
@@ -230,6 +232,7 @@ def parse_trades(
             amount=amount,
             currency=currency,
             broker=broker,
+            isin=None,
         )
 
         # Sharesight has no native support for stock activity, so use a string

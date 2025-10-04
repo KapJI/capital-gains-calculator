@@ -14,6 +14,7 @@ import pytest
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
+from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
@@ -67,18 +68,22 @@ def test_basic(
     """Generate basic tests for test data."""
     if gbp_prices is None:
         gbp_prices = {t.date: {"USD": Decimal(1)} for t in broker_transactions}
-    converter = CurrencyConverter(None, gbp_prices)
+    currency_converter = CurrencyConverter(None, gbp_prices)
+    isin_converter = IsinConverter()
     historical_prices = {
         "FOO": {datetime.date(day=5, month=7, year=2023): Decimal(90)},
         "BAR": {datetime.date(day=5, month=7, year=2023): Decimal(12)},
     }
-    price_fetcher = CurrentPriceFetcher(converter, current_prices, historical_prices)
+    price_fetcher = CurrentPriceFetcher(
+        currency_converter, current_prices, historical_prices
+    )
     spin_off_handler = SpinOffHandler()
     spin_off_handler.cache = {"BAR": "FOO"}
     initial_prices = InitialPrices({})
     calculator = CapitalGainsCalculator(
         tax_year,
-        converter,
+        currency_converter,
+        isin_converter,
         price_fetcher,
         spin_off_handler,
         initial_prices,

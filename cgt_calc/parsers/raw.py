@@ -68,6 +68,7 @@ class RawTransaction(BrokerTransaction):
 
         currency = row[6]
         broker = "Unknown"
+        isin = None
         super().__init__(
             date,
             action,
@@ -79,6 +80,7 @@ class RawTransaction(BrokerTransaction):
             amount,
             currency,
             broker,
+            isin,
         )
 
 

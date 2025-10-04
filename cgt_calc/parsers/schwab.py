@@ -206,6 +206,7 @@ class SchwabTransaction(BrokerTransaction):
 
         currency = "USD"
         broker = "Charles Schwab"
+        isin = None
         super().__init__(
             date,
             action,
@@ -217,6 +218,7 @@ class SchwabTransaction(BrokerTransaction):
             amount,
             currency,
             broker,
+            isin,
         )
 
     @staticmethod

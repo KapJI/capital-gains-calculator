@@ -105,6 +105,7 @@ def _init_from_release_report(row_raw: list[str], filename: str) -> BrokerTransa
         amount=amount,
         currency="USD",
         broker="Morgan Stanley",
+        isin=None,
     )
 
 
@@ -178,6 +179,7 @@ def _init_from_withdrawal_report(
         amount=amount,
         currency="USD",
         broker="Morgan Stanley",
+        isin=None,
     )
 
     return _handle_stock_split(transaction)

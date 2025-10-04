@@ -7,6 +7,7 @@ import datetime
 
 from .const import (
     DEFAULT_EXCHANGE_RATES_FILE,
+    DEFAULT_ISIN_TRANSLATION_FILE,
     DEFAULT_REPORT_PATH,
     DEFAULT_SPIN_OFF_FILE,
 )
@@ -155,6 +156,13 @@ def create_parser() -> argparse.ArgumentParser:
             "list of funds/ETF tickers in your portfolio that contains bonds "
             "and whose dividends in UK have to be taxed as interest"
         ),
+    )
+    parser.add_argument(
+        "--isin-translation-file",
+        type=str,
+        default=DEFAULT_ISIN_TRANSLATION_FILE,
+        nargs="?",
+        help="output file for ISIN to ticker translations",
     )
     parser.add_argument(
         "--verbose",
