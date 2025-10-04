@@ -108,7 +108,6 @@ class VanguardTransaction(BrokerTransaction):
             price = Decimal(match.group(3).replace(",", ""))
             quantity = Decimal(round(amount / price))
 
-        isin = None
         super().__init__(
             date,
             action,
@@ -120,7 +119,6 @@ class VanguardTransaction(BrokerTransaction):
             amount,
             currency,
             broker,
-            isin,
         )
 
 

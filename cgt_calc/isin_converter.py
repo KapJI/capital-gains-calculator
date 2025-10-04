@@ -5,19 +5,18 @@ from __future__ import annotations
 import csv
 from importlib import resources
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING
 
 from requests_ratelimiter import LimiterSession
 
-from .const import INITIAL_ISIN_TRANSLATION_FILE, ISIN_REGEX
+from .const import INITIAL_ISIN_TRANSLATION_FILE
 from .exceptions import ParsingError
-from .parsers import read_isin_translation_file
+from .parsers import ISIN_TRANSLATION_HEADER, read_isin_translation_file
 from .resources import RESOURCES_PACKAGE
+from .util import is_isin
 
 if TYPE_CHECKING:
     from .model import BrokerTransaction
-
-ISIN_TRANSLATION_HEADER: Final = ["ISIN", "symbol"]
 
 
 class IsinConverter:
@@ -39,16 +38,20 @@ class IsinConverter:
             self.write_data = read_isin_translation_file(Path(isin_translation_file))
             self.data.update(self.write_data)
 
+        self.validate_data()
+
+    def validate_data(self) -> None:
+        """Validate the current ISIN translation data."""
         for isin, symbol in self.data.items():
-            assert ISIN_REGEX.match(isin), f"{isin} not a valid ISIN!"
+            assert is_isin(isin), f"{isin} not a valid ISIN!"
             assert symbol, f"Invalid empty ticker for {isin} ISIN"
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Add the ISIN to symbol mapping from an existing transaction."""
         if transaction.symbol and transaction.isin:
-            assert ISIN_REGEX.match(
+            assert is_isin(
                 transaction.isin
-            ), f"Nxot a valid ISIN for transaction {transaction}!"
+            ), f"Not a valid ISIN for transaction {transaction}!"
             assert (
                 not self.data.get(transaction.isin)
                 or transaction.symbol in self.data[transaction.isin]
@@ -96,8 +99,8 @@ class IsinConverter:
             msg = f"Error while fetching ISIN information for {isin} "
             if response_text:
                 msg += f"Response was: {response_text}"
-            msg += "Either try again or if you're sure about the rates you can "
-            msg += f"add them manually in {self.isin_translation_file}.\n"
+            msg += "Either try again or if you're sure about the translation you can "
+            msg += f"add it manually in {self.isin_translation_file}.\n"
             msg += f"The error was: {err}\n"
             raise ParsingError(url, msg) from err
 

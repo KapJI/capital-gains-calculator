@@ -11,8 +11,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from cgt_calc.const import DEFAULT_INITIAL_PRICES_FILE
-from cgt_calc.exceptions import UnexpectedColumnCountError
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.resources import RESOURCES_PACKAGE
+from cgt_calc.util import is_isin
 
 from .mssb import read_mssb_transactions
 from .raw import read_raw_transactions
@@ -28,7 +29,9 @@ if TYPE_CHECKING:
     from cgt_calc.model import BrokerTransaction
 
 INITIAL_PRICES_COLUMNS_NUM: Final = 3
-ISIN_TRANSLATION_COLUMNS_NUM: Final = 2
+
+ISIN_TRANSLATION_HEADER: Final = ["ISIN", "symbol"]
+ISIN_TRANSLATION_COLUMNS_NUM: Final = len(ISIN_TRANSLATION_HEADER)
 
 
 @dataclass
@@ -70,6 +73,8 @@ class IsinTranslationEntry:
         if len(row) < ISIN_TRANSLATION_COLUMNS_NUM:
             raise UnexpectedColumnCountError(row, ISIN_TRANSLATION_COLUMNS_NUM, file)
         self.isin = row[0]
+        if not is_isin(self.isin):
+            raise ParsingError(file, f"{self.isin} is not a valid ISIN!")
         self.symbols = set(row[1:])
 
     def __str__(self) -> str:
@@ -163,6 +168,9 @@ def read_isin_translation_file(
     """Read ISIN translation data to tickers from the input path."""
     with isin_translation_file.open(encoding="utf-8") as csv_file:
         lines = list(csv.reader(csv_file))
+        header = lines[0]
+        assert header == ISIN_TRANSLATION_HEADER
+
         lines = lines[1:]
         result = {}
         for row in lines:
