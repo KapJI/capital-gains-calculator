@@ -4,12 +4,13 @@ Parsing tests/test_data/trading212/from_2020-09-11_to_2021-04-02.csv
 INFO: No sharesight file provided
 INFO: No raw file provided
 INFO: No vanguard file provided
+INFO: No ERI raw file provided
 First pass completed
 Final portfolio:
-  GE: 1.00
+  VUAG: 30.50
+  VNRG: 1.00
   NVDA: 1.00
   GOOG: 163.20
-  FOO: 30.50
 Final balance:
   Charles Schwab: 9479.30 (USD)
   Trading212: 33391.30 (GBP)
@@ -18,25 +19,28 @@ Dividends:
   NVDA: 0.10 (GBP)
 Interests:
   Charles Schwab: 1.40 (USD)
-Disposal proceeds: £42783.83
+Disposal proceeds: £43798.48
 
-WARNING: Bed and breakfasting for FOO. Disposed on 2021-03-03 and acquired again on 2021-04-02
+WARNING: Bed and breakfasting for VUAG. Disposed on 2020-05-03 and acquired again on 2020-06-02
 
 Second pass completed
 Portfolio at the end of 2020/2021 tax year:
-  GE: 1.00, £8.07
+  VUAG: 30.50, £642.31
+  VNRG: 1.00, £8.98
   NVDA: 1.00, £401.01
-  FOO: 30.50, £543.97
   GOOG: 172.00, £12516.55
 For tax year 2020/2021:
+Excess Reported Income:
+  VUAG: £22.26 (included as dividend)
+  VNRG: £0.91 (included as dividend)
 Number of disposals: 4
-Disposal proceeds: £42783.83
-Allowable costs: £17670.35
-Capital gain: £25113.48
+Disposal proceeds: £43798.48
+Allowable costs: £18648.54
+Capital gain: £25149.94
 Capital loss: £0.00
-Total capital gain: £25113.48
-Taxable capital gain: £12813.48
-Total dividends proceeds: £0.10
+Total capital gain: £25149.94
+Taxable capital gain: £12849.94
+Total dividends proceeds: £23.27
 Total amount of dividends tax yearly allowance: £2000.00
 Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00

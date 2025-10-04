@@ -143,7 +143,7 @@ def by_date_and_action(
 
 
 def read_vanguard_transactions(transactions_file: str) -> list[VanguardTransaction]:
-    """Read Raw transactions from file."""
+    """Read Vanguard transactions from file."""
     transactions = []
     try:
         with Path(transactions_file).open(encoding="utf-8") as csv_file:
@@ -163,7 +163,9 @@ def read_vanguard_transactions(transactions_file: str) -> list[VanguardTransacti
             transactions.sort(key=by_date_and_action)
 
     except FileNotFoundError:
-        print(f"WARNING: Couldn't locate Raw transactions file({transactions_file})")
+        print(
+            f"WARNING: Couldn't locate Vanguard transactions file({transactions_file})"
+        )
         return []
 
     return transactions

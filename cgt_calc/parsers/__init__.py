@@ -15,6 +15,7 @@ from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.resources import RESOURCES_PACKAGE
 from cgt_calc.util import is_isin
 
+from .eri import read_eri_transactions
 from .mssb import read_mssb_transactions
 from .raw import read_raw_transactions
 from .schwab import read_schwab_transactions
@@ -91,6 +92,7 @@ def read_broker_transactions(
     sharesight_transactions_folder: str | None,
     raw_transactions_file: str | None,
     vanguard_transactions_file: str | None,
+    eri_raw_file: str | None,
 ) -> list[BrokerTransaction]:
     """Read transactions for all brokers."""
     transactions = []
@@ -132,6 +134,8 @@ def read_broker_transactions(
         transactions += read_vanguard_transactions(vanguard_transactions_file)
     else:
         print("INFO: No vanguard file provided")
+
+    transactions += read_eri_transactions(eri_raw_file)
 
     transactions.sort(key=lambda k: k.date)
     return transactions

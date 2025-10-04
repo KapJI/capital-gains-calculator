@@ -54,6 +54,15 @@ def dividend_tax_transaction(
     )
 
 
+def eri_transaction(
+    date: datetime.date,
+    isin: str,
+    price: float,
+) -> BrokerTransaction:
+    """Create excess reported income transaction."""
+    return transaction(date, ActionType.EXCESS_REPORTED_INCOME, price=price, isin=isin)
+
+
 def buy_transaction(
     date: datetime.date,
     symbol: str,
