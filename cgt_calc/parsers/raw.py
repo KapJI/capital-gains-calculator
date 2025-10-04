@@ -39,11 +39,11 @@ class RawTransaction(BrokerTransaction):
     def __init__(
         self,
         row: list[str],
-        file: str,
+        file: str | Path,
     ):
         """Create transaction from CSV row."""
         if len(row) != CSV_COLUMNS_NUM:
-            raise UnexpectedColumnCountError(row, CSV_COLUMNS_NUM, file)
+            raise UnexpectedColumnCountError(row, CSV_COLUMNS_NUM, str(file))
 
         date_str = row[0]
         date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -53,7 +53,7 @@ class RawTransaction(BrokerTransaction):
 
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
-        quantity = Decimal(row[3].replace(",", "")) if row[4] != "" else None
+        quantity = Decimal(row[3].replace(",", "")) if row[3] != "" else None
         price = Decimal(row[4]) if row[4] != "" else None
         fees = Decimal(row[5]) if row[5] != "" else Decimal(0)
 
