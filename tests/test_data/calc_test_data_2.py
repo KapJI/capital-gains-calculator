@@ -10,6 +10,9 @@ import pytest
 from cgt_calc.model import ActionType, CalculationEntry, RuleType, SpinOff
 from tests.test_data.calc_test_data import (
     buy_transaction,
+    dividend_tax_transaction,
+    dividend_transaction,
+    interest_transaction,
     sell_transaction,
     transaction,
     transfer_transaction,
@@ -33,6 +36,10 @@ calc_basic_data_2 = [
         2.0,  # Expected unrealized gains
         None,  # GBP/USD prices
         {"FOO": 6},  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=1, month=5, year=2023): {
                 "buy$FOO": [
@@ -48,6 +55,7 @@ calc_basic_data_2 = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         id="unrealized_gains_test",
     ),
     pytest.param(
@@ -123,6 +131,10 @@ calc_basic_data_2 = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=25, month=6, year=2023): {
                 "sell$FOO": [
@@ -131,7 +143,7 @@ calc_basic_data_2 = [
                         quantity=Decimal(30.0),
                         amount=Decimal("2999"),
                         gain=Decimal("28.4"),
-                        allowable_cost=Decimal("2970.6"),
+                        allowable_cost=Decimal("2970.6") + Decimal("1.0"),
                         fees=Decimal("1.0"),
                         new_quantity=Decimal(470),
                         new_pool_cost=Decimal(47517.94),
@@ -160,7 +172,7 @@ calc_basic_data_2 = [
                         quantity=Decimal(50),
                         amount=Decimal("4999.50"),
                         gain=Decimal("48.5"),
-                        allowable_cost=Decimal("4951"),
+                        allowable_cost=Decimal("4951") + Decimal("0.5"),
                         fees=Decimal("0.5"),
                         new_quantity=Decimal(470),
                         new_pool_cost=Decimal(47517.94),
@@ -170,7 +182,7 @@ calc_basic_data_2 = [
                         quantity=Decimal(20.0),
                         amount=Decimal("1999.8"),
                         gain=Decimal("19.4"),
-                        allowable_cost=Decimal("1980.4"),
+                        allowable_cost=Decimal("1980.4") + Decimal("0.2"),
                         fees=Decimal("0.2"),
                         new_quantity=Decimal(450),
                         new_pool_cost=Decimal(45495.9),
@@ -183,7 +195,7 @@ calc_basic_data_2 = [
                         quantity=Decimal(30.0),
                         amount=Decimal("2999.7"),
                         gain=Decimal("-33.36"),
-                        allowable_cost=Decimal("3033.06"),
+                        allowable_cost=Decimal("3033.06") + Decimal("0.3"),
                         fees=Decimal("0.3"),
                         new_quantity=Decimal(420),
                         new_pool_cost=Decimal(42462.84),
@@ -249,7 +261,7 @@ calc_basic_data_2 = [
                         quantity=Decimal(100),
                         amount=Decimal(10999),
                         gain=Decimal("3017.2632"),
-                        allowable_cost=Decimal("7981.7368"),
+                        allowable_cost=Decimal("7981.7368") + Decimal(1),
                         fees=Decimal(1),
                         new_quantity=Decimal(370),
                         new_pool_cost=Decimal(29532.4263),
@@ -261,7 +273,7 @@ calc_basic_data_2 = [
                         quantity=Decimal(800),
                         amount=Decimal(7999),
                         gain=Decimal("-523.1048"),
-                        allowable_cost=Decimal("8522.1048"),
+                        allowable_cost=Decimal("8522.1048") + Decimal(1),
                         fees=Decimal(1),
                         new_quantity=Decimal(40),
                         new_pool_cost=Decimal(426.1052),
@@ -269,6 +281,140 @@ calc_basic_data_2 = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         id="spin_off",
+    ),
+    pytest.param(
+        2020,  # tax year
+        [
+            transfer_transaction(datetime.date(day=1, month=5, year=2020), 5000),
+            buy_transaction(
+                date=datetime.date(day=1, month=5, year=2020),
+                symbol="FOO",
+                quantity=3,
+                price=5,
+                fees=1,
+                amount=-16,
+            ),
+            buy_transaction(
+                date=datetime.date(day=1, month=5, year=2020),
+                symbol="BAR",
+                quantity=3,
+                price=5,
+                fees=1,
+                amount=-16,
+            ),
+            dividend_transaction(
+                date=datetime.date(day=20, month=5, year=2020),
+                symbol="FOO",
+                amount=8,
+            ),
+            dividend_transaction(
+                date=datetime.date(day=20, month=5, year=2020),
+                symbol="BAR",
+                amount=10000,
+            ),
+            dividend_tax_transaction(
+                date=datetime.date(day=20, month=5, year=2020),
+                symbol="BAR",
+                amount=1500,
+            ),
+            interest_transaction(
+                date=datetime.date(day=20, month=6, year=2020),
+                amount=1500,
+                currency="GBP",
+            ),
+            interest_transaction(
+                date=datetime.date(day=20, month=7, year=2020),
+                amount=1000,
+            ),
+        ],
+        0.00,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        1500.00,  # Expected UK interest
+        1008.00,  # Expected foreign interest
+        10000.0,  # Expected dividend
+        6500.0,  # Expected dividend gain
+        {
+            datetime.date(day=1, month=5, year=2020): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(3),
+                        amount=Decimal(-16),
+                        allowable_cost=Decimal(16),
+                        fees=Decimal(1),
+                        new_quantity=Decimal(3),
+                        new_pool_cost=Decimal(16),
+                    ),
+                ],
+                "buy$BAR": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(3),
+                        amount=Decimal(-16),
+                        allowable_cost=Decimal(16),
+                        fees=Decimal(1),
+                        new_quantity=Decimal(3),
+                        new_pool_cost=Decimal(16),
+                    ),
+                ],
+            }
+        },
+        {
+            datetime.date(day=20, month=5, year=2020): {
+                "dividend$FOO": [
+                    CalculationEntry(
+                        RuleType.DIVIDEND,
+                        quantity=Decimal(1),
+                        amount=Decimal(8),
+                        allowable_cost=Decimal(0),
+                        new_pool_cost=Decimal(0),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(1),
+                    ),
+                ],
+                "dividend$BAR": [
+                    CalculationEntry(
+                        RuleType.DIVIDEND,
+                        quantity=Decimal(1),
+                        amount=Decimal(10000),
+                        allowable_cost=Decimal(0),
+                        new_pool_cost=Decimal(0),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(1),
+                    ),
+                ],
+            },
+            datetime.date(day=20, month=6, year=2020): {
+                "interestUK$Testing": [
+                    CalculationEntry(
+                        RuleType.INTEREST,
+                        quantity=Decimal(1),
+                        amount=Decimal(1500),
+                        allowable_cost=Decimal(0),
+                        new_pool_cost=Decimal(0),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(1),
+                    ),
+                ],
+            },
+            datetime.date(day=20, month=7, year=2020): {
+                "interestForeign$Testing": [
+                    CalculationEntry(
+                        RuleType.INTEREST,
+                        quantity=Decimal(1),
+                        amount=Decimal(1000),
+                        allowable_cost=Decimal(0),
+                        new_pool_cost=Decimal(0),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(1),
+                    ),
+                ],
+            },
+        },
+        id="dividends_and_interests",
     ),
 ]

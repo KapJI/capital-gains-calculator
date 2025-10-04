@@ -122,6 +122,9 @@ def action_from_str(label: str) -> ActionType:
         "Tax Withholding",
     ]:
         return ActionType.TAX
+      
+    if label in ["NRA Tax Adj", "NRA Withholding", "Foreign Tax Paid"]:
+        return ActionType.DIVIDEND_TAX
 
     if label == "ADR Mgmt Fee":
         return ActionType.FEE

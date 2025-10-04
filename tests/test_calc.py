@@ -41,7 +41,12 @@ def get_report(
         "expected_unrealized",
         "gbp_prices",
         "current_prices",
+        "expected_uk_interest",
+        "expected_foreign_interest",
+        "expected_dividend",
+        "expected_dividend_gain",
         "calculation_log",
+        "calculation_log_yields",
     ),
     calc_basic_data + calc_basic_data_2,
 )
@@ -52,7 +57,12 @@ def test_basic(
     expected_unrealized: float | None,
     gbp_prices: dict[datetime.date, dict[str, Decimal]] | None,
     current_prices: dict[str, Decimal | None] | None,
+    expected_uk_interest: float,
+    expected_foreign_interest: float,
+    expected_dividend: float,
+    expected_dividend_gain: float,
     calculation_log: CalculationLog | None,
+    calculation_log_yields: CalculationLog | None,
 ) -> None:
     """Generate basic tests for test data."""
     if gbp_prices is None:
@@ -72,6 +82,7 @@ def test_basic(
         price_fetcher,
         spin_off_handler,
         initial_prices,
+        interest_fund_tickers=["FOO"],
         calc_unrealized_gains=expected_unrealized is not None,
     )
     report = get_report(calculator, broker_transactions)
@@ -81,6 +92,18 @@ def test_basic(
         assert report.total_unrealized_gains() == round_decimal(
             Decimal(expected_unrealized), 2
         )
+    assert round_decimal(report.total_uk_interest, 2) == round_decimal(
+        Decimal(expected_uk_interest), 2
+    )
+    assert round_decimal(report.total_foreign_interest, 2) == round_decimal(
+        Decimal(expected_foreign_interest), 2
+    )
+    assert round_decimal(report.total_dividends_amount(), 2) == round_decimal(
+        Decimal(expected_dividend), 2
+    )
+    assert round_decimal(report.total_dividend_taxable_gain(), 2) == round_decimal(
+        Decimal(expected_dividend_gain), 2
+    )
     if calculation_log is not None:
         result_log = report.calculation_log
         assert len(result_log) == len(calculation_log)
@@ -117,6 +140,26 @@ def test_basic(
                     )
                     assert round_decimal(result_entry.fees, 4) == round_decimal(
                         expected_entry.fees, 4
+                    )
+
+    if calculation_log_yields is not None:
+        result_log = report.calculation_log_yields
+        assert len(result_log) == len(calculation_log_yields)
+        for date_index, expected_entries_map in calculation_log_yields.items():
+            assert date_index in result_log
+            result_entries_map = result_log[date_index]
+            print(date_index)
+            print(result_entries_map)
+            assert len(result_entries_map) == len(expected_entries_map)
+            for entries_type, expected_entries_list in expected_entries_map.items():
+                assert entries_type in result_entries_map
+                result_entries_list = result_entries_map[entries_type]
+                assert len(result_entries_list) == len(expected_entries_list)
+                for i, expected_entry in enumerate(expected_entries_list):
+                    result_entry = result_entries_list[i]
+                    assert result_entry.rule_type == expected_entry.rule_type
+                    assert round_decimal(result_entry.amount, 4) == round_decimal(
+                        expected_entry.amount, 4
                     )
 
 

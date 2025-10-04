@@ -11,6 +11,49 @@ from cgt_calc.model import ActionType, BrokerTransaction, CalculationEntry, Rule
 from cgt_calc.util import round_decimal
 
 
+def interest_transaction(
+    date: datetime.date,
+    amount: float,
+    currency: str = "USD",
+) -> BrokerTransaction:
+    """Create interest transaction."""
+    return transaction(date, ActionType.INTEREST, None, None, None, 0, amount, currency)
+
+
+def dividend_transaction(
+    date: datetime.date,
+    symbol: str,
+    amount: float,
+) -> BrokerTransaction:
+    """Create dividend transaction."""
+    return transaction(
+        date,
+        ActionType.DIVIDEND,
+        symbol,
+        None,
+        None,
+        0,
+        amount,
+    )
+
+
+def dividend_tax_transaction(
+    date: datetime.date,
+    symbol: str,
+    amount: float,
+) -> BrokerTransaction:
+    """Create dividend tax transaction."""
+    return transaction(
+        date,
+        ActionType.DIVIDEND_TAX,
+        symbol,
+        None,
+        None,
+        0,
+        -amount,
+    )
+
+
 def buy_transaction(
     date: datetime.date,
     symbol: str,
@@ -73,6 +116,7 @@ def transaction(
     price: float | None = None,
     fees: float = 0.0,
     amount: float | None = None,
+    currency: str = "USD",
 ) -> BrokerTransaction:
     """Create transaction."""
     return BrokerTransaction(
@@ -84,7 +128,7 @@ def transaction(
         price=round_decimal(Decimal(price), 6) if price else None,
         fees=round_decimal(Decimal(fees), 6),
         amount=round_decimal(Decimal(amount), 6) if amount else None,
-        currency="USD",
+        currency=currency,
         broker="Testing",
     )
 
@@ -115,6 +159,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=1, month=5, year=2020): {
                 "buy$FOO": [
@@ -134,7 +182,7 @@ calc_basic_data = [
                         quantity=Decimal(3),
                         amount=Decimal(17),
                         gain=Decimal(1),
-                        allowable_cost=Decimal(16),
+                        allowable_cost=Decimal(16) + Decimal(1),
                         fees=Decimal(1),
                         new_quantity=Decimal(0),
                         new_pool_cost=Decimal(0),
@@ -142,6 +190,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         id="same_day_gain",
     ),
     pytest.param(
@@ -186,6 +235,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=1, month=5, year=2020): {
                 "sell$LOB": [
@@ -194,7 +247,7 @@ calc_basic_data = [
                         quantity=Decimal(700),
                         amount=Decimal(3260),
                         gain=Decimal("329.3333"),
-                        allowable_cost=Decimal("2930.6667"),
+                        allowable_cost=Decimal("2930.6667") + Decimal(100),
                         fees=Decimal(100),
                         new_quantity=Decimal(800),
                         new_pool_cost=Decimal("3349.3333"),
@@ -208,7 +261,7 @@ calc_basic_data = [
                         quantity=Decimal(400),
                         amount=Decimal(1975),
                         gain=Decimal("300.3333"),
-                        allowable_cost=Decimal("1674.6667"),
+                        allowable_cost=Decimal("1674.6667") + Decimal(105),
                         fees=Decimal(105),
                         new_quantity=Decimal(400),
                         new_pool_cost=Decimal("1674.6667"),
@@ -216,6 +269,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         # https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/972646/HS284_Example_3_2021.pdf
         id="HS284_Example_3_2021",
     ),
@@ -252,6 +306,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=30, month=8, year=2020): {
                 "sell$MSP": [
@@ -294,6 +352,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         # https://www.gov.uk/government/publications/shares-and-capital-gains-tax-hs284-self-assessment-helpsheet/
         id="HS284_Example_2_2021",
     ),
@@ -346,6 +405,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=2, month=3, year=2021): {
                 "buy$FOO": [
@@ -378,7 +441,7 @@ calc_basic_data = [
                         quantity=Decimal(154),
                         amount=Decimal("4307.5255"),
                         gain=Decimal("31.7255"),
-                        allowable_cost=Decimal("4275.8"),
+                        allowable_cost=Decimal("4275.8") + Decimal("9.0945"),
                         fees=Decimal("9.0945"),
                         new_quantity=Decimal(100),
                         new_pool_cost=Decimal(2506),
@@ -388,7 +451,7 @@ calc_basic_data = [
                         quantity=Decimal(100),
                         amount=Decimal("2797.0945"),
                         gain=Decimal("291.0945"),
-                        allowable_cost=Decimal(2506),
+                        allowable_cost=Decimal(2506) + Decimal("5.9055"),
                         fees=Decimal("5.9055"),
                         new_quantity=Decimal(0),
                         new_pool_cost=Decimal(0),
@@ -413,7 +476,7 @@ calc_basic_data = [
                         quantity=Decimal(90),
                         amount=Decimal(2425),
                         gain=Decimal(-100),
-                        allowable_cost=Decimal(2525),
+                        allowable_cost=Decimal(2525) + Decimal(5),
                         fees=Decimal(5),
                         new_quantity=Decimal(0),
                         new_pool_cost=Decimal(0),
@@ -421,6 +484,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         # Complex case when same day rule should be applied before bed & breakfast.
         id="bed_and_breakfast_vs_same_day",
     ),
@@ -481,6 +545,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=2, month=3, year=2021): {
                 "buy$FOO": [
@@ -513,7 +581,7 @@ calc_basic_data = [
                         quantity=Decimal(154),
                         amount=Decimal("4307.5255"),
                         gain=Decimal("31.7255"),
-                        allowable_cost=Decimal("4275.8"),
+                        allowable_cost=Decimal("4275.8") + Decimal("9.0945"),
                         fees=Decimal("9.0945"),
                         new_quantity=Decimal(100),
                         new_pool_cost=Decimal(2506),
@@ -523,7 +591,7 @@ calc_basic_data = [
                         quantity=Decimal(30.5),
                         amount=Decimal("853.1138"),
                         gain=Decimal("-71.9862"),
-                        allowable_cost=Decimal("925.1"),
+                        allowable_cost=Decimal("925.1") + Decimal("1.8012"),
                         fees=Decimal("1.8012"),
                         new_quantity=Decimal(69.5),
                         new_pool_cost=Decimal("1741.67"),
@@ -536,7 +604,7 @@ calc_basic_data = [
                         quantity=Decimal(69.5),
                         amount=Decimal("1943.9807"),
                         gain=Decimal("202.3107"),
-                        allowable_cost=Decimal("1741.67"),
+                        allowable_cost=Decimal("1741.67") + Decimal("4.1043"),
                         fees=Decimal("4.1043"),
                         new_quantity=Decimal(0),
                         new_pool_cost=Decimal(0),
@@ -561,7 +629,7 @@ calc_basic_data = [
                         quantity=Decimal(90),
                         amount=Decimal(2425),
                         gain=Decimal(-100),
-                        allowable_cost=Decimal(2525),
+                        allowable_cost=Decimal(2525) + Decimal(5),
                         fees=Decimal(5),
                         new_quantity=Decimal(0),
                         new_pool_cost=Decimal(0),
@@ -582,6 +650,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         # Add real bed & breakfast entries.
         id="with_bed_and_breakfast",
     ),
@@ -642,6 +711,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=2, month=3, year=2021): {
                 "buy$FOO": [
@@ -674,7 +747,7 @@ calc_basic_data = [
                         quantity=Decimal(154),
                         amount=Decimal("4307.5255"),
                         gain=Decimal("31.7255"),
-                        allowable_cost=Decimal("4275.8"),
+                        allowable_cost=Decimal("4275.8") + Decimal("9.0945"),
                         fees=Decimal("9.0945"),
                         new_quantity=Decimal(100),
                         new_pool_cost=Decimal(2506),
@@ -684,7 +757,7 @@ calc_basic_data = [
                         quantity=Decimal(90),
                         amount=Decimal("2517.3850"),
                         gain=Decimal("-7.6150"),
-                        allowable_cost=Decimal("2525.0"),
+                        allowable_cost=Decimal("2525.0") + Decimal("5.3150"),
                         fees=Decimal("5.3150"),
                         new_quantity=Decimal(10),
                         new_pool_cost=Decimal("250.60"),
@@ -697,7 +770,8 @@ calc_basic_data = [
                         quantity=Decimal(10.0),
                         amount=Decimal("279.7094488188976377952755906"),
                         gain=Decimal("-23.6020265909384277784949012"),
-                        allowable_cost=Decimal("303.3114754098360655737704918"),
+                        allowable_cost=Decimal("303.3114754098360655737704918")
+                        + Decimal("0.5905511811023622047244094488"),
                         fees=Decimal("0.5905511811023622047244094488"),
                         new_quantity=Decimal(0),
                         new_pool_cost=Decimal(0),
@@ -727,7 +801,7 @@ calc_basic_data = [
                         quantity=Decimal(20.5),
                         amount=Decimal("552.3611"),
                         gain=Decimal("-69.4274"),
-                        allowable_cost=Decimal("621.7885"),
+                        allowable_cost=Decimal("621.7885") + Decimal("1.13888"),
                         fees=Decimal("1.13888"),
                         new_quantity=Decimal(69.5),
                         new_pool_cost=Decimal(1741.6700),
@@ -740,7 +814,7 @@ calc_basic_data = [
                         quantity=Decimal(69.5),
                         amount=Decimal("1872.6389"),
                         gain=Decimal("130.9689"),
-                        allowable_cost=Decimal("1741.67"),
+                        allowable_cost=Decimal("1741.67") + Decimal("3.8611"),
                         fees=Decimal("3.8611"),
                         new_quantity=Decimal(0),
                         new_pool_cost=Decimal(0),
@@ -761,6 +835,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         # Add real bed & breakfast entries.
         id="with_bed_and_breakfast_2",
     ),
@@ -805,6 +880,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=25, month=6, year=2023): {
                 "sell$FOO": [
@@ -813,7 +892,7 @@ calc_basic_data = [
                         quantity=Decimal(30.0),
                         amount=Decimal("2999"),
                         gain=Decimal("-34.06"),
-                        allowable_cost=Decimal("3033.06"),
+                        allowable_cost=Decimal("3033.06") + Decimal("1.0"),
                         fees=Decimal("1.0"),
                         new_quantity=Decimal(470),
                         new_pool_cost=Decimal(47517.94),
@@ -839,7 +918,7 @@ calc_basic_data = [
                         quantity=Decimal(50.0),
                         amount=Decimal("4999.50"),
                         gain=Decimal("48.5"),
-                        allowable_cost=Decimal("4951"),
+                        allowable_cost=Decimal("4951") + Decimal("0.5"),
                         fees=Decimal("0.5"),
                         new_quantity=Decimal(470),
                         new_pool_cost=Decimal(47517.94),
@@ -849,7 +928,7 @@ calc_basic_data = [
                         quantity=Decimal(50.0),
                         amount=Decimal("4999.5"),
                         gain=Decimal("-55.6"),
-                        allowable_cost=Decimal("5055.1"),
+                        allowable_cost=Decimal("5055.1") + Decimal("0.5"),
                         fees=Decimal("0.5"),
                         new_quantity=Decimal(420),
                         new_pool_cost=Decimal(42462.84),
@@ -857,6 +936,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         id="issue_460.sell_on_30/6_is_split_into_104+same_day",
     ),
     pytest.param(
@@ -908,6 +988,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=25, month=6, year=2023): {
                 "sell$FOO": [
@@ -916,7 +1000,7 @@ calc_basic_data = [
                         quantity=Decimal(30.0),
                         amount=Decimal("2999"),
                         gain=Decimal("28.4"),
-                        allowable_cost=Decimal("2970.6"),
+                        allowable_cost=Decimal("2970.6") + Decimal("1.0"),
                         fees=Decimal("1.0"),
                         new_quantity=Decimal(470),
                         new_pool_cost=Decimal(47517.94),
@@ -945,7 +1029,7 @@ calc_basic_data = [
                         quantity=Decimal(50.0),
                         amount=Decimal("4999.50"),
                         gain=Decimal("48.5"),
-                        allowable_cost=Decimal("4951"),
+                        allowable_cost=Decimal("4951") + Decimal("0.5"),
                         fees=Decimal("0.5"),
                         new_quantity=Decimal(470),
                         new_pool_cost=Decimal(47517.94),
@@ -955,7 +1039,7 @@ calc_basic_data = [
                         quantity=Decimal(20.0),
                         amount=Decimal("1999.8"),
                         gain=Decimal("19.4"),
-                        allowable_cost=Decimal("1980.4"),
+                        allowable_cost=Decimal("1980.4") + Decimal("0.2"),
                         fees=Decimal("0.2"),
                         new_quantity=Decimal(450),
                         new_pool_cost=Decimal(45495.9),
@@ -968,7 +1052,7 @@ calc_basic_data = [
                         quantity=Decimal(30.0),
                         amount=Decimal("2999.7"),
                         gain=Decimal("-33.36"),
-                        allowable_cost=Decimal("3033.06"),
+                        allowable_cost=Decimal("3033.06") + Decimal("0.3"),
                         fees=Decimal("0.3"),
                         new_quantity=Decimal(420),
                         new_pool_cost=Decimal(42462.84),
@@ -990,6 +1074,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         id="sell_on_30/6_is_split_into_104+same_day+b&d",
     ),
 ]
