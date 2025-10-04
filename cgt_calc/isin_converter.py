@@ -42,8 +42,6 @@ class IsinConverter:
         for isin, symbol in self.data.items():
             assert ISIN_REGEX.match(isin), f"{isin} not a valid ISIN!"
             assert symbol, f"Invalid empty ticker for {isin} ISIN"
-        if self.write_data:
-            self._write_isin_translation_file()
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Add the ISIN to symbol mapping from an existing transaction."""
@@ -64,6 +62,7 @@ class IsinConverter:
                 self.data.setdefault(transaction.isin, [])
                 self.write_data[transaction.isin].append(transaction.symbol)
                 self.data[transaction.isin].append(transaction.symbol)
+                self._write_isin_translation_file()
 
     def get_symbols(self, isin: str) -> list[str]:
         """Return the symbol associated with the input ISIN or empty string."""
