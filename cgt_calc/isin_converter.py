@@ -31,10 +31,10 @@ class IsinConverter:
         # https://www.openfigi.com/api/documentation#rate-limits
         self.session = LimiterSession(per_minute=25)
         self.isin_translation_file = isin_translation_file
-        self.data: dict[str, list[str]] = read_isin_translation_file(
+        self.data: dict[str, set[str]] = read_isin_translation_file(
             resources.files(RESOURCES_PACKAGE).joinpath(INITIAL_ISIN_TRANSLATION_FILE)
         )
-        self.write_data: dict[str, list[str]] = {}
+        self.write_data: dict[str, set[str]] = {}
         if isin_translation_file is not None and Path(isin_translation_file).is_file():
             self.write_data = read_isin_translation_file(Path(isin_translation_file))
             self.data.update(self.write_data)
@@ -57,14 +57,14 @@ class IsinConverter:
                 "stored in the mapping {self.data[transaction.isin]}"
             )
 
-            if transaction.symbol not in self.data.get(transaction.isin, []):
-                self.write_data.setdefault(transaction.isin, [])
-                self.data.setdefault(transaction.isin, [])
-                self.write_data[transaction.isin].append(transaction.symbol)
-                self.data[transaction.isin].append(transaction.symbol)
+            if transaction.symbol not in self.data.get(transaction.isin, set()):
+                self.write_data.setdefault(transaction.isin, set())
+                self.data.setdefault(transaction.isin, set())
+                self.write_data[transaction.isin].add(transaction.symbol)
+                self.data[transaction.isin].add(transaction.symbol)
                 self._write_isin_translation_file()
 
-    def get_symbols(self, isin: str) -> list[str]:
+    def get_symbols(self, isin: str) -> set[str]:
         """Return the symbol associated with the input ISIN or empty string."""
         result = self.data.get(isin)
         if result is None:
@@ -83,7 +83,7 @@ class IsinConverter:
             writer = csv.writer(fout)
             writer.writerows([ISIN_TRANSLATION_HEADER, *data_rows])
 
-    def _fetch_live(self, isin: str) -> list[str]:
+    def _fetch_live(self, isin: str) -> set[str]:
         url = "https://api.openfigi.com/v3/mapping"
         headers = {"Content-type": "application/json"}
         data = [{"idType": "ID_ISIN", "idValue": isin}]
@@ -106,23 +106,23 @@ class IsinConverter:
             or len(json_response) == 0
             or "data" not in json_response[0]
         ):
-            return []
+            return set()
 
         json_data = json_response[0]["data"]
 
         # https://www.openfigi.com/assets/content/OpenFIGI_Exchange_Codes-3d3e5936ba.csv
         # Get london exchange first
-        result = [data["ticker"] for data in json_data if data["exchCode"] == "LN"]
+        result = {data["ticker"] for data in json_data if data["exchCode"] == "LN"}
 
         if result:
             return result
 
         # Get all the other UK exchanges
-        result = [
+        result = {
             data["ticker"]
             for data in json_data
             if data["exchCode"] in ("LC", "LT", "LI", "LO")
-        ]
+        }
 
         if result:
             return result
@@ -130,5 +130,5 @@ class IsinConverter:
         # Get the shorter ticker as final fallback
         all_tickers = [data["ticker"] for data in json_data if data]
         if all_tickers:
-            return [min(all_tickers, key=len)]
-        return []
+            return {min(all_tickers, key=len)}
+        return set()

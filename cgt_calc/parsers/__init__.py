@@ -63,14 +63,14 @@ class IsinTranslationEntry:
     """Entry from ISIN Translation file."""
 
     isin: str
-    symbols: list[str]
+    symbols: set[str]
 
     def __init__(self, row: list[str], file: str):
         """Create entry from CSV row."""
         if len(row) < ISIN_TRANSLATION_COLUMNS_NUM:
             raise UnexpectedColumnCountError(row, ISIN_TRANSLATION_COLUMNS_NUM, file)
         self.isin = row[0]
-        self.symbols = row[1:]
+        self.symbols = set(row[1:])
 
     def __str__(self) -> str:
         """Return string representation."""
@@ -159,7 +159,7 @@ def read_initial_prices(
 
 def read_isin_translation_file(
     isin_translation_file: Traversable | Path,
-) -> dict[str, list[str]]:
+) -> dict[str, set[str]]:
     """Read ISIN translation data to tickers from the input path."""
     with isin_translation_file.open(encoding="utf-8") as csv_file:
         lines = list(csv.reader(csv_file))
