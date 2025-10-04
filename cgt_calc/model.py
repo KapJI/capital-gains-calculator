@@ -130,6 +130,7 @@ class BrokerTransaction:
     amount: Decimal | None
     currency: str
     broker: str
+    isin: str | None = None
 
 
 class RuleType(Enum):

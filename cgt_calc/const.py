@@ -69,3 +69,9 @@ TICKER_RENAMES: Final[dict[str, str]] = {
 }
 
 COUNTRY_CURRENCY = "GBP"
+
+# ISIN to ticker translation file
+DEFAULT_ISIN_TRANSLATION_FILE: Final = "isin_translation.csv"
+
+# ISIN initial translation file
+INITIAL_ISIN_TRANSLATION_FILE: Final = "initial_isin_translation.csv"

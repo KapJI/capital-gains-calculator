@@ -35,6 +35,7 @@ from .exceptions import (
     SymbolMissingError,
 )
 from .initial_prices import InitialPrices
+from .isin_converter import IsinConverter
 from .model import (
     ActionType,
     BrokerTransaction,
@@ -134,7 +135,8 @@ class CapitalGainsCalculator:
     def __init__(
         self,
         tax_year: int,
-        converter: CurrencyConverter,
+        currency_converter: CurrencyConverter,
+        isin_converter: IsinConverter,
         price_fetcher: CurrentPriceFetcher,
         spin_off_handler: SpinOffHandler,
         initial_prices: InitialPrices,
@@ -148,7 +150,8 @@ class CapitalGainsCalculator:
         self.tax_year_start_date = get_tax_year_start(tax_year)
         self.tax_year_end_date = get_tax_year_end(tax_year)
 
-        self.converter = converter
+        self.currency_converter = currency_converter
+        self.isin_converter = isin_converter
         self.price_fetcher = price_fetcher
         self.spin_off_handler = spin_off_handler
         self.initial_prices = initial_prices
@@ -222,8 +225,8 @@ class CapitalGainsCalculator:
             transaction.date,
             symbol,
             quantity,
-            self.converter.to_gbp_for(amount, transaction),
-            self.converter.to_gbp_for(transaction.fees, transaction),
+            self.currency_converter.to_gbp_for(amount, transaction),
+            self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
 
     def handle_spin_off(
@@ -355,8 +358,8 @@ class CapitalGainsCalculator:
             transaction.date,
             symbol,
             quantity,
-            self.converter.to_gbp_for(amount, transaction),
-            self.converter.to_gbp_for(transaction.fees, transaction),
+            self.currency_converter.to_gbp_for(amount, transaction),
+            self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
 
     def convert_to_hmrc_transactions(
@@ -371,6 +374,9 @@ class CapitalGainsCalculator:
         interests: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         total_disposal_proceeds = Decimal(0)
         balance_history: list[Decimal] = []
+
+        for transaction in transactions:
+            self.isin_converter.add_from_transaction(transaction)
 
         for i, transaction in enumerate(transactions):
             new_balance = balance[(transaction.broker, transaction.currency)]
@@ -387,7 +393,7 @@ class CapitalGainsCalculator:
                 new_balance += amount
                 self.add_disposal(transaction)
                 if self.date_in_tax_year(transaction.date):
-                    total_disposal_proceeds += self.converter.to_gbp_for(
+                    total_disposal_proceeds += self.currency_converter.to_gbp_for(
                         amount + transaction.fees, transaction
                     )
             elif transaction.action is ActionType.FEE:
@@ -395,7 +401,9 @@ class CapitalGainsCalculator:
                 new_balance += amount
                 transaction.fees = -amount
                 transaction.quantity = Decimal(0)
-                gbp_fees = self.converter.to_gbp_for(transaction.fees, transaction)
+                gbp_fees = self.currency_converter.to_gbp_for(
+                    transaction.fees, transaction
+                )
                 symbol = get_symbol_or_fail(transaction)
                 add_to_list(
                     self.acquisition_list,
@@ -825,7 +833,7 @@ class CapitalGainsCalculator:
                 last_broker = broker
 
         for (broker, date), foreign_amount in monthly_interests.items():
-            gbp_amount = self.converter.to_gbp(
+            gbp_amount = self.currency_converter.to_gbp(
                 foreign_amount.amount, foreign_amount.currency, date
             )
             if foreign_amount.currency == COUNTRY_CURRENCY:
@@ -892,10 +900,10 @@ class CapitalGainsCalculator:
                             )
                             treaty = None
 
-            amount = self.converter.to_gbp(
+            amount = self.currency_converter.to_gbp(
                 foreign_amount.amount, foreign_amount.currency, date
             )
-            tax_amount = self.converter.to_gbp(
+            tax_amount = self.currency_converter.to_gbp(
                 tax.amount, foreign_amount.currency, date
             )
 
@@ -1094,14 +1102,16 @@ def main() -> int:
         args.raw,
         args.vanguard,
     )
-    converter = CurrencyConverter(args.exchange_rates_file)
+    currency_converter = CurrencyConverter(args.exchange_rates_file)
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
-    price_fetcher = CurrentPriceFetcher(converter)
+    price_fetcher = CurrentPriceFetcher(currency_converter)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
+    isin_converter = IsinConverter(args.isin_translation_file)
 
     calculator = CapitalGainsCalculator(
         args.year,
-        converter,
+        currency_converter,
+        isin_converter,
         price_fetcher,
         spin_off_handler,
         initial_prices,

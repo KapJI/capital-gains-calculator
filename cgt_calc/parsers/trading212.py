@@ -177,7 +177,7 @@ class Trading212Transaction(BrokerTransaction):
                     f"in the UI. Discrepancy / share: {discrepancy:.3f}."
                 )
 
-        self.isin = row["ISIN"]
+        isin = row["ISIN"]
         self.transaction_id = row.get("ID")
         self.notes = row.get("Notes")
         broker = "Trading212"
@@ -192,6 +192,7 @@ class Trading212Transaction(BrokerTransaction):
             amount,
             currency,
             broker,
+            isin,
         )
 
     def __hash__(self) -> int:

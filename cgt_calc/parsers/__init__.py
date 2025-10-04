@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from importlib import resources
@@ -10,8 +11,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from cgt_calc.const import DEFAULT_INITIAL_PRICES_FILE
-from cgt_calc.exceptions import UnexpectedColumnCountError
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.resources import RESOURCES_PACKAGE
+from cgt_calc.util import is_isin
 
 from .mssb import read_mssb_transactions
 from .raw import read_raw_transactions
@@ -22,13 +24,23 @@ from .trading212 import read_trading212_transactions
 from .vanguard import read_vanguard_transactions
 
 if TYPE_CHECKING:
+    from importlib.abc import Traversable
+
     from cgt_calc.model import BrokerTransaction
 
 INITIAL_PRICES_COLUMNS_NUM: Final = 3
 
+ISIN_TRANSLATION_HEADER: Final = ["ISIN", "symbol"]
+ISIN_TRANSLATION_COLUMNS_NUM: Final = len(ISIN_TRANSLATION_HEADER)
 
+
+@dataclass
 class InitialPricesEntry:
     """Entry from initial stock prices file."""
+
+    date: datetime.date
+    symbol: str
+    price: Decimal
 
     def __init__(self, row: list[str], file: str):
         """Create entry from CSV row."""
@@ -47,6 +59,27 @@ class InitialPricesEntry:
     def __str__(self) -> str:
         """Return string representation."""
         return f"date: {self.date}, symbol: {self.symbol}, price: {self.price}"
+
+
+@dataclass
+class IsinTranslationEntry:
+    """Entry from ISIN Translation file."""
+
+    isin: str
+    symbols: set[str]
+
+    def __init__(self, row: list[str], file: str):
+        """Create entry from CSV row."""
+        if len(row) < ISIN_TRANSLATION_COLUMNS_NUM:
+            raise UnexpectedColumnCountError(row, ISIN_TRANSLATION_COLUMNS_NUM, file)
+        self.isin = row[0]
+        if not is_isin(self.isin):
+            raise ParsingError(file, f"{self.isin} is not a valid ISIN!")
+        self.symbols = set(row[1:])
+
+    def __str__(self) -> str:
+        """Return string representation."""
+        return f"ISIN: {self.isin}, symbol: {self.symbols}"
 
 
 def read_broker_transactions(
@@ -127,3 +160,20 @@ def read_initial_prices(
             initial_prices[date_index] = {}
         initial_prices[date_index][entry.symbol] = entry.price
     return initial_prices
+
+
+def read_isin_translation_file(
+    isin_translation_file: Traversable | Path,
+) -> dict[str, set[str]]:
+    """Read ISIN translation data to tickers from the input path."""
+    with isin_translation_file.open(encoding="utf-8") as csv_file:
+        lines = list(csv.reader(csv_file))
+        header = lines[0]
+        assert header == ISIN_TRANSLATION_HEADER
+
+        lines = lines[1:]
+        result = {}
+        for row in lines:
+            entry = IsinTranslationEntry(row, isin_translation_file.name)
+            result[entry.isin] = entry.symbols
+        return result

@@ -1,8 +1,8 @@
 Action,Time,ISIN,Ticker,Name,No. of shares,Price / share,Currency (Price / share),Exchange rate,Result,Currency (Result),Total,Currency (Total),Withholding tax,Currency (Withholding tax),Transaction fee,Notes,ID,Currency conversion fee,Currency (Currency conversion fee),Currency (Transaction fee)
 Deposit,2024-01-01 00:15:20.149,,,,,,,,,,3000.00,"GBP",,,,"Transaction ID: xxxxxxxxxxxx05",xxxxxxxxxxxx05,,,
-Market buy,2024-01-01 16:10:05.175,US00000003,FOO,"Foo Company",24.0000000000,124.01,USD,1.25229,,"GBP",2381.35,"GBP",,,,,EOF999999099,4.71,"GBP",
+Market buy,2024-01-01 16:10:05.175,US0000000002,FOO,"Foo Company",24.0000000000,124.01,USD,1.25229,,"GBP",2381.35,"GBP",,,,,EOF999999099,4.71,"GBP",
 Interest on cash,2024-01-01 11:05:03.126,,,,,,,,,,0.04,"GBP",,,,"Interest on cash",ffffffff-ffff-ffff-ffff-ffffffffffff,,,
 Result adjustment,2024-01-04 13:12:49.174,,,,,,,,,,0.75,"GBP",,,,"Withholding tax refund - interest on cash Q4 2023.",090f8f76-e24f-4507-b6c9-adc02a969b7f,,,
-Dividend (Dividend),2024-03-23 18:35:26,US00000003,FOO,"Foo Company",24.0000000000,0.03,USD,Not available,,,0.11,"GBP",0.02,USD,,,,,,
-Limit sell,2024-04-29 13:20:03.075,US00000003,FOO,"Foo Company",24.0000000000,164.01,USD,1.25229,-75.67,"GBP",3138.50,"GBP",,,,,EOF999999099,4.71,"GBP",
+Dividend (Dividend),2024-03-23 18:35:26,US0000000002,FOO,"Foo Company",24.0000000000,0.03,USD,Not available,,,0.11,"GBP",0.02,USD,,,,,,
+Limit sell,2024-04-29 13:20:03.075,US0000000002,FOO,"Foo Company",24.0000000000,164.01,USD,1.25229,-75.67,"GBP",3138.50,"GBP",,,,,EOF999999099,4.71,"GBP",
 Withdrawal,2024-05-26 16:18:16.235,,,,,,,,,,-2000.00,"GBP",,,,"Sent to Bank Account 99-99-99 / 9999999",ffffffff-ffff-ffff-ffff-ffffffffff99,,,
