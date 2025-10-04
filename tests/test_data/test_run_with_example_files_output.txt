@@ -30,6 +30,9 @@ Portfolio at the end of 2020/2021 tax year:
   NVDA: 1.00, £401.01
   GOOG: 172.00, £12516.55
 For tax year 2020/2021:
+Excess Reported Income:
+  VUAG: £22.26 (included as dividend)
+  VNRG: £0.91 (included as dividend)
 Number of disposals: 4
 Disposal proceeds: £43798.48
 Allowable costs: £18648.54

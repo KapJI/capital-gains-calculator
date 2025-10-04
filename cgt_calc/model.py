@@ -390,6 +390,17 @@ class CapitalGainsReport:
         assert self.capital_gain_allowance is not None
         return max(Decimal(0), self.total_gain() - self.capital_gain_allowance)
 
+    def total_eri_amount(self, is_interest: bool) -> Decimal:
+        """Total dividends amount just from ERI."""
+        total = Decimal(0)
+        for item in self._filter_calculation_log(
+            self.calculation_log_yields, RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION
+        ):
+            assert item.eri is not None
+            if item.eri.is_interest == is_interest:
+                total += item.amount
+        return total
+
     def total_dividends_amount(self) -> Decimal:
         """Total dividends amount."""
         total = Decimal(0)
@@ -399,12 +410,9 @@ class CapitalGainsReport:
             assert item.dividend is not None
             if not item.dividend.is_interest:
                 total += item.amount
-        for item in self._filter_calculation_log(
-            self.calculation_log_yields, RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION
-        ):
-            assert item.eri is not None
-            if not item.eri.is_interest:
-                total += item.amount
+
+        total += self.total_eri_amount(is_interest=False)
+
         return total
 
     def total_dividend_taxes_in_tax_treaties_amount(self) -> Decimal:
@@ -440,7 +448,24 @@ class CapitalGainsReport:
                     entry.unrealized_gains_str() if self.show_unrealized_gains else ""
                 )
                 out += f"{entry!s}{unrealized_gains_str}\n"
+        eris = list(
+            self._filter_calculation_log(
+                self.calculation_log_yields,
+                RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
+            )
+        )
         out += f"For tax year {self.tax_year}/{self.tax_year + 1}:\n"
+        if eris:
+            out += "Excess Reported Income:\n"
+            for item in self._filter_calculation_log(
+                self.calculation_log_yields,
+                RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
+            ):
+                assert item.eri
+                dist_type = "interest" if item.eri.is_interest else "dividend"
+                out += f"  {item.eri.symbol}: £{round_decimal(item.amount,2)} "
+                out += f"(included as {dist_type})\n"
+
         out += f"Number of disposals: {self.disposal_count}\n"
         out += f"Disposal proceeds: £{self.disposal_proceeds}\n"
         out += f"Allowable costs: £{self.allowable_costs}\n"

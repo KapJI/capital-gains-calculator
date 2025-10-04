@@ -475,15 +475,6 @@ class CapitalGainsCalculator:
         total_disposal_proceeds = Decimal(0)
         balance_history: list[Decimal] = []
 
-        def _accumulate_if_in_tax_year(
-            date: datetime.date,
-            current_data: dict[tuple[str, str], Decimal],
-            key: tuple[str, str],
-            amount: Decimal,
-        ) -> None:
-            if self.date_in_tax_year(date):
-                current_data[key] += amount
-
         for transaction in transactions:
             self.isin_converter.add_from_transaction(transaction)
 
@@ -540,9 +531,8 @@ class CapitalGainsCalculator:
                 self.dividend_list[(symbol, transaction.date)] += ForeignCurrencyAmount(
                     amount, currency
                 )
-                _accumulate_if_in_tax_year(
-                    transaction.date, dividends, (symbol, currency), amount
-                )
+                if self.date_in_tax_year(transaction.date):
+                    dividends[(symbol, currency)] += amount
             elif transaction.action is ActionType.DIVIDEND_TAX:
                 amount = get_amount_or_fail(transaction)
                 symbol = get_symbol_or_fail(transaction)
@@ -551,9 +541,8 @@ class CapitalGainsCalculator:
                 self.dividend_tax_list[(symbol, transaction.date)] += (
                     ForeignCurrencyAmount(amount, currency)
                 )
-                _accumulate_if_in_tax_year(
-                    transaction.date, dividends_tax, (symbol, currency), amount
-                )
+                if self.date_in_tax_year(transaction.date):
+                    dividends_tax[(symbol, currency)] += amount
             elif transaction.action is ActionType.ADJUSTMENT:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
@@ -563,12 +552,8 @@ class CapitalGainsCalculator:
                 self.interest_list[(transaction.broker, transaction.date)] += (
                     ForeignCurrencyAmount(amount, transaction.currency)
                 )
-                _accumulate_if_in_tax_year(
-                    transaction.date,
-                    interests,
-                    (transaction.broker, transaction.currency),
-                    amount,
-                )
+                if self.date_in_tax_year(transaction.date):
+                    interests[(transaction.broker, transaction.currency)] += amount
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
@@ -594,6 +579,19 @@ class CapitalGainsCalculator:
                 raise CalculationError(msg)
             balance[(transaction.broker, transaction.currency)] = new_balance
 
+        self.first_pass_report(
+            balance, dividends, dividends_tax, interests, total_disposal_proceeds
+        )
+
+    def first_pass_report(
+        self,
+        balance: dict[tuple[str, str], Decimal],
+        dividends: dict[tuple[str, str], Decimal],
+        dividends_tax: dict[tuple[str, str], Decimal],
+        interests: dict[tuple[str, str], Decimal],
+        total_disposal_proceeds: Decimal,
+    ) -> None:
+        """Print the results of the first pass."""
         print("First pass completed")
         print("Final portfolio:")
         for stock, position in self.portfolio.items():
@@ -786,11 +784,13 @@ class CapitalGainsCalculator:
         # Bed and breakfast rule next
         if disposal_quantity > 0:
             eri = self.get_eri(symbol, date_index)
-            eri_distribution = ExcessReportedIncomeDistribution()
+            eri_distribution = None
 
             for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = date_index + datetime.timedelta(days=i + 1)
 
+                # ERI are distributed annually so only 1 eri can match in a bed
+                # a breakfast period (30 days)
                 eri = eri or self.get_eri(symbol, search_index)
                 if has_key(self.acquisition_list, search_index, symbol):
                     acquisition = self.acquisition_list[search_index][symbol]
@@ -842,6 +842,9 @@ class CapitalGainsCalculator:
                     bed_and_breakfast_allowable_cost = (
                         available_quantity * acquisition_price
                     ) + fees
+                    # ERI needs to be reported when doing bed and breakfast as if you
+                    # held the stocks at the reporting end date.
+                    # https://www.rawknowledge.ltd/eri-explained-four-tricky-questions-answered/
                     if eri:
                         eri_distribution = ExcessReportedIncomeDistribution(
                             price=eri.price,
@@ -859,12 +862,14 @@ class CapitalGainsCalculator:
                     chargeable_gain += bed_and_breakfast_gain
                     LOGGER.debug(
                         "BED & BREAKFAST, quantity %d, gain %s, disposal price %s, "
-                        "acquisition price %s, added_excess_income: %s",
+                        "acquisition price %s%s",
                         available_quantity,
                         bed_and_breakfast_gain,
                         disposal_price,
                         acquisition_price,
-                        eri_distribution.amount,
+                        f", added_excess_income: {eri_distribution.amount}"
+                        if eri_distribution
+                        else "",
                     )
                     disposal_quantity -= available_quantity
                     proceeds_amount -= available_quantity * disposal_price
@@ -881,7 +886,8 @@ class CapitalGainsCalculator:
                         search_index,
                         symbol,
                         available_quantity,
-                        amount_delta + eri_distribution.amount,
+                        amount_delta
+                        + (eri_distribution.amount if eri_distribution else Decimal(0)),
                         Decimal(0),
                         eri,
                     )

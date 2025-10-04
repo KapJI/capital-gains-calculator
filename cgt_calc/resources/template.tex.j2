@@ -215,9 +215,15 @@
 \subsection*{Number of interest transactions: \VAR{ interest_count.value }}
 \subsection*{Number of excess reported income distributions: \VAR{ eri_count.value }}
 \subsection*{Total amount of dividends proceeds: £\VAR{ "{:,}".format(round_decimal(report.total_dividends_amount(), 2)) }}
+\BLOCK{ if report.total_eri_amount(False) > 0 }
+\subsubsection*{   (including £\VAR{ "{:,}".format(round_decimal(report.total_eri_amount(False), 2))} from excess reported income distributions)}
+\BLOCK{ endif }
 \subsection*{Total amount of dividends tax allowance due to double taxation treaties £\VAR{ "{:,}".format(round_decimal(report.total_dividend_taxes_in_tax_treaties_amount(), 2)) }}
 \subsection*{Total amount of dividends tax yearly allowance £\VAR{ "{:,}".format(round_decimal(report.dividend_allowance or Decimal(), 2)) }}
 \subsection*{Total amount of taxable dividends proceeds: £\VAR{ "{:,}".format(round_decimal(report.total_dividend_taxable_gain(), 2)) }}
 \subsection*{Total amount of UK interests proceeds: £\VAR{ "{:,}".format(report.total_uk_interest) }}
 \subsection*{Total amount of foreign interests proceeds: £\VAR{ "{:,}".format(report.total_foreign_interest) }}
+\BLOCK{ if report.total_eri_amount(True) > 0 }
+\subsubsection*{   (including £\VAR{ "{:,}".format(round_decimal(report.total_eri_amount(True), 2))} from excess reported income distributions)}
+\BLOCK{ endif }
 \end{document}
