@@ -185,6 +185,7 @@ You can find the full list of funds that requires this at [HMRC](https://www.gov
 The tool already includes such yearly history in the [resources folder](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri). You can check if your fund is already included, or provide a custom ERI history file following the instructions [here](https://github.com/KapJI/capital-gains-calculator/blob/main/excess_reported_income_sources.md). We strongly suggest sharing compiled ERI data so it can be added to the package as it can save significant time to other users that hold the same fund.
 
 Currently bundled data:
+
 -   [Vanguard Funds Plc 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
 
 The ERI funds are indexed by ISIN and the tool provides automatic translation from ISIN to tickers, in case your broker doesn't supply the ISIN in their transaction history. For instructions on how to override ISIN translation look at the Extra options section below.
