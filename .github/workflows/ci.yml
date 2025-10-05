@@ -63,3 +63,26 @@ jobs:
       - name: Run python-typing-update
         run: |
           poetry run pre-commit run --hook-stage manual python-typing-update --all-files --show-diff-on-failure --color=always
+
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          tags: local/cgt-calc:test
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run pytest inside container
+        run: |
+          docker run --rm local/cgt-calc:test -lc "/bin/poetry -C /build run pytest -q"
