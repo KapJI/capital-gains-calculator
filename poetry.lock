@@ -1245,6 +1245,18 @@ files = [
 ]
 
 [[package]]
+name = "types-python-dateutil"
+version = "2.9.0.20250822"
+description = "Typing stubs for python-dateutil"
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "types_python_dateutil-2.9.0.20250822-py3-none-any.whl", hash = "sha256:849d52b737e10a6dc6621d2bd7940ec7c65fcb69e6aa2882acf4e56b2b508ddc"},
+    {file = "types_python_dateutil-2.9.0.20250822.tar.gz", hash = "sha256:84c92c34bd8e68b117bff742bc00b692a1e8531262d4507b33afcc9f7716cd53"},
+]
+
+[[package]]
 name = "types-pytz"
 version = "2023.3.1.1"
 description = "Typing stubs for pytz"
@@ -1377,4 +1389,4 @@ repair = ["scipy (>=1.6.3)"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.9"
-content-hash = "8ef1269d49482b0fea133c36258a35746c5c2888aa9e2aadeef4d8a50472497e"
+content-hash = "f8384fea697c1844bb4a444e31f064b0beaa81d277722844f8a1cbb479bef22b"

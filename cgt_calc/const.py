@@ -6,6 +6,8 @@ import datetime
 from decimal import Decimal
 from typing import Final
 
+from dateutil.relativedelta import relativedelta
+
 from .model import TaxTreaty
 
 # Allowances from
@@ -59,6 +61,8 @@ DEFAULT_INITIAL_PRICES_FILE: Final = "initial_prices.csv"
 
 DEFAULT_SPIN_OFF_FILE: Final = "spin_offs.csv"
 
+DEFAULT_ERI_FOLDER: Final = "eri"
+
 # Latex template for calculations report
 TEMPLATE_NAME: Final = "template.tex.j2"
 
@@ -69,6 +73,10 @@ TICKER_RENAMES: Final[dict[str, str]] = {
 }
 
 COUNTRY_CURRENCY = "GBP"
+
+MIN_DAYS_IN_YEAR: Final = 365
+
+ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 
 # ISIN to ticker translation file
 DEFAULT_ISIN_TRANSLATION_FILE: Final = "isin_translation.csv"

@@ -12,6 +12,7 @@ from tests.test_data.calc_test_data import (
     buy_transaction,
     dividend_tax_transaction,
     dividend_transaction,
+    eri_transaction,
     interest_transaction,
     sell_transaction,
     transaction,
@@ -416,5 +417,247 @@ calc_basic_data_2 = [
             },
         },
         id="dividends_and_interests",
+    ),
+    pytest.param(
+        2023,  # tax year
+        [
+            transfer_transaction(datetime.date(day=1, month=5, year=2023), 100000),
+            buy_transaction(
+                date=datetime.date(day=1, month=6, year=2023),
+                symbol="FOO",
+                quantity=500,
+                price=101.1,
+                fees=1,
+                amount=-50551,
+                isin="USFOO0000006",
+            ),
+            buy_transaction(
+                date=datetime.date(day=2, month=6, year=2023),
+                symbol="FOO",
+                quantity=100,
+                price=102.1,
+                fees=1.0,
+                amount=-10211.0,
+                isin="USFOO0000006",
+            ),
+            eri_transaction(
+                date=datetime.date(day=1, month=7, year=2023),
+                isin="USFOO0000006",
+                price=2.1,
+            ),
+            sell_transaction(
+                date=datetime.date(day=25, month=9, year=2023),
+                symbol="FOO",
+                quantity=30,
+                price=130,
+                fees=1,
+                amount=3899,
+                isin="USFOO0000006",
+            ),
+        ],
+        797.90,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        0.00,  # Expected UK interest
+        1260.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
+        {
+            datetime.date(day=1, month=6, year=2023): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(500.0),
+                        amount=Decimal("-50551.0"),
+                        gain=Decimal("0"),
+                        allowable_cost=Decimal("50551.0"),
+                        fees=Decimal("1.0"),
+                        new_quantity=Decimal(500),
+                        new_pool_cost=Decimal(50551.0),
+                    ),
+                ],
+            },
+            datetime.date(day=2, month=6, year=2023): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(100.0),
+                        amount=Decimal("-10211.0"),
+                        gain=Decimal("0"),
+                        allowable_cost=Decimal("10211.0"),
+                        fees=Decimal("1.0"),
+                        new_quantity=Decimal(600),
+                        new_pool_cost=Decimal(60762.0),
+                    ),
+                ],
+            },
+            datetime.date(day=1, month=7, year=2023): {
+                "excess-reported-income$FOO": [
+                    CalculationEntry(
+                        RuleType.EXCESS_REPORTED_INCOME,
+                        quantity=Decimal(600.0),
+                        amount=Decimal("-60762.0"),
+                        gain=None,
+                        allowable_cost=Decimal("1260.0"),
+                        fees=Decimal("0.0"),
+                        new_quantity=Decimal(600),
+                        new_pool_cost=Decimal(62022.0),
+                    ),
+                ],
+            },
+            datetime.date(day=25, month=9, year=2023): {
+                "sell$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(30.0),
+                        amount=Decimal("3899.0"),
+                        gain=Decimal("797.90"),
+                        allowable_cost=Decimal("3101.10") + Decimal("1.0"),
+                        fees=Decimal("1.0"),
+                        new_quantity=Decimal(570),
+                        new_pool_cost=Decimal(58920.90),
+                    ),
+                ],
+            },
+        },
+        {
+            datetime.date(day=1, month=1, year=2024): {
+                "excess-reported-income-distribution$FOO": [
+                    CalculationEntry(
+                        RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
+                        quantity=Decimal(600.0),
+                        amount=Decimal(1260.0),
+                        gain=None,
+                        allowable_cost=None,
+                        fees=Decimal(0),
+                        new_quantity=Decimal(600.0),
+                        new_pool_cost=Decimal(1260.0),
+                    ),
+                ],
+            },
+        },
+        # https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds
+        id="HS265_excess_income_reported",
+    ),
+    pytest.param(
+        2020,  # tax year
+        [
+            transfer_transaction(datetime.date(day=1, month=1, year=2019), 15100),
+            buy_transaction(
+                date=datetime.date(day=1, month=1, year=2019),
+                symbol="MSP",
+                quantity=9500,
+                price=1.5,
+                fees=0,
+                amount=-14250,
+                isin="USMSP0000000",
+            ),
+            sell_transaction(
+                date=datetime.date(day=30, month=8, year=2020),
+                symbol="MSP",
+                quantity=4000,
+                price=1.5,
+                fees=0,
+                amount=6000,
+                isin="USMSP0000000",
+            ),
+            eri_transaction(
+                date=datetime.date(day=1, month=9, year=2020),
+                isin="USMSP0000000",
+                price=0.4,
+            ),
+            buy_transaction(
+                date=datetime.date(day=11, month=9, year=2020),
+                symbol="MSP",
+                quantity=500,
+                price=1.7,
+                fees=0,
+                amount=-850,
+                isin="USMSP0000000",
+            ),
+        ],
+        -100.0,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        2400.00,  # Expected dividend
+        400.00,  # Expected dividend gain
+        {
+            datetime.date(day=30, month=8, year=2020): {
+                "sell$MSP": [
+                    CalculationEntry(
+                        RuleType.BED_AND_BREAKFAST,
+                        quantity=Decimal(500),
+                        amount=Decimal(750),
+                        gain=Decimal(-100.0),
+                        allowable_cost=Decimal(850),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(9000),
+                        new_pool_cost=Decimal(13500),
+                        bed_and_breakfast_date_index=(
+                            datetime.date(day=11, month=9, year=2020)
+                        ),
+                    ),
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(3500),
+                        amount=Decimal(5250),
+                        gain=Decimal(0),
+                        allowable_cost=Decimal(5250),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(5500),
+                        new_pool_cost=Decimal(8250),
+                    ),
+                ],
+            },
+            datetime.date(day=1, month=9, year=2020): {
+                "excess-reported-income$MSP": [
+                    CalculationEntry(
+                        RuleType.EXCESS_REPORTED_INCOME,
+                        quantity=Decimal(5500.0),
+                        amount=Decimal("-8250.0"),
+                        gain=None,
+                        allowable_cost=Decimal("2200"),
+                        fees=Decimal("0.0"),
+                        new_quantity=Decimal(5500.0),
+                        new_pool_cost=Decimal(10450.0),
+                    ),
+                ],
+            },
+            datetime.date(day=11, month=9, year=2020): {
+                "buy$MSP": [
+                    CalculationEntry(
+                        RuleType.BED_AND_BREAKFAST,
+                        quantity=Decimal(500),
+                        amount=Decimal(-950),
+                        allowable_cost=Decimal(850),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(6000),
+                        new_pool_cost=Decimal(11400),
+                    ),
+                ],
+            },
+        },
+        {
+            datetime.date(day=1, month=3, year=2021): {
+                "excess-reported-income-distribution$MSP": [
+                    CalculationEntry(
+                        RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
+                        quantity=Decimal(6000.0),
+                        amount=Decimal(2400.0),
+                        gain=None,
+                        allowable_cost=None,
+                        fees=Decimal(0),
+                        new_quantity=Decimal(6000.0),
+                        new_pool_cost=Decimal(2400.0),
+                    ),
+                ],
+            },
+        },
+        # https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds
+        id="HS265_excess_income_reported_bnb",
     ),
 ]

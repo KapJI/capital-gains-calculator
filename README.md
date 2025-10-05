@@ -48,6 +48,7 @@ apt install texlive-latex-base
 ## Usage
 
 -   You need to supply transaction history for each account you have. See below for per-broker instructions. The history needs to contain all transactions since the beginning, or at least since you first acquired the shares owned during the relevant tax years.
+-   If you own or have owned funds from outside the UK (i.e. Ireland), either them being accumulating or distributing, it's important you check the **Offshore fund-specific instructions** section below.
 -   Once you have all your transactions from all your brokers you need to supply them together, for example to generate the report for the tax year 2020/21:
 
 ```shell
@@ -57,7 +58,9 @@ cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ -
 -   Run `cgt-calc --help` for the full list of settings.
 -   If your broker is not listed below you can still try to use the raw format. We also welcome PRs for new parsers.
 
-## Broker-specific instructions
+## Input data
+
+### Broker-specific instructions
 
 <details>
     <summary>🏦 Instructions for Charles Schwab</summary>
@@ -173,6 +176,26 @@ cgt-calc --year 2024 --raw sharesight_trxs_dir/
 
 </details>
  <br />
+
+### Offshore fund-specific instructions
+
+For correct taxation on [offshore funds](https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds) you need to specify the yearly excess reported income (ERI) from each fund you have owned.
+You can find the full list of funds that requires this at [HMRC](https://www.gov.uk/government/publications/offshore-funds-list-of-reporting-funds).
+
+The tool already includes such yearly history in the [resources folder](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri). You can check if your fund is already included, or provide a custom ERI history file following the instructions [here](https://github.com/KapJI/capital-gains-calculator/blob/main/excess_reported_income_sources.md). We strongly suggest sharing compiled ERI data so it can be added to the package as it can save significant time to other users that hold the same fund.
+
+Currently bundled data:
+
+-   [Vanguard Funds Plc 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+
+The ERI funds are indexed by ISIN and the tool provides automatic translation from ISIN to tickers, in case your broker doesn't supply the ISIN in their transaction history. For instructions on how to override ISIN translation look at the Extra options section below.
+
+There are a few **unsupported** functionalities at the moment for taxation on offshore funds:
+
+-   Tax calculations for offshore funds that are **not reporting to HMRC** as they don't report taxes as CGT but as income tax.
+-   Excess Reported Income [equalisation](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm13224) support which is an optional arrangement which certain funds can support to reduce the amount of excess reported income in case you held the fund stocks for less than the reporting period.
+
+Check [ERI data additional instrunctions](excess_reported_income_sources.md) for more information.
 
 ### Extra files/options that might be needed
 
