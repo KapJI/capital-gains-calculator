@@ -49,16 +49,15 @@ cgt-calc = "cgt_calc.main:init"
 
 [dependency-groups]
 dev = [
-  "codespell>=2.2.6",
-  "mypy>=1.8",
+  "codespell>=2.4.1",
+  "mypy>=1.18.2",
   "pandas-stubs>=2.2",
-  "pre-commit>=3.5.0",
-  "pylint>=3.0.3",
-  "pytest>=7.4.4,<9.0.0",
-  "ruff>=0.6.4",
-  "types-defusedxml>=0.7.0.20240218",
+  "pylint>=3.3.8",
+  "pytest>=8.4.2,<9.0.0",
+  "ruff>=0.13.3",
+  "types-defusedxml>=0.7.0.20250822",
   "types-python-dateutil>=2.9.0.20250822",
-  "types-requests>=2.27.7",
+  "types-requests>=2.32.4.20250913",
 ]
 
 [tool.uv.build-backend]
@@ -448,4 +447,4 @@ warn_unreachable = true
 
 [tool.codespell]
 quiet-level = 2
-skip = "poetry.lock,./.git/*,./.mypy_cache/*,./dist/*,*.csv,./env/*"
+skip = "uv.lock,./.git/*,./.mypy_cache/*,./dist/*,*.csv,./env/*"
