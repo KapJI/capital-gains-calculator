@@ -64,4 +64,4 @@ jobs:
 
       - name: Run pytest inside container
         run: |
-          docker run --rm -e ENABLE_PDFLATEX=1 local/cgt-calc:test -lc "poetry -C /build run pytest -q"
+          docker run --rm -e ENABLE_PDFLATEX=1 local/cgt-calc:test -lc "cd /build && uv run pytest -q"
