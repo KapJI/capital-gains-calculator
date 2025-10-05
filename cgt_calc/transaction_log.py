@@ -27,11 +27,11 @@ def add_to_list(
     quantity: Decimal,
     amount: Decimal,
     fees: Decimal,
-    eri: None | ExcessReportedIncome = None,
+    eris: list[ExcessReportedIncome] | None = None,
 ) -> None:
     """Add entry to given transaction log."""
     current_list.setdefault(date_index, {})
     current_list[date_index].setdefault(symbol, HmrcTransactionData())
     current_list[date_index][symbol] += HmrcTransactionData(
-        quantity=quantity, amount=amount, fees=fees, eri=eri
+        quantity=quantity, amount=amount, fees=fees, eris=eris or []
     )

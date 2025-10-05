@@ -74,8 +74,6 @@ TICKER_RENAMES: Final[dict[str, str]] = {
 
 COUNTRY_CURRENCY = "GBP"
 
-MIN_DAYS_IN_YEAR: Final = 365
-
 ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 
 # ISIN to ticker translation file

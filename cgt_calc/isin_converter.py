@@ -28,13 +28,13 @@ class IsinConverter:
     ):
         """Create the IsinConverter."""
         # https://www.openfigi.com/api/documentation#rate-limits
-        self.session = LimiterSession(per_minute=25)
+        self.session = LimiterSession(per_minute=24)
         self.isin_translation_file = isin_translation_file
         self.data: dict[str, set[str]] = read_isin_translation_file(
             resources.files(RESOURCES_PACKAGE).joinpath(INITIAL_ISIN_TRANSLATION_FILE)
         )
         self.write_data: dict[str, set[str]] = {}
-        if isin_translation_file is not None and Path(isin_translation_file).is_file():
+        if isin_translation_file and Path(isin_translation_file).is_file():
             self.write_data = read_isin_translation_file(Path(isin_translation_file))
             self.data.update(self.write_data)
 
@@ -79,7 +79,7 @@ class IsinConverter:
         return result
 
     def _write_isin_translation_file(self) -> None:
-        if self.isin_translation_file is None:
+        if not self.isin_translation_file:
             return
         with Path(self.isin_translation_file).open("w", encoding="utf8") as fout:
             data_rows = [[isin, *symbols] for isin, symbols in self.write_data.items()]
@@ -109,6 +109,10 @@ class IsinConverter:
             or len(json_response) == 0
             or "data" not in json_response[0]
         ):
+            print(
+                f"Warning: Couldn't translate ISIN {isin}: "
+                f"Invalid Response {json_response}"
+            )
             return set()
 
         json_data = json_response[0]["data"]
@@ -134,4 +138,6 @@ class IsinConverter:
         all_tickers = [data["ticker"] for data in json_data if data]
         if all_tickers:
             return {min(all_tickers, key=len)}
+
+        print(f"Warning: Couldn't translate ISIN {isin}: Match not found {json_data}")
         return set()

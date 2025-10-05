@@ -567,6 +567,11 @@ calc_basic_data_2 = [
                 isin="USMSP0000000",
                 price=0.4,
             ),
+            eri_transaction(
+                date=datetime.date(day=10, month=9, year=2020),
+                isin="USMSP0000000",
+                price=0.2,
+            ),
             buy_transaction(
                 date=datetime.date(day=11, month=9, year=2020),
                 symbol="MSP",
@@ -583,8 +588,8 @@ calc_basic_data_2 = [
         None,  # Current prices
         0.00,  # Expected UK interest
         0.00,  # Expected foreign interest
-        2400.00,  # Expected dividend
-        400.00,  # Expected dividend gain
+        3600.00,  # Expected dividend
+        1600.00,  # Expected dividend gain
         {
             datetime.date(day=30, month=8, year=2020): {
                 "sell$MSP": [
@@ -627,16 +632,30 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
+            datetime.date(day=10, month=9, year=2020): {
+                "excess-reported-income$MSP": [
+                    CalculationEntry(
+                        RuleType.EXCESS_REPORTED_INCOME,
+                        quantity=Decimal(5500.0),
+                        amount=Decimal("-10450.0"),
+                        gain=None,
+                        allowable_cost=Decimal("1100"),
+                        fees=Decimal("0.0"),
+                        new_quantity=Decimal(5500.0),
+                        new_pool_cost=Decimal(11550.0),
+                    ),
+                ],
+            },
             datetime.date(day=11, month=9, year=2020): {
                 "buy$MSP": [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
                         quantity=Decimal(500),
-                        amount=Decimal(-950),
+                        amount=Decimal(-1050),
                         allowable_cost=Decimal(850),
                         fees=Decimal(0),
                         new_quantity=Decimal(6000),
-                        new_pool_cost=Decimal(11400),
+                        new_pool_cost=Decimal(12600),
                     ),
                 ],
             },
@@ -653,6 +672,20 @@ calc_basic_data_2 = [
                         fees=Decimal(0),
                         new_quantity=Decimal(6000.0),
                         new_pool_cost=Decimal(2400.0),
+                    ),
+                ],
+            },
+            datetime.date(day=10, month=3, year=2021): {
+                "excess-reported-income-distribution$MSP": [
+                    CalculationEntry(
+                        RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
+                        quantity=Decimal(6000.0),
+                        amount=Decimal(1200.0),
+                        gain=None,
+                        allowable_cost=None,
+                        fees=Decimal(0),
+                        new_quantity=Decimal(6000.0),
+                        new_pool_cost=Decimal(1200.0),
                     ),
                 ],
             },

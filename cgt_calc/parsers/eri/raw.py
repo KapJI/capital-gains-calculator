@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.util import is_isin
 
 from .model import EriTransaction
 
@@ -34,6 +35,8 @@ class EriRaw(EriTransaction):
         row = dict(zip(header, row_raw, strict=False))
 
         isin = row["ISIN"]
+        if not is_isin(isin):
+            raise ParsingError(file, f"Not valid ISIN {isin}")
         date = datetime.datetime.strptime(
             row["Fund Reporting Period End Date"], "%d/%m/%Y"
         ).date()
@@ -78,5 +81,7 @@ def read_eri_raw(
     except FileNotFoundError:
         print(f"WARNING: Couldn't locate ERI raw file({eri_file})")
         return []
+    except Exception as e:
+        raise ParsingError(eri_file.name, "Couldn't parse the input file") from e
 
     return transactions
