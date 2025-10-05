@@ -1,56 +1,68 @@
-[tool.poetry]
+[build-system]
+requires = ["uv_build>=0.8.23,<0.9.0"]
+build-backend = "uv_build"
+
+[project]
 name = "cgt-calc"
 version = "0.0.0"
-description = "UK capital gains tax calculator for Charles Schwab and Trading 212 accounts"
-authors = ["Ruslan Sayfutdinov <ruslan@sayfutdinov.com>"]
-license = "MIT"
+description = "Calculate UK capital gains tax from broker exports — supports Charles Schwab, Trading 212, Morgan Stanley, Sharesight, and Vanguard."
+authors = [{ name = "Ruslan Sayfutdinov", email = "ruslan@sayfutdinov.com" }]
 readme = "README.md"
-homepage = "https://github.com/KapJI/capital-gains-calculator"
-repository = "https://github.com/KapJI/capital-gains-calculator"
+license = { text = "MIT" }
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.9",
     "Topic :: Office/Business :: Financial",
     "Typing :: Typed",
 ]
 keywords = [
-    "capital gain",
-    "schwab",
-    "trading 212",
+    "capital gains tax",
+    "UK",
+    "tax calculator",
+    "Charles Schwab",
+    "Trading 212",
+    "Morgan Stanley",
+    "Sharesight",
+    "Vanguard",
+    "broker export",
+    "financial reporting",
+]
+requires-python = ">=3.9"
+dependencies = [
+  "defusedxml>=0.7.1,<1.0.0",
+  "Jinja2>=2.11.3,<4.0.0",
+  "pandas>=2.2",
+  "requests>=2.27.1",
+  "yfinance>=0.2.36",
+  "requests-ratelimiter>=0.7.0",
 ]
 
-[tool.poetry.urls]
+[project.urls]
+"Homepage" = "https://github.com/KapJI/capital-gains-calculator"
+"Repository" = "https://github.com/KapJI/capital-gains-calculator"
 "Bug Tracker" = "https://github.com/KapJI/capital-gains-calculator/issues"
 "Release Notes" = "https://github.com/KapJI/capital-gains-calculator/releases"
 
-[tool.poetry.dependencies]
-python = "^3.9"
-defusedxml = "^0.7.1"
-Jinja2 = ">=2.11.3,<4.0.0"
-pandas = "^2.2"
-requests = "^2.27.1"
-types-requests = "^2.27.7"
-yfinance = "^0.2.36"
-requests-ratelimiter = "^0.7.0"
+[project.scripts]
+cgt-calc = "cgt_calc.main:init"
 
-[tool.poetry.group.dev.dependencies]
-codespell = "^2.2.6"
-mypy = "^1.8"
-pandas-stubs = "^2.2"
-pre-commit = "^3.5.0"
-pylint = "^3.0.3"
-pytest = ">=7.4.4,<9.0.0"
-ruff = "^0.6.4"
-types-defusedxml = "^0.7.0.20240218"
-types-python-dateutil = "^2.9.0.20250822"
+[dependency-groups]
+dev = [
+  "codespell>=2.2.6",
+  "mypy>=1.8",
+  "pandas-stubs>=2.2",
+  "pre-commit>=3.5.0",
+  "pylint>=3.0.3",
+  "pytest>=7.4.4,<9.0.0",
+  "ruff>=0.6.4",
+  "types-defusedxml>=0.7.0.20240218",
+  "types-python-dateutil>=2.9.0.20250822",
+  "types-requests>=2.27.7",
+]
 
-[tool.poetry.scripts]
-cgt-calc = 'cgt_calc.main:init'
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv.build-backend]
+module-root = "."
 
 [tool.pylint.main]
 py-version = "3.9"
@@ -89,6 +101,7 @@ disable = [
     "wrong-import-order",
     "consider-using-namedtuple-or-dataclass",
     "consider-using-assignment-expr",
+
     # Handled by ruff
     # Ref: <https://github.com/astral-sh/ruff/issues/970>
     "await-outside-async", # PLE1142
