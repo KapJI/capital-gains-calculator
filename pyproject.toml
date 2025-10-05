@@ -33,7 +33,6 @@ requests = "^2.27.1"
 types-requests = "^2.27.7"
 yfinance = "^0.2.36"
 requests-ratelimiter = "^0.7.0"
-types-python-dateutil = "^2.9.0.20250822"
 
 [tool.poetry.group.dev.dependencies]
 codespell = "^2.2.6"
@@ -44,6 +43,7 @@ pylint = "^3.0.3"
 pytest = ">=7.4.4,<9.0.0"
 ruff = "^0.6.4"
 types-defusedxml = "^0.7.0.20240218"
+types-python-dateutil = "^2.9.0.20250822"
 
 [tool.poetry.scripts]
 cgt-calc = 'cgt_calc.main:init'
