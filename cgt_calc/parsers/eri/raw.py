@@ -72,11 +72,11 @@ def read_eri_raw(
             lines = lines[1:]
             cur_transactions = [EriRaw(header, row, eri_file.name) for row in lines]
             if len(cur_transactions) == 0:
-                print("WARNING: no transactions detected in " f"file {eri_file}")
+                print(f"WARNING: no transactions detected in file {eri_file}")
             transactions += cur_transactions
 
     except FileNotFoundError:
-        print("WARNING: Couldn't locate ERI raw " f"file({eri_file})")
+        print(f"WARNING: Couldn't locate ERI raw file({eri_file})")
         return []
 
     return transactions

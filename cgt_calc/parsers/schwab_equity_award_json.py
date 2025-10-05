@@ -85,7 +85,7 @@ class FieldNames:
 # into float, but we want to get Decimal('1.0001'))
 ROUND_DIGITS = 6
 
-JsonRowType = Any  # type: ignore[misc]
+JsonRowType = Any  # type: ignore[explicit-any]
 
 
 def action_from_str(label: str) -> ActionType:

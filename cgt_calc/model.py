@@ -104,12 +104,12 @@ class ForeignCurrencyAmount:
 
     def __add__(self, amount: ForeignCurrencyAmount) -> ForeignCurrencyAmount:
         """Add two amounts."""
-        assert (
-            self.currency or not self.amount
-        ), f"Invalid foreign currency amount {self}"
-        assert (
-            amount.currency or not amount.amount
-        ), f"Invalid foreign currency amount {amount}"
+        assert self.currency or not self.amount, (
+            f"Invalid foreign currency amount {self}"
+        )
+        assert amount.currency or not amount.amount, (
+            f"Invalid foreign currency amount {amount}"
+        )
         assert (
             not self.currency or not amount.currency or self.currency == amount.currency
         ), f"Incompatible currency operation {self.currency} vs {amount.currency}"
@@ -117,9 +117,9 @@ class ForeignCurrencyAmount:
             amount=self.amount + amount.amount,
             currency=self.currency or amount.currency,
         )
-        assert (
-            result.currency or not result.amount
-        ), f"Invalid foreign currency result {result}"
+        assert result.currency or not result.amount, (
+            f"Invalid foreign currency result {result}"
+        )
         return result
 
 
@@ -463,7 +463,7 @@ class CapitalGainsReport:
             ):
                 assert item.eri
                 dist_type = "interest" if item.eri.is_interest else "dividend"
-                out += f"  {item.eri.symbol}: £{round_decimal(item.amount,2)} "
+                out += f"  {item.eri.symbol}: £{round_decimal(item.amount, 2)} "
                 out += f"(included as {dist_type})\n"
 
         out += f"Number of disposals: {self.disposal_count}\n"
@@ -487,12 +487,12 @@ class CapitalGainsReport:
                 )
         out += (
             "Total dividends proceeds: "
-            f"£{round_decimal(self.total_dividends_amount(),2)}\n"
+            f"£{round_decimal(self.total_dividends_amount(), 2)}\n"
         )
         if self.dividend_allowance is not None:
             out += (
                 "Total amount of dividends tax yearly allowance: "
-                f"£{round_decimal(self.dividend_allowance,2)}\n"
+                f"£{round_decimal(self.dividend_allowance, 2)}\n"
             )
         if (
             self.dividend_allowance is not None
@@ -500,7 +500,7 @@ class CapitalGainsReport:
         ):
             out += (
                 "Total taxable dividends proceeds: "
-                f"£{round_decimal(self.total_dividend_taxable_gain(),2)}\n"
+                f"£{round_decimal(self.total_dividend_taxable_gain(), 2)}\n"
             )
         out += f"Total UK interest proceeds: £{self.total_uk_interest}\n"
         out += f"Total foreign interest proceeds: £{self.total_foreign_interest}\n"

@@ -166,7 +166,7 @@ class Trading212Transaction(BrokerTransaction):
             and self.price_foreign is not None
             and (self.currency_foreign == "GBP" or self.exchange_rate is not None)
         ):
-            calculated_price_foreign = price * (self.exchange_rate or Decimal("1"))
+            calculated_price_foreign = price * (self.exchange_rate or Decimal(1))
             discrepancy = self.price_foreign - calculated_price_foreign
             if abs(discrepancy) > Decimal("0.015"):
                 print(
