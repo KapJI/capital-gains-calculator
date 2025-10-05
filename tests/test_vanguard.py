@@ -2,23 +2,20 @@
 
 from pathlib import Path
 import subprocess
-import sys
+
+from .utils import build_cmd
 
 
 def test_run_with_vanguard_files() -> None:
     """Runs the script and verifies it doesn't fail."""
-    cmd = [
-        sys.executable,
-        "-m",
-        "cgt_calc.main",
+    cmd = build_cmd(
         "--year",
         "2022",
         "--vanguard",
         "tests/test_data/vanguard/report.csv",
         "--interest-fund-tickers",
         "FOO",
-        "--no-pdflatex",
-    ]
+    )
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"
     expected_file = Path("tests") / "test_data" / "vanguard" / "expected_output.txt"

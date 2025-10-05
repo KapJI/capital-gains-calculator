@@ -2,22 +2,19 @@
 
 from pathlib import Path
 import subprocess
-import sys
+
+from .utils import build_cmd
 
 
 def test_run_with_sharesight_files_no_balance_check() -> None:
     """Runs the script and verifies it doesn't fail."""
-    cmd = [
-        sys.executable,
-        "-m",
-        "cgt_calc.main",
+    cmd = build_cmd(
         "--year",
         "2020",
         "--sharesight",
         "tests/test_data/sharesight/",
-        "--no-pdflatex",
         "--no-balance-check",
-    ]
+    )
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"
     expected_file = (
