@@ -1,16 +1,17 @@
 [![CI](https://github.com/KapJI/capital-gains-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/KapJI/capital-gains-calculator/actions)
 [![PyPI version](https://img.shields.io/pypi/v/cgt-calc)](https://pypi.org/project/cgt-calc/)
 
-# UK capital gains calculator
+# UK Capital Gains Calculator
 
-Calculate capital gains tax by transaction history exported from Charles Schwab, Trading 212 and Morgan Stanley. Generate PDF report with calculations.
+Calculate UK capital gains tax from your transaction history exported from **Charles Schwab**, **Trading 212**, **Morgan Stanley**, **Sharesight**, **Vanguard**, or a custom **RAW** format.
+Generate a detailed **PDF report** with all calculations.
 
-Automatically convert all prices to GBP and apply HMRC rules to calculate capital gains tax: "same day" rule, "bed and breakfast" rule, section 104 holding.
+All prices are automatically converted to **GBP**, and HMRC rules are applied — including the **same-day rule**, **bed and breakfast rule**, and **Section 104 holding**.
 
-The PDF is broken down in CGT and interest/dividend sections with an Overall summary for totals at the end.
-The interests are reported once per month per broker to avoid long reports with daily interest brokers.
+The PDF report includes separate **capital gains**, **interest**, and **dividend** sections, with an overall summary at the end.
+Interest is grouped monthly per broker to keep reports concise, even for brokers that pay daily interest.
 
-## Report example
+## Report Example
 
 [calculations_example.pdf](https://github.com/KapJI/capital-gains-calculator/blob/main/calculations_example.pdf)
 
@@ -231,23 +232,9 @@ and when you're done, simply exit the shell. You will be dropped back into the s
 
 Please be aware that I'm not a tax adviser so use this data at your own risk.
 
-## Contribute
+## Contributing
 
-All contributions are highly welcomed.
-If you notice any bugs please open an issue or send a PR to fix it.
+Contributions are welcome!
+If you find a bug or want to add support for more brokers, please open an issue or pull request.
 
-Feel free to add new parsers to support transaction history from more brokers.
-
-## Testing
-
-This project uses [Poetry](https://python-poetry.org/) for managing dependencies.
-
--   For local testing you need to [install it](https://python-poetry.org/docs/#installation).
--   After that run `poetry install` to install all dependencies.
--   Then activate `pre-commit` hook: `poetry run pre-commit install`
-
-You can also run all linters and tests manually with this command:
-
-```shell
-poetry run pre-commit run --all-files
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and development guidelines.
