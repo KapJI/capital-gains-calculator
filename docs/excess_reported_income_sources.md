@@ -4,6 +4,8 @@ This guide is only needed in case the funds data you're looking for is not pre-b
 tool. Currently bundled data:
 
 - [Vanguard Funds Plc 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+- [Blackrock Funds 2019-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
+- [iShares Funds 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv)
 
 <details>
     <summary>🏦 Instructions for ERI_RAW format</summary>
@@ -40,17 +42,42 @@ Columns mapping to ERI_RAW:
 - **Currency:** Share Class Currency column
 - **Excess of reporting income over distribution:** same name column
 
+To contribute new data to the tool please add it at the bottom of the
+[ERI RAW file](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+for Vanguard. Then run the tool once to generate any new ISIN translations (if needed) and copy them
+from your own isin translation file (default `isin_translation.csv`) into the
+[tool one](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv).
+Create a pull request with both files in GitHub adjusting the README and this file with the updated
+bundled data.
+
 </details>
  <br />
 <details>
-    <summary>🏦 Instructions for Blackrock (iShares) funds</summary>
+    <summary>🏦 Instructions for iShares/Blackrock funds</summary>
 
 Blackrock UK publishes the Reportable Income yearly report at the bottom of this page:
 https://www.blackrock.com/uk/solutions/adviser-resources/reporting-fund-status
 
 They are split in Index Funds (BGIF), Global Funds (BGF), Strategic Funds (BSF)
 
-Columns mapping to ERI_RAW:
+iShares UK publishes the Reportable Income yearly reports at this link:
+https://www.ishares.com/uk/individual/en/education/library?materialType=tax+information
+
+They are split in different companies holding the funds each reporting yearly.
+
+To contribute new data to the tool please run the tool on your capital gains data from the git
+repository with the `--import-eri-reports` options pointing to either the file or the folder
+containing the ERI reports for Blackrock or iShares. The tool will recognize the funds provider from
+the filename and import the data in the resource CSV for
+[blackrock](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
+or
+[ishares](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv).
+
+The tool also record any new ISIN translation to the resource CSV for
+[ISIN](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv)
+
+Create a pull request with all the files in GitHub adjusting the README and this file with the
+updated bundled data.
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** End date in the Reporting Period column

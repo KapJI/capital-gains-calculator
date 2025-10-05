@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 from typing import TextIO
 
+import iso4217parse
+
 
 def round_decimal(value: Decimal, digits: int = 0) -> Decimal:
     """Round decimal to given precision."""
@@ -72,11 +74,14 @@ def is_isin(isin: str) -> bool:
     return luhn_check_digit(payload) == check_digit
 
 
-def approx_equal(val_a: Decimal, val_b: Decimal) -> bool:
-    """Calculate if two decimal are the same within 0.01.
+def approx_equal(
+    val_a: Decimal, val_b: Decimal, approx_quantity: Decimal = Decimal("0.01")
+) -> bool:
+    """Calculate if two decimal are the same within approx_quantity input.
 
     It is not clear how Schwab or other brokers round the dollar value,
-    so assume the values are equal if they are within 0.01.
+    so assume the values are equal if they are within approx_quantity input.
+    Defaults to 0.01
     """
     return abs(val_a - val_b) < Decimal("0.01")
 
@@ -85,3 +90,8 @@ def open_with_parents(path: Path) -> TextIO:
     """Open a file for writing, creating parent directories if they do not exist."""
     path.parent.mkdir(parents=True, exist_ok=True)
     return path.open("w", encoding="utf8")
+
+
+def is_currency(currency_str: str) -> bool:
+    """Check if the input string is a valid currency."""
+    return bool(iso4217parse.by_alpha3(currency_str))

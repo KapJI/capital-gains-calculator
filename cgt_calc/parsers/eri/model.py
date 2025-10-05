@@ -6,7 +6,7 @@ from decimal import Decimal
 from cgt_calc.model import ActionType, BrokerTransaction
 
 
-class EriTransaction(BrokerTransaction):
+class ERITransaction(BrokerTransaction):
     """Eri transaction data."""
 
     def __init__(
