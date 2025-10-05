@@ -1,12 +1,17 @@
 # Excess Reported Income specific formats and fund information
 
+This guide is only needed in case the funds data you're looking for is not pre-bundled with the tool.
+Currently bundled data:
+
+-   [Vanguard Funds Plc 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+
 <details>
     <summary>🏦 Instructions for ERI_RAW format</summary>
 
 You will need:
 
 -   **CSV using the ERI_RAW format.** This is currently the only format supported for excess reported income.
-    [See example](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+    [See example.](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
 
 Example usage for the tax year 2024/25:
 
