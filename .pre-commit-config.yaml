@@ -1,19 +1,58 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
       - id: check-case-conflict
       - id: check-json
+      - id: check-toml
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types: [python]
+        require_serial: true
+      - id: ruff
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+        require_serial: true
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        require_serial: true
+      - id: pylint
+        name: pylint
+        entry: uv run pylint
+        language: system
+        types: [python]
+        require_serial: true
+      - id: pytest
+        name: pytest
+        language: system
+        entry: uv run pytest
+        pass_filenames: false
+        always_run: true
+      - id: codespell
+        name: codespell
+        entry: uv run codespell --write-changes
+        language: system
+        pass_filenames: false
+        always_run: true
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v3.1.0
     hooks:
       - id: prettier
   - repo: https://github.com/cdce8p/python-typing-update
-    rev: v0.6.0
+    rev: v0.7.0
     hooks:
       # Run `python-typing-update` hook manually from time to time
       # to update python typing syntax.
@@ -25,41 +64,3 @@ repos:
           - --force
           - --keep-updates
         files: ^.+\.py$
-  - repo: local
-    hooks:
-      - id: ruff-format
-        name: ruff format
-        entry: poetry run ruff format
-        language: system
-        types: [python]
-        require_serial: true
-      - id: ruff
-        name: ruff check
-        entry: poetry run ruff check --fix
-        language: system
-        types: [python]
-        require_serial: true
-      - id: mypy
-        name: mypy
-        entry: poetry run mypy
-        language: system
-        types: [python]
-        require_serial: true
-      - id: pylint
-        name: pylint
-        entry: poetry run pylint
-        language: system
-        types: [python]
-        require_serial: true
-      - id: pytest
-        name: pytest
-        language: system
-        entry: poetry run pytest
-        pass_filenames: false
-        always_run: true
-      - id: codespell
-        name: codespell
-        entry: poetry run codespell --write-changes
-        language: system
-        pass_filenames: false
-        always_run: true
