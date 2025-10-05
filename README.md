@@ -17,10 +17,16 @@ Interest is grouped monthly per broker to keep reports concise, even for brokers
 
 ## Installation
 
-Install it with [pipx](https://pypa.github.io/pipx/) (or regular pip):
+Install it using [uv](https://docs.astral.sh/uv/concepts/tools/#the-uv-tool-interface), [pipx](https://pypa.github.io/pipx/), or standard pip:
 
 ```shell
-pipx install cgt-calc
+uv tool install cgt-calc
+```
+
+Or run it without installation:
+
+```shell
+uvx cgt-calc
 ```
 
 ## Prerequisites

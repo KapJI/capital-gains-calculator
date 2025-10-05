@@ -10,20 +10,20 @@ This project uses [uv](https://docs.astral.sh/uv/) for dependency management, te
 
 Follow [uv’s installation guide](https://docs.astral.sh/uv/getting-started/installation/):
 
-```bash
+```shell
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ### 2. Clone the repository
 
-```bash
+```shell
 git clone https://github.com/KapJI/capital-gains-calculator.git
 cd capital-gains-calculator
 ```
 
 ### 3. Set up the environment
 
-```bash
+```shell
 uv sync
 ```
 
@@ -47,7 +47,7 @@ We use:
 
 Install [`pre-commit`](https://pre-commit.com/#install) first, e.g. using `uv` or `pipx`:
 
-```bash
+```shell
 uv tool install pre-commit
 ```
 
@@ -55,7 +55,7 @@ Installing it globally avoids issues when `pre-commit` invokes `uv` inside hooks
 
 Activate the `pre-commit` hook:
 
-```bash
+```shell
 pre-commit install
 ```
 
@@ -63,13 +63,13 @@ This will automatically check code style, linting, and types before each commit.
 
 You can also run all checks on the repository manually:
 
-```bash
+```shell
 pre-commit run --all-files
 ```
 
 Or you can run single hook:
 
-```bash
+```shell
 pre-commit run mypy --all-files
 pre-commit run pytest
 ```
@@ -78,7 +78,7 @@ pre-commit run pytest
 
 You can also run linters and tests directly:
 
-```bash
+```shell
 uv run pytest
 uv run pytest -k <expr> -q # run subset
 uv run ruff check .
