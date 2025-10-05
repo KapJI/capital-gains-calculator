@@ -442,10 +442,21 @@ class CapitalGainsCalculator:
 
         symbols = self.isin_converter.get_symbols(transaction.isin)
         for symbol in symbols:
-            dates = []
             for report_date, report_by_symbol in self.eris.items():
-                if symbol in report_by_symbol:
-                    dates.append(report_date)
+                if symbol in report_by_symbol and report_date == transaction.date:
+                    previous_price = report_by_symbol[symbol].price
+                    if approx_equal(previous_price, price):
+                        print(
+                            "WARNING: Skipping duplicated ERI transaction: "
+                            f"{transaction}"
+                        )
+                        return
+                    raise InvalidTransactionError(
+                        transaction,
+                        f"A conflicting ERI report at {report_date} for "
+                        f"{symbol} of £{price} has been found at "
+                        f"{report_date} of £{previous_price}",
+                    )
 
             self.eris[transaction.date][symbol] = ExcessReportedIncome(
                 price=price,

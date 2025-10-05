@@ -83,6 +83,9 @@ class HmrcTransactionData:
     quantity: Decimal = Decimal(0)
     amount: Decimal = Decimal(0)
     fees: Decimal = Decimal(0)
+    # This is a list to support Bed and Breakfast acquisitions that can cross multiple
+    # ERI reports for the same fund. This can happen for example when a fund is
+    # liquidated close after its usual reporting data, requiring a new final reporting.
     eris: list[ExcessReportedIncome] = field(default_factory=list)
 
     def __add__(self, transaction: HmrcTransactionData) -> HmrcTransactionData:
@@ -465,7 +468,7 @@ class CapitalGainsReport:
                 assert item.eris
                 assert len(item.eris) == 1
                 dist_type = "interest" if item.eris[0].is_interest else "dividend"
-                out += f"  {item.eris[0].symbol}: £{round_decimal(item.amount,2)} "
+                out += f"  {item.eris[0].symbol}: £{round_decimal(item.amount, 2)} "
                 out += f"(included as {dist_type})\n"
 
         out += f"Number of disposals: {self.disposal_count}\n"
