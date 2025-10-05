@@ -6,7 +6,6 @@ import datetime
 from decimal import Decimal
 from pathlib import Path
 import subprocess
-import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -21,6 +20,7 @@ from cgt_calc.util import round_decimal
 
 from .test_data.calc_test_data import calc_basic_data
 from .test_data.calc_test_data_2 import calc_basic_data_2
+from .utils import build_cmd
 
 if TYPE_CHECKING:
     from cgt_calc.model import BrokerTransaction, CalculationLog, CapitalGainsReport
@@ -170,10 +170,7 @@ def test_basic(
 
 def test_run_with_example_files() -> None:
     """Runs the script and verifies it doesn't fail."""
-    cmd = [
-        sys.executable,
-        "-m",
-        "cgt_calc.main",
+    cmd = build_cmd(
         "--year",
         "2020",
         "--schwab",
@@ -182,8 +179,7 @@ def test_run_with_example_files() -> None:
         "tests/test_data/trading212/",
         "--mssb",
         "tests/test_data/mssb/",
-        "--no-pdflatex",
-    ]
+    )
     try:
         result = subprocess.run(cmd, check=True, capture_output=True)
     except subprocess.CalledProcessError as e:

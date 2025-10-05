@@ -2,21 +2,18 @@
 
 from pathlib import Path
 import subprocess
-import sys
+
+from .utils import build_cmd
 
 
 def test_run_with_schwab_cash_merger_files() -> None:
     """Runs the script and verifies it doesn't fail."""
-    cmd = [
-        sys.executable,
-        "-m",
-        "cgt_calc.main",
+    cmd = build_cmd(
         "--year",
         "2020",
         "--schwab",
         "tests/test_data/schwab_cash_merger/transactions.csv",
-        "--no-pdflatex",
-    ]
+    )
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"
     expected_file = (
