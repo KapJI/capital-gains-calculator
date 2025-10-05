@@ -27,7 +27,8 @@ cd capital-gains-calculator
 uv sync
 ```
 
-This sets up the development environment with all dependencies installed.
+This command creates a virtual environment and installs all project and development dependencies into it.
+Run it again after pulling new changes to update dependencies.
 
 ## 🧱 Code style
 
@@ -85,14 +86,42 @@ uv run ruff check .
 uv run mypy cgt_calc
 ```
 
-## 🧩 Adding Support for a New Broker
+## 🧩 Adding support for a new broker
 
 1. Add a new parser in `cgt_calc/parsers/`
 2. Add tests in `tests/`
 3. Update documentation and examples
 4. Submit a pull request describing your changes
 
-## 🏗️ Release Process (maintainers only)
+## 📦 Managing dependencies
+
+You can manage dependencies either with `uv` commands or by editing `pyproject.toml` directly.
+
+### Add a new runtime dependency
+
+```shell
+uv add <package-name>
+```
+
+### Add a development dependency
+
+```shell
+uv add --group dev <package-name>
+```
+
+### Upgrade existing dependencies
+
+```shell
+uv lock --upgrade
+uv sync
+```
+
+### Manual changes
+
+If you edit `pyproject.toml` manually (for example, to bump a version),
+run `uv sync` afterwards to apply the changes and update `uv.lock`.
+
+## 🏗️ Release process (maintainers only)
 
 Releases are created from draft GitHub releases created by [Release Drafter](https://github.com/release-drafter/release-drafter).
 When a release is published, GitHub Actions will automatically:
