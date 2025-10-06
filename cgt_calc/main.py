@@ -429,9 +429,9 @@ class CapitalGainsCalculator:
         distribution_date = transaction.date + ERI_TAX_DATE_DELTA
 
         assert transaction.isin is not None, f"{transaction} doesn't have a valid ISIN"
-        assert (
-            transaction.price is not None
-        ), f"{transaction} doesn't have a valid price"
+        assert transaction.price is not None, (
+            f"{transaction} doesn't have a valid price"
+        )
 
         if transaction.price == Decimal(0):
             return
@@ -765,9 +765,9 @@ class CapitalGainsCalculator:
                 # These shares shouldn't be added to Section 104 holding
                 current_amount -= available_quantity * acquisition_price
                 if current_quantity == 0:
-                    assert (
-                        round_decimal(current_amount, 23) == 0
-                    ), f"current amount {current_amount}"
+                    assert round_decimal(current_amount, 23) == 0, (
+                        f"current amount {current_amount}"
+                    )
                 calculation_entries.append(
                     CalculationEntry(
                         rule_type=RuleType.SAME_DAY,
@@ -878,9 +878,9 @@ class CapitalGainsCalculator:
                     current_quantity -= available_quantity
                     current_amount -= amount_delta
                     if current_quantity == 0:
-                        assert (
-                            round_decimal(current_amount, 23) == 0
-                        ), f"current amount {current_amount}"
+                        assert round_decimal(current_amount, 23) == 0, (
+                            f"current amount {current_amount}"
+                        )
                     add_to_list(
                         self.bnb_list,
                         search_index,
@@ -928,9 +928,9 @@ class CapitalGainsCalculator:
             current_quantity -= available_quantity
             current_amount -= amount_delta
             if current_quantity == 0:
-                assert (
-                    round_decimal(current_amount, 10) == 0
-                ), f"current amount {current_amount}"
+                assert round_decimal(current_amount, 10) == 0, (
+                    f"current amount {current_amount}"
+                )
             calculation_entries.append(
                 CalculationEntry(
                     rule_type=RuleType.SECTION_104,
@@ -945,9 +945,9 @@ class CapitalGainsCalculator:
             )
             disposal_quantity = Decimal(0)
 
-        assert (
-            round_decimal(disposal_quantity, 23) == 0
-        ), f"disposal quantity {disposal_quantity}"
+        assert round_decimal(disposal_quantity, 23) == 0, (
+            f"disposal quantity {disposal_quantity}"
+        )
         self.portfolio[symbol] = Position(current_quantity, current_amount)
         chargeable_gain = round_decimal(chargeable_gain, 2)
         return (
@@ -1204,9 +1204,9 @@ class CapitalGainsCalculator:
                         assert transaction_quantity == calculated_quantity
                         assert round_decimal(
                             transaction_disposal_proceeds, 10
-                        ) == round_decimal(
-                            calculated_proceeds, 10
-                        ), f"{transaction_disposal_proceeds} != {calculated_proceeds}"
+                        ) == round_decimal(calculated_proceeds, 10), (
+                            f"{transaction_disposal_proceeds} != {calculated_proceeds}"
+                        )
                         assert transaction_capital_gain == round_decimal(
                             calculated_gain, 2
                         )

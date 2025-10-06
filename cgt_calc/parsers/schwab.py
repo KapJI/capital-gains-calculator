@@ -248,9 +248,9 @@ def _unify_schwab_cash_merger_trxs(
     filtered: list[SchwabTransaction] = []
     for transaction in transactions:
         if transaction.raw_action == "Cash Merger Adj":
-            assert (
-                len(filtered) > 0
-            ), "Cash Merger Adj must be precedeed by a Cash Merger transaction"
+            assert len(filtered) > 0, (
+                "Cash Merger Adj must be precedeed by a Cash Merger transaction"
+            )
             assert filtered[-1].raw_action == "Cash Merger"
             assert filtered[-1].description == transaction.description
             assert filtered[-1].symbol == transaction.symbol

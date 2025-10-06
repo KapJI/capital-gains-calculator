@@ -1,41 +1,36 @@
 # syntax=docker/dockerfile:1.7
 
-FROM python:3.9-slim-trixie AS base
+FROM python:3.9-slim-trixie
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONFAULTHANDLER=1 \
-    PYTHONUNBUFFERED=1 \
-    # Poetry's configuration:
-    POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_CREATE=false \
-    POETRY_CACHE_DIR='/var/cache/pypoetry' \
-    POETRY_HOME='/usr/local'
+    PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      bash ca-certificates curl texlive-latex-base \
+      bash texlive-latex-base \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy uv static binary
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /build
 
-# Install Poetry (cached with BuildKit)
+# 1) Copy dependency manifests first (for caching)
+COPY pyproject.toml uv.lock* /build/
+
+# Install dependencies (no project source yet -> cacheable)
 RUN --mount=type=cache,target=/root/.cache \
-    curl -sSL https://install.python-poetry.org | python3 -
+    uv sync --frozen --no-install-project
 
-# 1) deps layer – copy only manifests first for better cache hits
-COPY pyproject.toml poetry.lock* /build/
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=cache,target=/var/cache/pypoetry \
-    poetry install --no-ansi --no-root
-
-# 2) now copy sources and install package
+# 2) Now copy project source and install package
 COPY . /build
-RUN poetry build -n \
- && poetry install --no-ansi
+RUN --mount=type=cache,target=/root/.cache \
+    uv sync --frozen
 
 # Simple CLI shim
-RUN printf '%s\n' 'poetry -C /build run cgt-calc "$@"' > /bin/cgt-calc \
+RUN printf '%s\n' 'cd /build && uv run cgt-calc "$@"' > /bin/cgt-calc \
  && chmod +x /bin/cgt-calc
 
 WORKDIR /data

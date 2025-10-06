@@ -46,7 +46,7 @@ def test_decimal_from_number_or_str_default() -> None:
     """Test _decimal_from_number_or_str() with absent keys."""
     assert schwab_equity_award_json._decimal_from_number_or_str(
         {"key": "123.45", "keySortValue": 67.89}, "otherkey"
-    ) == Decimal("0")
+    ) == Decimal(0)
 
 
 def test_schwab_transaction_v1() -> None:
@@ -60,7 +60,7 @@ def test_schwab_transaction_v1() -> None:
     assert transactions[0].symbol == "GOOG"
     assert transactions[0].quantity == Decimal("67.2")
     assert transactions[0].price == Decimal("125.6445")
-    assert transactions[0].fees == Decimal("0")
+    assert transactions[0].fees == Decimal(0)
     assert transactions[0].currency == "USD"
     assert transactions[0].broker == "Charles Schwab"
 
@@ -74,7 +74,7 @@ def test_schwab_transaction_v1() -> None:
     assert transactions[2].action == ActionType.STOCK_ACTIVITY
     assert transactions[2].quantity == Decimal("10.45")
     assert transactions[2].price == Decimal("112.42")
-    assert transactions[2].fees == Decimal("0")
+    assert transactions[2].fees == Decimal(0)
 
     assert transactions[3].date == datetime.date(2022, 11, 16)
     assert transactions[3].action == ActionType.SELL
@@ -83,7 +83,7 @@ def test_schwab_transaction_v1() -> None:
     assert transactions[3].price.quantize(Decimal(".000001")).normalize() == Decimal(
         "2051.597737"
     )
-    assert transactions[3].amount == Decimal("25745")
+    assert transactions[3].amount == Decimal(25745)
     assert transactions[3].fees == Decimal("0.50")
 
 
@@ -97,13 +97,13 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[0].action == ActionType.STOCK_ACTIVITY
     assert transactions[0].quantity == Decimal("4.911")
     assert transactions[0].price == Decimal("106.78")
-    assert transactions[0].fees == Decimal("0")
+    assert transactions[0].fees == Decimal(0)
 
     assert transactions[1].date == datetime.date(2023, 4, 25)
     assert transactions[1].action == ActionType.STOCK_ACTIVITY
     assert transactions[1].quantity == Decimal("13.6")
     assert transactions[1].price == Decimal("106.78")
-    assert transactions[1].fees == Decimal("0")
+    assert transactions[1].fees == Decimal(0)
 
     assert transactions[2].date == datetime.date(2023, 8, 31)
     assert transactions[2].action == ActionType.SELL
@@ -116,7 +116,7 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[3].symbol == "GOOG"
     assert transactions[3].quantity == Decimal("4.911")
     assert transactions[3].price == Decimal("131.25")
-    assert transactions[3].fees == Decimal("0")
+    assert transactions[3].fees == Decimal(0)
     assert transactions[3].currency == "USD"
     assert transactions[3].broker == "Charles Schwab"
 
@@ -125,7 +125,7 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[4].symbol == "GOOG"
     assert transactions[4].quantity == Decimal("13.6")
     assert transactions[4].price == Decimal("131.25")
-    assert transactions[4].fees == Decimal("0")
+    assert transactions[4].fees == Decimal(0)
     assert transactions[4].currency == "USD"
     assert transactions[4].broker == "Charles Schwab"
 
@@ -142,20 +142,20 @@ def test_schwab_transaction_v2_rounding() -> None:
     assert transactions[0].date == datetime.date(2020, 4, 24)
     assert transactions[0].action == ActionType.SELL
     assert transactions[0].symbol == "GOOG"
-    assert transactions[0].quantity == Decimal("91")
+    assert transactions[0].quantity == Decimal(91)
     assert transactions[0].price == Decimal("102.4935")
     assert transactions[0].fees == Decimal("0.49")
     assert transactions[0].currency == "USD"
     assert transactions[0].broker == "Charles Schwab"
 
-    num_vested = Decimal("0")
+    num_vested = Decimal(0)
     for transaction_id in range(1, len(transactions)):
         assert transactions[transaction_id].date == (
             datetime.date(2020, 1, 1) + datetime.timedelta(days=transaction_id)
         )
         assert transactions[transaction_id].action == ActionType.STOCK_ACTIVITY
-        assert transactions[transaction_id].quantity == Decimal("7")
-        num_vested += transactions[transaction_id].quantity or Decimal("0")
+        assert transactions[transaction_id].quantity == Decimal(7)
+        num_vested += transactions[transaction_id].quantity or Decimal(0)
         assert transactions[transaction_id].price == Decimal("123.45")
-        assert transactions[transaction_id].fees == Decimal("0")
+        assert transactions[transaction_id].fees == Decimal(0)
     assert num_vested == transactions[0].quantity

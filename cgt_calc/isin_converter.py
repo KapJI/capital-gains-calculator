@@ -49,9 +49,9 @@ class IsinConverter:
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Add the ISIN to symbol mapping from an existing transaction."""
         if transaction.symbol and transaction.isin:
-            assert is_isin(
-                transaction.isin
-            ), f"Not a valid ISIN for transaction {transaction}!"
+            assert is_isin(transaction.isin), (
+                f"Not a valid ISIN for transaction {transaction}!"
+            )
             assert (
                 not self.data.get(transaction.isin)
                 or transaction.symbol in self.data[transaction.isin]
