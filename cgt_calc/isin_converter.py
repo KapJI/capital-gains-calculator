@@ -42,9 +42,15 @@ class IsinConverter:
 
     def validate_data(self) -> None:
         """Validate the current ISIN translation data."""
-        for isin, symbol in self.data.items():
+        
+        reverse_cache: dict[str, str] = {}
+        for isin, symbols in self.data.items():
             assert is_isin(isin), f"{isin} not a valid ISIN!"
-            assert symbol, f"Invalid empty ticker for {isin} ISIN"
+            for symbol in symbols:
+                assert symbol, f"Invalid empty ticker for {isin} ISIN"
+                assert (symbol not in reverse_cache) or (reverse_cache[symbol] == "ISIN"), (f"Found multiple ISINs {isin},{reverse_cache[symbol]} for the same ticker {symbol}")
+                reverse_cache[symbol] = isin
+        
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Add the ISIN to symbol mapping from an existing transaction."""
@@ -79,6 +85,7 @@ class IsinConverter:
         return result
 
     def _write_isin_translation_file(self) -> None:
+        self.validate_data()
         if not self.isin_translation_file:
             return
         with Path(self.isin_translation_file).open("w", encoding="utf8") as fout:
