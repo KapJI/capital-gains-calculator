@@ -42,15 +42,19 @@ class IsinConverter:
 
     def validate_data(self) -> None:
         """Validate the current ISIN translation data."""
-        
+
         reverse_cache: dict[str, str] = {}
         for isin, symbols in self.data.items():
             assert is_isin(isin), f"{isin} not a valid ISIN!"
             for symbol in symbols:
                 assert symbol, f"Invalid empty ticker for {isin} ISIN"
-                assert (symbol not in reverse_cache) or (reverse_cache[symbol] == "ISIN"), (f"Found multiple ISINs {isin},{reverse_cache[symbol]} for the same ticker {symbol}")
+                assert (symbol not in reverse_cache) or (
+                    reverse_cache[symbol] == "ISIN"
+                ), (
+                    f"Found multiple ISINs {isin},{reverse_cache[symbol]} "
+                    f"for the same ticker {symbol}"
+                )
                 reverse_cache[symbol] = isin
-        
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Add the ISIN to symbol mapping from an existing transaction."""
