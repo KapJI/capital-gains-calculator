@@ -1,73 +1,99 @@
 [![CI](https://github.com/KapJI/capital-gains-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/KapJI/capital-gains-calculator/actions)
 [![PyPI version](https://img.shields.io/pypi/v/cgt-calc)](https://pypi.org/project/cgt-calc/)
 
-# UK Capital Gains Calculator
+# 💷 UK Capital Gains Calculator
 
-Calculate UK capital gains tax from your transaction history exported from **Charles Schwab**, **Trading 212**, **Morgan Stanley**, **Sharesight**, **Vanguard**, or a custom **RAW** format.
-Generate a detailed **PDF report** with all calculations.
+Easily calculate **UK Capital Gains Tax** from your investment transaction history.
 
-All prices are automatically converted to **GBP**, and HMRC rules are applied — including the **same-day rule**, **bed and breakfast rule**, and **Section 104 holding**.
+Supported sources include **Charles Schwab**, **Trading 212**, **Morgan Stanley**, **Sharesight**, **Vanguard**, or a custom **RAW** format.
 
-The PDF report includes separate **capital gains**, **interest**, and **dividend** sections, with an overall summary at the end.
-Interest is grouped monthly per broker to keep reports concise, even for brokers that pay daily interest.
+The tool generates a detailed **PDF report** with all calculations.
 
-## Report Example
+All prices are automatically converted to **GBP**, and all **HMRC rules** are applied — including the **same-day**, **bed and breakfast**, and **Section 104 holding** rules.
 
-[calculations_example.pdf](https://github.com/KapJI/capital-gains-calculator/blob/main/calculations_example.pdf)
+The PDF report includes separate **Capital Gains** and **Interest and Dividens** sections, with a summary at the end.
+Interest is grouped **monthly per broker** to keep reports concise, even for brokers that pay daily interest.
 
-## Installation
+## 📑 Table of Contents
 
-Install it using [uv](https://docs.astral.sh/uv/concepts/tools/#the-uv-tool-interface), [pipx](https://pypa.github.io/pipx/), or standard pip:
+-   [Example Report](#-example-report)
+-   [Prerequisites](#-prerequisites)
+-   [Installation](#%EF%B8%8F-installation)
+    -   [Installing LaTeX](#installing-latex)
+-   [Usage](#-usage)
+-   [Input Data](#-input-data)
+    -   [Broker Instructions](#broker-instructions)
+    -   [Offshore Funds](#offshore-funds)
+    -   [Additional Files and Options](#additional-files-and-options)
+-   [Using Docker](#-using-docker)
+-   [Disclaimer](#%EF%B8%8F-disclaimer)
+-   [Contributing](#-contributing)
+
+## 📊 Example Report
+
+Here's what a generated PDF report looks like:
+
+<a href="./calculations_example.pdf">
+  <img src="./docs/report_preview.png" alt="Preview of example report" width="800">
+</a>
+
+👉 [View full example report (PDF)](https://github.com/KapJI/capital-gains-calculator/blob/main/calculations_example.pdf)
+
+## 🔧 Prerequisites
+
+-   **Python 3.12** or newer
+-   **pdflatex** must be available in your `PATH` (required for generating PDF reports)
+
+## ⚙️ Installation
+
+You can install the calculator using [uv](https://docs.astral.sh/uv/concepts/tools/#the-uv-tool-interface), [pipx](https://pypa.github.io/pipx/), or standard `pip`:
 
 ```shell
 uv tool install cgt-calc
 ```
 
-Or run it without installation:
+Or run it directly without installing:
 
 ```shell
 uvx cgt-calc
 ```
 
-## Prerequisites
+### Installing LaTeX
 
--   **Python 3.12** or newer
--   **pdflatex** available in your `PATH` — required to generate PDF reports
-
-## Install LaTeX
-
-### MacOS
+#### MacOS
 
 ```shell
 brew install --cask mactex-no-gui
 ```
 
-### Debian based
+#### Debian/Ubuntu
 
 ```shell
 apt install texlive-latex-base
 ```
 
-### Windows
+#### Windows
 
 [Install MiKTeX.](https://miktex.org/download)
 
-## Usage
+## 🚀 Usage
 
--   You need to supply transaction history for each account you have. See below for per-broker instructions. The history needs to contain all transactions since the beginning, or at least since you first acquired the shares owned during the relevant tax years.
--   If you own or have owned funds from outside the UK (i.e. Ireland), either them being accumulating or distributing, it's important you check the **Offshore fund-specific instructions** section below.
--   Once you have all your transactions from all your brokers you need to supply them together, for example to generate the report for the tax year 2020/21:
+-   You need to provide the **transaction history** for each of your accounts. See the [Broker Instructions](#broker-instructions).
+-   The history should include **all transactions** since you first acquired any shares owned during the relevant tax years.
+-   If you own or have owned **funds from outside the UK** (i.e. Ireland), either them being accumulating or distributing, see the [Offshore Funds](#offshore-funds).
+-   Once you've gathered all transactions from all your brokers, generate a report — for example, for tax year 2020/21:
 
 ```shell
 cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/
 ```
 
--   Run `cgt-calc --help` for the full list of settings.
--   If your broker is not listed below you can still try to use the raw format. We also welcome PRs for new parsers.
+-   Run `cgt-calc --help` for all available options.
+-   If your broker is not listed, try using the **RAW** format.
+    Contributions for new brokers are very welcome!
 
-## Input data
+## 📥 Input data
 
-### Broker-specific instructions
+### Broker Instructions
 
 <details>
     <summary>🏦 Instructions for Charles Schwab</summary>
@@ -182,9 +208,8 @@ cgt-calc --year 2024 --raw sharesight_trxs_dir/
 ```
 
 </details>
- <br />
 
-### Offshore fund-specific instructions
+### Offshore Funds
 
 For correct taxation on [offshore funds](https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds) you need to specify the yearly excess reported income (ERI) from each fund you have owned.
 You can find the full list of funds that requires this at [HMRC](https://www.gov.uk/government/publications/offshore-funds-list-of-reporting-funds).
@@ -204,7 +229,7 @@ There are a few **unsupported** functionalities at the moment for taxation on of
 
 Check [ERI data additional instrunctions](excess_reported_income_sources.md) for more information.
 
-### Extra files/options that might be needed
+### Additional Files and Options
 
 -   **CSV file with initial stock prices in USD.** This is needed under special circumstances for example at the moment of vesting, split, etc.
     [`initial_prices.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format. The program will inform when some required price is missing.
@@ -213,7 +238,7 @@ Check [ERI data additional instrunctions](excess_reported_income_sources.md) for
 -   **Interest fund tickers.** To calculate dividends on bond funds/ETF properly you need to pass the comma separated list of funds ticker that are taxed as interest instead of dividends, using `--interest-fund-tickers` CLI option.
 -   **(Automatic) ISIN to ticker translation from [Open FIGI](https://www.openfigi.com/api/overview).** This is needed to convert funds ISIN to tickers under special circumstances, such as calculating the Excess Reportable Income when your broker doesn't provide the ISIN column. [`initial_isin_translation.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv) comes pre-packaged, you need to use the same format. `isin_translation.csv` gets generated automatically using Open FIGI API and you can use it to do manual overrides.
 
-## Docker
+## 🐳 Using Docker
 
 These steps will build and run the calculator in a self-contained environment, in case you would rather not have a systemwide LaTeX installation (or don't want to interfere with an existing one).
 The following steps are tested on an Apple silicon Mac and may need to be slightly modified on other platforms.
@@ -234,13 +259,13 @@ a4800eca1914:/data# cgt-calc [...]
 This will create a temporary Docker container with the current directory on the host (where your transaction data is) mounted inside the container at `/data`. Follow the usage instructions below as normal,
 and when you're done, simply exit the shell. You will be dropped back into the shell on your host, with your output report pdf etc..
 
-## Disclaimer
+## ⚠️ Disclaimer
 
-Please be aware that I'm not a tax adviser so use this data at your own risk.
+Please note: I’m **not a tax adviser**. Use this tool and its outputs **at your own risk**.
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome!
-If you find a bug or want to add support for more brokers, please open an issue or pull request.
+If you find a bug, have feature ideas, or want to add support for more brokers, please open an **issue** or **pull request**.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and development guidelines.
