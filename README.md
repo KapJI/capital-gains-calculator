@@ -31,8 +31,8 @@ uvx cgt-calc
 
 ## Prerequisites
 
--   Python 3.9 or above.
--   `pdflatex` is required to generate the report.
+-   **Python 3.12** or newer
+-   **pdflatex** available in your `PATH` — required to generate PDF reports
 
 ## Install LaTeX
 
