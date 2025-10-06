@@ -1,7 +1,7 @@
 Action,Time,ISIN,Ticker,Name,No. of shares,Price / share,Currency (Price / share),Exchange rate,Result (GBP),Total (GBP),Withholding tax,Currency (Withholding tax),Charge amount (GBP),Transaction fee (GBP),Finra fee,Currency (Finra fee),Notes,ID
-Deposit,2020-06-24 04:06:06,,,,,,,,,9000.00,,,9000.00,,,"Transaction ID: xxxxxxx",123
+Deposit,2020-06-24 04:06:06,,,,,,,,,9000.00,,,9000.00,,,"Transaction ID: xxxxxxx",,123
 Market buy,2020-06-24 14:33:50,IE00BK5BQW10,VNRG,"VNRG",1.0000000000,10.74,USD,1.33080,,8.07,,,,,,GBP,,124
-Deposit,2020-11-24 14:33:50,,,,,,,,,8.08,,,8.08,,,"Free Shares Promotion",125
+Deposit,2020-11-24 14:33:50,,,,,,,,,8.08,,,8.08,,,"Free Shares Promotion",,125
 Market buy,2020-11-25 14:30:08,US36467W1099,GME,"GameStop",100.0000000000,14.75,USD,1.33332,,1106.25,,,,,,GBP,,EOF604506992
 Limit buy,2020-11-27 14:30:11,US67066G1040,NVDA,"Nvidia",1.0000000000,535.00,USD,1.33413,,401.01,,,,,,GBP,,EOF609036047
 Limit buy,2021-01-26 15:40:51,US36467W1099,GME,"GameStop",100.0000000000,90.00,USD,1.37304,,6554.80,,,,,,GBP,,EOF896442730

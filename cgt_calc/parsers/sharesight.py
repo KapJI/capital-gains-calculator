@@ -79,7 +79,7 @@ def parse_dividend_payments(
             # Don't use the totals row, but it signals the end of the section
             break
 
-        row_dict = dict(zip(columns, row, strict=False))
+        row_dict = dict(zip(columns, row, strict=True))
 
         dividend_date = parse_date(row_dict["Date Paid"])
         symbol = row_dict["Code"]
@@ -176,7 +176,7 @@ def parse_trades(
             # There is an empty row at the end of the trades list
             break
 
-        row_dict = dict(zip(columns, row, strict=False))
+        row_dict = dict(zip(columns, row, strict=True))
         tpe = row_dict["Type"]
         if tpe == "Buy":
             action = ActionType.BUY
