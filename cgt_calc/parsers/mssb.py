@@ -189,7 +189,7 @@ def _validate_header(
     """Check if header is valid."""
     if len(golden_header) != len(header):
         raise UnexpectedColumnCountError(header, len(golden_header), filename)
-    for i, (expected, actual) in enumerate(zip(golden_header, header, strict=False)):
+    for i, (expected, actual) in enumerate(zip(golden_header, header, strict=True)):
         if expected != actual:
             msg = f"Expected column {i + 1} to be {expected} but found {actual}"
             raise ParsingError(filename, msg)

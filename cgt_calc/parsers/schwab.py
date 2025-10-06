@@ -300,7 +300,7 @@ def read_schwab_transactions(
             lines = lines[1:]
             transactions = [
                 SchwabTransaction.create(
-                    OrderedDict(zip(headers, row, strict=False)),
+                    OrderedDict(zip(headers, row, strict=True)),
                     transactions_file,
                     awards_prices,
                 )
@@ -357,11 +357,11 @@ def _read_schwab_awards(
             len(lines) - modulo + 2, schwab_award_transactions_file or ""
         )
 
-    for upper_row, lower_row in zip(lines[::2], lines[1::2], strict=False):
+    for upper_row, lower_row in zip(lines[::2], lines[1::2], strict=True):
         # in this format each row is split into two rows,
         # so we combine them safely below
         row = []
-        for upper_col, lower_col in zip(upper_row, lower_row, strict=False):
+        for upper_col, lower_col in zip(upper_row, lower_row, strict=True):
             assert upper_col == "" or lower_col == ""
             row.append(upper_col + lower_col)
 
@@ -370,7 +370,7 @@ def _read_schwab_awards(
                 row, len(headers), schwab_award_transactions_file or ""
             )
 
-        row_dict = OrderedDict(zip(headers, row, strict=False))
+        row_dict = OrderedDict(zip(headers, row, strict=True))
         date_header = AwardsTransactionsFileRequiredHeaders.DATE.value
         date_str = row_dict[date_header]
         try:
