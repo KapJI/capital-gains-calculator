@@ -44,6 +44,8 @@ We use:
 
 `pre-commit` can be used to run all checks with one command (see below).
 
+The project uses **Python 3.12** as the minimum supported version
+
 ## 🚸 Pre-commit
 
 Install [`pre-commit`](https://pre-commit.com/#install) first, e.g. using `uv` or `pipx`:
@@ -73,6 +75,7 @@ Or you can run single hook:
 ```shell
 pre-commit run mypy --all-files
 pre-commit run pytest
+pre-commit run --hook-stage manual python-typing-update --all-files
 ```
 
 ## 🧹 Running linters and tests manually

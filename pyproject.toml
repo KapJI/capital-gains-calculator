@@ -12,7 +12,7 @@ license = { text = "MIT" }
 classifiers = [
     "Development Status :: 4 - Beta",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Office/Business :: Financial",
     "Typing :: Typed",
 ]
@@ -28,7 +28,7 @@ keywords = [
     "broker export",
     "financial reporting",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dependencies = [
   "defusedxml>=0.7.1,<1.0.0",
   "Jinja2>=2.11.3,<4.0.0",
@@ -64,7 +64,7 @@ dev = [
 module-root = "."
 
 [tool.pylint.main]
-py-version = "3.9"
+py-version = "3.12"
 load-plugins = [
     "pylint.extensions.code_style",
     "pylint.extensions.typing",
@@ -330,8 +330,8 @@ runtime-typing = false
 max-line-length-suggestions = 72
 
 [tool.ruff]
-required-version = ">=0.6.0"
-target-version = "py39"
+required-version = ">=0.13.0"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -437,7 +437,7 @@ mark-parentheses = false
 max-complexity = 25
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.12"
 show_error_codes = true
 strict = true
 disallow_any_explicit = true
