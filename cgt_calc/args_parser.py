@@ -169,10 +169,7 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         default=DEFAULT_ISIN_TRANSLATION_FILE,
         nargs="?",
-        help=(
-            "Output file for ISIN to ticker translations. Set it to empty string "
-            " to disable the file writing"
-        ),
+        help="output file for ISIN to ticker translations",
     )
     parser.add_argument(
         "--verbose",

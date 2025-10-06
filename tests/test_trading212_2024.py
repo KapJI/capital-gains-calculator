@@ -13,8 +13,6 @@ def test_run_with_trading212_files() -> None:
         "2024",
         "--trading212",
         "tests/test_data/trading212_2024/",
-        "--isin-translation-file",
-        "",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"

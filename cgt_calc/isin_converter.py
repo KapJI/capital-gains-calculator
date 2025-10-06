@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from requests_ratelimiter import LimiterSession
 
-from .const import INITIAL_ISIN_TRANSLATION_FILE
+from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_FILE
 from .exceptions import ParsingError
 from .parsers import ISIN_TRANSLATION_HEADER, read_isin_translation_file
 from .resources import RESOURCES_PACKAGE
@@ -34,7 +34,7 @@ class IsinConverter:
             resources.files(RESOURCES_PACKAGE).joinpath(INITIAL_ISIN_TRANSLATION_FILE)
         )
         self.write_data: dict[str, set[str]] = {}
-        if isin_translation_file and Path(isin_translation_file).is_file():
+        if isin_translation_file is not None and Path(isin_translation_file).is_file():
             self.write_data = read_isin_translation_file(Path(isin_translation_file))
             self.data.update(self.write_data)
 
@@ -90,7 +90,7 @@ class IsinConverter:
 
     def _write_isin_translation_file(self) -> None:
         self.validate_data()
-        if not self.isin_translation_file:
+        if CGT_TEST_MODE or self.isin_translation_file is None:
             return
         with Path(self.isin_translation_file).open("w", encoding="utf8") as fout:
             data_rows = [[isin, *symbols] for isin, symbols in self.write_data.items()]

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+import os
 from typing import Final
 
 from dateutil.relativedelta import relativedelta
 
 from .model import TaxTreaty
+
+CGT_TEST_MODE = os.environ.get("CGT_TEST_MODE", "0") == "1"
 
 # Allowances from
 # https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances#tax-free-allowances-for-capital-gains-tax

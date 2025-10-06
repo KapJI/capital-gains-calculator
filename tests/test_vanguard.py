@@ -15,8 +15,6 @@ def test_run_with_vanguard_files() -> None:
         "tests/test_data/vanguard/report.csv",
         "--interest-fund-tickers",
         "FOO",
-        "--isin-translation-file",
-        "",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"

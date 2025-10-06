@@ -13,8 +13,6 @@ def test_run_with_schwab_example_files() -> None:
         "2023",
         "--schwab",
         "tests/test_data/schwab/schwab_transactions-2023.csv",
-        "--isin-translation-file",
-        "",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"
