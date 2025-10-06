@@ -34,7 +34,7 @@ Interest is grouped **monthly per broker** to keep reports concise, even for bro
 Here's what a generated PDF report looks like:
 
 <a href="./calculations_example.pdf">
-  <img src="./docs/report_preview.png" alt="Preview of example report" width="800">
+  <img src="./docs/report_preview.png" alt="Preview of example report" width="600">
 </a>
 
 👉 [View full example report (PDF)](https://github.com/KapJI/capital-gains-calculator/blob/main/calculations_example.pdf)
