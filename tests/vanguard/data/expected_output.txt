@@ -5,6 +5,7 @@ INFO: No mssb folder provided
 INFO: No sharesight file provided
 INFO: No raw file provided
 INFO: No ERI raw file provided
+INFO: No freetrade file provided
 First pass completed
 Final portfolio:
   FOO: 1550.00
