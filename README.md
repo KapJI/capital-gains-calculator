@@ -5,7 +5,7 @@
 
 Easily calculate **UK Capital Gains Tax** from your investment transaction history.
 
-Supported sources include **Charles Schwab**, **Trading 212**, **Morgan Stanley**, **Sharesight**, **Vanguard**, or a custom **RAW** format.
+Supported sources include **Charles Schwab**, **Trading 212**, **Morgan Stanley**, **Sharesight**, **Vanguard**, **Freetrade**, or a custom **RAW** format.
 
 The tool generates a detailed **PDF report** with all calculations.
 
@@ -189,6 +189,23 @@ Example usage for the tax year 2024/25:
 
 ```shell
 cgt-calc --year 2024 --vanguard vanguard.csv
+```
+
+</details>
+ <br />
+ <details>
+    <summary>🏦 Instructions for Freetrade</summary>
+
+You will need:
+
+-   **Exported transaction history from Freetrade.**
+    Go to Activity -> GIA -> Last 12 Months -> Export CSV. (for some reason it exports longer periods, this is useful for our purpose as it may include purchase price)
+    [See example](tests/test_data/freetrade/transactions.csv).
+
+Example usage for the tax year 2024/25:
+
+```shell
+cgt-calc --year 2024 --freetrade freetrade_GIA.csv
 ```
 
 </details>
