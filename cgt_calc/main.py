@@ -576,7 +576,7 @@ class CapitalGainsCalculator:
                     [
                         f"{trx}\nBalance after transaction={balance_after}"
                         for trx, balance_after in zip(
-                            transactions[: i + 1], balance_history, strict=False
+                            transactions[: i + 1], balance_history, strict=True
                         )
                     ]
                 )

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Final
 
 from cgt_calc.const import TICKER_RENAMES
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
 
 COLUMNS: Final[list[str]] = [
@@ -100,7 +100,9 @@ class Trading212Transaction(BrokerTransaction):
 
     def __init__(self, header: list[str], row_raw: list[str], filename: str):
         """Create transaction from CSV row."""
-        row = dict(zip(header, row_raw, strict=False))
+        if len(row_raw) != len(header):
+            raise UnexpectedColumnCountError(row_raw, len(header), filename)
+        row = dict(zip(header, row_raw, strict=True))
         time_str = row["Time"]
         time_format = "%Y-%m-%d %H:%M:%S.%f" if "." in time_str else "%Y-%m-%d %H:%M:%S"
         self.datetime = datetime.strptime(time_str, time_format)

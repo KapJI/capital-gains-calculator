@@ -32,7 +32,7 @@ class EriRaw(EriTransaction):
         if len(row_raw) != len(COLUMNS):
             raise UnexpectedColumnCountError(row_raw, len(COLUMNS), file)
 
-        row = dict(zip(header, row_raw, strict=False))
+        row = dict(zip(header, row_raw, strict=True))
 
         isin = row["ISIN"]
         if not is_isin(isin):

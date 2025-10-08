@@ -69,7 +69,7 @@ class VanguardTransaction(BrokerTransaction):
         if len(row_raw) != len(COLUMNS):
             raise UnexpectedColumnCountError(row_raw, len(COLUMNS), file)
 
-        row = dict(zip(header, row_raw, strict=False))
+        row = dict(zip(header, row_raw, strict=True))
 
         date_str = row["Date"]
         date = datetime.datetime.strptime(date_str, "%d/%m/%Y").date()

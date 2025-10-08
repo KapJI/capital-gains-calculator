@@ -10,7 +10,11 @@ from pathlib import Path
 from typing import Final
 
 from cgt_calc.const import TICKER_RENAMES
-from cgt_calc.exceptions import InvalidTransactionError, ParsingError
+from cgt_calc.exceptions import (
+    InvalidTransactionError,
+    ParsingError,
+    UnexpectedColumnCountError,
+)
 from cgt_calc.model import ActionType, BrokerTransaction
 
 STOCK_ACTIVITY_COMMENT_MARKER: Final[str] = "Stock Activity"
@@ -63,6 +67,7 @@ class RowIterator(Iterator[list[str]]):
 
 def parse_dividend_payments(
     rows: Iterator[list[str]],
+    file: Path,
 ) -> Iterable[SharesightTransaction]:
     """Parse dividend payments from Sharesight data.
 
@@ -79,7 +84,10 @@ def parse_dividend_payments(
             # Don't use the totals row, but it signals the end of the section
             break
 
-        row_dict = dict(zip(columns, row, strict=False))
+        if len(row) != len(columns):
+            raise UnexpectedColumnCountError(row, len(columns), str(file))
+
+        row_dict = dict(zip(columns, row, strict=True))
 
         dividend_date = parse_date(row_dict["Date Paid"])
         symbol = row_dict["Code"]
@@ -127,7 +135,9 @@ def parse_dividend_payments(
             )
 
 
-def parse_local_income(rows: Iterator[list[str]]) -> Iterable[SharesightTransaction]:
+def parse_local_income(
+    rows: Iterator[list[str]], file: Path
+) -> Iterable[SharesightTransaction]:
     """Parse Local Income section from Sharesight data.
 
     This basically just yields to `parse_dividend_payments`, but we skip the
@@ -139,13 +149,15 @@ def parse_local_income(rows: Iterator[list[str]]) -> Iterable[SharesightTransact
             return
 
         if row[0] == "Dividend Payments":
-            yield from parse_dividend_payments(rows)
+            yield from parse_dividend_payments(rows, file)
 
 
-def parse_foreign_income(rows: Iterator[list[str]]) -> Iterable[SharesightTransaction]:
+def parse_foreign_income(
+    rows: Iterator[list[str]], file: Path
+) -> Iterable[SharesightTransaction]:
     """Parse Foreign Income section from Sharesight data."""
 
-    yield from parse_dividend_payments(rows)
+    yield from parse_dividend_payments(rows, file)
 
 
 def parse_income_report(file: Path) -> Iterable[SharesightTransaction]:
@@ -159,15 +171,15 @@ def parse_income_report(file: Path) -> Iterable[SharesightTransaction]:
     try:
         for row in rows_iter:
             if row[0] == "Local Income":
-                yield from parse_local_income(rows_iter)
+                yield from parse_local_income(rows_iter, file)
             elif row[0] == "Foreign Income":
-                yield from parse_foreign_income(rows_iter)
+                yield from parse_foreign_income(rows_iter, file)
     except ValueError as err:
         raise ParsingError(f"{file}:{rows_iter.line}", str(err)) from None
 
 
 def parse_trades(
-    columns: list[str], rows: Iterator[list[str]]
+    columns: list[str], rows: Iterator[list[str]], file: Path
 ) -> Iterable[SharesightTransaction]:
     """Parse content in All Trades Report from Sharesight."""
 
@@ -176,7 +188,10 @@ def parse_trades(
             # There is an empty row at the end of the trades list
             break
 
-        row_dict = dict(zip(columns, row, strict=False))
+        if len(row) != len(columns):
+            raise UnexpectedColumnCountError(row, len(columns), str(file))
+
+        row_dict = dict(zip(columns, row, strict=True))
         tpe = row_dict["Type"]
         if tpe == "Buy":
             action = ActionType.BUY
@@ -260,7 +275,7 @@ def parse_trade_report(file: Path) -> Iterable[SharesightTransaction]:
         if row[0] == "Market":
             columns = row
             try:
-                yield from parse_trades(columns, rows_iter)
+                yield from parse_trades(columns, rows_iter, file)
             except (InvalidOperation, ValueError) as err:
                 raise ParsingError(f"{file}:{rows_iter.line}", str(err)) from None
 
