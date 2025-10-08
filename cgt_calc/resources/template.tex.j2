@@ -83,7 +83,7 @@
     \BLOCK{ if overall_quantity > 0 }
         \subsubsection*{
             Excess Reported Income: \VAR{ symbol } cost increased by £\VAR{ "{:,}".format(acquisition_cost) }
-            (£\VAR{ "{:,}".format(round_decimal(entries[0].eri.price, 4)) }/unit)%
+            (£\VAR{ "{:,}".format(round_decimal(entries[0].eris[0].price, 4)) }/unit)%
         }
     \BLOCK{ endif }
 \BLOCK{ endif }
@@ -128,13 +128,15 @@
 
     Cost basis calculated based on cost of \VAR{entry.spin_off.source} share pool from which \VAR{ symbol } shares were spinned off%
     \BLOCK{ endif }
-    \BLOCK{ if is_aquisition and entry.eri}
-        \BLOCK{ set eri_cost = round_decimal(entry.eri.price * entry.quantity, 2) }
-        \BLOCK{ set eri_date = entry.eri.date.strftime("%d %b %Y") }
+    \BLOCK{ if is_aquisition }
+        \BLOCK{ for eri in entry.eris }
+            \BLOCK{ set eri_cost = round_decimal(eri.price * entry.quantity, 2) }
+            \BLOCK{ set eri_date = eri.date.strftime("%d %b %Y") }
 
     Cost basis increased by £\VAR{ "{:,}".format(eri_cost)}
-    (£\VAR{ "{:,}".format(round_decimal(entry.eri.price, 4)) }/unit)%
+    (£\VAR{ "{:,}".format(round_decimal(eri.price, 4)) }/unit)%
     , due to exccess reported income on \mbox{\VAR{ eri_date }}%
+        \BLOCK{ endfor }
     \BLOCK{ endif }
 \BLOCK{ endif }.
 
@@ -185,7 +187,7 @@
         \BLOCK{ set interest_count.value = interest_count.value + 1 }
         \textbf{Interest \VAR{ interest_str } \VAR{ interest_count.value }:} \VAR{ symbol } for £\VAR{ "{:,}".format(round_decimal(entries[0].amount, 2)) }
     \BLOCK{ elif is_eri_tax } % if is_eri_tax
-        \BLOCK{ if entries[0].eri.is_interest }
+        \BLOCK{ if entries[0].eris[0].is_interest }
             \BLOCK{ set type_str = " (interest)" }
         \BLOCK{ else }
             \BLOCK{ set type_str = " (dividend)" }
@@ -193,7 +195,7 @@
         \BLOCK{ set eri_income = round_decimal(entries[0].amount, 2) }
         \BLOCK{ set eri_count.value = eri_count.value + 1 }
         \textbf{Excess Reported Income Distribution \VAR{ eri_count.value }}: \VAR{ symbol + type_str } for £\VAR{ "{:,}".format(eri_income) }
-        (£\VAR{ "{:,}".format(round_decimal(entries[0].eri.price, 4)) }/unit)%
+        (£\VAR{ "{:,}".format(round_decimal(entries[0].eris[0].price, 4)) }/unit)%
     \BLOCK{ endif }
 
     \BLOCK{ endfor }

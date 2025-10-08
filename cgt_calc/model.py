@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import datetime
 from decimal import Decimal
 from enum import Enum
@@ -83,7 +83,10 @@ class HmrcTransactionData:
     quantity: Decimal = Decimal(0)
     amount: Decimal = Decimal(0)
     fees: Decimal = Decimal(0)
-    eri: ExcessReportedIncome | None = None
+    # This is a list to support Bed and Breakfast acquisitions that can cross multiple
+    # ERI reports for the same fund. This can happen for example when a fund is
+    # liquidated close after its usual reporting data, requiring a new final reporting.
+    eris: list[ExcessReportedIncome] = field(default_factory=list)
 
     def __add__(self, transaction: HmrcTransactionData) -> HmrcTransactionData:
         """Add two transactions."""
@@ -91,7 +94,7 @@ class HmrcTransactionData:
             self.quantity + transaction.quantity,
             self.amount + transaction.amount,
             self.fees + transaction.fees,
-            self.eri or transaction.eri,
+            self.eris + transaction.eris,
         )
 
 
@@ -225,7 +228,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         bed_and_breakfast_date_index: datetime.date | None = None,
         spin_off: SpinOff | None = None,
         dividend: Dividend | None = None,
-        eri: ExcessReportedIncome | None = None,
+        eris: list[ExcessReportedIncome] | None = None,
     ):
         """Create calculation entry."""
         self.rule_type = rule_type
@@ -241,7 +244,7 @@ class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
         self.bed_and_breakfast_date_index = bed_and_breakfast_date_index
         self.spin_off = spin_off
         self.dividend = dividend
-        self.eri = eri
+        self.eris = eris or []
         if self.rule_type == RuleType.EXCESS_REPORTED_INCOME:
             assert self.allowable_cost > 0, str(self)
             assert approx_equal(
@@ -396,8 +399,9 @@ class CapitalGainsReport:
         for item in self._filter_calculation_log(
             self.calculation_log_yields, RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION
         ):
-            assert item.eri is not None
-            if item.eri.is_interest == is_interest:
+            assert item.eris
+            assert len(item.eris) == 1
+            if item.eris[0].is_interest == is_interest:
                 total += item.amount
         return total
 
@@ -461,9 +465,10 @@ class CapitalGainsReport:
                 self.calculation_log_yields,
                 RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
             ):
-                assert item.eri
-                dist_type = "interest" if item.eri.is_interest else "dividend"
-                out += f"  {item.eri.symbol}: £{round_decimal(item.amount, 2)} "
+                assert item.eris
+                assert len(item.eris) == 1
+                dist_type = "interest" if item.eris[0].is_interest else "dividend"
+                out += f"  {item.eris[0].symbol}: £{round_decimal(item.amount, 2)} "
                 out += f"(included as {dist_type})\n"
 
         out += f"Number of disposals: {self.disposal_count}\n"

@@ -22,7 +22,6 @@ from .const import (
     DIVIDEND_DOUBLE_TAXATION_RULES,
     ERI_TAX_DATE_DELTA,
     INTERNAL_START_DATE,
-    MIN_DAYS_IN_YEAR,
 )
 from .currency_converter import CurrencyConverter
 from .current_price_fetcher import CurrentPriceFetcher
@@ -444,14 +443,19 @@ class CapitalGainsCalculator:
         symbols = self.isin_converter.get_symbols(transaction.isin)
         for symbol in symbols:
             for report_date, report_by_symbol in self.eris.items():
-                if (
-                    symbol in report_by_symbol
-                    and abs((report_date - transaction.date).days) < MIN_DAYS_IN_YEAR
-                ):
+                if symbol in report_by_symbol and report_date == transaction.date:
+                    previous_price = report_by_symbol[symbol].price
+                    if approx_equal(previous_price, price):
+                        print(
+                            "WARNING: Skipping duplicated ERI transaction: "
+                            f"{transaction}"
+                        )
+                        return
                     raise InvalidTransactionError(
                         transaction,
-                        "A reporting period within less than a year for this "
-                        f"ticker already exist at {report_date}",
+                        f"A conflicting ERI report at {report_date} for "
+                        f"{symbol} of £{price} has been found at "
+                        f"{report_date} of £{previous_price}",
                     )
 
             self.eris[transaction.date][symbol] = ExcessReportedIncome(
@@ -649,7 +653,7 @@ class CapitalGainsCalculator:
                     new_pool_cost=position.amount + bnb_acquisition.amount,
                     fees=bed_and_breakfast_fees,
                     allowable_cost=acquisition.amount,
-                    eri=bnb_acquisition.eri,
+                    eris=bnb_acquisition.eris,
                 )
             )
         self.portfolio[symbol] += Position(
@@ -783,15 +787,19 @@ class CapitalGainsCalculator:
 
         # Bed and breakfast rule next
         if disposal_quantity > 0:
+            eris = []
             eri = self.get_eri(symbol, date_index)
-            eri_distribution = None
+            if eri:
+                eris.append(eri)
 
             for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = date_index + datetime.timedelta(days=i + 1)
 
-                # ERI are distributed annually so only 1 eri can match in a bed
-                # a breakfast period (30 days)
-                eri = eri or self.get_eri(symbol, search_index)
+                # ERI are distributed annually but when a fund close we might have
+                # multiple ERI distribution in close succession
+                eri = self.get_eri(symbol, search_index)
+                if eri:
+                    eris.append(eri)
                 if has_key(self.acquisition_list, search_index, symbol):
                     acquisition = self.acquisition_list[search_index][symbol]
 
@@ -845,12 +853,14 @@ class CapitalGainsCalculator:
                     # ERI needs to be reported when doing bed and breakfast as if you
                     # held the stocks at the reporting end date.
                     # https://www.rawknowledge.ltd/eri-explained-four-tricky-questions-answered/
-                    if eri:
+                    total_dist_amount = Decimal(0)
+                    for eri in eris:
                         eri_distribution = ExcessReportedIncomeDistribution(
                             price=eri.price,
                             amount=available_quantity * eri.price,
                             quantity=available_quantity,
                         )
+                        total_dist_amount += eri_distribution.amount
                         if self.date_in_tax_year(eri.distribution_date):
                             self.eris_distribution[eri.distribution_date][symbol] += (
                                 eri_distribution
@@ -867,8 +877,8 @@ class CapitalGainsCalculator:
                         bed_and_breakfast_gain,
                         disposal_price,
                         acquisition_price,
-                        f", added_excess_income: {eri_distribution.amount}"
-                        if eri_distribution
+                        f", added_excess_income: {total_dist_amount}"
+                        if total_dist_amount > 0
                         else "",
                     )
                     disposal_quantity -= available_quantity
@@ -886,10 +896,9 @@ class CapitalGainsCalculator:
                         search_index,
                         symbol,
                         available_quantity,
-                        amount_delta
-                        + (eri_distribution.amount if eri_distribution else Decimal(0)),
+                        amount_delta + total_dist_amount,
                         Decimal(0),
-                        eri,
+                        eris,
                     )
                     calculation_entries.append(
                         CalculationEntry(
@@ -1004,7 +1013,7 @@ class CapitalGainsCalculator:
             fees=Decimal(0),
             new_pool_cost=new_amount,
             allowable_cost=allowable_cost,
-            eri=eri,
+            eris=[eri],
         )
 
     def process_interests(self) -> None:
@@ -1232,8 +1241,8 @@ class CapitalGainsCalculator:
                         continue
 
                     if date_index >= tax_year_start_index:
-                        eri = maybe_entry.eri
-                        assert eri is not None
+                        eris = maybe_entry.eris
+                        assert eris
                         calculation_log[date_index][
                             f"excess-reported-income${symbol}"
                         ] = [maybe_entry]
@@ -1257,13 +1266,15 @@ class CapitalGainsCalculator:
                             fees=Decimal(0),
                             new_pool_cost=data.amount,
                             allowable_cost=None,
-                            eri=ExcessReportedIncome(
-                                price=data.price,
-                                symbol=symbol,
-                                date=date_index - ERI_TAX_DATE_DELTA,
-                                distribution_date=date_index,
-                                is_interest=is_interest,
-                            ),
+                            eris=[
+                                ExcessReportedIncome(
+                                    price=data.price,
+                                    symbol=symbol,
+                                    date=date_index - ERI_TAX_DATE_DELTA,
+                                    distribution_date=date_index,
+                                    is_interest=is_interest,
+                                ),
+                            ],
                         )
                     ]
 

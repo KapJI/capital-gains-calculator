@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Final
 from defusedxml import ElementTree as ET
 import requests
 
+from .const import CGT_TEST_MODE
 from .dates import is_date
 from .exceptions import ExchangeRateMissingError, ParsingError
 
@@ -68,7 +69,7 @@ class CurrencyConverter:
     def _write_exchange_rates_file(
         exchange_rates_file: str | None, data: dict[datetime.date, dict[str, Decimal]]
     ) -> None:
-        if exchange_rates_file is None:
+        if exchange_rates_file is None or CGT_TEST_MODE:
             return
         with Path(exchange_rates_file).open("w", encoding="utf8") as fout:
             data_rows = [

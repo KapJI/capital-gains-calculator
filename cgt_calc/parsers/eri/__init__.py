@@ -32,7 +32,8 @@ def read_eri_transactions(
     for file in (
         resources.files(RESOURCES_PACKAGE).joinpath(DEFAULT_ERI_FOLDER).iterdir()
     ):
-        transactions += read_eri_raw(file)
+        if file.is_file() and file.name.endswith(".csv"):
+            transactions += read_eri_raw(file)
 
     if eri_raw_file is not None:
         transactions += read_eri_raw(Path(eri_raw_file))

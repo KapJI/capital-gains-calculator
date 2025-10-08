@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from requests_ratelimiter import LimiterSession
 
-from .const import INITIAL_ISIN_TRANSLATION_FILE
+from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_FILE
 from .exceptions import ParsingError
 from .parsers import ISIN_TRANSLATION_HEADER, read_isin_translation_file
 from .resources import RESOURCES_PACKAGE
@@ -28,7 +28,7 @@ class IsinConverter:
     ):
         """Create the IsinConverter."""
         # https://www.openfigi.com/api/documentation#rate-limits
-        self.session = LimiterSession(per_minute=25)
+        self.session = LimiterSession(per_minute=24)
         self.isin_translation_file = isin_translation_file
         self.data: dict[str, set[str]] = read_isin_translation_file(
             resources.files(RESOURCES_PACKAGE).joinpath(INITIAL_ISIN_TRANSLATION_FILE)
@@ -42,9 +42,19 @@ class IsinConverter:
 
     def validate_data(self) -> None:
         """Validate the current ISIN translation data."""
-        for isin, symbol in self.data.items():
+
+        reverse_cache: dict[str, str] = {}
+        for isin, symbols in self.data.items():
             assert is_isin(isin), f"{isin} not a valid ISIN!"
-            assert symbol, f"Invalid empty ticker for {isin} ISIN"
+            for symbol in symbols:
+                assert symbol, f"Invalid empty ticker for {isin} ISIN"
+                assert (symbol not in reverse_cache) or (
+                    reverse_cache[symbol] == "ISIN"
+                ), (
+                    f"Found multiple ISINs {isin},{reverse_cache[symbol]} "
+                    f"for the same ticker {symbol}"
+                )
+                reverse_cache[symbol] = isin
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Add the ISIN to symbol mapping from an existing transaction."""
@@ -79,7 +89,8 @@ class IsinConverter:
         return result
 
     def _write_isin_translation_file(self) -> None:
-        if self.isin_translation_file is None:
+        self.validate_data()
+        if CGT_TEST_MODE or self.isin_translation_file is None:
             return
         with Path(self.isin_translation_file).open("w", encoding="utf8") as fout:
             data_rows = [[isin, *symbols] for isin, symbols in self.write_data.items()]
@@ -109,6 +120,10 @@ class IsinConverter:
             or len(json_response) == 0
             or "data" not in json_response[0]
         ):
+            print(
+                f"Warning: Couldn't translate ISIN {isin}: "
+                f"Invalid Response {json_response}"
+            )
             return set()
 
         json_data = json_response[0]["data"]
@@ -134,4 +149,6 @@ class IsinConverter:
         all_tickers = [data["ticker"] for data in json_data if data]
         if all_tickers:
             return {min(all_tickers, key=len)}
+
+        print(f"Warning: Couldn't translate ISIN {isin}: Match not found {json_data}")
         return set()
