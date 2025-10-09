@@ -36,6 +36,9 @@ dependencies = [
   "requests>=2.27.1",
   "yfinance>=0.2.36",
   "requests-ratelimiter>=0.7.0",
+  "iso4217parse>=0.6.2",
+  "openpyxl>=3.1.5",
+  "xlrd>=2.0.2",
 ]
 
 [project.urls]

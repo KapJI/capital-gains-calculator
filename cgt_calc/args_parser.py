@@ -107,6 +107,17 @@ def create_parser() -> argparse.ArgumentParser:
         "in a eri_raw CSV format",
     )
     parser.add_argument(
+        "--import-eri-reports",
+        type=str,
+        nargs="?",
+        help=(
+            "If present imports the ERI reports from the input file or folder into "
+            "the project resources folder using the existing ERI parsers available."
+            "This is required to be run within the developmer repository, not from "
+            "the installed package."
+        ),
+    )
+    parser.add_argument(
         "--exchange-rates-file",
         type=str,
         default=DEFAULT_EXCHANGE_RATES_FILE,

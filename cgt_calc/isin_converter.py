@@ -46,6 +46,8 @@ class IsinConverter:
         reverse_cache: dict[str, str] = {}
         for isin, symbols in self.data.items():
             assert is_isin(isin), f"{isin} not a valid ISIN!"
+            if symbols == {""}:
+                continue
             for symbol in symbols:
                 assert symbol, f"Invalid empty ticker for {isin} ISIN"
                 assert (symbol not in reverse_cache) or (
@@ -93,7 +95,9 @@ class IsinConverter:
         if CGT_TEST_MODE or self.isin_translation_file is None:
             return
         with Path(self.isin_translation_file).open("w", encoding="utf8") as fout:
-            data_rows = [[isin, *symbols] for isin, symbols in self.write_data.items()]
+            data_rows = [
+                [isin, *sorted(symbols)] for isin, symbols in self.write_data.items()
+            ]
             writer = csv.writer(fout)
             writer.writerows([ISIN_TRANSLATION_HEADER, *data_rows])
 

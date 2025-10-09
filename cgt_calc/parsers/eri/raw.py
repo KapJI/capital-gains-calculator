@@ -23,6 +23,8 @@ COLUMNS: Final[list[str]] = [
     "Excess of reporting income over distribution",
 ]
 
+RAW_DATE_FORMAT = "%d/%m/%Y"
+
 
 class EriRaw(EriTransaction):
     """Represents a single raw ERI transaction."""
@@ -38,7 +40,7 @@ class EriRaw(EriTransaction):
         if not is_isin(isin):
             raise ParsingError(file, f"Not valid ISIN {isin}")
         date = datetime.datetime.strptime(
-            row["Fund Reporting Period End Date"], "%d/%m/%Y"
+            row["Fund Reporting Period End Date"], RAW_DATE_FORMAT
         ).date()
         currency = row["Currency"]
         price = Decimal(row["Excess of reporting income over distribution"])

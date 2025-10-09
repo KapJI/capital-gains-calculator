@@ -124,6 +124,9 @@ class CurrencyConverter:
     def currency_to_gbp_rate(self, currency: str, date: datetime.date) -> Decimal:
         """Get GBP/currency rate at given date."""
         assert is_date(date)
+        # offshore (Honk Kong) Chinese Yuan handling
+        if currency == "CNH":
+            currency = "CNY"
         if date not in self.cache:
             self._query_hmrc_api(date)
         if currency not in self.cache[date]:

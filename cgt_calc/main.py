@@ -59,6 +59,7 @@ from .model import (
     SpinOff,
 )
 from .parsers import read_broker_transactions, read_initial_prices
+from .parsers.eri.data_import import eri_import_from_path
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
 from .util import approx_equal, round_decimal
@@ -442,10 +443,14 @@ class CapitalGainsCalculator:
 
         symbols = self.isin_converter.get_symbols(transaction.isin)
         for symbol in symbols:
+            # For some funds we don't have symbol translation
+            if not symbol:
+                continue
+
             for report_date, report_by_symbol in self.eris.items():
                 if symbol in report_by_symbol and report_date == transaction.date:
                     previous_price = report_by_symbol[symbol].price
-                    if approx_equal(previous_price, price):
+                    if approx_equal(previous_price, price, Decimal("0.0001")):
                         print(
                             "WARNING: Skipping duplicated ERI transaction: "
                             f"{transaction}"
@@ -1344,6 +1349,11 @@ def main() -> int:
     default_logging_level = logging.DEBUG if args.verbose else logging.WARNING
     logging.basicConfig(level=default_logging_level)
 
+    isin_translation_file = args.isin_translation_file
+    # If reports mode
+    if args.import_eri_reports:
+        isin_translation_file = eri_import_from_path(args.import_eri_reports)
+
     # Read data from input files
     broker_transactions = read_broker_transactions(
         args.schwab,
@@ -1360,7 +1370,7 @@ def main() -> int:
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
     price_fetcher = CurrentPriceFetcher(currency_converter)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
-    isin_converter = IsinConverter(args.isin_translation_file)
+    isin_converter = IsinConverter(isin_translation_file)
 
     calculator = CapitalGainsCalculator(
         args.year,

@@ -8,7 +8,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from .util import approx_equal, round_decimal
+from .util import approx_equal, is_currency, round_decimal
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -178,6 +178,12 @@ class BrokerTransaction:
     currency: str
     broker: str
     isin: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate BrokerTransaction data."""
+        assert is_currency(self.currency), (
+            f"Invalid Currency {self.currency} for transaction {self}"
+        )
 
 
 class RuleType(Enum):
