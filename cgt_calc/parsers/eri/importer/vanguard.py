@@ -1,4 +1,4 @@
-"""Blackrock/iShares ERI transaction parser."""
+"""Vangaurd ERI transaction parser."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from cgt_calc.parsers.eri.model import ERITransaction
 
 from .model import ERIImporter, ERIImporterOutput
 
-BLACKROCK_NAME_REGEX = re.compile(r"^.*\b(blackrock|bsf).*\.xls(x)?$")
+VANGUARD_NAME_REGEX = re.compile(r"^.*\b(vanguard).*\.xls(x)?$")
 ISHARES_NAME_REGEX = re.compile(r"^.*\b(ishares).*\.xls(x)?$")
 
 PERIOD_RE = re.compile(r"^.* (to|\-) ")
@@ -27,29 +27,24 @@ PERIOD_RE = re.compile(r"^.* (to|\-) ")
 ISIN_COLUMN = "ISIN"
 REPORTING_PERIOD_COLUMN = "Reporting Period"
 CURRENCY_COLUMN = "Currency"
-ERI_COLUMN = "Excess of Reported Income per Unit"
+ERI_COLUMN = "Excess of reporting income"
 COLUMNS = [ISIN_COLUMN, REPORTING_PERIOD_COLUMN, CURRENCY_COLUMN, ERI_COLUMN]
 
-BLACKROCK_ERI_FILENAME = "blackrock_eri.csv"
-ISHARES_ERI_FILENAME = "ishares_eri.csv"
+VANGUARD_ERI_FILENAME = "vanguard_eri.csv"
 
 
-class BlackrockImporter(ERIImporter):
-    """Parser for Blackrock/iShares ERI spreadsheets."""
+class VanguardImporter(ERIImporter):
+    """Parser for Vanguard ERI spreadsheets."""
 
     def __init__(self) -> None:
-        """Create a new Blackrock Parser instance."""
-        super().__init__(name="Blackrock/iShares")
+        """Create a new Vanguard Parser instance."""
+        super().__init__(name="Vanguard")
 
     def parse(self, file: Path) -> ERIImporterOutput | None:
-        """Parse a Blackrock/iShares ERI file."""
-        if BLACKROCK_NAME_REGEX.match(file.name):
+        """Parse a Vanguard ERI file."""
+        if VANGUARD_NAME_REGEX.match(file.name.lower()):
             result = ERIImporterOutput(
-                transactions=[], output_file_name=BLACKROCK_ERI_FILENAME
-            )
-        elif ISHARES_NAME_REGEX.match(file.name):
-            result = ERIImporterOutput(
-                transactions=[], output_file_name=ISHARES_ERI_FILENAME
+                transactions=[], output_file_name=VANGUARD_ERI_FILENAME
             )
         else:
             return None
@@ -64,7 +59,8 @@ class BlackrockImporter(ERIImporter):
         # funds and we want to skip it
 
         # Search for the header row
-        header_loc = df[df == "ISIN"].dropna(axis=1, how="all").dropna(how="all")
+        mask = df.astype(str).map(lambda x: isinstance(x,str) and x.startswith("ISIN"))
+        header_loc = mask[mask].dropna(axis=1, how="all").dropna(how="all")
 
         # first row is the header row
         if "ISIN" in df.columns.values:
@@ -116,8 +112,6 @@ class BlackrockImporter(ERIImporter):
             currency = row[CURRENCY_COLUMN]
             if not isinstance(currency, str):
                 raise ParsingError(file, f"Not valid Currency {currency}")
-            # Bugs in the currency codes
-            currency = currency.replace("JPN", "JPY")
             if not isinstance(currency, str) or not is_currency(currency):
                 raise ParsingError(file, f"Not valid Currency {currency}")
             currency = currency.upper()

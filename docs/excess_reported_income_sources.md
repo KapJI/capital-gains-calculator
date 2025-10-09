@@ -3,7 +3,7 @@
 This guide is only needed in case the funds data you're looking for is not pre-bundled with the
 tool. Currently bundled data:
 
-- [Vanguard Funds Plc 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+- [Vanguard Funds 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
 - [Blackrock Funds 2019-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
 - [iShares Funds 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv)
 
@@ -33,14 +33,20 @@ https://www.vanguardinvestor.co.uk/investing-explained/general-account-tax-infor
 Vanguard Investment Series Plc reports are for traditional funds, Vanguard Funds Plc reports are for
 ETFs.
 
-Note this tool **already includes** Vanguard Funds Plc ERI data from 2018 to 2024.
+Note this tool **already includes** Vanguard Funds ERI data from 2018 to 2024.
 
-Columns mapping to ERI_RAW:
+To contribute new data to the tool please run the tool on your capital gains data from the git
+repository with the `--import-eri-reports` options pointing to either the file or the folder
+containing the ERI reports for Blackrock or iShares. The tool will recognize the funds provider from
+the filename and import the data in the resource CSV for
+[vanguard](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv).
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** End date in the Reporting Period column
 - **Currency:** Share Class Currency column
-- **Excess of reporting income over distribution:** same name column
+- **Excess of reporting income over distribution:** same name column The tool also record any new
+  ISIN translation to the resource CSV for
+  [ISIN](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv)
 
 To contribute new data to the tool please add it at the bottom of the
 [ERI RAW file](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
