@@ -12,6 +12,7 @@ from cgt_calc import resources
 from cgt_calc.const import DEFAULT_ISIN_TRANSLATION_FILE
 from cgt_calc.exceptions import InvalidTransactionError
 from cgt_calc.parsers.eri.importer.blackrock import BlackrockImporter
+from cgt_calc.parsers.eri.importer.vanguard import VanguardImporter
 from cgt_calc.parsers.eri.raw import COLUMNS, RAW_DATE_FORMAT, ERIRawParser
 from cgt_calc.util import approx_equal
 
@@ -20,9 +21,7 @@ if TYPE_CHECKING:
 
     from cgt_calc.parsers.eri.model import ERIImporter, ERITransaction
 
-ERI_IMPORTERS: list[ERIImporter] = [
-    BlackrockImporter(),
-]
+ERI_IMPORTERS: list[ERIImporter] = [BlackrockImporter(), VanguardImporter()]
 
 
 def validate_and_remove_duplicates(
