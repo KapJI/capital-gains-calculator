@@ -1334,11 +1334,11 @@ def main() -> int:
     args = create_parser().parse_args()
 
     if args.version:
-        print(f"cgt-calc {importlib.metadata.version(__package__)}")
+        LOGGER.info("cgt-calc %s", importlib.metadata.version(__package__))
         return 0
 
     if args.report == "":
-        print("error: report name can't be empty")
+        LOGGER.error("error: report name can't be empty")
         return 1
 
     default_logging_level = logging.DEBUG if args.verbose else logging.WARNING

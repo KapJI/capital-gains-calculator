@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import logging
 
 from .const import (
     DEFAULT_EXCHANGE_RATES_FILE,
@@ -12,6 +13,8 @@ from .const import (
     DEFAULT_SPIN_OFF_FILE,
 )
 
+LOGGER = logging.getLogger(__name__)
+
 
 def get_last_elapsed_tax_year() -> int:
     """Get last ended tax year."""
@@ -19,6 +22,27 @@ def get_last_elapsed_tax_year() -> int:
     if now.date() >= datetime.date(now.year, 4, 6):
         return now.year - 1
     return now.year - 2
+
+
+class DeprecatedAction(argparse.Action):
+    """Print warning when deprecated argument is used."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str,  # type: ignore[override]
+        option_string: str | None = None,
+    ) -> None:
+        """Check if argument is deprecated."""
+        assert isinstance(option_string, str), "Positional arguments are not supported"
+        replacement = {"--schwab_equity_award_json": "--schwab-equity-award-json"}
+        LOGGER.warning(
+            "Option '%s' is deprecated; use '%s' instead.",
+            option_string,
+            replacement[option_string],
+        )
+        setattr(namespace, self.dest, values)
 
 
 class SplitArgs(argparse.Action):
@@ -69,11 +93,19 @@ def create_parser() -> argparse.ArgumentParser:
         help="file containing schwab award data for stock prices",
     )
     parser.add_argument(
-        "--schwab_equity_award_json",
+        "--schwab-equity-award-json",
         type=str,
         default=None,
         nargs="?",
         help="file containing schwab equity award transactions data in JSON format",
+    )
+    parser.add_argument(
+        "--schwab_equity_award_json",
+        action=DeprecatedAction,
+        type=str,
+        default=None,
+        nargs="?",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--trading212",

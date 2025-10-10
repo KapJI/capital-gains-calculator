@@ -212,7 +212,7 @@ class Dividend:
         return self.amount * self.tax_treaty.treaty_rate
 
 
-class CalculationEntry:  # noqa: SIM119 # this has non-trivial constructor
+class CalculationEntry:
     """Calculation entry for final report."""
 
     def __init__(

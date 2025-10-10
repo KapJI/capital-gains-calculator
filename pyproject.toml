@@ -34,8 +34,8 @@ dependencies = [
   "Jinja2>=2.11.3,<4.0.0",
   "pandas>=2.2",
   "requests>=2.27.1",
-  "yfinance>=0.2.36",
   "requests-ratelimiter>=0.7.0",
+  "yfinance>=0.2.36",
 ]
 
 [project.urls]
