@@ -33,11 +33,11 @@ Interest is grouped **monthly per broker** to keep reports concise, even for bro
 
 Here's what a generated PDF report looks like:
 
-<a href="./calculations_example.pdf">
+<a href="./docs/calculations_example.pdf">
   <img src="./docs/report_preview.png" alt="Preview of example report" width="600">
 </a>
 
-👉 [View full example report (PDF)](https://github.com/KapJI/capital-gains-calculator/blob/main/calculations_example.pdf)
+👉 [View full example report (PDF)](docs/calculations_example.pdf)
 
 ## 🔧 Prerequisites
 
@@ -102,7 +102,7 @@ You will need:
 
 -   **Exported transaction history in CSV format.**
     Schwab only allows to download transaction for the last 4 years. If you require more, you can download the history in 4-year chunks and combine them.
-    [See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/test_data/schwab_transactions.csv).
+    [See example](tests/test_data/schwab_transactions.csv).
 -   **Exported transaction history from Schwab Equity Awards in CSV format.**
     Only applicable if you receive equity awards in your account (e.g. for Alphabet/Google employees). Follow the same procedure as in the normal transaction history but selecting your Equity Award account.
 
@@ -123,7 +123,7 @@ You will need:
 
 -   **Exported transaction history from Trading 212.**
     You can provide a folder containing several files since Trading 212 limit the statements to 1 year periods.
-    [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/trading212).
+    [See example](tests/test_data/trading212).
 
 Example usage for the tax year 2024/25:
 
@@ -140,7 +140,7 @@ You will need:
 
 -   **Exported transaction history from Morgan Stanley.**
     Since Morgan Stanley generates multiple files in a single report, please specify a directory produced from the report download page.
-    [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/mssb).
+    [See example](tests/test_data/mssb).
 
 Example usage for the tax year 2024/25:
 
@@ -159,14 +159,14 @@ You will need:
     Sharesight is a portfolio tracking tool with support for multiple brokers.
     -   You will need the "All Trades" and "Taxable Income" reports since the beginning. Make sure to select "Since Inception" for the period, and "Not Grouping".
     -   Export both reports to Excel or Google Sheets, save as CSV, and place them in the same folder.
-    -   [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight).
+    -   [See example](tests/test_data/sharesight).
 
 Comments:
 
 -   Sharesight aggregates transactions from multiple brokers, but doesn't necessarily have balance information.
     Use the `--no-balance-check` flag to avoid spurious errors.
 
--   Since there is no direct support for equity grants, add `Stock Activity` as part of the comment associated with any vesting transactions - making sure they have the grant price filled ([see example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/sharesight)).
+-   Since there is no direct support for equity grants, add `Stock Activity` as part of the comment associated with any vesting transactions - making sure they have the grant price filled ([see example](tests/test_data/sharesight)).
 
 Example usage for the tax year 2024/25:
 
@@ -183,7 +183,7 @@ You will need:
 
 -   **Exported transaction history from Vanguard.**
     Vanguard can generate a report in Excel format with all transactions across all periods of time and all accounts (ISA, GA, etc). Grab the ones you're interested into (normally GA account) and put them in a single CSV file.
-    [See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/test_data/vanguard/report.csv).
+    [See example](tests/test_data/vanguard/report.csv).
 
 Example usage for the tax year 2024/25:
 
@@ -199,7 +199,7 @@ cgt-calc --year 2024 --vanguard vanguard.csv
 You will need:
 
 -   **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert whatever report you can produce into this basic format.
-    [See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/test_data/raw/test_data.csv)
+    [See example](tests/test_data/raw/test_data.csv)
 
 Example usage for the tax year 2024/25:
 
@@ -214,11 +214,11 @@ cgt-calc --year 2024 --raw sharesight_trxs_dir/
 For correct taxation on [offshore funds](https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds) you need to specify the yearly excess reported income (ERI) from each fund you have owned.
 You can find the full list of funds that requires this at [HMRC](https://www.gov.uk/government/publications/offshore-funds-list-of-reporting-funds).
 
-The tool already includes such yearly history in the [resources folder](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri). You can check if your fund is already included, or provide a custom ERI history file following the instructions [here](https://github.com/KapJI/capital-gains-calculator/blob/main/excess_reported_income_sources.md). We strongly suggest sharing compiled ERI data so it can be added to the package as it can save significant time to other users that hold the same fund.
+The tool already includes such yearly history in the [resources folder](cgt_calc/resources/eri). You can check if your fund is already included, or provide a custom ERI history file following the instructions [here](docs/excess_reported_income_sources.md). We strongly suggest sharing compiled ERI data so it can be added to the package as it can save significant time to other users that hold the same fund.
 
 Currently bundled data:
 
--   [Vanguard Funds Plc 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+-   [Vanguard Funds Plc 2018-2024](cgt_calc/resources/eri/vanguard_eri.csv)
 
 The ERI funds are indexed by ISIN and the tool provides automatic translation from ISIN to tickers, in case your broker doesn't supply the ISIN in their transaction history. For instructions on how to override ISIN translation look at the Extra options section below.
 
@@ -227,16 +227,16 @@ There are a few **unsupported** functionalities at the moment for taxation on of
 -   Tax calculations for offshore funds that are **not reporting to HMRC** as they don't report taxes as CGT but as income tax.
 -   Excess Reported Income [equalisation](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm13224) support which is an optional arrangement which certain funds can support to reduce the amount of excess reported income in case you held the fund stocks for less than the reporting period.
 
-Check [ERI data additional instrunctions](excess_reported_income_sources.md) for more information.
+Check [ERI data additional instrunctions](docs/excess_reported_income_sources.md) for more information.
 
 ### Additional Files and Options
 
 -   **CSV file with initial stock prices in USD.** This is needed under special circumstances for example at the moment of vesting, split, etc.
-    [`initial_prices.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format. The program will inform when some required price is missing.
+    [`initial_prices.csv`](cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use the same format. The program will inform when some required price is missing.
 -   **(Automatic) Monthly exchange rates prices from [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).** This is needed to convert foreign currencies into GBP amounts. `exchange_rates.csv` gets generated automatically using HMRC API, you need to use the same format if you want to override it.
 -   **Spin-off file.** Supplies extra information needed for spin-offs transactions through `--spin-offs-file`.
 -   **Interest fund tickers.** To calculate dividends on bond funds/ETF properly you need to pass the comma separated list of funds ticker that are taxed as interest instead of dividends, using `--interest-fund-tickers` CLI option.
--   **(Automatic) ISIN to ticker translation from [Open FIGI](https://www.openfigi.com/api/overview).** This is needed to convert funds ISIN to tickers under special circumstances, such as calculating the Excess Reportable Income when your broker doesn't provide the ISIN column. [`initial_isin_translation.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv) comes pre-packaged, you need to use the same format. `isin_translation.csv` gets generated automatically using Open FIGI API and you can use it to do manual overrides.
+-   **(Automatic) ISIN to ticker translation from [Open FIGI](https://www.openfigi.com/api/overview).** This is needed to convert funds ISIN to tickers under special circumstances, such as calculating the Excess Reportable Income when your broker doesn't provide the ISIN column. [`initial_isin_translation.csv`](cgt_calc/resources/initial_isin_translation.csv) comes pre-packaged, you need to use the same format. `isin_translation.csv` gets generated automatically using Open FIGI API and you can use it to do manual overrides.
 
 ## 🐳 Using Docker
 
