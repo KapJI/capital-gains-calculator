@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 from datetime import datetime
 from decimal import Decimal
+import logging
 from pathlib import Path
 from typing import Final
 
@@ -44,6 +45,7 @@ COLUMNS: Final[list[str]] = [
     "Currency (Transaction fee)",
     "Currency (Finra fee)",
 ]
+LOGGER = logging.getLogger(__name__)
 
 
 def decimal_or_none(val: str) -> Decimal | None:
@@ -171,12 +173,13 @@ class Trading212Transaction(BrokerTransaction):
             calculated_price_foreign = price * (self.exchange_rate or Decimal(1))
             discrepancy = self.price_foreign - calculated_price_foreign
             if abs(discrepancy) > Decimal("0.015"):
-                print(
-                    "WARNING: The Price / share for this transaction "
-                    "after converting and adding in the fees "
-                    f"doesn't add up to the total amount: {row}. "
-                    "You may fix the csv by looking at the transaction "
-                    f"in the UI. Discrepancy / share: {discrepancy:.3f}."
+                LOGGER.warning(
+                    "The Price per Share for this transaction after converting and "
+                    "adding in the fees doesn't add up to the total amount: %s. "
+                    "You may fix the CSV by looking at the transaction in the UI. "
+                    "Discrepancy per Share: %.3f.",
+                    row,
+                    float(discrepancy),
                 )
 
         isin = row["ISIN"]
@@ -224,7 +227,7 @@ def read_trading212_transactions(transactions_folder: str) -> list[BrokerTransac
     transactions = []
     for file in Path(transactions_folder).glob("*.csv"):
         with Path(file).open(encoding="utf-8") as csv_file:
-            print(f"Parsing {file}")
+            print(f"Parsing {file}...")
             lines = list(csv.reader(csv_file))
             header = lines[0]
             validate_header(header, str(file))
@@ -233,7 +236,7 @@ def read_trading212_transactions(transactions_folder: str) -> list[BrokerTransac
                 Trading212Transaction(header, row, str(file)) for row in lines
             ]
             if len(cur_transactions) == 0:
-                print(f"WARNING: no transactions detected in file {file}")
+                LOGGER.warning("No transactions detected in file: %s", file)
             transactions += cur_transactions
     # remove duplicates
     transactions = list(set(transactions))

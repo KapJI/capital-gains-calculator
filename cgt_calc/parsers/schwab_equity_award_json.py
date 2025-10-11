@@ -18,6 +18,7 @@ from dataclasses import InitVar, dataclass
 import datetime
 from decimal import Decimal
 import json
+import logging
 from pathlib import Path
 from typing import Any, Final
 
@@ -28,6 +29,7 @@ from cgt_calc.util import round_decimal
 
 OPTIONAL_DETAILS_NAME: Final = "Details"
 FIELD_TO_SCHEMA: Final = {"transactions": 1, "Transactions": 2}
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -381,5 +383,7 @@ def read_schwab_equity_award_json_transactions(
             transactions.reverse()
             return list(transactions)
     except FileNotFoundError:
-        print(f"WARNING: Couldn't locate Schwab transactions file({transactions_file})")
+        LOGGER.warning(
+            "Couldn't locate Schwab transactions file: %s", transactions_file
+        )
         return []

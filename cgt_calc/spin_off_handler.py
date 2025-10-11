@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
 
 CHOICES_TO_SHOW: Final = 10
 SPIN_OFFS_HEADER: Final = ["dst", "src"]
+LOGGER = logging.getLogger(__name__)
 
 
 class SpinOffHandler:
@@ -73,9 +75,11 @@ class SpinOffHandler:
             )
             if ticker in portfolio:
                 break
-            print(f"Invalid ticker: {ticker}, couldn't find it in the portfolio!")
+            LOGGER.error(
+                "Invalid ticker: %s, couldn't find it in the portfolio!", ticker
+            )
             if len(portfolio) <= CHOICES_TO_SHOW:
-                print(f"Available choices: {sorted(portfolio)}")
+                LOGGER.info("Available choices: %s", sorted(portfolio))
         self.cache[symbol] = ticker
         self._write_spin_off_file()
         return ticker

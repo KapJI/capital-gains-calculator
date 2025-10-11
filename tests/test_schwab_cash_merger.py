@@ -15,7 +15,11 @@ def test_run_with_schwab_cash_merger_files() -> None:
         "tests/test_data/schwab_cash_merger/transactions.csv",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)
-    assert result.stderr == b"", "Run with example files generated errors"
+    stderr_lines = result.stderr.decode().strip().split("\n")
+    expected_lines = 2
+    assert len(stderr_lines) == expected_lines
+    assert stderr_lines[0] == "WARNING: No Schwab Award file provided"
+    assert stderr_lines[1].startswith("WARNING: Cash Merger support is not complete")
     expected_file = (
         Path("tests") / "test_data" / "schwab_cash_merger" / "expected_output.txt"
     )

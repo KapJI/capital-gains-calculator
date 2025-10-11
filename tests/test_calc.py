@@ -187,7 +187,13 @@ def test_run_with_example_files() -> None:
         raise
 
     assert result.returncode == 0
-    assert result.stderr == b"", "Run with example files generated errors"
+    stderr_lines = result.stderr.decode().strip().split("\n")
+    expected_lines = 2
+    assert len(stderr_lines) == expected_lines
+    assert stderr_lines[0] == "WARNING: No Schwab Award file provided"
+    assert stderr_lines[1].startswith("WARNING: Bed and breakfasting for VUAG"), (
+        "Unexpected stderr message"
+    )
     expected_file = (
         Path("tests") / "test_data" / "test_run_with_example_files_output.txt"
     )

@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import datetime
 from decimal import Decimal
+import logging
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
@@ -22,6 +23,7 @@ COLUMNS: Final[list[str]] = [
     "Currency",
     "Excess of reporting income over distribution",
 ]
+LOGGER = logging.getLogger(__name__)
 
 
 class EriRaw(EriTransaction):
@@ -75,11 +77,11 @@ def read_eri_raw(
             lines = lines[1:]
             cur_transactions = [EriRaw(header, row, eri_file.name) for row in lines]
             if len(cur_transactions) == 0:
-                print(f"WARNING: no transactions detected in file {eri_file}")
+                LOGGER.warning("No transactions detected in file: %s", eri_file)
             transactions += cur_transactions
 
     except FileNotFoundError:
-        print(f"WARNING: Couldn't locate ERI raw file({eri_file})")
+        LOGGER.warning("Couldn't locate ERI raw file: %s", eri_file)
         return []
     except Exception as e:
         raise ParsingError(eri_file.name, "Couldn't parse the input file") from e

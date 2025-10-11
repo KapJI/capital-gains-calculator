@@ -6,6 +6,7 @@ from collections.abc import Iterable, Iterator
 import csv
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+import logging
 from pathlib import Path
 from typing import Final
 
@@ -18,6 +19,7 @@ from cgt_calc.exceptions import (
 from cgt_calc.model import ActionType, BrokerTransaction
 
 STOCK_ACTIVITY_COMMENT_MARKER: Final[str] = "Stock Activity"
+LOGGER = logging.getLogger(__name__)
 
 
 def parse_date(val: str) -> date:
@@ -290,14 +292,14 @@ def read_sharesight_transactions(
         if file.match("Taxable Income Report*.csv"):
             income_transactions = list(parse_income_report(file))
             if not income_transactions:
-                print(f"WARNING: no transactions detected in file {file}")
+                LOGGER.warning("No transactions detected in file: %s", file)
             else:
                 transactions += income_transactions
 
         if file.match("All Trades Report*.csv"):
             trade_transactions = list(parse_trade_report(file))
             if not trade_transactions:
-                print(f"WARNING: no transactions detected in file {file}")
+                LOGGER.warning("No transactions detected in file: %s", file)
             else:
                 transactions += trade_transactions
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import datetime
 from decimal import Decimal
+import logging
 from pathlib import Path
 import re
 from typing import Final
@@ -28,6 +29,7 @@ TRANSFER_RE = re.compile(
 
 INTEREST_STR = "Cash Account Interest"
 REVERSAL_STR = "Reversal of "
+LOGGER = logging.getLogger(__name__)
 
 
 def action_from_str(label: str, filename: str) -> ActionType:
@@ -157,14 +159,16 @@ def read_vanguard_transactions(transactions_file: str) -> list[VanguardTransacti
                 VanguardTransaction(header, row, transactions_file) for row in lines
             ]
             if len(cur_transactions) == 0:
-                print(f"WARNING: no transactions detected in file {transactions_file}")
+                LOGGER.warning(
+                    "No transactions detected in file: %s", transactions_file
+                )
             transactions += cur_transactions
 
             transactions.sort(key=by_date_and_action)
 
     except FileNotFoundError:
-        print(
-            f"WARNING: Couldn't locate Vanguard transactions file({transactions_file})"
+        LOGGER.warning(
+            "Couldn't locate Vanguard transactions file: %s", transactions_file
         )
         return []
 

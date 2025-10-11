@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import datetime
 from decimal import Decimal
+import logging
 from pathlib import Path
 from typing import Final
 
@@ -13,6 +14,7 @@ from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
 
 CSV_COLUMNS_NUM: Final = 7
+LOGGER = logging.getLogger(__name__)
 
 
 def action_from_str(label: str) -> ActionType:
@@ -88,7 +90,7 @@ def read_raw_transactions(transactions_file: str) -> list[BrokerTransaction]:
         with Path(transactions_file).open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))
     except FileNotFoundError:
-        print(f"WARNING: Couldn't locate Raw transactions file({transactions_file})")
+        LOGGER.warning("Couldn't locate RAW transactions file: %s", transactions_file)
         return []
 
     return [RawTransaction(row, transactions_file) for row in lines]

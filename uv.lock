@@ -95,6 +95,7 @@ name = "cgt-calc"
 version = "0.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "colorama" },
     { name = "defusedxml" },
     { name = "jinja2" },
     { name = "pandas" },
@@ -112,6 +113,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-env" },
     { name = "ruff" },
+    { name = "types-colorama" },
     { name = "types-defusedxml" },
     { name = "types-python-dateutil" },
     { name = "types-requests" },
@@ -119,6 +121,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "colorama", specifier = ">=0.4.6" },
     { name = "defusedxml", specifier = ">=0.7.1,<1.0.0" },
     { name = "jinja2", specifier = ">=2.11.3,<4.0.0" },
     { name = "pandas", specifier = ">=2.2" },
@@ -136,6 +139,7 @@ dev = [
     { name = "pytest", specifier = ">=8.4.2,<9.0.0" },
     { name = "pytest-env", specifier = ">=1.1.5" },
     { name = "ruff", specifier = ">=0.13.3" },
+    { name = "types-colorama", specifier = ">=0.4.15.20250801" },
     { name = "types-defusedxml", specifier = ">=0.7.0.20250822" },
     { name = "types-python-dateutil", specifier = ">=2.9.0.20250822" },
     { name = "types-requests", specifier = ">=2.32.4.20250913" },
@@ -761,6 +765,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cc/18/0bbf3884e9eaa38819ebe46a7bd25dcd56b67434402b66a58c4b8e552575/tomlkit-0.13.3.tar.gz", hash = "sha256:430cf247ee57df2b94ee3fbe588e71d362a941ebb545dec29b53961d61add2a1", size = 185207, upload-time = "2025-06-05T07:13:44.947Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bd/75/8539d011f6be8e29f339c42e633aae3cb73bffa95dd0f9adec09b9c58e85/tomlkit-0.13.3-py3-none-any.whl", hash = "sha256:c89c649d79ee40629a9fda55f8ace8c6a1b42deb912b2a8fd8d942ddadb606b0", size = 38901, upload-time = "2025-06-05T07:13:43.546Z" },
+]
+
+[[package]]
+name = "types-colorama"
+version = "0.4.15.20250801"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/37/af713e7d73ca44738c68814cbacf7a655aa40ddd2e8513d431ba78ace7b3/types_colorama-0.4.15.20250801.tar.gz", hash = "sha256:02565d13d68963d12237d3f330f5ecd622a3179f7b5b14ee7f16146270c357f5", size = 10437, upload-time = "2025-08-01T03:48:22.605Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/3a/44ccbbfef6235aeea84c74041dc6dfee6c17ff3ddba782a0250e41687ec7/types_colorama-0.4.15.20250801-py3-none-any.whl", hash = "sha256:b6e89bd3b250fdad13a8b6a465c933f4a5afe485ea2e2f104d739be50b13eea9", size = 10743, upload-time = "2025-08-01T03:48:21.774Z" },
 ]
 
 [[package]]
