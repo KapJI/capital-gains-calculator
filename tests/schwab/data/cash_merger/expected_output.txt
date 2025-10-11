@@ -6,6 +6,7 @@ INFO: No raw file provided
 INFO: No vanguard file provided
 Found 5 broker transactions
 INFO: No ERI raw file provided
+INFO: No freetrade file provided
 First pass completed
 Final portfolio:
 Final balance:

@@ -17,6 +17,7 @@ from cgt_calc.resources import RESOURCES_PACKAGE
 from cgt_calc.util import is_isin
 
 from .eri import read_eri_transactions
+from .freetrade import read_freetrade_transactions
 from .mssb import read_mssb_transactions
 from .raw import read_raw_transactions
 from .schwab import read_schwab_transactions
@@ -95,6 +96,7 @@ def read_broker_transactions(
     raw_transactions_file: str | None,
     vanguard_transactions_file: str | None,
     eri_raw_file: str | None,
+    freetrade_transactions_file: str | None,
 ) -> list[BrokerTransaction]:
     """Read transactions for all brokers."""
     transactions = []
@@ -144,6 +146,11 @@ def read_broker_transactions(
         print(f"Found {len(transactions)} broker transactions")
 
     transactions += read_eri_transactions(eri_raw_file)
+
+    if freetrade_transactions_file is not None:
+        transactions += read_freetrade_transactions(freetrade_transactions_file)
+    else:
+        print("INFO: No freetrade file provided")
 
     transactions.sort(key=lambda k: k.date)
     return transactions

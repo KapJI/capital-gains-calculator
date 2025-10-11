@@ -193,6 +193,23 @@ cgt-calc --year 2024 --vanguard vanguard.csv
 
 </details>
  <br />
+ <details>
+    <summary>🏦 Instructions for Freetrade</summary>
+
+You will need:
+
+-   **Exported transaction history from Freetrade.**
+    Go to Activity -> GIA -> Last 12 Months -> Export CSV. (for some reason it exports longer periods, this is useful for our purpose as it may include purchase price)
+    [See example](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/test_data/freetrade/transactions.csv).
+
+Example usage for the tax year 2024/25:
+
+```shell
+cgt-calc --year 2024 --freetrade freetrade_GIA.csv
+```
+
+</details>
+ <br />
 <details>
     <summary>🏦 Instructions for RAW format</summary>
 

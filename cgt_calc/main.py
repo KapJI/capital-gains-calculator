@@ -1348,6 +1348,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         args.raw,
         args.vanguard,
         args.eri_raw_file,
+        args.freetrade,
     )
     currency_converter = CurrencyConverter(args.exchange_rates_file)
     initial_prices = InitialPrices(read_initial_prices(args.initial_prices))

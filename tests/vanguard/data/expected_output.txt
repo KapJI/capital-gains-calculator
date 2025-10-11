@@ -6,6 +6,7 @@ INFO: No sharesight file provided
 INFO: No raw file provided
 Found 15 broker transactions
 INFO: No ERI raw file provided
+INFO: No freetrade file provided
 First pass completed
 Final portfolio:
   FOO: 1550.00

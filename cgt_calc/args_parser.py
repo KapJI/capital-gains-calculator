@@ -139,6 +139,14 @@ def create_parser() -> argparse.ArgumentParser:
         "in a eri_raw CSV format",
     )
     parser.add_argument(
+        "--freetrade",
+        type=str,
+        default=None,
+        nargs="?",
+        help="file containing the exported transactions from Freetrade in CSV format",
+    )
+
+    parser.add_argument(
         "--exchange-rates-file",
         type=str,
         default=DEFAULT_EXCHANGE_RATES_FILE,
