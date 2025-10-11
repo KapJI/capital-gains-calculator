@@ -225,7 +225,7 @@ def by_date_and_action(transaction: Trading212Transaction) -> tuple[datetime, bo
 def read_trading212_transactions(transactions_folder: str) -> list[BrokerTransaction]:
     """Parse Trading 212 transactions from CSV file."""
     transactions = []
-    for file in Path(transactions_folder).glob("*.csv"):
+    for file in sorted(Path(transactions_folder).glob("*.csv")):
         with Path(file).open(encoding="utf-8") as csv_file:
             print(f"Parsing {file}...")
             lines = list(csv.reader(csv_file))

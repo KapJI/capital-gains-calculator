@@ -149,6 +149,7 @@ def read_vanguard_transactions(transactions_file: str) -> list[VanguardTransacti
     transactions = []
     try:
         with Path(transactions_file).open(encoding="utf-8") as csv_file:
+            print(f"Parsing {transactions_file}...")
             lines = list(csv.reader(csv_file))
 
             header = lines[0]

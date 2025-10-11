@@ -1,12 +1,5 @@
-INFO: No schwab file provided
-INFO: No schwab Equity Award JSON file provided
 Parsing tests/trading212/data/2024/transactions.csv...
-INFO: No mssb folder provided
-INFO: No sharesight file provided
-INFO: No raw file provided
-INFO: No vanguard file provided
 Found 7 broker transactions
-INFO: No ERI raw file provided
 First pass completed
 Final portfolio:
 Final balance:

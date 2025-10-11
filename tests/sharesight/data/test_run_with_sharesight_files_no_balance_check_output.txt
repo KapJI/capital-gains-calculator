@@ -1,11 +1,6 @@
-INFO: No schwab file provided
-INFO: No schwab Equity Award JSON file provided
-INFO: No trading212 folder provided
-INFO: No mssb folder provided
-INFO: No raw file provided
-INFO: No vanguard file provided
+Parsing tests/sharesight/data/inputs/All Trades Report - Test.csv...
+Parsing tests/sharesight/data/inputs/Taxable Income Report - Test.csv...
 Found 16 broker transactions
-INFO: No ERI raw file provided
 First pass completed
 Final portfolio:
   FX:ETH: 2.59

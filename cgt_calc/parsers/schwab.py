@@ -293,6 +293,7 @@ def read_schwab_transactions(
     awards_prices = _read_schwab_awards(schwab_award_transactions_file)
     try:
         with Path(transactions_file).open(encoding="utf-8") as csv_file:
+            print(f"Parsing {transactions_file}...")
             lines = list(csv.reader(csv_file))
             headers = lines[0]
 
@@ -342,6 +343,7 @@ def _read_schwab_awards(
             with Path(schwab_award_transactions_file).open(
                 encoding="utf-8"
             ) as csv_file:
+                print(f"Parsing {schwab_award_transactions_file}...")
                 lines = list(csv.reader(csv_file))
                 headers = lines[0]
                 required_headers = set(
