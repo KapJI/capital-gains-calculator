@@ -104,39 +104,39 @@ def read_broker_transactions(
             schwab_transactions_file, schwab_awards_transactions_file
         )
     else:
-        print("INFO: No schwab file provided")
+        LOGGER.debug("No Schwab file provided")
 
     if schwab_equity_award_json_transactions_file is not None:
         transactions += read_schwab_equity_award_json_transactions(
             schwab_equity_award_json_transactions_file
         )
     else:
-        print("INFO: No schwab Equity Award JSON file provided")
+        LOGGER.debug("No Schwab Equity Award JSON file provided")
 
     if trading212_transactions_folder is not None:
         transactions += read_trading212_transactions(trading212_transactions_folder)
     else:
-        print("INFO: No trading212 folder provided")
+        LOGGER.debug("No Trading212 folder provided")
 
     if mssb_transactions_folder is not None:
         transactions += read_mssb_transactions(mssb_transactions_folder)
     else:
-        print("INFO: No mssb folder provided")
+        LOGGER.debug("No MSSB folder provided")
 
     if sharesight_transactions_folder is not None:
         transactions += read_sharesight_transactions(sharesight_transactions_folder)
     else:
-        print("INFO: No sharesight file provided")
+        LOGGER.debug("No Sharesight file provided")
 
     if raw_transactions_file is not None:
         transactions += read_raw_transactions(raw_transactions_file)
     else:
-        print("INFO: No raw file provided")
+        LOGGER.debug("No RAW file provided")
 
     if vanguard_transactions_file is not None:
         transactions += read_vanguard_transactions(vanguard_transactions_file)
     else:
-        print("INFO: No vanguard file provided")
+        LOGGER.debug("No Vanguard file provided")
 
     if len(transactions) == 0:
         LOGGER.warning("Found 0 broker transactions")

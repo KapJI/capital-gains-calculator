@@ -348,6 +348,7 @@ def read_schwab_equity_award_json_transactions(
     """Read Schwab transactions from file."""
     try:
         with Path(transactions_file).open(encoding="utf-8") as json_file:
+            print(f"Parsing {transactions_file}...")
             try:
                 data = json.load(json_file, parse_float=Decimal, parse_int=Decimal)
             except json.decoder.JSONDecodeError as exception:

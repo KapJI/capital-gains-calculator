@@ -204,6 +204,7 @@ def read_mssb_transactions(transactions_folder: str) -> list[BrokerTransaction]:
             if Path(file).name not in ["Withdrawals Report.csv", "Releases Report.csv"]:
                 continue
 
+            print(f"Parsing {file}...")
             lines = list(csv.reader(csv_file))
             header = lines[0]
             lines = lines[1:]

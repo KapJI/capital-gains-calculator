@@ -290,6 +290,7 @@ def read_sharesight_transactions(
     transactions: list[SharesightTransaction] = []
     for file in Path(transactions_folder).glob("*.csv"):
         if file.match("Taxable Income Report*.csv"):
+            print(f"Parsing {file}...")
             income_transactions = list(parse_income_report(file))
             if not income_transactions:
                 LOGGER.warning("No transactions detected in file: %s", file)
@@ -297,6 +298,7 @@ def read_sharesight_transactions(
                 transactions += income_transactions
 
         if file.match("All Trades Report*.csv"):
+            print(f"Parsing {file}...")
             trade_transactions = list(parse_trade_report(file))
             if not trade_transactions:
                 LOGGER.warning("No transactions detected in file: %s", file)

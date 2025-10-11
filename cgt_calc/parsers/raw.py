@@ -88,6 +88,7 @@ def read_raw_transactions(transactions_file: str) -> list[BrokerTransaction]:
     """Read Raw transactions from file."""
     try:
         with Path(transactions_file).open(encoding="utf-8") as csv_file:
+            print(f"Parsing {transactions_file}...")
             lines = list(csv.reader(csv_file))
     except FileNotFoundError:
         LOGGER.warning("Couldn't locate RAW transactions file: %s", transactions_file)

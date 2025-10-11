@@ -11,6 +11,7 @@ Full list of reporting funds at: https://www.gov.uk/government/publications/offs
 from __future__ import annotations
 
 from importlib import resources
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,8 @@ from .raw import read_eri_raw
 
 if TYPE_CHECKING:
     from .model import EriTransaction
+
+LOGGER = logging.getLogger(__name__)
 
 
 def read_eri_transactions(
@@ -38,6 +41,6 @@ def read_eri_transactions(
     if eri_raw_file is not None:
         transactions += read_eri_raw(Path(eri_raw_file))
     else:
-        print("INFO: No ERI raw file provided")
+        LOGGER.debug("No ERI raw file provided")
 
     return transactions
