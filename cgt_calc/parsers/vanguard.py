@@ -166,10 +166,9 @@ def read_vanguard_transactions(transactions_file: str) -> list[VanguardTransacti
 
             transactions.sort(key=by_date_and_action)
 
-    except FileNotFoundError:
-        LOGGER.warning(
-            "Couldn't locate Vanguard transactions file: %s", transactions_file
-        )
-        return []
+    except FileNotFoundError as err:
+        raise ParsingError(
+            transactions_file, "Couldn't locate Vanguard transactions file"
+        ) from err
 
     return transactions

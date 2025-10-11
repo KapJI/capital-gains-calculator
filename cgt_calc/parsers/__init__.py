@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from importlib import resources
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
@@ -33,6 +34,7 @@ INITIAL_PRICES_COLUMNS_NUM: Final = 3
 
 ISIN_TRANSLATION_HEADER: Final = ["ISIN", "symbol"]
 ISIN_TRANSLATION_COLUMNS_NUM: Final = len(ISIN_TRANSLATION_HEADER)
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -96,6 +98,7 @@ def read_broker_transactions(
 ) -> list[BrokerTransaction]:
     """Read transactions for all brokers."""
     transactions = []
+
     if schwab_transactions_file is not None:
         transactions += read_schwab_transactions(
             schwab_transactions_file, schwab_awards_transactions_file
@@ -134,6 +137,11 @@ def read_broker_transactions(
         transactions += read_vanguard_transactions(vanguard_transactions_file)
     else:
         print("INFO: No vanguard file provided")
+
+    if len(transactions) == 0:
+        LOGGER.warning("Found 0 broker transactions")
+    else:
+        print(f"Found {len(transactions)} broker transactions")
 
     transactions += read_eri_transactions(eri_raw_file)
 

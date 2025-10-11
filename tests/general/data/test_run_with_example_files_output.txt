@@ -3,6 +3,7 @@ Parsing tests/trading212/data/from_2020-09-11_to_2021-04-02.csv...
 INFO: No sharesight file provided
 INFO: No raw file provided
 INFO: No vanguard file provided
+Found 27 broker transactions
 INFO: No ERI raw file provided
 First pass completed
 Final portfolio:

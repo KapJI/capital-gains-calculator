@@ -90,7 +90,7 @@ ROUND_DIGITS = 6
 JsonRowType = Any  # type: ignore[explicit-any]
 
 
-def action_from_str(label: str) -> ActionType:
+def action_from_str(label: str, file: str) -> ActionType:
     """Convert string label to ActionType."""
     if label in {"Buy"}:
         return ActionType.BUY
@@ -143,7 +143,7 @@ def action_from_str(label: str) -> ActionType:
     if label == "Wire Funds Received":
         return ActionType.WIRE_FUNDS_RECEIVED
 
-    raise ParsingError("schwab transactions", f"Unknown action: {label}")
+    raise ParsingError(file, f"Unknown action: {label}")
 
 
 def _decimal_from_str(price_str: str) -> Decimal:
@@ -188,7 +188,7 @@ class SchwabTransaction(BrokerTransaction):
         names = field_names
         description = row[names.description]
         self.raw_action = row[names.action]
-        action = action_from_str(self.raw_action)
+        action = action_from_str(self.raw_action, file)
         symbol = row.get(names.symbol)
         symbol = TICKER_RENAMES.get(symbol, symbol)
         if symbol != "GOOG":
@@ -382,8 +382,7 @@ def read_schwab_equity_award_json_transactions(
             ]
             transactions.reverse()
             return list(transactions)
-    except FileNotFoundError:
-        LOGGER.warning(
-            "Couldn't locate Schwab transactions file: %s", transactions_file
-        )
-        return []
+    except FileNotFoundError as err:
+        raise ParsingError(
+            transactions_file, "Couldn't locate Schwab transactions file"
+        ) from err
