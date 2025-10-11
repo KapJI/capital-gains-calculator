@@ -70,7 +70,7 @@ class AwardPrices:
         raise KeyError(f"Award price is not found for symbol {symbol} for date {date}")
 
 
-def action_from_str(label: str) -> ActionType:
+def action_from_str(label: str, file: str) -> ActionType:
     """Convert string label to ActionType."""
     if label == "Buy":
         return ActionType.BUY
@@ -140,7 +140,7 @@ def action_from_str(label: str) -> ActionType:
     if label in ["Cash Merger", "Cash Merger Adj"]:
         return ActionType.CASH_MERGER
 
-    raise ParsingError("schwab transactions", f"Unknown action: {label}")
+    raise ParsingError(file, f"Unknown action: '{label}'")
 
 
 class SchwabTransaction(BrokerTransaction):
@@ -174,7 +174,7 @@ class SchwabTransaction(BrokerTransaction):
             ) from exc
         action_header = SchwabTransactionsFileRequiredHeaders.ACTION.value
         self.raw_action = row_dict[action_header]
-        action = action_from_str(self.raw_action)
+        action = action_from_str(self.raw_action, file)
         symbol_header = SchwabTransactionsFileRequiredHeaders.SYMBOL.value
         symbol = row_dict[symbol_header] if row_dict[symbol_header] != "" else None
         if symbol is not None:
@@ -246,6 +246,7 @@ class SchwabTransaction(BrokerTransaction):
 
 def _unify_schwab_cash_merger_trxs(
     transactions: list[SchwabTransaction],
+    transactions_file: str,
 ) -> list[SchwabTransaction]:
     filtered: list[SchwabTransaction] = []
     for transaction in transactions:
@@ -253,15 +254,22 @@ def _unify_schwab_cash_merger_trxs(
             assert len(filtered) > 0, (
                 "Cash Merger Adj must be precedeed by a Cash Merger transaction"
             )
-            assert filtered[-1].raw_action == "Cash Merger"
-            assert filtered[-1].description == transaction.description
-            assert filtered[-1].symbol == transaction.symbol
-            assert filtered[-1].date == transaction.date
-            assert filtered[-1].quantity is None
-            assert filtered[-1].price is None
-            assert filtered[-1].amount is not None
-            assert transaction.amount is None
-            assert transaction.quantity is not None
+            try:
+                assert filtered[-1].raw_action == "Cash Merger"
+                assert filtered[-1].description == transaction.description
+                assert filtered[-1].symbol == transaction.symbol
+                assert filtered[-1].date == transaction.date
+                assert filtered[-1].quantity is None
+                assert filtered[-1].price is None
+                assert filtered[-1].amount is not None
+                assert transaction.amount is None
+                assert transaction.quantity is not None
+            except AssertionError as err:
+                raise ParsingError(
+                    transactions_file,
+                    "Invalid format of 'Cash Merger Adj', "
+                    "run with --verbose for more details",
+                ) from err
             # the quantity is negative but
             # because we store it as a 'sell' we need it positive
             filtered[-1].quantity = -1 * transaction.quantity
@@ -309,14 +317,15 @@ def read_schwab_transactions(
                 for row in lines
                 if any(row)
             ]
-            transactions = _unify_schwab_cash_merger_trxs(transactions)
+            transactions = _unify_schwab_cash_merger_trxs(
+                transactions, transactions_file
+            )
             transactions.reverse()
             return list(transactions)
-    except FileNotFoundError:
-        LOGGER.warning(
-            "Couldn't locate Schwab transactions file: %s", transactions_file
-        )
-        return []
+    except FileNotFoundError as err:
+        raise ParsingError(
+            transactions_file, "Couldn't locate Schwab transactions file"
+        ) from err
 
 
 def _read_schwab_awards(
@@ -347,11 +356,10 @@ def _read_schwab_awards(
 
                 # Remove headers
                 lines = lines[1:]
-        except FileNotFoundError:
-            LOGGER.warning(
-                "Couldn't locate Schwab Award file: %s",
-                schwab_award_transactions_file,
-            )
+        except FileNotFoundError as err:
+            raise ParsingError(
+                schwab_award_transactions_file, "Couldn't locate Schwab Award file"
+            ) from err
     else:
         LOGGER.warning("No Schwab Award file provided")
 

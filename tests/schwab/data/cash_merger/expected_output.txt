@@ -4,6 +4,7 @@ INFO: No mssb folder provided
 INFO: No sharesight file provided
 INFO: No raw file provided
 INFO: No vanguard file provided
+Found 5 broker transactions
 INFO: No ERI raw file provided
 First pass completed
 Final portfolio:

@@ -238,7 +238,7 @@ def read_trading212_transactions(transactions_folder: str) -> list[BrokerTransac
             if len(cur_transactions) == 0:
                 LOGGER.warning("No transactions detected in file: %s", file)
             transactions += cur_transactions
-    # remove duplicates
+    # Remove duplicates
     transactions = list(set(transactions))
     transactions.sort(key=by_date_and_action)
     return list(transactions)

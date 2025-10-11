@@ -11,6 +11,7 @@ import importlib.metadata
 import logging
 from pathlib import Path
 import sys
+from typing import TYPE_CHECKING
 
 from . import render_latex
 from .args_parser import create_parser
@@ -30,6 +31,7 @@ from .exceptions import (
     AmountMissingError,
     CalculatedAmountDiscrepancyError,
     CalculationError,
+    CgtError,
     InvalidTransactionError,
     PriceMissingError,
     QuantityNotPositiveError,
@@ -63,6 +65,9 @@ from .setup_logging import setup_logging
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
 from .util import approx_equal, round_decimal
+
+if TYPE_CHECKING:
+    import argparse
 
 LOGGER = logging.getLogger(__name__)
 
@@ -1329,27 +1334,8 @@ class CapitalGainsCalculator:
         )
 
 
-def main() -> int:
-    """Run main function."""
-
-    # Enable colourised logging.
-    setup_logging()
-
-    # Throw exception on accidental float usage
-    decimal.getcontext().traps[decimal.FloatOperation] = True
-
-    args = create_parser().parse_args()
-
-    if args.version:
-        print("cgt-calc %s", importlib.metadata.version(__package__))
-        return 0
-
-    if args.report == "":
-        LOGGER.error("Report name can't be empty")
-        return 1
-
-    logging_level = logging.DEBUG if args.verbose else logging.WARNING
-    logging.getLogger().setLevel(logging_level)
+def calculate_cgt(args: argparse.Namespace) -> None:
+    """Perform all the computations."""
 
     # Read data from input files
     broker_transactions = read_broker_transactions(
@@ -1398,6 +1384,43 @@ def main() -> int:
             skip_pdflatex=args.no_pdflatex,
         )
     print("All done!")
+
+
+def main() -> int:
+    """Run main function."""
+
+    # Enable colourised logging.
+    setup_logging()
+
+    # Throw exception on accidental float usage
+    decimal.getcontext().traps[decimal.FloatOperation] = True
+
+    args = create_parser().parse_args()
+
+    if args.version:
+        print("cgt-calc %s", importlib.metadata.version(__package__))
+        return 0
+
+    if args.report == "":
+        LOGGER.error("Report name can't be empty")
+        return 1
+
+    logging_level = logging.DEBUG if args.verbose else logging.WARNING
+    logging.getLogger().setLevel(logging_level)
+
+    try:
+        calculate_cgt(args)
+    except CgtError as err:
+        if args.verbose:
+            LOGGER.exception("Exception:")
+        else:
+            # Print error without traceback
+            LOGGER.error("%s", err)  # noqa: TRY400
+        return 1
+    except Exception:  # noqa: BLE001
+        # Last-resort catch for unexpected exceptions
+        LOGGER.critical("Unexpected error!")
+        LOGGER.exception("Details:")
 
     return 0
 

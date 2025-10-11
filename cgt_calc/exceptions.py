@@ -11,16 +11,20 @@ if TYPE_CHECKING:
     from .model import BrokerTransaction
 
 
-class ParsingError(Exception):
+class CgtError(Exception):
+    """Base class for exceptions."""
+
+
+class ParsingError(CgtError):
     """Parsing error."""
 
     def __init__(self, file: str, message: str):
         """Initialise."""
-        self.message = f"While parsing {file}, {message}"
+        self.message = f"While parsing {file}: {message}"
         super().__init__(self.message)
 
 
-class InvalidTransactionError(Exception):
+class InvalidTransactionError(CgtError):
     """Invalid transaction error."""
 
     def __init__(self, transaction: BrokerTransaction, message: str):
@@ -94,7 +98,7 @@ class CalculatedAmountDiscrepancyError(InvalidTransactionError):
         )
 
 
-class CalculationError(Exception):
+class CalculationError(CgtError):
     """Calculation error."""
 
 
