@@ -1,4 +1,3 @@
-WARNING: No schwab award file provided
 INFO: No schwab Equity Award JSON file provided
 INFO: No trading212 folder provided
 INFO: No mssb folder provided
@@ -11,7 +10,6 @@ Final portfolio:
 Final balance:
   Charles Schwab: 1019826.86 (USD)
 Disposal proceeds: £248082.51
-
 
 Second pass completed
 Portfolio at the end of 2023/2024 tax year:
@@ -29,5 +27,5 @@ Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00
 
-Generate calculations report
+Generating PDF report...
 All done!

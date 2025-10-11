@@ -19,7 +19,7 @@ def render_calculations(
     skip_pdflatex: bool = False,
 ) -> None:
     """Render PDF report."""
-    print("Generate calculations report")
+    print("Generating PDF report...")
     latex_template_env = jinja2.Environment(
         block_start_string="\\BLOCK{",
         block_end_string="}",

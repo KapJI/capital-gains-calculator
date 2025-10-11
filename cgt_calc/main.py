@@ -59,6 +59,7 @@ from .model import (
     SpinOff,
 )
 from .parsers import read_broker_transactions, read_initial_prices
+from .setup_logging import setup_logging
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
 from .util import approx_equal, round_decimal
@@ -446,9 +447,8 @@ class CapitalGainsCalculator:
                 if symbol in report_by_symbol and report_date == transaction.date:
                     previous_price = report_by_symbol[symbol].price
                     if approx_equal(previous_price, price):
-                        print(
-                            "WARNING: Skipping duplicated ERI transaction: "
-                            f"{transaction}"
+                        LOGGER.warning(
+                            "Skipping duplicated ERI transaction: %s", transaction
                         )
                         return
                     raise InvalidTransactionError(
@@ -562,7 +562,7 @@ class CapitalGainsCalculator:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
-                print(f"WARNING: Ignoring unsupported action: {transaction.action}")
+                LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
             else:
                 raise InvalidTransactionError(
                     transaction, f"Action not processed({transaction.action})"
@@ -830,10 +830,12 @@ class CapitalGainsCalculator:
                         == 0
                     ):
                         continue
-                    print(
-                        f"WARNING: Bed and breakfasting for {symbol}."
-                        f" Disposed on {date_index}"
-                        f" and acquired again on {search_index}"
+                    LOGGER.warning(
+                        "Bed and breakfasting for %s. "
+                        "Disposed on %s and acquired again on %s",
+                        symbol,
+                        date_index,
+                        search_index,
                     )
                     available_quantity = min(
                         disposal_quantity,
@@ -1281,7 +1283,7 @@ class CapitalGainsCalculator:
         self.process_dividends()
         self.process_interests()
 
-        print("\nSecond pass completed")
+        print("Second pass completed")
         allowance = CAPITAL_GAIN_ALLOWANCES.get(self.tax_year)
         dividend_allowance = DIVIDEND_ALLOWANCES.get(self.tax_year)
 
@@ -1329,20 +1331,25 @@ class CapitalGainsCalculator:
 
 def main() -> int:
     """Run main function."""
+
+    # Enable colourised logging.
+    setup_logging()
+
     # Throw exception on accidental float usage
     decimal.getcontext().traps[decimal.FloatOperation] = True
+
     args = create_parser().parse_args()
 
     if args.version:
-        LOGGER.info("cgt-calc %s", importlib.metadata.version(__package__))
+        print("cgt-calc %s", importlib.metadata.version(__package__))
         return 0
 
     if args.report == "":
-        LOGGER.error("error: report name can't be empty")
+        LOGGER.error("Report name can't be empty")
         return 1
 
-    default_logging_level = logging.DEBUG if args.verbose else logging.WARNING
-    logging.basicConfig(level=default_logging_level)
+    logging_level = logging.DEBUG if args.verbose else logging.WARNING
+    logging.getLogger().setLevel(logging_level)
 
     # Read data from input files
     broker_transactions = read_broker_transactions(

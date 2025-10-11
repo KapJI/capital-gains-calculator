@@ -15,7 +15,9 @@ def test_run_with_schwab_example_files() -> None:
         "tests/test_data/schwab/schwab_transactions-2023.csv",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)
-    assert result.stderr == b"", "Run with example files generated errors"
+    stderr_lines = result.stderr.decode().strip().split("\n")
+    assert len(stderr_lines) == 1
+    assert stderr_lines[0] == "WARNING: No Schwab Award file provided"
     expected_file = Path("tests") / "test_data" / "schwab" / "expected_output.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param if param else "''" for param in cmd])

@@ -15,7 +15,6 @@ Dividends:
   FOO: 396.66 (GBP)
 Disposal proceeds: £104.06
 
-
 Second pass completed
 Portfolio at the end of 2022/2023 tax year:
   FOO: 1550.00, £14982.06
@@ -34,5 +33,5 @@ Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £396.66
 
-Generate calculations report
+Generating PDF report...
 All done!

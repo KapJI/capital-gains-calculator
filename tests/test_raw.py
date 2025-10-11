@@ -16,8 +16,12 @@ def test_run_with_raw_files_no_balance_check() -> None:
         "--no-balance-check",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)
-    assert result.stderr == b"", "Run with example files generated errors"
-    expected_file = Path("tests") / "test_data" / "raw/expected_output.txt"
+    stderr_lines = result.stderr.decode().strip().split("\n")
+    assert len(stderr_lines) == 1
+    assert stderr_lines[0].startswith("WARNING: Bed and breakfasting for META"), (
+        "Unexpected stderr message"
+    )
+    expected_file = Path("tests") / "test_data" / "raw" / "expected_output.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param if param else "''" for param in cmd])
     assert result.stdout.decode("utf-8") == expected, (

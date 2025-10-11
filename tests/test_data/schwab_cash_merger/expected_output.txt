@@ -1,5 +1,3 @@
-WARNING: No schwab award file provided
-WARNING: Cash Merger support is not complete and doesn't cover the cases when shares are received aside from cash,  please review this transaction carefully: SchwabTransaction(date=datetime.date(2021, 3, 2), action=<ActionType.CASH_MERGER: 16>, symbol='FOO', description='FOO INC', quantity=Decimal('100'), price=Decimal('10'), fees=Decimal('0'), amount=Decimal('1000'), currency='USD', broker='Charles Schwab', isin=None)
 INFO: No schwab Equity Award JSON file provided
 INFO: No trading212 folder provided
 INFO: No mssb folder provided
@@ -12,7 +10,6 @@ Final portfolio:
 Final balance:
   Charles Schwab: 1000.00 (USD)
 Disposal proceeds: £711.69
-
 
 Second pass completed
 Portfolio at the end of 2020/2021 tax year:
@@ -30,5 +27,5 @@ Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00
 
-Generate calculations report
+Generating PDF report...
 All done!

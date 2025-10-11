@@ -18,8 +18,6 @@ Dividends:
   OPRA: 3360.00 (USD)
 Disposal proceeds: £11422.10
 
-WARNING: Bed and breakfasting for META. Disposed on 2022-08-10 and acquired again on 2022-08-15
-
 Second pass completed
 Portfolio at the end of 2022/2023 tax year:
   AMZN: 210.00, £1900.67
@@ -40,5 +38,5 @@ Total taxable dividends proceeds: £719.29
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00
 
-Generate calculations report
+Generating PDF report...
 All done!

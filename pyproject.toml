@@ -30,6 +30,7 @@ keywords = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+  "colorama>=0.4.6",
   "defusedxml>=0.7.1,<1.0.0",
   "Jinja2>=2.11.3,<4.0.0",
   "pandas>=2.2",
@@ -56,6 +57,7 @@ dev = [
   "pytest>=8.4.2,<9.0.0",
   "pytest-env>=1.1.5",
   "ruff>=0.13.3",
+  "types-colorama>=0.4.15.20250801",
   "types-defusedxml>=0.7.0.20250822",
   "types-python-dateutil>=2.9.0.20250822",
   "types-requests>=2.32.4.20250913",

@@ -18,7 +18,6 @@ Dividends:
   FUND1.UKF: 3.00 (GBP)
 Disposal proceeds: £12999.61
 
-
 Second pass completed
 Portfolio at the end of 2020/2021 tax year:
   FX:ETH: 2.59, £5352.48
@@ -38,5 +37,5 @@ Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00
 
-Generate calculations report
+Generating PDF report...
 All done!

@@ -1,6 +1,6 @@
 INFO: No schwab file provided
 INFO: No schwab Equity Award JSON file provided
-Parsing tests/test_data/trading212_2024/transactions.csv
+Parsing tests/test_data/trading212_2024/transactions.csv...
 INFO: No mssb folder provided
 INFO: No sharesight file provided
 INFO: No raw file provided
@@ -11,7 +11,6 @@ Final portfolio:
 Final balance:
   Trading212: 1758.05 (GBP)
 Disposal proceeds: £3143.21
-
 
 Second pass completed
 Portfolio at the end of 2024/2025 tax year:
@@ -29,5 +28,5 @@ Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00
 
-Generate calculations report
+Generating PDF report...
 All done!

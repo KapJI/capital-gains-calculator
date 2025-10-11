@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from enum import Enum
+import logging
 from pathlib import Path
 from typing import Final
 
@@ -22,6 +23,7 @@ from cgt_calc.model import ActionType, BrokerTransaction
 
 OLD_COLUMNS_NUM: Final = 9
 NEW_COLUMNS_NUM: Final = 8
+LOGGER = logging.getLogger(__name__)
 
 
 class SchwabTransactionsFileRequiredHeaders(str, Enum):
@@ -265,11 +267,11 @@ def _unify_schwab_cash_merger_trxs(
             filtered[-1].quantity = -1 * transaction.quantity
             filtered[-1].price = filtered[-1].amount / filtered[-1].quantity
             filtered[-1].fees += transaction.fees
-            print(
-                "WARNING: Cash Merger support is not complete and doesn't cover the "
+            LOGGER.warning(
+                "Cash Merger support is not complete and doesn't cover the "
                 "cases when shares are received aside from cash,  "
-                "please review this transaction carefully: "
-                f"{filtered[-1]}"
+                "please review this transaction carefully: %s",
+                filtered[-1],
             )
         else:
             filtered.append(transaction)
@@ -311,7 +313,9 @@ def read_schwab_transactions(
             transactions.reverse()
             return list(transactions)
     except FileNotFoundError:
-        print(f"WARNING: Couldn't locate Schwab transactions file({transactions_file})")
+        LOGGER.warning(
+            "Couldn't locate Schwab transactions file: %s", transactions_file
+        )
         return []
 
 
@@ -344,12 +348,12 @@ def _read_schwab_awards(
                 # Remove headers
                 lines = lines[1:]
         except FileNotFoundError:
-            print(
-                "WARNING: Couldn't locate Schwab award "
-                f"file({schwab_award_transactions_file})"
+            LOGGER.warning(
+                "Couldn't locate Schwab Award file: %s",
+                schwab_award_transactions_file,
             )
     else:
-        print("WARNING: No schwab award file provided")
+        LOGGER.warning("No Schwab Award file provided")
 
     modulo = len(lines) % 2
     if modulo != 0:

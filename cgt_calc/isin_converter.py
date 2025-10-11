@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 from importlib import resources
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,8 @@ from .util import is_isin
 
 if TYPE_CHECKING:
     from .model import BrokerTransaction
+
+LOGGER = logging.getLogger(__name__)
 
 
 class IsinConverter:
@@ -120,9 +123,8 @@ class IsinConverter:
             or len(json_response) == 0
             or "data" not in json_response[0]
         ):
-            print(
-                f"Warning: Couldn't translate ISIN {isin}: "
-                f"Invalid Response {json_response}"
+            LOGGER.warning(
+                "Couldn't translate ISIN %s: Invalid Response: %s", isin, json_response
             )
             return set()
 
@@ -150,5 +152,7 @@ class IsinConverter:
         if all_tickers:
             return {min(all_tickers, key=len)}
 
-        print(f"Warning: Couldn't translate ISIN {isin}: Match not found {json_data}")
+        LOGGER.warning(
+            "Couldn't translate ISIN %s: Match not found in %s", isin, json_data
+        )
         return set()
