@@ -1,27 +1,24 @@
-"""Test raw format support."""
+"""Test ShareSight support."""
 
 from pathlib import Path
 import subprocess
 
-from .utils import build_cmd
+from tests.utils import build_cmd
 
 
-def test_run_with_raw_files_no_balance_check() -> None:
+def test_run_with_vanguard_files() -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
         "2022",
-        "--raw",
-        "tests/test_data/raw/test_data.csv",
-        "--no-balance-check",
+        "--vanguard",
+        "tests/vanguard/data/report.csv",
+        "--interest-fund-tickers",
+        "FOO",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)
-    stderr_lines = result.stderr.decode().strip().split("\n")
-    assert len(stderr_lines) == 1
-    assert stderr_lines[0].startswith("WARNING: Bed and breakfasting for META"), (
-        "Unexpected stderr message"
-    )
-    expected_file = Path("tests") / "test_data" / "raw" / "expected_output.txt"
+    assert result.stderr == b"", "Run with example files generated errors"
+    expected_file = Path("tests") / "vanguard" / "data" / "expected_output.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param if param else "''" for param in cmd])
     assert result.stdout.decode("utf-8") == expected, (

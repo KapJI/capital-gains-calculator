@@ -1,23 +1,27 @@
-"""Test Trading212 support."""
+"""Test ShareSight support."""
 
 from pathlib import Path
 import subprocess
 
-from .utils import build_cmd
+from tests.utils import build_cmd
 
 
-def test_run_with_trading212_files() -> None:
+def test_run_with_sharesight_files_no_balance_check() -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
-        "2024",
-        "--trading212",
-        "tests/test_data/trading212_2024/",
+        "2020",
+        "--sharesight",
+        "tests/sharesight/data/inputs/",
+        "--no-balance-check",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"
     expected_file = (
-        Path("tests") / "test_data" / "trading212_2024" / "expected_output.txt"
+        Path("tests")
+        / "sharesight"
+        / "data"
+        / "test_run_with_sharesight_files_no_balance_check_output.txt"
     )
     expected = expected_file.read_text()
     cmd_str = " ".join([param if param else "''" for param in cmd])

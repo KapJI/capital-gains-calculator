@@ -8,7 +8,8 @@ from decimal import Decimal
 import pytest
 
 from cgt_calc.model import ActionType, CalculationEntry, RuleType, SpinOff
-from tests.test_data.calc_test_data import (
+
+from .calc_test_data import (
     buy_transaction,
     dividend_tax_transaction,
     dividend_transaction,

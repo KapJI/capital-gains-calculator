@@ -1,6 +1,6 @@
 INFO: No schwab file provided
 INFO: No schwab Equity Award JSON file provided
-Parsing tests/test_data/trading212_2024/transactions.csv...
+Parsing tests/trading212/data/2024/transactions.csv...
 INFO: No mssb folder provided
 INFO: No sharesight file provided
 INFO: No raw file provided
