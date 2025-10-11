@@ -199,7 +199,7 @@ def read_mssb_transactions(transactions_folder: str) -> list[BrokerTransaction]:
     """Parse Morgan Stanley transactions from CSV file."""
     transactions = []
 
-    for file in Path(transactions_folder).glob("*.csv"):
+    for file in sorted(Path(transactions_folder).glob("*.csv")):
         with Path(file).open(encoding="utf-8") as csv_file:
             if Path(file).name not in ["Withdrawals Report.csv", "Releases Report.csv"]:
                 continue
