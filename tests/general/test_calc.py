@@ -17,10 +17,10 @@ from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
+from tests.utils import build_cmd
 
-from .test_data.calc_test_data import calc_basic_data
-from .test_data.calc_test_data_2 import calc_basic_data_2
-from .utils import build_cmd
+from .calc_test_data import calc_basic_data
+from .calc_test_data_2 import calc_basic_data_2
 
 if TYPE_CHECKING:
     from cgt_calc.model import BrokerTransaction, CalculationLog, CapitalGainsReport
@@ -174,11 +174,11 @@ def test_run_with_example_files() -> None:
         "--year",
         "2020",
         "--schwab",
-        "tests/test_data/schwab_transactions.csv",
+        "tests/schwab/data/schwab_transactions.csv",
         "--trading212",
-        "tests/test_data/trading212/",
+        "tests/trading212/data/",
         "--mssb",
-        "tests/test_data/mssb/",
+        "tests/morgan_stanley/data/",
     )
     try:
         result = subprocess.run(cmd, check=True, capture_output=True)
@@ -195,7 +195,7 @@ def test_run_with_example_files() -> None:
         "Unexpected stderr message"
     )
     expected_file = (
-        Path("tests") / "test_data" / "test_run_with_example_files_output.txt"
+        Path("tests") / "general" / "data" / "test_run_with_example_files_output.txt"
     )
     expected = expected_file.read_text()
     cmd_str = " ".join([param if param else "''" for param in cmd])
