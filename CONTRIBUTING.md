@@ -124,6 +124,16 @@ uv sync
 If you edit `pyproject.toml` manually (for example, to bump a version),
 run `uv sync` afterwards to apply the changes and update `uv.lock`.
 
+## 🧾 Updating the example report
+
+To regenerate the example PDF report used in the docs, run:
+
+```shell
+./scripts/generate_example_report.sh
+```
+
+Commit the updated file if your changes affect report generation.
+
 ## 🏗️ Release process (maintainers only)
 
 Releases are created from draft GitHub releases created by [Release Drafter](https://github.com/release-drafter/release-drafter).

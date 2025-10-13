@@ -33,11 +33,11 @@ Interest is grouped **monthly per broker** to keep reports concise, even for bro
 
 Here's what a generated PDF report looks like:
 
-<a href="./docs/calculations_example.pdf">
+<a href="./docs/example_report.pdf">
   <img src="./docs/report_preview.png" alt="Preview of example report" width="600">
 </a>
 
-👉 [View full example report (PDF)](docs/calculations_example.pdf)
+👉 [View full example report (PDF)](docs/example_report.pdf)
 
 ## 🔧 Prerequisites
 
