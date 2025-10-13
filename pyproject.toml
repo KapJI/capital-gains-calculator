@@ -55,6 +55,7 @@ dev = [
   "pandas-stubs>=2.2",
   "pylint>=3.3.8",
   "pytest>=8.4.2,<9.0.0",
+  "pytest-clarity>=1.0.1",
   "pytest-env>=1.1.5",
   "ruff>=0.13.3",
   "types-colorama>=0.4.15.20250801",
@@ -453,6 +454,10 @@ quiet-level = 2
 skip = "uv.lock,./.git/*,./.mypy_cache/*,./.pytest_cache/*,./.ruff_cache/*,./.venv/*,./dist/*,*.csv,./env/*"
 
 [tool.pytest.ini_options]
+addopts = "-vv"
 env = [
     "CGT_TEST_MODE = 1",
+]
+testpaths = [
+    "tests",
 ]
