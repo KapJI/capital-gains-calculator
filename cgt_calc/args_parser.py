@@ -36,7 +36,10 @@ class DeprecatedAction(argparse.Action):
     ) -> None:
         """Check if argument is deprecated."""
         assert isinstance(option_string, str), "Positional arguments are not supported"
-        replacement = {"--schwab_equity_award_json": "--schwab-equity-award-json"}
+        replacement = {
+            "--schwab_equity_award_json": "--schwab-equity-award-json",
+            "--report": "--output",
+        }
         LOGGER.warning(
             "Option '%s' is deprecated; use '%s' instead.",
             option_string,
@@ -168,18 +171,6 @@ def create_parser() -> argparse.ArgumentParser:
         help="file containing stock prices in USD at the moment of vesting, split, etc",
     )
     parser.add_argument(
-        "--report",
-        type=str,
-        default=DEFAULT_REPORT_PATH,
-        nargs="?",
-        help="where to save the generated PDF report (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--no-report",
-        action="store_true",
-        help="do not generate PDF report",
-    )
-    parser.add_argument(
         "--no-balance-check",
         dest="balance_check",
         action="store_false",
@@ -210,6 +201,29 @@ def create_parser() -> argparse.ArgumentParser:
         default=DEFAULT_ISIN_TRANSLATION_FILE,
         nargs="?",
         help="output file for ISIN to ticker translations",
+    )
+    # New inputs should be above
+    parser.add_argument(
+        "--report",
+        action=DeprecatedAction,
+        dest="output",
+        type=str,
+        default=DEFAULT_REPORT_PATH,
+        nargs="?",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default=DEFAULT_REPORT_PATH,
+        nargs="?",
+        help="where to save the generated PDF report (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--no-report",
+        action="store_true",
+        help="do not generate PDF report",
     )
     parser.add_argument(
         "--verbose",
