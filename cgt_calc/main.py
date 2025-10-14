@@ -1381,7 +1381,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     if not args.no_report:
         render_latex.render_calculations(
             report,
-            output_path=Path(args.report),
+            output_path=Path(args.output),
             skip_pdflatex=args.no_pdflatex,
         )
     print("All done!")
@@ -1402,8 +1402,8 @@ def main() -> int:
         print("cgt-calc %s", importlib.metadata.version(__package__))
         return 0
 
-    if args.report == "":
-        LOGGER.error("Report name can't be empty")
+    if args.output == "":
+        LOGGER.error("Report output path can't be empty")
         return 1
 
     logging_level = logging.DEBUG if args.verbose else logging.WARNING

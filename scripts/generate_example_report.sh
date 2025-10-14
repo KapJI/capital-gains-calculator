@@ -15,4 +15,4 @@ uv run cgt-calc \
   --schwab tests/schwab/data/schwab_transactions.csv \
   --trading212 tests/trading212/data/ \
   --mssb tests/morgan_stanley/data/ \
-  --report docs/example_report.pdf
+  --output docs/example_report.pdf
