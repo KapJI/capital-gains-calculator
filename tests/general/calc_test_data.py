@@ -603,12 +603,12 @@ calc_basic_data = [
                     ),
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
-                        quantity=Decimal(30.5),
+                        quantity=Decimal("30.5"),
                         amount=Decimal("853.1138"),
                         gain=Decimal("-71.9862"),
                         allowable_cost=Decimal("925.1") + Decimal("1.8012"),
                         fees=Decimal("1.8012"),
-                        new_quantity=Decimal(69.5),
+                        new_quantity=Decimal("69.5"),
                         new_pool_cost=Decimal("1741.67"),
                         bed_and_breakfast_date_index=(
                             datetime.date(day=2, month=4, year=2021)
@@ -616,7 +616,7 @@ calc_basic_data = [
                     ),
                     CalculationEntry(
                         RuleType.SECTION_104,
-                        quantity=Decimal(69.5),
+                        quantity=Decimal("69.5"),
                         amount=Decimal("1943.9807"),
                         gain=Decimal("202.3107"),
                         allowable_cost=Decimal("1741.67") + Decimal("4.1043"),
@@ -655,11 +655,11 @@ calc_basic_data = [
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
-                        quantity=Decimal(30.5),
+                        quantity=Decimal("30.5"),
                         amount=Decimal("-764.33"),
                         allowable_cost=Decimal("925.1"),
                         fees=Decimal(4),
-                        new_quantity=Decimal(30.5),
+                        new_quantity=Decimal("30.5"),
                         new_pool_cost=Decimal("764.33"),
                     ),
                 ],
@@ -782,7 +782,7 @@ calc_basic_data = [
                     ),
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
-                        quantity=Decimal(10.0),
+                        quantity=Decimal("10.0"),
                         amount=Decimal("279.7094488188976377952755906"),
                         gain=Decimal("-23.6020265909384277784949012"),
                         allowable_cost=Decimal("303.3114754098360655737704918")
@@ -801,11 +801,11 @@ calc_basic_data = [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
                         quantity=Decimal(90),
-                        amount=Decimal(-2255.4000),
-                        allowable_cost=Decimal(2525.0000),
+                        amount=Decimal("-2255.4000"),
+                        allowable_cost=Decimal("2525.0000"),
                         fees=Decimal(5),
                         new_quantity=Decimal(90),
-                        new_pool_cost=Decimal(2255.4000),
+                        new_pool_cost=Decimal("2255.4000"),
                     ),
                 ],
             },
@@ -813,20 +813,20 @@ calc_basic_data = [
                 "sell$FOO": [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
-                        quantity=Decimal(20.5),
+                        quantity=Decimal("20.5"),
                         amount=Decimal("552.3611"),
                         gain=Decimal("-69.4274"),
                         allowable_cost=Decimal("621.7885") + Decimal("1.13888"),
                         fees=Decimal("1.13888"),
-                        new_quantity=Decimal(69.5),
-                        new_pool_cost=Decimal(1741.6700),
+                        new_quantity=Decimal("69.5"),
+                        new_pool_cost=Decimal("1741.6700"),
                         bed_and_breakfast_date_index=(
                             datetime.date(day=2, month=4, year=2021)
                         ),
                     ),
                     CalculationEntry(
                         RuleType.SECTION_104,
-                        quantity=Decimal(69.5),
+                        quantity=Decimal("69.5"),
                         amount=Decimal("1872.6389"),
                         gain=Decimal("130.9689"),
                         allowable_cost=Decimal("1741.67") + Decimal("3.8611"),
@@ -840,11 +840,11 @@ calc_basic_data = [
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
-                        quantity=Decimal(30.5),
+                        quantity=Decimal("30.5"),
                         amount=Decimal("-764.33"),
                         allowable_cost=Decimal("925.1"),
                         fees=Decimal(4),
-                        new_quantity=Decimal(30.5),
+                        new_quantity=Decimal("30.5"),
                         new_pool_cost=Decimal("764.33"),
                     ),
                 ],
@@ -904,13 +904,13 @@ calc_basic_data = [
                 "sell$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
-                        quantity=Decimal(30.0),
+                        quantity=Decimal("30.0"),
                         amount=Decimal(2999),
                         gain=Decimal("-34.06"),
                         allowable_cost=Decimal("3033.06") + Decimal("1.0"),
                         fees=Decimal("1.0"),
                         new_quantity=Decimal(470),
-                        new_pool_cost=Decimal(47517.94),
+                        new_pool_cost=Decimal("47517.94"),
                     ),
                 ],
             },
@@ -918,35 +918,35 @@ calc_basic_data = [
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
-                        quantity=Decimal(50.0),
+                        quantity=Decimal("50.0"),
                         amount=Decimal(-4951),
                         gain=Decimal(0),
                         allowable_cost=Decimal("4951.0"),
                         fees=Decimal("1.0"),
                         new_quantity=Decimal(520),
-                        new_pool_cost=Decimal(52468.94),
+                        new_pool_cost=Decimal("52468.94"),
                     ),
                 ],
                 "sell$FOO": [
                     CalculationEntry(
                         RuleType.SAME_DAY,
-                        quantity=Decimal(50.0),
+                        quantity=Decimal("50.0"),
                         amount=Decimal("4999.50"),
                         gain=Decimal("48.5"),
                         allowable_cost=Decimal(4951) + Decimal("0.5"),
                         fees=Decimal("0.5"),
                         new_quantity=Decimal(470),
-                        new_pool_cost=Decimal(47517.94),
+                        new_pool_cost=Decimal("47517.94"),
                     ),
                     CalculationEntry(
                         RuleType.SECTION_104,
-                        quantity=Decimal(50.0),
+                        quantity=Decimal("50.0"),
                         amount=Decimal("4999.5"),
                         gain=Decimal("-55.6"),
                         allowable_cost=Decimal("5055.1") + Decimal("0.5"),
                         fees=Decimal("0.5"),
                         new_quantity=Decimal(420),
-                        new_pool_cost=Decimal(42462.84),
+                        new_pool_cost=Decimal("42462.84"),
                     ),
                 ],
             },
@@ -1012,13 +1012,13 @@ calc_basic_data = [
                 "sell$FOO": [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
-                        quantity=Decimal(30.0),
+                        quantity=Decimal("30.0"),
                         amount=Decimal(2999),
                         gain=Decimal("28.4"),
                         allowable_cost=Decimal("2970.6") + Decimal("1.0"),
                         fees=Decimal("1.0"),
                         new_quantity=Decimal(470),
-                        new_pool_cost=Decimal(47517.94),
+                        new_pool_cost=Decimal("47517.94"),
                         bed_and_breakfast_date_index=datetime.date(
                             day=1, month=7, year=2023
                         ),
@@ -1029,48 +1029,48 @@ calc_basic_data = [
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
-                        quantity=Decimal(50.0),
+                        quantity=Decimal("50.0"),
                         amount=Decimal(-4951),
                         gain=Decimal(0),
                         allowable_cost=Decimal("4951.0"),
                         fees=Decimal("1.0"),
                         new_quantity=Decimal(520),
-                        new_pool_cost=Decimal(52468.94),
+                        new_pool_cost=Decimal("52468.94"),
                     ),
                 ],
                 "sell$FOO": [
                     CalculationEntry(
                         RuleType.SAME_DAY,
-                        quantity=Decimal(50.0),
+                        quantity=Decimal("50.0"),
                         amount=Decimal("4999.50"),
                         gain=Decimal("48.5"),
                         allowable_cost=Decimal(4951) + Decimal("0.5"),
                         fees=Decimal("0.5"),
                         new_quantity=Decimal(470),
-                        new_pool_cost=Decimal(47517.94),
+                        new_pool_cost=Decimal("47517.94"),
                     ),
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
-                        quantity=Decimal(20.0),
+                        quantity=Decimal("20.0"),
                         amount=Decimal("1999.8"),
                         gain=Decimal("19.4"),
                         allowable_cost=Decimal("1980.4") + Decimal("0.2"),
                         fees=Decimal("0.2"),
                         new_quantity=Decimal(450),
-                        new_pool_cost=Decimal(45495.9),
+                        new_pool_cost=Decimal("45495.9"),
                         bed_and_breakfast_date_index=datetime.date(
                             day=1, month=7, year=2023
                         ),
                     ),
                     CalculationEntry(
                         RuleType.SECTION_104,
-                        quantity=Decimal(30.0),
+                        quantity=Decimal("30.0"),
                         amount=Decimal("2999.7"),
                         gain=Decimal("-33.36"),
                         allowable_cost=Decimal("3033.06") + Decimal("0.3"),
                         fees=Decimal("0.3"),
                         new_quantity=Decimal(420),
-                        new_pool_cost=Decimal(42462.84),
+                        new_pool_cost=Decimal("42462.84"),
                     ),
                 ],
             },
@@ -1078,13 +1078,13 @@ calc_basic_data = [
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
-                        quantity=Decimal(50.0),
+                        quantity=Decimal("50.0"),
                         amount=Decimal("-5055.1"),
                         gain=Decimal(0),
                         allowable_cost=Decimal("4951.0"),
                         fees=Decimal("1.0"),
                         new_quantity=Decimal(470),
-                        new_pool_cost=Decimal(47517.94),
+                        new_pool_cost=Decimal("47517.94"),
                     ),
                 ],
             },

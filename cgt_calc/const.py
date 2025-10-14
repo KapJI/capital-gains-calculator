@@ -43,8 +43,8 @@ DIVIDEND_ALLOWANCES: Final[dict[int, int]] = {
 # Rules from
 # https://www.gov.uk/hmrc-internal-manuals/double-taxation-relief
 DIVIDEND_DOUBLE_TAXATION_RULES = {
-    "USD": TaxTreaty("USA", Decimal(0.15), Decimal(0.15)),
-    "PLN": TaxTreaty("Poland", Decimal(0.19), Decimal(0.1)),
+    "USD": TaxTreaty("USA", Decimal("0.15"), Decimal("0.15")),
+    "PLN": TaxTreaty("Poland", Decimal("0.19"), Decimal("0.1")),
 }
 
 

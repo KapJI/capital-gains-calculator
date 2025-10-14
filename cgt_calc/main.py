@@ -1416,9 +1416,9 @@ def main() -> int:
             LOGGER.exception("Exception:")
         else:
             # Print error without traceback
-            LOGGER.error("%s", err)  # noqa: TRY400
+            LOGGER.error("%s", err)
         return 1
-    except Exception:  # noqa: BLE001
+    except Exception:
         # Last-resort catch for unexpected exceptions
         LOGGER.critical("Unexpected error!")
         LOGGER.exception("Details:")
