@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # Generate example CGT report.
+# Usage: run with no arguments.
 
 set -euo pipefail
 
