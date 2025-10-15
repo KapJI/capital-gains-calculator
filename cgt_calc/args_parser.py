@@ -38,6 +38,7 @@ class DeprecatedAction(argparse.Action):
         assert isinstance(option_string, str), "Positional arguments are not supported"
         replacement = {
             "--mssb": "--mssb-dir",
+            "--raw": "--raw-file",
             "--report": "--output",
             "--schwab_equity_award_json": "--schwab-equity-award-json",
             "--trading212": "--trading212-dir",
@@ -78,9 +79,16 @@ def create_parser() -> argparse.ArgumentParser:
         help="first year of the tax year to calculate gains on (default: %(default)d)",
     )
     parser.add_argument(
-        "--raw",
+        "--raw-file",
         type=str,
         help="file containing the exported transactions in a raw format csv format",
+    )
+    parser.add_argument(
+        "--raw",
+        action=DeprecatedAction,
+        dest="raw_file",
+        type=str,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--schwab",

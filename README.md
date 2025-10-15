@@ -199,7 +199,7 @@ cgt-calc --year 2024 --vanguard vanguard.csv
 You will need:
 
 -   **Exported transaction history from Freetrade.**
-    Go to Activity -> GIA -> Last 12 Months -> Export CSV. (for some reason it exports longer periods, this is useful for our purpose as it may include purchase price)
+    Go to **Activity → GIA → Last 12 Months → Export CSV**. The exported file may cover a longer period — this is useful, as it can include purchase prices.
     [See example](tests/test_data/freetrade/transactions.csv).
 
 Example usage for the tax year 2024/25:
@@ -216,12 +216,12 @@ cgt-calc --year 2024 --freetrade freetrade_GIA.csv
 You will need:
 
 -   **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert whatever report you can produce into this basic format.
-    [See example](tests/test_data/raw/test_data.csv)
+    [See example](tests/test_data/raw/test_data.csv).
 
 Example usage for the tax year 2024/25:
 
 ```shell
-cgt-calc --year 2024 --raw sharesight_trxs_dir/
+cgt-calc --year 2024 --raw-file raw_data.csv
 ```
 
 </details>

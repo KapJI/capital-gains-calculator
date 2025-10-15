@@ -11,7 +11,7 @@ def test_run_with_raw_files_no_balance_check() -> None:
     cmd = build_cmd(
         "--year",
         "2022",
-        "--raw",
+        "--raw-file",
         "tests/raw/data/test_data.csv",
         "--no-balance-check",
     )

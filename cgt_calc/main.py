@@ -1345,7 +1345,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         args.trading212_dir,
         args.mssb_dir,
         args.sharesight,
-        args.raw,
+        args.raw_file,
         args.vanguard,
         args.eri_raw_file,
         args.freetrade,
