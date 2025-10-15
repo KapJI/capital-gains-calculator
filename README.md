@@ -188,7 +188,7 @@ You will need:
 Example usage for the tax year 2024/25:
 
 ```shell
-cgt-calc --year 2024 --vanguard vanguard.csv
+cgt-calc --year 2024 --vanguard-file vanguard.csv
 ```
 
 </details>

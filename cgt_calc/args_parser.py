@@ -45,6 +45,7 @@ class DeprecatedAction(argparse.Action):
             "--schwab_equity_award_json": "--schwab-equity-award-json",
             "--sharesight": "--sharesight-dir",
             "--trading212": "--trading212-dir",
+            "--vanguard": "--vanguard-file",
         }
         LOGGER.warning(
             "Option '%s' is deprecated; use '%s' instead.",
@@ -168,9 +169,15 @@ def create_parser() -> argparse.ArgumentParser:
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "--vanguard",
+        "--vanguard-file",
         type=str,
         help="file containing the exported transactions from Vanguard in CSV format",
+    )
+    parser.add_argument(
+        "--vanguard",
+        dest="vanguard_file",
+        type=str,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--eri-raw-file",
