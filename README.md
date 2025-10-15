@@ -205,7 +205,7 @@ You will need:
 Example usage for the tax year 2024/25:
 
 ```shell
-cgt-calc --year 2024 --freetrade freetrade_GIA.csv
+cgt-calc --year 2024 --freetrade-file freetrade_GIA.csv
 ```
 
 </details>

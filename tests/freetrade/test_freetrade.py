@@ -11,7 +11,7 @@ def test_run_with_freetrade_file() -> None:
     cmd = build_cmd(
         "--year",
         "2023",
-        "--freetrade",
+        "--freetrade-file",
         "tests/freetrade/data/transactions.csv",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)

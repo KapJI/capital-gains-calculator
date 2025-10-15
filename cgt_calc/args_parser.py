@@ -37,6 +37,7 @@ class DeprecatedAction(argparse.Action):
         """Check if argument is deprecated."""
         assert isinstance(option_string, str), "Positional arguments are not supported"
         replacements = {
+            "--freetrade": "--freetrade-file",
             "--mssb": "--mssb-dir",
             "--raw": "--raw-file",
             "--report": "--output",
@@ -81,6 +82,19 @@ def create_parser() -> argparse.ArgumentParser:
         type=int,
         default=get_last_elapsed_tax_year(),
         help="first year of the tax year to calculate gains on (default: %(default)d)",
+    )
+    parser.add_argument(
+        "--freetrade-file",
+        type=str,
+        default=None,
+        help="file containing the exported transactions from Freetrade in CSV format",
+    )
+    parser.add_argument(
+        "--freetrade",
+        action=DeprecatedAction,
+        dest="freetrade_file",
+        type=str,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--raw-file",
@@ -184,12 +198,6 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         help="file containing the historical funds Excess Reported Income "
         "in a eri_raw CSV format",
-    )
-    parser.add_argument(
-        "--freetrade",
-        type=str,
-        default=None,
-        help="file containing the exported transactions from Freetrade in CSV format",
     )
 
     parser.add_argument(
