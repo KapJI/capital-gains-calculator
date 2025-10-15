@@ -84,7 +84,7 @@ apt install texlive-latex-base
 -   Once you've gathered all transactions from all your brokers, generate a report — for example, for tax year 2020/21:
 
 ```shell
-cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/
+cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb-dir mmsb_report/
 ```
 
 -   Run `cgt-calc --help` for all available options.
@@ -145,7 +145,7 @@ You will need:
 Example usage for the tax year 2024/25:
 
 ```shell
-cgt-calc --year 2024 --mssb morgan_stanley_trxs_dir/
+cgt-calc --year 2024 --mssb-dir morgan_stanley_trxs_dir/
 ```
 
 </details>

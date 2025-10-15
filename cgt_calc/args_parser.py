@@ -37,8 +37,9 @@ class DeprecatedAction(argparse.Action):
         """Check if argument is deprecated."""
         assert isinstance(option_string, str), "Positional arguments are not supported"
         replacement = {
-            "--schwab_equity_award_json": "--schwab-equity-award-json",
+            "--mssb": "--mssb-dir",
             "--report": "--output",
+            "--schwab_equity_award_json": "--schwab-equity-award-json",
         }
         LOGGER.warning(
             "Option '%s' is deprecated; use '%s' instead.",
@@ -110,9 +111,16 @@ def create_parser() -> argparse.ArgumentParser:
         help="folder containing the exported transaction files from Trading 212",
     )
     parser.add_argument(
-        "--mssb",
+        "--mssb-dir",
         type=str,
         help="folder containing the exported transaction files from Morgan Stanley",
+    )
+    parser.add_argument(
+        "--mssb",
+        action=DeprecatedAction,
+        dest="mssb_dir",
+        type=str,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--sharesight",
