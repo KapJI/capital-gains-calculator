@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import datetime
     from decimal import Decimal
+    from pathlib import Path
 
     from .model import BrokerTransaction
 
@@ -109,3 +110,11 @@ class ExchangeRateMissingError(CalculationError):
         """Initialise."""
         self.message = f"No GBP/{symbol} price for {date}"
         super().__init__(self.message)
+
+
+class LatexRenderError(CgtError):
+    """Raised when LaTeX PDF rendering fails."""
+
+    def __init__(self, log_path: Path) -> None:
+        """Initialise."""
+        super().__init__(f"LaTeX compilation failed: see '{log_path}'")

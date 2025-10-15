@@ -8,6 +8,7 @@ import tempfile
 import jinja2
 
 from .const import LATEX_TEMPLATE_RESOURCE, PACKAGE_NAME
+from .exceptions import LatexRenderError
 from .model import CapitalGainsReport
 from .util import round_decimal, strip_zeros
 
@@ -44,13 +45,14 @@ def render_pdf(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with tempfile.NamedTemporaryFile(
-        "w", encoding="utf-8", suffix=".tex", delete=False
+        "w", encoding="utf-8", prefix="cgt_calc_", suffix=".tex", delete=False
     ) as tmp:
         tmp_path = Path(tmp.name)
         tmp.write(output_text)
 
     jobname = output_path.stem
     out_dir = output_path.parent
+    log_path = out_dir / f"{jobname}.latex.log"
 
     # Skip for integration tests when pdflatex is not available.
     if skip_pdflatex:
@@ -59,15 +61,17 @@ def render_pdf(
     try:
         cmd = [
             "pdflatex",
+            "-file-line-error",
             "-halt-on-error",
+            "-interaction=nonstopmode",
             f"-output-directory={out_dir}",
             f"-jobname={jobname}",
-            "-interaction=batchmode",
             str(tmp_path),
         ]
-        subprocess.run(
-            cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
+        with log_path.open("w", encoding="utf-8") as log:
+            subprocess.run(cmd, check=True, stdout=log, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as err:
+        raise LatexRenderError(log_path) from err
     finally:
         # Always attempt to clean up temp and aux files.
         tmp_path.unlink(missing_ok=True)
