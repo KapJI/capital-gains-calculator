@@ -1379,7 +1379,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
 
     # Generate PDF report.
     if not args.no_report:
-        render_latex.render_calculations(
+        render_latex.render_pdf(
             report,
             output_path=Path(args.output),
             skip_pdflatex=args.no_pdflatex,
