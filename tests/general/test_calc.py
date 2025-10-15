@@ -173,11 +173,11 @@ def test_run_with_example_files() -> None:
     cmd = build_cmd(
         "--year",
         "2020",
-        "--schwab",
+        "--schwab-file",
         "tests/schwab/data/schwab_transactions.csv",
-        "--trading212",
+        "--trading212-dir",
         "tests/trading212/data/",
-        "--mssb",
+        "--mssb-dir",
         "tests/morgan_stanley/data/",
     )
     try:

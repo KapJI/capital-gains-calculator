@@ -84,7 +84,7 @@ apt install texlive-latex-base
 -   Once you've gathered all transactions from all your brokers, generate a report — for example, for tax year 2020/21:
 
 ```shell
-cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212 trading212/ --mssb mmsb_report/
+cgt-calc --year 2020 --schwab-file schwab_transactions.csv --trading212-dir trading212/ --mssb-dir mmsb_report/
 ```
 
 -   Run `cgt-calc --help` for all available options.
@@ -109,10 +109,10 @@ You will need:
 Example usage for the tax year 2020/21:
 
 ```shell
-cgt-calc --year 2020 --schwab schwab_transactions.csv --schwab-award schwab_awards.csv
+cgt-calc --year 2020 --schwab-file schwab_transactions.csv --schwab-award-file schwab_awards.csv
 ```
 
-_Note: For historic reasons, it is possible to provide the Equity Awards history in JSON format with `--schwab_equity_award_json`. Instructions are available at the top of this [parser file](../main/cgt_calc/parsers/schwab_equity_award_json.py). Please use the CSV method above if possible._
+_Note: For historic reasons, it is possible to provide the Equity Awards history in JSON format with `--schwab-equity-award-json`. Instructions are available at the top of this [parser file](../main/cgt_calc/parsers/schwab_equity_award_json.py). Please use the CSV method above if possible._
 
 </details>
  <br />
@@ -128,7 +128,7 @@ You will need:
 Example usage for the tax year 2024/25:
 
 ```shell
-cgt-calc --year 2024 --trading212 trading212_trxs_dir/
+cgt-calc --year 2024 --trading212-dir trading212_trxs_dir/
 ```
 
 </details>
@@ -145,7 +145,7 @@ You will need:
 Example usage for the tax year 2024/25:
 
 ```shell
-cgt-calc --year 2024 --mssb morgan_stanley_trxs_dir/
+cgt-calc --year 2024 --mssb-dir morgan_stanley_trxs_dir/
 ```
 
 </details>
@@ -171,7 +171,7 @@ Comments:
 Example usage for the tax year 2024/25:
 
 ```shell
-cgt-calc --year 2024 --no-balance-check --sharesight sharesight_trxs_dir/
+cgt-calc --year 2024 --no-balance-check --sharesight-dir sharesight_trxs_dir/
 ```
 
 </details>
@@ -188,7 +188,7 @@ You will need:
 Example usage for the tax year 2024/25:
 
 ```shell
-cgt-calc --year 2024 --vanguard vanguard.csv
+cgt-calc --year 2024 --vanguard-file vanguard.csv
 ```
 
 </details>
@@ -199,13 +199,13 @@ cgt-calc --year 2024 --vanguard vanguard.csv
 You will need:
 
 -   **Exported transaction history from Freetrade.**
-    Go to Activity -> GIA -> Last 12 Months -> Export CSV. (for some reason it exports longer periods, this is useful for our purpose as it may include purchase price)
+    Go to **Activity → GIA → Last 12 Months → Export CSV**. The exported file may cover a longer period — this is useful, as it can include purchase prices.
     [See example](tests/test_data/freetrade/transactions.csv).
 
 Example usage for the tax year 2024/25:
 
 ```shell
-cgt-calc --year 2024 --freetrade freetrade_GIA.csv
+cgt-calc --year 2024 --freetrade-file freetrade_GIA.csv
 ```
 
 </details>
@@ -216,12 +216,12 @@ cgt-calc --year 2024 --freetrade freetrade_GIA.csv
 You will need:
 
 -   **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert whatever report you can produce into this basic format.
-    [See example](tests/test_data/raw/test_data.csv)
+    [See example](tests/test_data/raw/test_data.csv).
 
 Example usage for the tax year 2024/25:
 
 ```shell
-cgt-calc --year 2024 --raw sharesight_trxs_dir/
+cgt-calc --year 2024 --raw-file raw_data.csv
 ```
 
 </details>

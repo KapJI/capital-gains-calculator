@@ -11,7 +11,7 @@ def test_run_with_vanguard_files() -> None:
     cmd = build_cmd(
         "--year",
         "2022",
-        "--vanguard",
+        "--vanguard-file",
         "tests/vanguard/data/report.csv",
         "--interest-fund-tickers",
         "FOO",

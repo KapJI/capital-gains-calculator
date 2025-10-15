@@ -36,14 +36,23 @@ class DeprecatedAction(argparse.Action):
     ) -> None:
         """Check if argument is deprecated."""
         assert isinstance(option_string, str), "Positional arguments are not supported"
-        replacement = {
-            "--schwab_equity_award_json": "--schwab-equity-award-json",
+        replacements = {
+            "--freetrade": "--freetrade-file",
+            "--initial-prices": "--initial-prices-file",
+            "--mssb": "--mssb-dir",
+            "--raw": "--raw-file",
             "--report": "--output",
+            "--schwab": "--schwab-file",
+            "--schwab-award": "--schwab-award-file",
+            "--schwab_equity_award_json": "--schwab-equity-award-json",
+            "--sharesight": "--sharesight-dir",
+            "--trading212": "--trading212-dir",
+            "--vanguard": "--vanguard-file",
         }
         LOGGER.warning(
             "Option '%s' is deprecated; use '%s' instead.",
             option_string,
-            replacement[option_string],
+            replacements[option_string],
         )
         setattr(namespace, self.dest, values)
 
@@ -67,39 +76,68 @@ class SplitArgs(argparse.Action):
 def create_parser() -> argparse.ArgumentParser:
     """Create ArgumentParser."""
     parser = argparse.ArgumentParser(
-        description="Calculate capital gains from stock transactions.",
+        description="Calculate UK capital gains from broker transactions and generate a PDF report.",
     )
     parser.add_argument(
         "--year",
         type=int,
         default=get_last_elapsed_tax_year(),
-        nargs="?",
-        help="First year of the tax year to calculate gains on (default: %(default)d)",
+        help="first year of the tax year to calculate gains on (default: %(default)d)",
     )
     parser.add_argument(
-        "--raw",
+        "--freetrade-file",
         type=str,
-        nargs="?",
+        default=None,
+        help="file containing the exported transactions from Freetrade in CSV format",
+    )
+    parser.add_argument(
+        "--freetrade",
+        action=DeprecatedAction,
+        dest="freetrade_file",
+        type=str,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--raw-file",
+        type=str,
         help="file containing the exported transactions in a raw format csv format",
     )
     parser.add_argument(
-        "--schwab",
+        "--raw",
+        action=DeprecatedAction,
+        dest="raw_file",
         type=str,
-        nargs="?",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--schwab-file",
+        type=str,
         help="file containing the exported transactions from Charles Schwab",
     )
     parser.add_argument(
-        "--schwab-award",
+        "--schwab",
+        action=DeprecatedAction,
+        dest="schwab_file",
+        type=str,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--schwab-award-file",
         type=str,
         default=None,
-        nargs="?",
         help="file containing schwab award data for stock prices",
+    )
+    parser.add_argument(
+        "--schwab-award",
+        action=DeprecatedAction,
+        dest="schwab_award_file",
+        type=str,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--schwab-equity-award-json",
         type=str,
         default=None,
-        nargs="?",
         help="file containing schwab equity award transactions data in JSON format",
     )
     parser.add_argument(
@@ -107,68 +145,85 @@ def create_parser() -> argparse.ArgumentParser:
         action=DeprecatedAction,
         type=str,
         default=None,
-        nargs="?",
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "--trading212",
+        "--trading212-dir",
         type=str,
-        nargs="?",
         help="folder containing the exported transaction files from Trading 212",
     )
     parser.add_argument(
-        "--mssb",
+        "--trading212",
+        action=DeprecatedAction,
+        dest="trading212_dir",
         type=str,
-        nargs="?",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--mssb-dir",
+        type=str,
         help="folder containing the exported transaction files from Morgan Stanley",
     )
     parser.add_argument(
-        "--sharesight",
+        "--mssb",
+        action=DeprecatedAction,
+        dest="mssb_dir",
         type=str,
-        nargs="?",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--sharesight-dir",
+        type=str,
         help="folder containing reports from Sharesight in CSV format",
     )
     parser.add_argument(
-        "--vanguard",
+        "--sharesight",
+        action=DeprecatedAction,
+        dest="sharesight_dir",
         type=str,
-        nargs="?",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--vanguard-file",
+        type=str,
         help="file containing the exported transactions from Vanguard in CSV format",
+    )
+    parser.add_argument(
+        "--vanguard",
+        dest="vanguard_file",
+        type=str,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--eri-raw-file",
         type=str,
-        nargs="?",
         help="file containing the historical funds Excess Reported Income "
         "in a eri_raw CSV format",
-    )
-    parser.add_argument(
-        "--freetrade",
-        type=str,
-        default=None,
-        nargs="?",
-        help="file containing the exported transactions from Freetrade in CSV format",
     )
 
     parser.add_argument(
         "--exchange-rates-file",
         type=str,
         default=DEFAULT_EXCHANGE_RATES_FILE,
-        nargs="?",
         help="output file for monthly exchange rates from HMRC",
     )
     parser.add_argument(
         "--spin-offs-file",
         type=str,
         default=DEFAULT_SPIN_OFF_FILE,
-        nargs="?",
         help="output file for spin offs data",
     )
     parser.add_argument(
-        "--initial-prices",
+        "--initial-prices-file",
         type=str,
         default=None,
-        nargs="?",
         help="file containing stock prices in USD at the moment of vesting, split, etc",
+    )
+    parser.add_argument(
+        "--initial-prices",
+        dest="initial_prices_file",
+        type=str,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--no-balance-check",
@@ -199,7 +254,6 @@ def create_parser() -> argparse.ArgumentParser:
         "--isin-translation-file",
         type=str,
         default=DEFAULT_ISIN_TRANSLATION_FILE,
-        nargs="?",
         help="output file for ISIN to ticker translations",
     )
     # New inputs should be above
@@ -209,7 +263,6 @@ def create_parser() -> argparse.ArgumentParser:
         dest="output",
         type=str,
         default=DEFAULT_REPORT_PATH,
-        nargs="?",
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
@@ -217,7 +270,6 @@ def create_parser() -> argparse.ArgumentParser:
         "--output",
         type=str,
         default=DEFAULT_REPORT_PATH,
-        nargs="?",
         help="where to save the generated PDF report (default: %(default)s)",
     )
     parser.add_argument(
@@ -226,6 +278,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="do not generate PDF report",
     )
     parser.add_argument(
+        "-v",
         "--verbose",
         action="store_true",
         help="enable extra logging",

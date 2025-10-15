@@ -1339,19 +1339,19 @@ def calculate_cgt(args: argparse.Namespace) -> None:
 
     # Read data from input files
     broker_transactions = read_broker_transactions(
-        args.schwab,
-        args.schwab_award,
+        args.schwab_file,
+        args.schwab_award_file,
         args.schwab_equity_award_json,
-        args.trading212,
-        args.mssb,
-        args.sharesight,
-        args.raw,
-        args.vanguard,
+        args.trading212_dir,
+        args.mssb_dir,
+        args.sharesight_dir,
+        args.raw_file,
+        args.vanguard_file,
         args.eri_raw_file,
-        args.freetrade,
+        args.freetrade_file,
     )
     currency_converter = CurrencyConverter(args.exchange_rates_file)
-    initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
+    initial_prices = InitialPrices(read_initial_prices(args.initial_prices_file))
     price_fetcher = CurrentPriceFetcher(currency_converter)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
     isin_converter = IsinConverter(args.isin_translation_file)

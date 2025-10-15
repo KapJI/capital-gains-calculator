@@ -11,7 +11,7 @@ def test_run_with_sharesight_files_no_balance_check() -> None:
     cmd = build_cmd(
         "--year",
         "2020",
-        "--sharesight",
+        "--sharesight-dir",
         "tests/sharesight/data/inputs/",
         "--no-balance-check",
     )

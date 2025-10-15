@@ -11,7 +11,7 @@ def test_run_with_schwab_cash_merger_files() -> None:
     cmd = build_cmd(
         "--year",
         "2020",
-        "--schwab",
+        "--schwab-file",
         "tests/schwab/data/cash_merger/transactions.csv",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)
