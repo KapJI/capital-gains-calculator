@@ -67,39 +67,34 @@ class SplitArgs(argparse.Action):
 def create_parser() -> argparse.ArgumentParser:
     """Create ArgumentParser."""
     parser = argparse.ArgumentParser(
-        description="Calculate capital gains from stock transactions.",
+        description="Calculate UK capital gains from broker transactions and generate a PDF report.",
     )
     parser.add_argument(
         "--year",
         type=int,
         default=get_last_elapsed_tax_year(),
-        nargs="?",
-        help="First year of the tax year to calculate gains on (default: %(default)d)",
+        help="first year of the tax year to calculate gains on (default: %(default)d)",
     )
     parser.add_argument(
         "--raw",
         type=str,
-        nargs="?",
         help="file containing the exported transactions in a raw format csv format",
     )
     parser.add_argument(
         "--schwab",
         type=str,
-        nargs="?",
         help="file containing the exported transactions from Charles Schwab",
     )
     parser.add_argument(
         "--schwab-award",
         type=str,
         default=None,
-        nargs="?",
         help="file containing schwab award data for stock prices",
     )
     parser.add_argument(
         "--schwab-equity-award-json",
         type=str,
         default=None,
-        nargs="?",
         help="file containing schwab equity award transactions data in JSON format",
     )
     parser.add_argument(
@@ -107,37 +102,31 @@ def create_parser() -> argparse.ArgumentParser:
         action=DeprecatedAction,
         type=str,
         default=None,
-        nargs="?",
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--trading212",
         type=str,
-        nargs="?",
         help="folder containing the exported transaction files from Trading 212",
     )
     parser.add_argument(
         "--mssb",
         type=str,
-        nargs="?",
         help="folder containing the exported transaction files from Morgan Stanley",
     )
     parser.add_argument(
         "--sharesight",
         type=str,
-        nargs="?",
         help="folder containing reports from Sharesight in CSV format",
     )
     parser.add_argument(
         "--vanguard",
         type=str,
-        nargs="?",
         help="file containing the exported transactions from Vanguard in CSV format",
     )
     parser.add_argument(
         "--eri-raw-file",
         type=str,
-        nargs="?",
         help="file containing the historical funds Excess Reported Income "
         "in a eri_raw CSV format",
     )
@@ -145,7 +134,6 @@ def create_parser() -> argparse.ArgumentParser:
         "--freetrade",
         type=str,
         default=None,
-        nargs="?",
         help="file containing the exported transactions from Freetrade in CSV format",
     )
 
@@ -153,21 +141,18 @@ def create_parser() -> argparse.ArgumentParser:
         "--exchange-rates-file",
         type=str,
         default=DEFAULT_EXCHANGE_RATES_FILE,
-        nargs="?",
         help="output file for monthly exchange rates from HMRC",
     )
     parser.add_argument(
         "--spin-offs-file",
         type=str,
         default=DEFAULT_SPIN_OFF_FILE,
-        nargs="?",
         help="output file for spin offs data",
     )
     parser.add_argument(
         "--initial-prices",
         type=str,
         default=None,
-        nargs="?",
         help="file containing stock prices in USD at the moment of vesting, split, etc",
     )
     parser.add_argument(
@@ -199,7 +184,6 @@ def create_parser() -> argparse.ArgumentParser:
         "--isin-translation-file",
         type=str,
         default=DEFAULT_ISIN_TRANSLATION_FILE,
-        nargs="?",
         help="output file for ISIN to ticker translations",
     )
     # New inputs should be above
@@ -209,7 +193,6 @@ def create_parser() -> argparse.ArgumentParser:
         dest="output",
         type=str,
         default=DEFAULT_REPORT_PATH,
-        nargs="?",
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
@@ -217,7 +200,6 @@ def create_parser() -> argparse.ArgumentParser:
         "--output",
         type=str,
         default=DEFAULT_REPORT_PATH,
-        nargs="?",
         help="where to save the generated PDF report (default: %(default)s)",
     )
     parser.add_argument(
