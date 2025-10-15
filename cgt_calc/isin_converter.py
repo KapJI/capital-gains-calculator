@@ -14,7 +14,7 @@ from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_RESOURCE
 from .exceptions import ParsingError
 from .parsers import ISIN_TRANSLATION_HEADER, read_isin_translation_file
 from .resources import RESOURCES_PACKAGE
-from .util import is_isin
+from .util import is_isin, open_with_parents
 
 if TYPE_CHECKING:
     from .model import BrokerTransaction
@@ -95,9 +95,9 @@ class IsinConverter:
 
     def _write_isin_translation_file(self) -> None:
         self.validate_data()
-        if CGT_TEST_MODE or self.isin_translation_file is None:
+        if not self.isin_translation_file or CGT_TEST_MODE:
             return
-        with Path(self.isin_translation_file).open("w", encoding="utf8") as fout:
+        with open_with_parents(Path(self.isin_translation_file)) as fout:
             data_rows = [[isin, *symbols] for isin, symbols in self.write_data.items()]
             writer = csv.writer(fout)
             writer.writerows([ISIN_TRANSLATION_HEADER, *data_rows])

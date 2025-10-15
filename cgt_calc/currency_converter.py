@@ -15,6 +15,7 @@ import requests
 from .const import CGT_TEST_MODE
 from .dates import is_date
 from .exceptions import ExchangeRateMissingError, ParsingError
+from .util import open_with_parents
 
 if TYPE_CHECKING:
     from .model import BrokerTransaction
@@ -45,7 +46,7 @@ class CurrencyConverter:
         exchange_rates_file: str | None,
     ) -> defaultdict[datetime.date, dict[str, Decimal]]:
         cache: defaultdict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
-        if exchange_rates_file is None:
+        if not exchange_rates_file:
             return cache
         path = Path(exchange_rates_file)
         if not path.is_file():
@@ -69,9 +70,9 @@ class CurrencyConverter:
     def _write_exchange_rates_file(
         exchange_rates_file: str | None, data: dict[datetime.date, dict[str, Decimal]]
     ) -> None:
-        if exchange_rates_file is None or CGT_TEST_MODE:
+        if not exchange_rates_file or CGT_TEST_MODE:
             return
-        with Path(exchange_rates_file).open("w", encoding="utf8") as fout:
+        with open_with_parents(Path(exchange_rates_file)) as fout:
             data_rows = [
                 [month, symbol, str(rate)]
                 for month, rates in data.items()
