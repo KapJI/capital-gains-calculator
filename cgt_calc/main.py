@@ -18,11 +18,11 @@ from .args_parser import create_parser
 from .const import (
     BED_AND_BREAKFAST_DAYS,
     CAPITAL_GAIN_ALLOWANCES,
-    COUNTRY_CURRENCY,
     DIVIDEND_ALLOWANCES,
     DIVIDEND_DOUBLE_TAXATION_RULES,
     ERI_TAX_DATE_DELTA,
     INTERNAL_START_DATE,
+    UK_CURRENCY,
 )
 from .currency_converter import CurrencyConverter
 from .current_price_fetcher import CurrentPriceFetcher
@@ -1051,7 +1051,7 @@ class CapitalGainsCalculator:
             gbp_amount = self.currency_converter.to_gbp(
                 foreign_amount.amount, foreign_amount.currency, date
             )
-            if foreign_amount.currency == COUNTRY_CURRENCY:
+            if foreign_amount.currency == UK_CURRENCY:
                 self.total_uk_interest += gbp_amount
                 rule_prefix = "interestUK"
             else:
@@ -1085,7 +1085,7 @@ class CapitalGainsCalculator:
                     LOGGER.warning(
                         "Cannot apply taxation treaty for bond fund %s", symbol
                     )
-                elif foreign_amount.currency != COUNTRY_CURRENCY:
+                elif foreign_amount.currency != UK_CURRENCY:
                     assert tax.currency == foreign_amount.currency, (
                         f"Not matching currency for dividend {foreign_amount.currency} "
                         f"and its tax {tax.currency}"
@@ -1379,7 +1379,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
 
     # Generate PDF report.
     if not args.no_report:
-        render_latex.render_calculations(
+        render_latex.render_pdf(
             report,
             output_path=Path(args.output),
             skip_pdflatex=args.no_pdflatex,

@@ -2,7 +2,9 @@
 
 import decimal
 from decimal import Decimal
+from pathlib import Path
 import re
+from typing import TextIO
 
 
 def round_decimal(value: Decimal, digits: int = 0) -> Decimal:
@@ -63,3 +65,9 @@ def approx_equal(val_a: Decimal, val_b: Decimal) -> bool:
     so assume the values are equal if they are within 0.01.
     """
     return abs(val_a - val_b) < Decimal("0.01")
+
+
+def open_with_parents(path: Path) -> TextIO:
+    """Open a file for writing, creating parent directories if they do not exist."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path.open("w", encoding="utf8")
