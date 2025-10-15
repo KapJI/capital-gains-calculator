@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from cgt_calc.const import DEFAULT_ERI_FOLDER
+from cgt_calc.const import ERI_RESOURCE_FOLDER
 from cgt_calc.resources import RESOURCES_PACKAGE
 
 from .raw import read_eri_raw
@@ -33,7 +33,7 @@ def read_eri_transactions(
     transactions = []
 
     for file in (
-        resources.files(RESOURCES_PACKAGE).joinpath(DEFAULT_ERI_FOLDER).iterdir()
+        resources.files(RESOURCES_PACKAGE).joinpath(ERI_RESOURCE_FOLDER).iterdir()
     ):
         if file.is_file() and file.name.endswith(".csv"):
             transactions += read_eri_raw(file)

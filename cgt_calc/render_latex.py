@@ -8,7 +8,7 @@ import tempfile
 
 import jinja2
 
-from .const import PACKAGE_NAME, TEMPLATE_NAME
+from .const import LATEX_TEMPLATE_RESOURCE, PACKAGE_NAME
 from .model import CapitalGainsReport
 from .util import round_decimal, strip_zeros
 
@@ -34,7 +34,7 @@ def render_calculations(
         loader=jinja2.PackageLoader(PACKAGE_NAME, "resources"),
         extensions=["jinja2.ext.loopcontrols"],
     )
-    template = latex_template_env.get_template(TEMPLATE_NAME)
+    template = latex_template_env.get_template(LATEX_TEMPLATE_RESOURCE)
     output_text = template.render(
         report=report,
         round_decimal=round_decimal,

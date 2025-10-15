@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from requests_ratelimiter import LimiterSession
 
-from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_FILE
+from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_RESOURCE
 from .exceptions import ParsingError
 from .parsers import ISIN_TRANSLATION_HEADER, read_isin_translation_file
 from .resources import RESOURCES_PACKAGE
@@ -34,7 +34,9 @@ class IsinConverter:
         self.session = LimiterSession(per_minute=24)
         self.isin_translation_file = isin_translation_file
         self.data: dict[str, set[str]] = read_isin_translation_file(
-            resources.files(RESOURCES_PACKAGE).joinpath(INITIAL_ISIN_TRANSLATION_FILE)
+            resources.files(RESOURCES_PACKAGE).joinpath(
+                INITIAL_ISIN_TRANSLATION_RESOURCE
+            )
         )
         self.write_data: dict[str, set[str]] = {}
         if isin_translation_file is not None and Path(isin_translation_file).is_file():

@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from cgt_calc.const import DEFAULT_INITIAL_PRICES_FILE
+from cgt_calc.const import INITIAL_PRICES_RESOURCE
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.resources import RESOURCES_PACKAGE
 from cgt_calc.util import is_isin
@@ -164,7 +164,7 @@ def read_initial_prices(
     if initial_prices_file is None:
         with (
             resources.files(RESOURCES_PACKAGE)
-            .joinpath(DEFAULT_INITIAL_PRICES_FILE)
+            .joinpath(INITIAL_PRICES_RESOURCE)
             .open(encoding="utf-8") as csv_file
         ):
             lines = list(csv.reader(csv_file))
