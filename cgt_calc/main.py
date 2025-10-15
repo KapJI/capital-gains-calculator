@@ -1351,7 +1351,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         args.freetrade_file,
     )
     currency_converter = CurrencyConverter(args.exchange_rates_file)
-    initial_prices = InitialPrices(read_initial_prices(args.initial_prices))
+    initial_prices = InitialPrices(read_initial_prices(args.initial_prices_file))
     price_fetcher = CurrentPriceFetcher(currency_converter)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
     isin_converter = IsinConverter(args.isin_translation_file)

@@ -38,6 +38,7 @@ class DeprecatedAction(argparse.Action):
         assert isinstance(option_string, str), "Positional arguments are not supported"
         replacements = {
             "--freetrade": "--freetrade-file",
+            "--initial-prices": "--initial-prices-file",
             "--mssb": "--mssb-dir",
             "--raw": "--raw-file",
             "--report": "--output",
@@ -213,10 +214,16 @@ def create_parser() -> argparse.ArgumentParser:
         help="output file for spin offs data",
     )
     parser.add_argument(
-        "--initial-prices",
+        "--initial-prices-file",
         type=str,
         default=None,
         help="file containing stock prices in USD at the moment of vesting, split, etc",
+    )
+    parser.add_argument(
+        "--initial-prices",
+        dest="initial_prices_file",
+        type=str,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--no-balance-check",
