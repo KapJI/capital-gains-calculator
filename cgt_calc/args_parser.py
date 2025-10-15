@@ -205,13 +205,13 @@ def create_parser() -> argparse.ArgumentParser:
         "--exchange-rates-file",
         type=str,
         default=DEFAULT_EXCHANGE_RATES_FILE,
-        help="output file for monthly exchange rates from HMRC",
+        help="output file for monthly exchange rates from HMRC (default: %(default)s)",
     )
     parser.add_argument(
         "--spin-offs-file",
         type=str,
         default=DEFAULT_SPIN_OFF_FILE,
-        help="output file for spin offs data",
+        help="output file for spin offs data (default: %(default)s)",
     )
     parser.add_argument(
         "--initial-prices-file",
@@ -254,7 +254,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--isin-translation-file",
         type=str,
         default=DEFAULT_ISIN_TRANSLATION_FILE,
-        help="output file for ISIN to ticker translations",
+        help="output file for ISIN to ticker translations (default: %(default)s)",
     )
     # New inputs should be above
     parser.add_argument(
