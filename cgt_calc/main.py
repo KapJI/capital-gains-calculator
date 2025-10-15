@@ -1342,7 +1342,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         args.schwab,
         args.schwab_award,
         args.schwab_equity_award_json,
-        args.trading212,
+        args.trading212_dir,
         args.mssb_dir,
         args.sharesight,
         args.raw,

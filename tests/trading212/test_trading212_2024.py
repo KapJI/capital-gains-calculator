@@ -11,7 +11,7 @@ def test_run_with_trading212_files() -> None:
     cmd = build_cmd(
         "--year",
         "2024",
-        "--trading212",
+        "--trading212-dir",
         "tests/trading212/data/2024/",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)

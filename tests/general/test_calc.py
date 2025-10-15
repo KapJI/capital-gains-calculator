@@ -175,7 +175,7 @@ def test_run_with_example_files() -> None:
         "2020",
         "--schwab",
         "tests/schwab/data/schwab_transactions.csv",
-        "--trading212",
+        "--trading212-dir",
         "tests/trading212/data/",
         "--mssb-dir",
         "tests/morgan_stanley/data/",

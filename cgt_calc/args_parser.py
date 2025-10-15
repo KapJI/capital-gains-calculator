@@ -40,6 +40,7 @@ class DeprecatedAction(argparse.Action):
             "--mssb": "--mssb-dir",
             "--report": "--output",
             "--schwab_equity_award_json": "--schwab-equity-award-json",
+            "--trading212": "--trading212-dir",
         }
         LOGGER.warning(
             "Option '%s' is deprecated; use '%s' instead.",
@@ -106,9 +107,16 @@ def create_parser() -> argparse.ArgumentParser:
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "--trading212",
+        "--trading212-dir",
         type=str,
         help="folder containing the exported transaction files from Trading 212",
+    )
+    parser.add_argument(
+        "--trading212",
+        action=DeprecatedAction,
+        dest="trading212_dir",
+        type=str,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--mssb-dir",
