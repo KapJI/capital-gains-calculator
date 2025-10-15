@@ -248,6 +248,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="do not generate PDF report",
     )
     parser.add_argument(
+        "-v",
         "--verbose",
         action="store_true",
         help="enable extra logging",
