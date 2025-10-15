@@ -40,6 +40,8 @@ class DeprecatedAction(argparse.Action):
             "--mssb": "--mssb-dir",
             "--raw": "--raw-file",
             "--report": "--output",
+            "--schwab": "--schwab-file",
+            "--schwab-award": "--schwab-award-file",
             "--schwab_equity_award_json": "--schwab-equity-award-json",
             "--trading212": "--trading212-dir",
         }
@@ -91,15 +93,29 @@ def create_parser() -> argparse.ArgumentParser:
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "--schwab",
+        "--schwab-file",
         type=str,
         help="file containing the exported transactions from Charles Schwab",
     )
     parser.add_argument(
-        "--schwab-award",
+        "--schwab",
+        action=DeprecatedAction,
+        dest="schwab_file",
+        type=str,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--schwab-award-file",
         type=str,
         default=None,
         help="file containing schwab award data for stock prices",
+    )
+    parser.add_argument(
+        "--schwab-award",
+        action=DeprecatedAction,
+        dest="schwab_award_file",
+        type=str,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--schwab-equity-award-json",

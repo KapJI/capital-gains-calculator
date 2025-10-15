@@ -1339,8 +1339,8 @@ def calculate_cgt(args: argparse.Namespace) -> None:
 
     # Read data from input files
     broker_transactions = read_broker_transactions(
-        args.schwab,
-        args.schwab_award,
+        args.schwab_file,
+        args.schwab_award_file,
         args.schwab_equity_award_json,
         args.trading212_dir,
         args.mssb_dir,

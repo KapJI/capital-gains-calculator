@@ -11,7 +11,7 @@ def test_run_with_schwab_example_files() -> None:
     cmd = build_cmd(
         "--year",
         "2023",
-        "--schwab",
+        "--schwab-file",
         "tests/schwab/data/2023/transactions.csv",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)
