@@ -171,7 +171,7 @@ Comments:
 Example usage for the tax year 2024/25:
 
 ```shell
-cgt-calc --year 2024 --no-balance-check --sharesight sharesight_trxs_dir/
+cgt-calc --year 2024 --no-balance-check --sharesight-dir sharesight_trxs_dir/
 ```
 
 </details>
