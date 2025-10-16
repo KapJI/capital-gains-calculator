@@ -81,6 +81,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--year",
         type=int,
+        metavar="YYYY",
         default=get_last_elapsed_tax_year(),
         help="first year of the UK tax year (e.g. 2024 for tax year 2024/25; default: %(default)d)",
     )
@@ -88,6 +89,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--freetrade-file",
         type=str,
         default=None,
+        metavar="PATH",
         help="Freetrade transaction history in CSV format",
     )
     parser.add_argument(
@@ -100,6 +102,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--raw-file",
         type=str,
+        metavar="PATH",
         help="RAW format transaction history in CSV format",
     )
     parser.add_argument(
@@ -112,6 +115,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--schwab-file",
         type=str,
+        metavar="PATH",
         help="Charles Schwab transaction history in CSV format",
     )
     parser.add_argument(
@@ -125,6 +129,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--schwab-award-file",
         type=str,
         default=None,
+        metavar="PATH",
         help="Charles Schwab Equity Awards transaction history in CSV format",
     )
     parser.add_argument(
@@ -138,6 +143,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--schwab-equity-award-json",
         type=str,
         default=None,
+        metavar="PATH",
         help="Charles Schwab Equity Awards transaction history in JSON format",
     )
     parser.add_argument(
@@ -150,6 +156,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--trading212-dir",
         type=str,
+        metavar="DIR",
         help="directory with Trading 212 transaction history CSV files",
     )
     parser.add_argument(
@@ -162,6 +169,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--mssb-dir",
         type=str,
+        metavar="DIR",
         help="directory with Morgan Stanley transaction history CSV files",
     )
     parser.add_argument(
@@ -174,6 +182,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--sharesight-dir",
         type=str,
+        metavar="DIR",
         help="directory with Sharesight reports in CSV format",
     )
     parser.add_argument(
@@ -186,6 +195,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--vanguard-file",
         type=str,
+        metavar="PATH",
         help="Vanguard transaction history in CSV format",
     )
     parser.add_argument(
@@ -197,18 +207,21 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--eri-raw-file",
         type=str,
+        metavar="PATH",
         help="historical Excess Reported Income data in CSV format",
     )
 
     parser.add_argument(
         "--exchange-rates-file",
         type=str,
+        metavar="PATH",
         default=DEFAULT_EXCHANGE_RATES_FILE,
         help="monthly exchange rates in CSV format (generated automatically if missing; default: %(default)s)",
     )
     parser.add_argument(
         "--spin-offs-file",
         type=str,
+        metavar="PATH",
         default=DEFAULT_SPIN_OFF_FILE,
         help="spin-offs data in CSV format (default: %(default)s)",
     )
@@ -216,6 +229,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--initial-prices-file",
         type=str,
         default=None,
+        metavar="PATH",
         help="stock prices in USD at key events (vesting, splits, etc.) in CSV format",
     )
     parser.add_argument(
@@ -241,13 +255,15 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--interest-fund-tickers",
         action=SplitArgs,
+        metavar="TICKER[,TICKER...]",
         default="",
-        help="tickers of bond funds/ETFs whose dividends are taxed as interest in the UK (comma-separated)",
+        help="tickers of bond funds/ETFs whose dividends are taxed as interest in the UK",
     )
     parser.add_argument(
         "--isin-translation-file",
         type=str,
         default=DEFAULT_ISIN_TRANSLATION_FILE,
+        metavar="PATH",
         help="ISIN to ticker translations in CSV format (generated automatically if missing; default: %(default)s)",
     )
     # New inputs should be above
@@ -263,6 +279,7 @@ def create_parser() -> argparse.ArgumentParser:
         "-o",
         "--output",
         type=str,
+        metavar="PATH",
         default=DEFAULT_REPORT_PATH,
         help="path to save the generated PDF report (default: %(default)s)",
     )
