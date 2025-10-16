@@ -77,6 +77,12 @@ def create_parser() -> argparse.ArgumentParser:
     """Create ArgumentParser."""
     parser = argparse.ArgumentParser(
         description="Calculate UK capital gains from broker transactions and generate a PDF report.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+environment variables:
+  NO_COLOR              disable colored output
+  FORCE_COLOR           force colored output
+""",
     )
     parser.add_argument(
         "--year",
