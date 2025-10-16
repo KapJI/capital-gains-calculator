@@ -82,13 +82,13 @@ def create_parser() -> argparse.ArgumentParser:
         "--year",
         type=int,
         default=get_last_elapsed_tax_year(),
-        help="first year of the tax year to calculate gains on (default: %(default)d)",
+        help="first year of the UK tax year (e.g. 2024 for tax year 2024/25; default: %(default)d)",
     )
     parser.add_argument(
         "--freetrade-file",
         type=str,
         default=None,
-        help="file containing the exported transactions from Freetrade in CSV format",
+        help="Freetrade transaction history in CSV format",
     )
     parser.add_argument(
         "--freetrade",
@@ -100,7 +100,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--raw-file",
         type=str,
-        help="file containing the exported transactions in a raw format csv format",
+        help="RAW format transaction history in CSV format",
     )
     parser.add_argument(
         "--raw",
@@ -112,7 +112,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--schwab-file",
         type=str,
-        help="file containing the exported transactions from Charles Schwab",
+        help="Charles Schwab transaction history in CSV format",
     )
     parser.add_argument(
         "--schwab",
@@ -125,7 +125,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--schwab-award-file",
         type=str,
         default=None,
-        help="file containing schwab award data for stock prices",
+        help="Charles Schwab Equity Awards transaction history in CSV format",
     )
     parser.add_argument(
         "--schwab-award",
@@ -138,7 +138,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--schwab-equity-award-json",
         type=str,
         default=None,
-        help="file containing schwab equity award transactions data in JSON format",
+        help="Charles Schwab Equity Awards transaction history in JSON format",
     )
     parser.add_argument(
         "--schwab_equity_award_json",
@@ -150,7 +150,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--trading212-dir",
         type=str,
-        help="folder containing the exported transaction files from Trading 212",
+        help="directory with Trading 212 transaction history CSV files",
     )
     parser.add_argument(
         "--trading212",
@@ -162,7 +162,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--mssb-dir",
         type=str,
-        help="folder containing the exported transaction files from Morgan Stanley",
+        help="directory with Morgan Stanley transaction history CSV files",
     )
     parser.add_argument(
         "--mssb",
@@ -174,7 +174,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--sharesight-dir",
         type=str,
-        help="folder containing reports from Sharesight in CSV format",
+        help="directory with Sharesight reports in CSV format",
     )
     parser.add_argument(
         "--sharesight",
@@ -186,7 +186,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--vanguard-file",
         type=str,
-        help="file containing the exported transactions from Vanguard in CSV format",
+        help="Vanguard transaction history in CSV format",
     )
     parser.add_argument(
         "--vanguard",
@@ -197,27 +197,26 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--eri-raw-file",
         type=str,
-        help="file containing the historical funds Excess Reported Income "
-        "in a eri_raw CSV format",
+        help="historical Excess Reported Income data in CSV format",
     )
 
     parser.add_argument(
         "--exchange-rates-file",
         type=str,
         default=DEFAULT_EXCHANGE_RATES_FILE,
-        help="output file for monthly exchange rates from HMRC (default: %(default)s)",
+        help="monthly exchange rates in CSV format (generated automatically if missing; default: %(default)s)",
     )
     parser.add_argument(
         "--spin-offs-file",
         type=str,
         default=DEFAULT_SPIN_OFF_FILE,
-        help="output file for spin offs data (default: %(default)s)",
+        help="spin-offs data in CSV format (default: %(default)s)",
     )
     parser.add_argument(
         "--initial-prices-file",
         type=str,
         default=None,
-        help="file containing stock prices in USD at the moment of vesting, split, etc",
+        help="stock prices in USD at key events (vesting, splits, etc.) in CSV format",
     )
     parser.add_argument(
         "--initial-prices",
@@ -230,31 +229,26 @@ def create_parser() -> argparse.ArgumentParser:
         dest="balance_check",
         action="store_false",
         default=True,
+        help="skip balance verification (useful for partial transaction records)",
     )
     parser.add_argument(
         "--unrealized-gains",
         dest="calc_unrealized_gains",
         action="store_true",
         default=False,
-        help=(
-            "show an estimation of the gains/loss you would incur"
-            " if you were to sell your holdings, under the standard 104 rule."
-        ),
+        help="estimate unrealized gains/losses for current holdings if sold today (under Section 104 rule)",
     )
     parser.add_argument(
         "--interest-fund-tickers",
         action=SplitArgs,
         default="",
-        help=(
-            "list of funds/ETF tickers in your portfolio that contains bonds "
-            "and whose dividends in UK have to be taxed as interest"
-        ),
+        help="tickers of bond funds/ETFs whose dividends are taxed as interest in the UK (comma-separated)",
     )
     parser.add_argument(
         "--isin-translation-file",
         type=str,
         default=DEFAULT_ISIN_TRANSLATION_FILE,
-        help="output file for ISIN to ticker translations (default: %(default)s)",
+        help="ISIN to ticker translations in CSV format (generated automatically if missing; default: %(default)s)",
     )
     # New inputs should be above
     parser.add_argument(
@@ -270,7 +264,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--output",
         type=str,
         default=DEFAULT_REPORT_PATH,
-        help="where to save the generated PDF report (default: %(default)s)",
+        help="path to save the generated PDF report (default: %(default)s)",
     )
     parser.add_argument(
         "--no-report",
