@@ -80,6 +80,7 @@ def create_parser() -> argparse.ArgumentParser:
         description="Calculate UK capital gains from broker transactions and generate a PDF report.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=False,
+        allow_abbrev=False,
         epilog="""
 Environment variables:
   NO_COLOR              disable colored output
