@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import importlib.metadata
 import logging
 
 from .const import (
@@ -318,15 +319,16 @@ Environment variables:
         help="show this help message and exit",
     )
     general_group.add_argument(
+        "--version",
+        action="version",
+        version=f"cgt-calc {importlib.metadata.version(__package__)}",
+        help="show version and exit",
+    )
+    general_group.add_argument(
         "-v",
         "--verbose",
         action="store_true",
         help="enable extra logging",
-    )
-    general_group.add_argument(
-        "--version",
-        action="store_true",
-        help="print version",
     )
     # For testing only
     general_group.add_argument(
