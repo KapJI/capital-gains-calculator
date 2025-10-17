@@ -115,3 +115,57 @@ def test_year_validation_valid_middle() -> None:
     args = parser.parse_args(["--year", str(middle_year)])
 
     assert args.year == middle_year
+
+
+def test_interest_fund_tickers_single() -> None:
+    """Test that a single ticker is parsed correctly."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--interest-fund-tickers", "VGOV"])
+
+    assert args.interest_fund_tickers == ["VGOV"]
+
+
+def test_interest_fund_tickers_multiple() -> None:
+    """Test that multiple tickers are parsed correctly."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--interest-fund-tickers", "VGOV,VBMFX,VWEHX"])
+
+    assert args.interest_fund_tickers == ["VGOV", "VBMFX", "VWEHX"]
+
+
+def test_interest_fund_tickers_with_spaces() -> None:
+    """Test that tickers with spaces are trimmed correctly."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--interest-fund-tickers", " VGOV , VBMFX , VWEHX "])
+
+    assert args.interest_fund_tickers == ["VGOV", "VBMFX", "VWEHX"]
+
+
+def test_interest_fund_tickers_lowercase() -> None:
+    """Test that lowercase tickers are converted to uppercase."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--interest-fund-tickers", "vgov,vbmfx"])
+
+    assert args.interest_fund_tickers == ["VGOV", "VBMFX"]
+
+
+def test_interest_fund_tickers_empty_default() -> None:
+    """Test that default is an empty list when not specified."""
+    parser = create_parser()
+
+    args = parser.parse_args([])
+
+    assert args.interest_fund_tickers == []
+
+
+def test_interest_fund_tickers_empty_items_filtered() -> None:
+    """Test that empty items (e.g., trailing commas) are filtered out."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--interest-fund-tickers", "VGOV,,VBMFX,"])
+
+    assert args.interest_fund_tickers == ["VGOV", "VBMFX"]

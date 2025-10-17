@@ -44,6 +44,11 @@ def year_type(value: str) -> int:
     return year
 
 
+def ticker_list_type(value: str) -> list[str]:
+    """Split comma-separated tickers and convert to uppercase list."""
+    return [ticker.strip().upper() for ticker in value.split(",") if ticker.strip()]
+
+
 class DeprecatedAction(argparse.Action):
     """Print warning when deprecated argument is used."""
 
@@ -75,22 +80,6 @@ class DeprecatedAction(argparse.Action):
             replacements[option_string],
         )
         setattr(namespace, self.dest, values)
-
-
-class SplitArgs(argparse.Action):
-    """Split arguments by comma then trim and set upper case."""
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: str,  # type: ignore[override]
-        option_string: str | None = None,
-    ) -> None:
-        """Create a new SplitArgs."""
-        setattr(
-            namespace, self.dest, [value.strip().upper() for value in values.split(",")]
-        )
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -300,9 +289,9 @@ Environment variables:
     )
     calc_group.add_argument(
         "--interest-fund-tickers",
-        action=SplitArgs,
+        type=ticker_list_type,
         metavar="TICKER[,TICKER...]",
-        default="",
+        default=[],
         help="tickers of bond funds/ETFs whose dividends are taxed as interest in the UK",
     )
 
