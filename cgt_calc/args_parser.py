@@ -289,15 +289,9 @@ Environment variables:
 
     # Output Options
     output_group = parser.add_argument_group("Output")
-    output_group.add_argument(
-        "--report",
-        action=DeprecatedAction,
-        dest="output",
-        type=str,
-        default=DEFAULT_REPORT_PATH,
-        help=argparse.SUPPRESS,
-    )
-    output_group.add_argument(
+
+    output_mutex = output_group.add_mutually_exclusive_group()
+    output_mutex.add_argument(
         "-o",
         "--output",
         type=str,
@@ -305,7 +299,15 @@ Environment variables:
         default=DEFAULT_REPORT_PATH,
         help="path to save the generated PDF report (default: %(default)s)",
     )
-    output_group.add_argument(
+    output_mutex.add_argument(
+        "--report",
+        action=DeprecatedAction,
+        dest="output",
+        type=str,
+        default=DEFAULT_REPORT_PATH,
+        help=argparse.SUPPRESS,
+    )
+    output_mutex.add_argument(
         "--no-report",
         action="store_true",
         help="do not generate PDF report",
