@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import importlib.metadata
 import logging
 
 from .const import (
@@ -11,6 +12,7 @@ from .const import (
     DEFAULT_ISIN_TRANSLATION_FILE,
     DEFAULT_REPORT_PATH,
     DEFAULT_SPIN_OFF_FILE,
+    INTERNAL_START_DATE,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -22,6 +24,29 @@ def get_last_elapsed_tax_year() -> int:
     if now.date() >= datetime.date(now.year, 4, 6):
         return now.year - 1
     return now.year - 2
+
+
+def year_type(value: str) -> int:
+    """Validate and convert year argument."""
+    try:
+        year = int(value)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(f"invalid int value: '{value}'") from err
+
+    min_year = INTERNAL_START_DATE.year
+    max_year = datetime.datetime.now().year
+
+    if year < min_year or year > max_year:
+        raise argparse.ArgumentTypeError(
+            f"year must be between {min_year} and {max_year}, got {year}"
+        )
+
+    return year
+
+
+def ticker_list_type(value: str) -> list[str]:
+    """Split comma-separated tickers and convert to uppercase list."""
+    return [ticker.strip().upper() for ticker in value.split(",") if ticker.strip()]
 
 
 class DeprecatedAction(argparse.Action):
@@ -57,28 +82,13 @@ class DeprecatedAction(argparse.Action):
         setattr(namespace, self.dest, values)
 
 
-class SplitArgs(argparse.Action):
-    """Split arguments by comma then trim and set upper case."""
-
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: str,  # type: ignore[override]
-        option_string: str | None = None,
-    ) -> None:
-        """Create a new SplitArgs."""
-        setattr(
-            namespace, self.dest, [value.strip().upper() for value in values.split(",")]
-        )
-
-
 def create_parser() -> argparse.ArgumentParser:
     """Create ArgumentParser."""
     parser = argparse.ArgumentParser(
         description="Calculate UK capital gains from broker transactions and generate a PDF report.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=False,
+        allow_abbrev=False,
         epilog="""
 Environment variables:
   NO_COLOR              disable colored output
@@ -90,7 +100,7 @@ Environment variables:
     year_group = parser.add_argument_group("Tax year")
     year_group.add_argument(
         "--year",
-        type=int,
+        type=year_type,
         metavar="YYYY",
         default=get_last_elapsed_tax_year(),
         help="first year of the UK tax year (e.g. 2024 for tax year 2024/25; default: %(default)d)",
@@ -279,23 +289,17 @@ Environment variables:
     )
     calc_group.add_argument(
         "--interest-fund-tickers",
-        action=SplitArgs,
+        type=ticker_list_type,
         metavar="TICKER[,TICKER...]",
-        default="",
+        default=[],
         help="tickers of bond funds/ETFs whose dividends are taxed as interest in the UK",
     )
 
     # Output Options
     output_group = parser.add_argument_group("Output")
-    output_group.add_argument(
-        "--report",
-        action=DeprecatedAction,
-        dest="output",
-        type=str,
-        default=DEFAULT_REPORT_PATH,
-        help=argparse.SUPPRESS,
-    )
-    output_group.add_argument(
+
+    output_mutex = output_group.add_mutually_exclusive_group()
+    output_mutex.add_argument(
         "-o",
         "--output",
         type=str,
@@ -303,7 +307,15 @@ Environment variables:
         default=DEFAULT_REPORT_PATH,
         help="path to save the generated PDF report (default: %(default)s)",
     )
-    output_group.add_argument(
+    output_mutex.add_argument(
+        "--report",
+        action=DeprecatedAction,
+        dest="output",
+        type=str,
+        default=DEFAULT_REPORT_PATH,
+        help=argparse.SUPPRESS,
+    )
+    output_mutex.add_argument(
         "--no-report",
         action="store_true",
         help="do not generate PDF report",
@@ -318,15 +330,16 @@ Environment variables:
         help="show this help message and exit",
     )
     general_group.add_argument(
+        "--version",
+        action="version",
+        version=f"cgt-calc {importlib.metadata.version(__package__)}",
+        help="show version and exit",
+    )
+    general_group.add_argument(
         "-v",
         "--verbose",
         action="store_true",
         help="enable extra logging",
-    )
-    general_group.add_argument(
-        "--version",
-        action="store_true",
-        help="print version",
     )
     # For testing only
     general_group.add_argument(
