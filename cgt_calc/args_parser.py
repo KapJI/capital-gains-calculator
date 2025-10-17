@@ -12,6 +12,7 @@ from .const import (
     DEFAULT_ISIN_TRANSLATION_FILE,
     DEFAULT_REPORT_PATH,
     DEFAULT_SPIN_OFF_FILE,
+    INTERNAL_START_DATE,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -23,6 +24,24 @@ def get_last_elapsed_tax_year() -> int:
     if now.date() >= datetime.date(now.year, 4, 6):
         return now.year - 1
     return now.year - 2
+
+
+def year_type(value: str) -> int:
+    """Validate and convert year argument."""
+    try:
+        year = int(value)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(f"invalid int value: '{value}'") from err
+
+    min_year = INTERNAL_START_DATE.year
+    max_year = datetime.datetime.now().year
+
+    if year < min_year or year > max_year:
+        raise argparse.ArgumentTypeError(
+            f"year must be between {min_year} and {max_year}, got {year}"
+        )
+
+    return year
 
 
 class DeprecatedAction(argparse.Action):
@@ -92,7 +111,7 @@ Environment variables:
     year_group = parser.add_argument_group("Tax year")
     year_group.add_argument(
         "--year",
-        type=int,
+        type=year_type,
         metavar="YYYY",
         default=get_last_elapsed_tax_year(),
         help="first year of the UK tax year (e.g. 2024 for tax year 2024/25; default: %(default)d)",
