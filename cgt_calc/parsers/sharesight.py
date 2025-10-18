@@ -279,7 +279,9 @@ def parse_trade_report(file: Path) -> Iterable[SharesightTransaction]:
             try:
                 yield from parse_trades(columns, rows_iter, file)
             except (InvalidOperation, ValueError) as err:
-                raise ParsingError(file, f"Line: {rows_iter.line}, Error: {err}") from err
+                raise ParsingError(
+                    file, f"Line: {rows_iter.line}, Error: {err}"
+                ) from err
 
 
 def read_sharesight_transactions(

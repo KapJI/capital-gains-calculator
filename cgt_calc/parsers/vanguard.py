@@ -159,9 +159,7 @@ def read_vanguard_transactions(transactions_file: Path) -> list[VanguardTransact
         VanguardTransaction(header, row, transactions_file) for row in lines
     ]
     if len(transactions) == 0:
-        LOGGER.warning(
-            "No transactions detected in file: %s", transactions_file
-        )
+        LOGGER.warning("No transactions detected in file: %s", transactions_file)
 
     transactions.sort(key=by_date_and_action)
 
