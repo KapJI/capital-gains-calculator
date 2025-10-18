@@ -53,7 +53,7 @@ def decimal_or_none(val: str) -> Decimal | None:
     return Decimal(val) if val not in ["", "Not available"] else None
 
 
-def action_from_str(label: str, filename: str) -> ActionType:
+def action_from_str(label: str, file: Path) -> ActionType:
     """Convert label to ActionType."""
     if label in [
         "Market buy",
@@ -94,23 +94,23 @@ def action_from_str(label: str, filename: str) -> ActionType:
     if label in ["Result adjustment"]:
         return ActionType.ADJUSTMENT
 
-    raise ParsingError(filename, f"Unknown action: {label}")
+    raise ParsingError(file, f"Unknown action: {label}")
 
 
 class Trading212Transaction(BrokerTransaction):
     """Represent single Trading 212 transaction."""
 
-    def __init__(self, header: list[str], row_raw: list[str], filename: str):
+    def __init__(self, header: list[str], row_raw: list[str], file: Path) -> None:
         """Create transaction from CSV row."""
         if len(row_raw) != len(header):
-            raise UnexpectedColumnCountError(row_raw, len(header), filename)
+            raise UnexpectedColumnCountError(row_raw, len(header), file)
         row = dict(zip(header, row_raw, strict=True))
         time_str = row["Time"]
         time_format = "%Y-%m-%d %H:%M:%S.%f" if "." in time_str else "%Y-%m-%d %H:%M:%S"
         self.datetime = datetime.strptime(time_str, time_format)
         date = self.datetime.date()
         self.raw_action = row["Action"]
-        action = action_from_str(self.raw_action, filename)
+        action = action_from_str(self.raw_action, file)
         symbol = row["Ticker"] if row["Ticker"] != "" else None
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
@@ -124,7 +124,7 @@ class Trading212Transaction(BrokerTransaction):
         if transaction_fee_foreign > 0:
             if row.get("Currency (Transaction fee)") != "GBP":
                 raise ParsingError(
-                    filename,
+                    file,
                     "The transaction fee is not in GBP which is not supported yet",
                 )
             self.transaction_fee += transaction_fee_foreign
@@ -133,7 +133,7 @@ class Trading212Transaction(BrokerTransaction):
         if finra_fee_foreign > 0:
             if row.get("Currency (Finra fee)") != "GBP":
                 raise ParsingError(
-                    filename,
+                    file,
                     "Finra fee is not in GBP which is not supported yet",
                 )
             self.finra_fee += finra_fee_foreign
@@ -143,7 +143,7 @@ class Trading212Transaction(BrokerTransaction):
         if conversion_fee_foreign > 0:
             if row.get("Currency (Currency conversion fee)") != "GBP":
                 raise ParsingError(
-                    filename,
+                    file,
                     "The transaction fee is not in GBP which is not supported yet",
                 )
             self.conversion_fee += conversion_fee_foreign
@@ -205,12 +205,12 @@ class Trading212Transaction(BrokerTransaction):
         return hash(self.transaction_id)
 
 
-def validate_header(header: list[str], filename: str) -> None:
+def validate_header(header: list[str], file: Path) -> None:
     """Check if header is valid."""
     for actual in header:
         if actual not in COLUMNS:
             msg = f"Unknown column {actual}"
-            raise ParsingError(filename, msg)
+            raise ParsingError(file, msg)
 
 
 def by_date_and_action(transaction: Trading212Transaction) -> tuple[datetime, bool]:
@@ -222,18 +222,18 @@ def by_date_and_action(transaction: Trading212Transaction) -> tuple[datetime, bo
     return (transaction.datetime, transaction.action == ActionType.BUY)
 
 
-def read_trading212_transactions(transactions_folder: str) -> list[BrokerTransaction]:
+def read_trading212_transactions(transactions_folder: Path) -> list[BrokerTransaction]:
     """Parse Trading 212 transactions from CSV file."""
     transactions = []
-    for file in sorted(Path(transactions_folder).glob("*.csv")):
-        with Path(file).open(encoding="utf-8") as csv_file:
+    for file in sorted(transactions_folder.glob("*.csv")):
+        with file.open(encoding="utf-8") as csv_file:
             print(f"Parsing {file}...")
             lines = list(csv.reader(csv_file))
             header = lines[0]
-            validate_header(header, str(file))
+            validate_header(header, file)
             lines = lines[1:]
             cur_transactions = [
-                Trading212Transaction(header, row, str(file)) for row in lines
+                Trading212Transaction(header, row, file) for row in lines
             ]
             if len(cur_transactions) == 0:
                 LOGGER.warning("No transactions detected in file: %s", file)
