@@ -41,6 +41,7 @@ We use:
 - [mypy](https://mypy-lang.org/) — for static type checking
 - [pytest](https://docs.pytest.org/) — for running tests
 - [dprint](https://dprint.dev/) — for formatting Markdown, YAML, TOML, JSON, and Dockerfiles
+- [shfmt](https://github.com/mvdan/sh#shfmt) - for formatting shell scripts
 
 `pre-commit` can be used to run all checks with one command (see below).
 
