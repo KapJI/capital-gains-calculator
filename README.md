@@ -234,7 +234,7 @@ You will need:
 
 - **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert
   whatever report you can produce into this basic format.
-  [See example](tests/test_data/raw/test_data.csv).
+  [See example](tests/raw/data/test_data.csv).
 
 Example usage for the tax year 2024/25:
 
