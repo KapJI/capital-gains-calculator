@@ -291,42 +291,36 @@ def read_schwab_transactions(
 ) -> list[BrokerTransaction]:
     """Read Schwab transactions from file."""
     awards_prices = _read_schwab_awards(schwab_award_transactions_file)
-    try:
-        with transactions_file.open(encoding="utf-8") as csv_file:
-            print(f"Parsing {transactions_file}...")
-            lines = list(csv.reader(csv_file))
-            headers = lines[0]
 
-            required_headers = set(
-                {header.value for header in SchwabTransactionsFileRequiredHeaders}
-            )
-            if not required_headers.issubset(headers):
-                raise ParsingError(
-                    transactions_file,
-                    "Missing columns in Schwab transaction file: "
-                    f"{required_headers.difference(headers)}",
-                )
+    with transactions_file.open(encoding="utf-8") as csv_file:
+        print(f"Parsing {transactions_file}...")
+        lines = list(csv.reader(csv_file))
+        headers = lines[0]
 
-            # Remove header
-            lines = lines[1:]
-            transactions = [
-                SchwabTransaction.create(
-                    OrderedDict(zip(headers, row, strict=True)),
-                    transactions_file,
-                    awards_prices,
-                )
-                for row in lines
-                if any(row)
-            ]
-            transactions = _unify_schwab_cash_merger_trxs(
-                transactions, transactions_file
+        required_headers = set(
+            {header.value for header in SchwabTransactionsFileRequiredHeaders}
+        )
+        if not required_headers.issubset(headers):
+            raise ParsingError(
+                transactions_file,
+                "Missing columns in Schwab transaction file: "
+                f"{required_headers.difference(headers)}",
             )
-            transactions.reverse()
-            return list(transactions)
-    except FileNotFoundError as err:
-        raise ParsingError(
-            transactions_file, "Couldn't locate Schwab transactions file"
-        ) from err
+
+        # Remove header
+        lines = lines[1:]
+        transactions = [
+            SchwabTransaction.create(
+                OrderedDict(zip(headers, row, strict=True)),
+                transactions_file,
+                awards_prices,
+            )
+            for row in lines
+            if any(row)
+        ]
+        transactions = _unify_schwab_cash_merger_trxs(transactions, transactions_file)
+        transactions.reverse()
+        return list(transactions)
 
 
 def _read_schwab_awards(
@@ -340,27 +334,23 @@ def _read_schwab_awards(
     initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
     headers = []
     lines = []
-    try:
-        with schwab_award_transactions_file.open(encoding="utf-8") as csv_file:
-            print(f"Parsing {schwab_award_transactions_file}...")
-            lines = list(csv.reader(csv_file))
-            headers = lines[0]
-            required_headers = set(
-                {header.value for header in AwardsTransactionsFileRequiredHeaders}
-            )
-            if not required_headers.issubset(headers):
-                raise ParsingError(
-                    schwab_award_transactions_file,
-                    "Missing columns in awards file: "
-                    f"{required_headers.difference(headers)}",
-                )
 
-            # Remove headers
-            lines = lines[1:]
-    except FileNotFoundError as err:
-        raise ParsingError(
-            schwab_award_transactions_file, "Couldn't locate Schwab Award file"
-        ) from err
+    with schwab_award_transactions_file.open(encoding="utf-8") as csv_file:
+        print(f"Parsing {schwab_award_transactions_file}...")
+        lines = list(csv.reader(csv_file))
+        headers = lines[0]
+        required_headers = set(
+            {header.value for header in AwardsTransactionsFileRequiredHeaders}
+        )
+        if not required_headers.issubset(headers):
+            raise ParsingError(
+                schwab_award_transactions_file,
+                "Missing columns in awards file: "
+                f"{required_headers.difference(headers)}",
+            )
+
+        # Remove headers
+        lines = lines[1:]
 
     modulo = len(lines) % 2
     if modulo != 0:

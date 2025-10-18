@@ -46,7 +46,7 @@ class InitialPricesEntry:
     symbol: str
     price: Decimal
 
-    def __init__(self, row: list[str], file: str):
+    def __init__(self, row: list[str], file: Path):
         """Create entry from CSV row."""
         if len(row) != INITIAL_PRICES_COLUMNS_NUM:
             raise UnexpectedColumnCountError(row, INITIAL_PRICES_COLUMNS_NUM, file)
@@ -72,7 +72,7 @@ class IsinTranslationEntry:
     isin: str
     symbols: set[str]
 
-    def __init__(self, row: list[str], file: str):
+    def __init__(self, row: list[str], file: Path):
         """Create entry from CSV row."""
         if len(row) < ISIN_TRANSLATION_COLUMNS_NUM:
             raise UnexpectedColumnCountError(row, ISIN_TRANSLATION_COLUMNS_NUM, file)

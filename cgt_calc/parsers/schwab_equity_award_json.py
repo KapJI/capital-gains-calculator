@@ -90,7 +90,7 @@ ROUND_DIGITS = 6
 JsonRowType = Any  # type: ignore[explicit-any]
 
 
-def action_from_str(label: str, file: str) -> ActionType:
+def action_from_str(label: str, file: Path) -> ActionType:
     """Convert string label to ActionType."""
     if label in {"Buy"}:
         return ActionType.BUY
@@ -183,7 +183,7 @@ def _is_integer(number: Decimal) -> bool:
 class SchwabTransaction(BrokerTransaction):
     """Represent single Schwab transaction."""
 
-    def __init__(self, row: JsonRowType, file: str, field_names: FieldNames) -> None:
+    def __init__(self, row: JsonRowType, file: Path, field_names: FieldNames) -> None:
         """Create a new SchwabTransaction from a JSON row."""
         names = field_names
         description = row[names.description]
@@ -343,47 +343,43 @@ class SchwabTransaction(BrokerTransaction):
 
 
 def read_schwab_equity_award_json_transactions(
-    transactions_file: str,
+    transactions_file: Path,
 ) -> list[BrokerTransaction]:
     """Read Schwab transactions from file."""
-    try:
-        with Path(transactions_file).open(encoding="utf-8") as json_file:
-            print(f"Parsing {transactions_file}...")
-            try:
-                data = json.load(json_file, parse_float=Decimal, parse_int=Decimal)
-            except json.decoder.JSONDecodeError as exception:
-                raise ParsingError(
-                    transactions_file,
-                    "Cloud not parse content as JSON",
-                ) from exception
 
-            for field_name, schema_version in FIELD_TO_SCHEMA.items():
-                if field_name in data:
-                    fields = FieldNames(schema_version)
-                    break
-            if not fields:
-                raise ParsingError(
-                    transactions_file,
-                    f"Expected top level field ({', '.join(FIELD_TO_SCHEMA.keys())}) "
-                    "not found: the JSON data is not in the expected format",
-                )
+    with transactions_file.open(encoding="utf-8") as json_file:
+        print(f"Parsing {transactions_file}...")
+        try:
+            data = json.load(json_file, parse_float=Decimal, parse_int=Decimal)
+        except json.decoder.JSONDecodeError as exception:
+            raise ParsingError(
+                transactions_file,
+                "Cloud not parse content as JSON",
+            ) from exception
 
-            if not isinstance(data[fields.transactions], list):
-                raise ParsingError(
-                    transactions_file,
-                    f"'{fields.transactions}' is not a list: the JSON data is not "
-                    "in the expected format",
-                )
+        for field_name, schema_version in FIELD_TO_SCHEMA.items():
+            if field_name in data:
+                fields = FieldNames(schema_version)
+                break
+        if not fields:
+            raise ParsingError(
+                transactions_file,
+                f"Expected top level field ({', '.join(FIELD_TO_SCHEMA.keys())}) "
+                "not found: the JSON data is not in the expected format",
+            )
 
-            transactions = [
-                SchwabTransaction(transac, transactions_file, fields)
-                for transac in data[fields.transactions]
-                # Skip as not relevant for CGT
-                if transac[fields.action] not in {"Journal", "Wire Transfer"}
-            ]
-            transactions.reverse()
-            return list(transactions)
-    except FileNotFoundError as err:
-        raise ParsingError(
-            transactions_file, "Couldn't locate Schwab transactions file"
-        ) from err
+        if not isinstance(data[fields.transactions], list):
+            raise ParsingError(
+                transactions_file,
+                f"'{fields.transactions}' is not a list: the JSON data is not "
+                "in the expected format",
+            )
+
+        transactions = [
+            SchwabTransaction(transac, transactions_file, fields)
+            for transac in data[fields.transactions]
+            # Skip as not relevant for CGT
+            if transac[fields.action] not in {"Journal", "Wire Transfer"}
+        ]
+        transactions.reverse()
+        return list(transactions)
