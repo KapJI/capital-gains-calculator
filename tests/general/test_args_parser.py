@@ -8,7 +8,13 @@ from pathlib import Path
 import pytest
 
 from cgt_calc.args_parser import create_parser
-from cgt_calc.const import DEFAULT_REPORT_PATH, INTERNAL_START_DATE
+from cgt_calc.const import (
+    DEFAULT_EXCHANGE_RATES_FILE,
+    DEFAULT_ISIN_TRANSLATION_FILE,
+    DEFAULT_REPORT_PATH,
+    DEFAULT_SPIN_OFF_FILE,
+    INTERNAL_START_DATE,
+)
 
 
 def test_output_and_no_report_mutually_exclusive() -> None:
@@ -176,6 +182,84 @@ def test_broker_dir_arguments_reject_invalid_paths(
 
     args = parser.parse_args([])
     assert getattr(args, attr) is None
+
+
+@pytest.mark.parametrize(
+    ("option", "attr", "default"),
+    [
+        ("--exchange-rates-file", "exchange_rates_file", DEFAULT_EXCHANGE_RATES_FILE),
+        (
+            "--isin-translation-file",
+            "isin_translation_file",
+            DEFAULT_ISIN_TRANSLATION_FILE,
+        ),
+        ("--spin-offs-file", "spin_offs_file", DEFAULT_SPIN_OFF_FILE),
+    ],
+)
+def test_optional_path_arguments_default(option: str, attr: str, default: Path) -> None:
+    """Ensure optional path arguments use their default when not provided."""
+    parser = create_parser()
+    args = parser.parse_args([])
+
+    assert getattr(args, attr) == default
+
+
+@pytest.mark.parametrize(
+    ("option", "attr", "value"),
+    [
+        ("--exchange-rates-file", "exchange_rates_file", "custom_rates.csv"),
+        ("--isin-translation-file", "isin_translation_file", "custom_isin.csv"),
+        ("--spin-offs-file", "spin_offs_file", "custom_spin_offs.csv"),
+    ],
+)
+def test_optional_path_arguments_accept_custom_path(
+    option: str, attr: str, value: str
+) -> None:
+    """Ensure optional path arguments convert provided values to Path."""
+    parser = create_parser()
+    args = parser.parse_args([option, value])
+
+    assert getattr(args, attr) == Path(value)
+
+
+@pytest.mark.parametrize(
+    ("option", "attr"),
+    [
+        ("--exchange-rates-file", "exchange_rates_file"),
+        ("--isin-translation-file", "isin_translation_file"),
+        ("--spin-offs-file", "spin_offs_file"),
+    ],
+)
+def test_optional_path_arguments_allow_empty_string(option: str, attr: str) -> None:
+    """Ensure optional path arguments treat empty values as None."""
+    parser = create_parser()
+    args = parser.parse_args([option, ""])
+
+    assert getattr(args, attr) is None
+
+
+@pytest.mark.parametrize(
+    ("option", "attr"),
+    [
+        ("--exchange-rates-file", "exchange_rates_file"),
+        ("--isin-translation-file", "isin_translation_file"),
+        ("--spin-offs-file", "spin_offs_file"),
+    ],
+)
+def test_optional_path_arguments_reject_directory(
+    tmp_path: Path, option: str, attr: str
+) -> None:
+    """Ensure optional path arguments reject directories when they exist."""
+    parser = create_parser()
+    directory = tmp_path / "existing_dir"
+    directory.mkdir()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args([option, str(directory)])
+
+    assert exc_info.value.code == 2
+    args = parser.parse_args([])
+    assert getattr(args, attr) is not None
 
 
 def test_no_report_alone_works() -> None:

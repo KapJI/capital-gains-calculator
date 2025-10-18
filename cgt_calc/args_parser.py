@@ -59,6 +59,18 @@ def output_path_type(value: str) -> Path:
     return Path(value)
 
 
+def optional_file_type(value: str) -> Path | None:
+    """Convert non-empty value to Path and ensure file semantics."""
+    if value.strip() == "":
+        return None
+    path = Path(value)
+    if path.exists() and not path.is_file():
+        raise argparse.ArgumentTypeError(
+            f"expected file path, got directory: '{value}'"
+        )
+    return path
+
+
 def _existing_path_type(value: str, *, require_dir: bool) -> Path:
     """Ensure provided path exists and matches expected type."""
     path = Path(value).expanduser()
@@ -283,21 +295,21 @@ Environment variables:
     )
     data_group.add_argument(
         "--exchange-rates-file",
-        type=str,
+        type=optional_file_type,
         metavar="PATH",
         default=DEFAULT_EXCHANGE_RATES_FILE,
         help="monthly exchange rates in CSV format (generated automatically if missing; default: %(default)s)",
     )
     data_group.add_argument(
         "--isin-translation-file",
-        type=str,
+        type=optional_file_type,
         default=DEFAULT_ISIN_TRANSLATION_FILE,
         metavar="PATH",
         help="ISIN to ticker translations in CSV format (generated automatically if missing; default: %(default)s)",
     )
     data_group.add_argument(
         "--spin-offs-file",
-        type=str,
+        type=optional_file_type,
         metavar="PATH",
         default=DEFAULT_SPIN_OFF_FILE,
         help="spin-offs data in CSV format (default: %(default)s)",
