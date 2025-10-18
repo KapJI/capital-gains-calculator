@@ -87,16 +87,17 @@ class IsinTranslationEntry:
 
 
 def read_broker_transactions(
-    schwab_transactions_file: str | None,
-    schwab_awards_transactions_file: str | None,
-    schwab_equity_award_json_transactions_file: str | None,
-    trading212_transactions_folder: str | None,
-    mssb_transactions_folder: str | None,
-    sharesight_transactions_folder: str | None,
-    raw_transactions_file: str | None,
-    vanguard_transactions_file: str | None,
+    *,
+    freetrade_transactions_file: Path | None,
+    schwab_transactions_file: Path | None,
+    schwab_awards_transactions_file: Path | None,
+    schwab_equity_award_json_transactions_file: Path | None,
+    trading212_transactions_folder: Path | None,
+    mssb_transactions_folder: Path | None,
+    sharesight_transactions_folder: Path | None,
+    raw_transactions_file: Path | None,
+    vanguard_transactions_file: Path | None,
     eri_raw_file: str | None,
-    freetrade_transactions_file: str | None,
 ) -> list[BrokerTransaction]:
     """Read transactions for all brokers."""
     transactions = []

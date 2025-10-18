@@ -70,7 +70,7 @@ class AwardPrices:
         raise KeyError(f"Award price is not found for symbol {symbol} for date {date}")
 
 
-def action_from_str(label: str, file: str) -> ActionType:
+def action_from_str(label: str, file: Path) -> ActionType:
     """Convert string label to ActionType."""
     if label == "Buy":
         return ActionType.BUY
@@ -149,7 +149,7 @@ class SchwabTransaction(BrokerTransaction):
     def __init__(
         self,
         row_dict: OrderedDict[str, str],
-        file: str,
+        file: Path,
     ):
         """Create transaction from CSV row."""
         if len(row_dict) < NEW_COLUMNS_NUM or len(row_dict) > OLD_COLUMNS_NUM:
@@ -223,7 +223,7 @@ class SchwabTransaction(BrokerTransaction):
 
     @staticmethod
     def create(
-        row_dict: OrderedDict[str, str], file: str, awards_prices: AwardPrices
+        row_dict: OrderedDict[str, str], file: Path, awards_prices: AwardPrices
     ) -> SchwabTransaction:
         """Create and post process a SchwabTransaction."""
         transaction = SchwabTransaction(row_dict, file)
@@ -246,7 +246,7 @@ class SchwabTransaction(BrokerTransaction):
 
 def _unify_schwab_cash_merger_trxs(
     transactions: list[SchwabTransaction],
-    transactions_file: str,
+    transactions_file: Path,
 ) -> list[SchwabTransaction]:
     filtered: list[SchwabTransaction] = []
     for transaction in transactions:
@@ -287,12 +287,12 @@ def _unify_schwab_cash_merger_trxs(
 
 
 def read_schwab_transactions(
-    transactions_file: str, schwab_award_transactions_file: str | None
+    transactions_file: Path, schwab_award_transactions_file: Path | None
 ) -> list[BrokerTransaction]:
     """Read Schwab transactions from file."""
     awards_prices = _read_schwab_awards(schwab_award_transactions_file)
     try:
-        with Path(transactions_file).open(encoding="utf-8") as csv_file:
+        with transactions_file.open(encoding="utf-8") as csv_file:
             print(f"Parsing {transactions_file}...")
             lines = list(csv.reader(csv_file))
             headers = lines[0]
@@ -330,45 +330,42 @@ def read_schwab_transactions(
 
 
 def _read_schwab_awards(
-    schwab_award_transactions_file: str | None,
+    schwab_award_transactions_file: Path | None,
 ) -> AwardPrices:
     """Read initial stock prices from CSV file."""
-    initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
-
-    headers = []
-
-    lines = []
-    if schwab_award_transactions_file is not None:
-        try:
-            with Path(schwab_award_transactions_file).open(
-                encoding="utf-8"
-            ) as csv_file:
-                print(f"Parsing {schwab_award_transactions_file}...")
-                lines = list(csv.reader(csv_file))
-                headers = lines[0]
-                required_headers = set(
-                    {header.value for header in AwardsTransactionsFileRequiredHeaders}
-                )
-                if not required_headers.issubset(headers):
-                    raise ParsingError(
-                        schwab_award_transactions_file,
-                        "Missing columns in awards file: "
-                        f"{required_headers.difference(headers)}",
-                    )
-
-                # Remove headers
-                lines = lines[1:]
-        except FileNotFoundError as err:
-            raise ParsingError(
-                schwab_award_transactions_file, "Couldn't locate Schwab Award file"
-            ) from err
-    else:
+    if schwab_award_transactions_file is None:
         LOGGER.warning("No Schwab Award file provided")
+        return AwardPrices(award_prices={})
+
+    initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
+    headers = []
+    lines = []
+    try:
+        with schwab_award_transactions_file.open(encoding="utf-8") as csv_file:
+            print(f"Parsing {schwab_award_transactions_file}...")
+            lines = list(csv.reader(csv_file))
+            headers = lines[0]
+            required_headers = set(
+                {header.value for header in AwardsTransactionsFileRequiredHeaders}
+            )
+            if not required_headers.issubset(headers):
+                raise ParsingError(
+                    schwab_award_transactions_file,
+                    "Missing columns in awards file: "
+                    f"{required_headers.difference(headers)}",
+                )
+
+            # Remove headers
+            lines = lines[1:]
+    except FileNotFoundError as err:
+        raise ParsingError(
+            schwab_award_transactions_file, "Couldn't locate Schwab Award file"
+        ) from err
 
     modulo = len(lines) % 2
     if modulo != 0:
         raise UnexpectedRowCountError(
-            len(lines) - modulo + 2, schwab_award_transactions_file or ""
+            len(lines) - modulo + 2, schwab_award_transactions_file
         )
 
     for upper_row, lower_row in zip(lines[::2], lines[1::2], strict=True):
@@ -381,7 +378,7 @@ def _read_schwab_awards(
 
         if len(row) != len(headers):
             raise UnexpectedColumnCountError(
-                row, len(headers), schwab_award_transactions_file or ""
+                row, len(headers), schwab_award_transactions_file
             )
 
         row_dict = OrderedDict(zip(headers, row, strict=True))
