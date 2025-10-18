@@ -6,6 +6,7 @@ import datetime
 from decimal import Decimal
 from pathlib import Path
 import subprocess
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -32,6 +33,20 @@ def get_report(
     """Get calculation report."""
     calculator.convert_to_hmrc_transactions(broker_transactions)
     return calculator.calculate_capital_gain()
+
+
+def test_main_prints_help_when_no_arguments() -> None:
+    """Ensure CLI prints help text when invoked without arguments."""
+    result = subprocess.run(
+        [sys.executable, "-m", "cgt_calc.main"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "usage:" in result.stdout
+    assert "Calculate UK capital gains" in result.stdout
 
 
 @pytest.mark.parametrize(
