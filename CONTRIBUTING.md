@@ -42,6 +42,8 @@ We use:
 - [pytest](https://docs.pytest.org/) — for running tests
 - [dprint](https://dprint.dev/) — for formatting Markdown, YAML, TOML, JSON, and Dockerfiles
 - [shfmt](https://github.com/mvdan/sh#shfmt) - for formatting shell scripts
+- [markdown-link-check](https://github.com/tcort/markdown-link-check) - for checking links in
+  Markdown
 
 `pre-commit` can be used to run all checks with one command (see below).
 
