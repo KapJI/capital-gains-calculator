@@ -71,6 +71,113 @@ def test_output_rejects_whitespace_value() -> None:
     assert exc_info.value.code == 2
 
 
+@pytest.mark.parametrize(
+    ("option", "attr", "filename"),
+    [
+        ("--freetrade-file", "freetrade_file", "freetrade.csv"),
+        ("--raw-file", "raw_file", "raw.csv"),
+        ("--schwab-file", "schwab_file", "schwab.csv"),
+        ("--schwab-award-file", "schwab_award_file", "schwab_award.csv"),
+        (
+            "--schwab-equity-award-json",
+            "schwab_equity_award_json",
+            "schwab_equity_award.json",
+        ),
+        ("--vanguard-file", "vanguard_file", "vanguard.csv"),
+    ],
+)
+def test_broker_file_arguments_accept_existing_path(
+    tmp_path: Path, option: str, attr: str, filename: str
+) -> None:
+    """Ensure broker file options accept existing files and return Path."""
+    file_path = tmp_path / filename
+    file_path.write_text("", encoding="utf-8")
+    parser = create_parser()
+
+    args = parser.parse_args([option, str(file_path)])
+
+    assert getattr(args, attr) == file_path
+
+
+@pytest.mark.parametrize(
+    ("option", "attr"),
+    [
+        ("--freetrade-file", "freetrade_file"),
+        ("--raw-file", "raw_file"),
+        ("--schwab-file", "schwab_file"),
+        ("--schwab-award-file", "schwab_award_file"),
+        ("--schwab-equity-award-json", "schwab_equity_award_json"),
+        ("--vanguard-file", "vanguard_file"),
+    ],
+)
+def test_broker_file_arguments_reject_missing_path(
+    tmp_path: Path, option: str, attr: str
+) -> None:
+    """Ensure broker file options reject missing paths."""
+    parser = create_parser()
+    missing_path = tmp_path / "does_not_exist.csv"
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args([option, str(missing_path)])
+
+    assert exc_info.value.code == 2
+    args = parser.parse_args([])
+    assert getattr(args, attr) is None
+
+
+@pytest.mark.parametrize(
+    ("option", "attr", "dirname"),
+    [
+        ("--mssb-dir", "mssb_dir", "mssb"),
+        ("--sharesight-dir", "sharesight_dir", "sharesight"),
+        ("--trading212-dir", "trading212_dir", "trading212"),
+    ],
+)
+def test_broker_dir_arguments_accept_existing_directory(
+    tmp_path: Path, option: str, attr: str, dirname: str
+) -> None:
+    """Ensure broker directory options accept existing directories."""
+    dir_path = tmp_path / dirname
+    dir_path.mkdir()
+    parser = create_parser()
+
+    args = parser.parse_args([option, str(dir_path)])
+
+    assert getattr(args, attr) == dir_path
+
+
+@pytest.mark.parametrize(
+    ("option", "attr"),
+    [
+        ("--mssb-dir", "mssb_dir"),
+        ("--sharesight-dir", "sharesight_dir"),
+        ("--trading212-dir", "trading212_dir"),
+    ],
+)
+def test_broker_dir_arguments_reject_invalid_paths(
+    tmp_path: Path, option: str, attr: str
+) -> None:
+    """Ensure broker directory options reject missing directories or files."""
+    parser = create_parser()
+    missing_dir = tmp_path / "missing"
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args([option, str(missing_dir)])
+
+    assert exc_info.value.code == 2
+
+    file_path = tmp_path / "not_a_dir.csv"
+    file_path.write_text("", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args([option, str(file_path)])
+
+    assert exc_info.value.code == 2
+
+    args = parser.parse_args([])
+    assert getattr(args, attr) is None
+
+
 def test_no_report_alone_works() -> None:
     """Test that --no-report works alone."""
     parser = create_parser()
@@ -78,7 +185,7 @@ def test_no_report_alone_works() -> None:
 
     assert args.no_report is True
     # output still has default value
-    assert args.output == Path("out/calculations.pdf")
+    assert args.output == DEFAULT_REPORT_PATH
 
 
 def test_short_option_output_and_no_report_mutually_exclusive() -> None:
