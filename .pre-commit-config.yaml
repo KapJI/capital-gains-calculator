@@ -60,6 +60,12 @@ repos:
         language: system
         entry: uv run pytest
         pass_filenames: false
+  - repo: https://github.com/tcort/markdown-link-check
+    rev: v3.14.1
+    hooks:
+      - id: markdown-link-check
+        name: markdown link check
+        args: [-q, --config, .github/markdown-link-check.json]
   - repo: https://github.com/cdce8p/python-typing-update
     rev: v0.7.2
     hooks:

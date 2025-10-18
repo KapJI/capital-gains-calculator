@@ -51,7 +51,7 @@ Here's what a generated PDF report looks like:
 
 You can install the calculator using
 [uv](https://docs.astral.sh/uv/concepts/tools/#the-uv-tool-interface),
-[pipx](https://pypa.github.io/pipx/), or standard `pip`:
+[pipx](https://pipx.pypa.io/), or standard `pip`:
 
 ```shell
 uv tool install cgt-calc
@@ -111,7 +111,7 @@ You will need:
 
 - **Exported transaction history in CSV format.** Schwab only allows to download transaction for the
   last 4 years. If you require more, you can download the history in 4-year chunks and combine them.
-  [See example](tests/test_data/schwab_transactions.csv).
+  [See example](tests/schwab/data/schwab_transactions.csv).
 - **Exported transaction history from Schwab Equity Awards in CSV format.** Only applicable if you
   receive equity awards in your account (e.g. for Alphabet/Google employees). Follow the same
   procedure as in the normal transaction history but selecting your Equity Award account.
@@ -124,8 +124,8 @@ cgt-calc --year 2020 --schwab-file schwab_transactions.csv --schwab-award-file s
 
 _Note: For historic reasons, it is possible to provide the Equity Awards history in JSON format with
 `--schwab-equity-award-json`. Instructions are available at the top of this
-[parser file](../main/cgt_calc/parsers/schwab_equity_award_json.py). Please use the CSV method above
-if possible._
+[parser file](cgt_calc/parsers/schwab_equity_award_json.py). Please use the CSV method above if
+possible._
 
 </details>
  <br />
@@ -136,7 +136,7 @@ You will need:
 
 - **Exported transaction history from Trading 212.** You can provide a folder containing several
   files since Trading 212 limit the statements to 1 year periods.
-  [See example](tests/test_data/trading212).
+  [See example](tests/trading212/data/2024/inputs/).
 
 Example usage for the tax year 2024/25:
 
@@ -153,7 +153,7 @@ You will need:
 
 - **Exported transaction history from Morgan Stanley.** Since Morgan Stanley generates multiple
   files in a single report, please specify a directory produced from the report download page.
-  [See example](tests/test_data/mssb).
+  [See example](tests/morgan_stanley/data/).
 
 Example usage for the tax year 2024/25:
 
@@ -173,7 +173,7 @@ You will need:
   - You will need the "All Trades" and "Taxable Income" reports since the beginning. Make sure to
     select "Since Inception" for the period, and "Not Grouping".
   - Export both reports to Excel or Google Sheets, save as CSV, and place them in the same folder.
-  - [See example](tests/test_data/sharesight).
+  - [See example](tests/sharesight/data/inputs/).
 
 Comments:
 
@@ -182,7 +182,7 @@ Comments:
 
 - Since there is no direct support for equity grants, add `Stock Activity` as part of the comment
   associated with any vesting transactions - making sure they have the grant price filled
-  ([see example](tests/test_data/sharesight)).
+  ([see example](tests/sharesight/data/inputs/)).
 
 Example usage for the tax year 2024/25:
 
@@ -200,7 +200,7 @@ You will need:
 - **Exported transaction history from Vanguard.** Vanguard can generate a report in Excel format
   with all transactions across all periods of time and all accounts (ISA, GA, etc). Grab the ones
   you're interested into (normally GA account) and put them in a single CSV file.
-  [See example](tests/test_data/vanguard/report.csv).
+  [See example](tests/vanguard/data/report.csv).
 
 Example usage for the tax year 2024/25:
 
@@ -217,7 +217,7 @@ You will need:
 
 - **Exported transaction history from Freetrade.** Go to **Activity → GIA → Last 12 Months → Export
   CSV**. The exported file may cover a longer period — this is useful, as it can include purchase
-  prices. [See example](tests/test_data/freetrade/transactions.csv).
+  prices. [See example](tests/freetrade/data/transactions.csv).
 
 Example usage for the tax year 2024/25:
 

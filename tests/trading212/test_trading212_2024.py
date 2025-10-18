@@ -12,7 +12,7 @@ def test_run_with_trading212_files() -> None:
         "--year",
         "2024",
         "--trading212-dir",
-        "tests/trading212/data/2024/",
+        "tests/trading212/data/2024/inputs/",
     )
     result = subprocess.run(cmd, check=True, capture_output=True)
     assert result.stderr == b"", "Run with example files generated errors"
