@@ -6,6 +6,7 @@ import argparse
 import datetime
 import importlib.metadata
 import logging
+from pathlib import Path
 
 from .const import (
     DEFAULT_EXCHANGE_RATES_FILE,
@@ -47,6 +48,13 @@ def year_type(value: str) -> int:
 def ticker_list_type(value: str) -> list[str]:
     """Split comma-separated tickers and convert to uppercase list."""
     return [ticker.strip().upper() for ticker in value.split(",") if ticker.strip()]
+
+
+def output_path_type(value: str) -> Path:
+    """Validate non-empty output path and convert to Path."""
+    if not value.strip():
+        raise argparse.ArgumentTypeError("path must not be empty")
+    return Path(value)
 
 
 class DeprecatedAction(argparse.Action):
@@ -302,7 +310,7 @@ Environment variables:
     output_mutex.add_argument(
         "-o",
         "--output",
-        type=str,
+        type=output_path_type,
         metavar="PATH",
         default=DEFAULT_REPORT_PATH,
         help="path to save the generated PDF report (default: %(default)s)",
@@ -311,7 +319,7 @@ Environment variables:
         "--report",
         action=DeprecatedAction,
         dest="output",
-        type=str,
+        type=output_path_type,
         default=DEFAULT_REPORT_PATH,
         help=argparse.SUPPRESS,
     )
