@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from cgt_calc.args_parser import create_parser
-from cgt_calc.const import INTERNAL_START_DATE
+from cgt_calc.const import DEFAULT_REPORT_PATH, INTERNAL_START_DATE
 
 
 def test_output_and_no_report_mutually_exclusive() -> None:
@@ -23,13 +23,52 @@ def test_output_and_no_report_mutually_exclusive() -> None:
     assert exc_info.value.code == 2
 
 
-def test_output_alone_works() -> None:
-    """Test that --output works alone."""
+def test_output_relative_path() -> None:
+    """Test that --output accepts relative paths."""
     parser = create_parser()
-    args = parser.parse_args(["--output", "custom.pdf"])
+    args = parser.parse_args(["--output", "reports/out.pdf"])
 
-    assert args.output == "custom.pdf"
+    assert args.output == Path("reports/out.pdf")
     assert args.no_report is False
+
+
+def test_output_short_relative_path() -> None:
+    """Test that -o accepts relative paths."""
+    parser = create_parser()
+    args = parser.parse_args(["-o", "reports/out.pdf"])
+
+    assert args.output == Path("reports/out.pdf")
+    assert args.no_report is False
+
+
+def test_output_absolute_path(tmp_path: Path) -> None:
+    """Test that --output accepts absolute paths."""
+    absolute_path = tmp_path / "report.pdf"
+    parser = create_parser()
+    args = parser.parse_args(["--output", str(absolute_path)])
+
+    assert args.output == absolute_path
+    assert args.no_report is False
+
+
+def test_output_rejects_empty_value() -> None:
+    """Test that --output rejects empty string values."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--output", ""])
+
+    assert exc_info.value.code == 2
+
+
+def test_output_rejects_whitespace_value() -> None:
+    """Test that --output rejects whitespace-only values."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--output", "   "])
+
+    assert exc_info.value.code == 2
 
 
 def test_no_report_alone_works() -> None:
@@ -57,7 +96,7 @@ def test_default_output_when_neither_specified() -> None:
     parser = create_parser()
     args = parser.parse_args([])
 
-    assert args.output == Path("out/calculations.pdf")
+    assert args.output == DEFAULT_REPORT_PATH
     assert args.no_report is False
 
 

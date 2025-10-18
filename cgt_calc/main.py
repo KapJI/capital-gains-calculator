@@ -8,7 +8,6 @@ import datetime
 import decimal
 from decimal import Decimal
 import logging
-from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
 
@@ -1380,7 +1379,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     if not args.no_report:
         render_latex.render_pdf(
             report,
-            output_path=Path(args.output),
+            output_path=args.output,
             skip_pdflatex=args.no_pdflatex,
         )
     print("All done!")
@@ -1396,10 +1395,6 @@ def main() -> int:
     decimal.getcontext().traps[decimal.FloatOperation] = True
 
     args = create_parser().parse_args()
-
-    if args.output == "":
-        LOGGER.error("Report output path can't be empty")
-        return 1
 
     logging_level = logging.DEBUG if args.verbose else logging.WARNING
     logging.getLogger().setLevel(logging_level)
