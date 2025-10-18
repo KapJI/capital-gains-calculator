@@ -1,0 +1,56 @@
+{
+    "$schema": "https://dprint.dev/schemas/v0.json",
+
+    "includes": [
+        "**/*.md",
+        "**/*.toml",
+        "**/*.json",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/Dockerfile"
+    ],
+
+    "excludes": [
+        "**/.git",
+        "**/node_modules",
+        "**/.venv",
+        "**/venv",
+        "**/__pycache__",
+        "**/.mypy_cache",
+        "**/.pytest_cache",
+        "**/.ruff_cache",
+        "**/.vscode",
+        "**/dist",
+        "**/build",
+        "**/out",
+        "**/.DS_Store"
+    ],
+
+    "plugins": [
+        "https://plugins.dprint.dev/dockerfile-0.3.3.wasm",
+        "https://plugins.dprint.dev/g-plane/pretty_yaml-v0.5.1.wasm",
+        "https://plugins.dprint.dev/json-0.20.0.wasm",
+        "https://plugins.dprint.dev/markdown-0.20.0.wasm",
+        "https://plugins.dprint.dev/toml-0.7.0.wasm"
+    ],
+
+    "json": {
+        "indentWidth": 4,
+        "lineWidth": 100
+    },
+
+    "markdown": {
+        "textWrap": "always",
+        "lineWidth": 100
+    },
+
+    "yaml": {
+        "printWidth": 100,
+        "indentWidth": 2
+    },
+
+    "toml": {
+        "lineWidth": 100,
+        "indentWidth": 2
+    }
+}
