@@ -45,10 +45,10 @@ repos:
         require_serial: true
       - id: mypy
         name: mypy
-        entry: uv run mypy
+        entry: uv run mypy cgt_calc tests
         language: system
         types: [python]
-        require_serial: true
+        pass_filenames: false
       - id: pylint
         name: pylint
         entry: uv run pylint
