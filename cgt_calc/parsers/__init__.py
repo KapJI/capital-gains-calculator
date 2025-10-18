@@ -158,7 +158,7 @@ def read_broker_transactions(
 
 
 def read_initial_prices(
-    initial_prices_file: str | None,
+    initial_prices_file: Path | None,
 ) -> dict[datetime.date, dict[str, Decimal]]:
     """Read initial stock prices from CSV file."""
     initial_prices: dict[datetime.date, dict[str, Decimal]] = {}
@@ -170,11 +170,11 @@ def read_initial_prices(
         ):
             lines = list(csv.reader(csv_file))
     else:
-        with Path(initial_prices_file).open(encoding="utf-8") as csv_file:
+        with initial_prices_file.open(encoding="utf-8") as csv_file:
             lines = list(csv.reader(csv_file))
     lines = lines[1:]
     for row in lines:
-        entry = InitialPricesEntry(row, initial_prices_file or "default")
+        entry = InitialPricesEntry(row, initial_prices_file or Path("resources") / INITIAL_PRICES_RESOURCE)
         date_index = entry.date
         if date_index not in initial_prices:
             initial_prices[date_index] = {}
@@ -194,6 +194,6 @@ def read_isin_translation_file(
         lines = lines[1:]
         result = {}
         for row in lines:
-            entry = IsinTranslationEntry(row, isin_translation_file.name)
+            entry = IsinTranslationEntry(row, isin_translation_file)
             result[entry.isin] = entry.symbols
         return result

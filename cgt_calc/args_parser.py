@@ -272,7 +272,7 @@ Environment variables:
     data_group.add_argument(
         "--initial-prices",
         dest="initial_prices_file",
-        type=str,
+        type=existing_file_type,
         help=argparse.SUPPRESS,
     )
     data_group.add_argument(
