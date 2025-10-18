@@ -35,7 +35,7 @@ class RawTransaction(BrokerTransaction):
     2022-07-26,DIVIDEND,OTGLY,305,0.031737,0.0,USD
     2022-06-06,STOCK_SPLIT,AMZN,209,0.00,0.00,USD
 
-    See tests/test_data/raw/test_data.csv for a sample file showing the expected format.
+    See tests/raw/data/test_data.csv for a sample file showing the expected format.
     """
 
     def __init__(
