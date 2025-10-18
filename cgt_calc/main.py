@@ -1394,7 +1394,13 @@ def main() -> int:
     # Throw exception on accidental float usage
     decimal.getcontext().traps[decimal.FloatOperation] = True
 
-    args = create_parser().parse_args()
+    parser = create_parser()
+
+    if len(sys.argv) == 1:
+        parser.print_help()
+        return 0
+
+    args = parser.parse_args()
 
     logging_level = logging.DEBUG if args.verbose else logging.WARNING
     logging.getLogger().setLevel(logging_level)
