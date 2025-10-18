@@ -41,17 +41,17 @@ echo "Density: ${DPI} DPI, Crop: full-width x ${CROP_HEIGHT}, Trim: on"
 # 5) Flatten onto white to remove transparency
 # 6) Resize to look good in README
 # 7) Write optimised PNG
-magick -density "$DPI" "$PDF_PATH[0]" -units PixelsPerInch -strip miff:- \
-| magick miff:- \
-    -gravity North -crop "x${CROP_HEIGHT}+0+0" +repage \
-    -trim +repage \
-    -bordercolor white -border "${BORDER}" \
-    -background white -alpha remove -alpha off \
-    -resize "${FINAL_WIDTH}" \
-    -define png:compression-level=9 \
-    -define png:compression-strategy=2 \
-    -define png:exclude-chunk=all \
-    -strip "$OUTPUT_PATH"
+magick -density "$DPI" "$PDF_PATH[0]" -units PixelsPerInch -strip miff:- |
+    magick miff:- \
+        -gravity North -crop "x${CROP_HEIGHT}+0+0" +repage \
+        -trim +repage \
+        -bordercolor white -border "${BORDER}" \
+        -background white -alpha remove -alpha off \
+        -resize "${FINAL_WIDTH}" \
+        -define png:compression-level=9 \
+        -define png:compression-strategy=2 \
+        -define png:exclude-chunk=all \
+        -strip "$OUTPUT_PATH"
 
 echo "✅ Preview generated: $OUTPUT_PATH"
 echo "👀 Check if it looks good or adjust CROP_HEIGHT in the script."

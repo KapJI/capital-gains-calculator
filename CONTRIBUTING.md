@@ -27,8 +27,8 @@ cd capital-gains-calculator
 uv sync
 ```
 
-This command creates a virtual environment and installs all project and development dependencies into it.
-Run it again after pulling new changes to update dependencies.
+This command creates a virtual environment and installs all project and development dependencies
+into it. Run it again after pulling new changes to update dependencies.
 
 ## 🧱 Code style
 
@@ -36,11 +36,12 @@ All checks in CI must pass before merging changes.
 
 We use:
 
--   [ruff](https://docs.astral.sh/ruff/) — for linting and formatting
--   [pylint](https://pylint.readthedocs.io/en/stable/) — for additional linting
--   [prettier](https://prettier.io/) — for Markdown, YAML, and JSON formatting
--   [mypy](https://mypy-lang.org/) — for static type checking
--   [pytest](https://docs.pytest.org/) — for running tests
+- [ruff](https://docs.astral.sh/ruff/) — for Python linting and formatting
+- [pylint](https://pylint.readthedocs.io/en/stable/) — for additional linting
+- [mypy](https://mypy-lang.org/) — for static type checking
+- [pytest](https://docs.pytest.org/) — for running tests
+- [dprint](https://dprint.dev/) — for formatting Markdown, YAML, TOML, JSON, and Dockerfiles
+- [shfmt](https://github.com/mvdan/sh#shfmt) - for formatting shell scripts
 
 `pre-commit` can be used to run all checks with one command (see below).
 
@@ -121,8 +122,8 @@ uv sync
 
 ### Manual changes
 
-If you edit `pyproject.toml` manually (for example, to bump a version),
-run `uv sync` afterwards to apply the changes and update `uv.lock`.
+If you edit `pyproject.toml` manually (for example, to bump a version), run `uv sync` afterwards to
+apply the changes and update `uv.lock`.
 
 ## 🧾 Updating the example report
 
@@ -136,9 +137,11 @@ Commit the updated file if your changes affect report generation.
 
 ## 🏗️ Release process (maintainers only)
 
-Releases are created from draft GitHub releases created by [Release Drafter](https://github.com/release-drafter/release-drafter).
-When a release is published, GitHub Actions will automatically:
+Releases are created from draft GitHub releases created by
+[Release Drafter](https://github.com/release-drafter/release-drafter). When a release is published,
+GitHub Actions will automatically:
 
 1. Extract the version from the release tag (e.g. `v1.2.3`)
 2. Run tests and checks
-3. Build and publish the package to PyPI using `uv publish` and [Trusted Publisher](https://docs.pypi.org/trusted-publishers/) on PyPI
+3. Build and publish the package to PyPI using `uv publish` and
+   [Trusted Publisher](https://docs.pypi.org/trusted-publishers/) on PyPI

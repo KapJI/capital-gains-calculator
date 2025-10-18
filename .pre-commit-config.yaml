@@ -9,8 +9,28 @@ repos:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.12.0-2
+    hooks:
+      - id: shfmt
   - repo: local
     hooks:
+      - id: codespell
+        name: codespell
+        entry: uv run codespell --write-changes
+        language: system
+        pass_filenames: false
+      - id: dprint
+        name: dprint format
+        language: system
+        entry: uv run dprint fmt
+        pass_filenames: false
+        types_or:
+          - dockerfile
+          - json
+          - markdown
+          - toml
+          - yaml
       - id: ruff-format
         name: ruff format
         entry: uv run ruff format
@@ -40,17 +60,6 @@ repos:
         language: system
         entry: uv run pytest
         pass_filenames: false
-        always_run: true
-      - id: codespell
-        name: codespell
-        entry: uv run codespell --write-changes
-        language: system
-        pass_filenames: false
-        always_run: true
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.1.0
-    hooks:
-      - id: prettier
   - repo: https://github.com/cdce8p/python-typing-update
     rev: v0.7.2
     hooks:
