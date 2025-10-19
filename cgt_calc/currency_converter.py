@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 import csv
 import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Final
 
 from defusedxml import ElementTree as ET
@@ -53,15 +53,65 @@ class CurrencyConverter:
             csv_reader = csv.DictReader(fin)
             if csv_reader.fieldnames is None:
                 raise ParsingError(exchange_rates_file, "Exchange rate file is empty")
-            for line in csv_reader:
+            for row_number, line in enumerate(csv_reader, start=2):
+                # Guard against schema drift before touching row contents.
                 if sorted(EXCHANGE_RATES_HEADER) != sorted(line.keys()):
                     raise ParsingError(
                         exchange_rates_file,
                         "Unexpected columns in exchange rate file: "
                         f"found {sorted(line.keys())}, expected {EXCHANGE_RATES_HEADER}",
                     )
-                date = datetime.date.fromisoformat(line["month"])
-                cache[date][line["currency"]] = Decimal(line["rate"])
+
+                # Trim values so that whitespace-only cells count as empty.
+                normalized_values = {
+                    field: (line[field].strip() if line[field] is not None else "")
+                    for field in EXCHANGE_RATES_HEADER
+                }
+
+                # Skip harmless blank lines left by editors or tooling.
+                if not any(normalized_values.values()):
+                    continue
+
+                # Missing values mean we cannot trust the rate entry.
+                missing_fields = [
+                    field for field, value in normalized_values.items() if not value
+                ]
+                if missing_fields:
+                    raise ParsingError(
+                        exchange_rates_file,
+                        "Missing data in exchange rate file at line "
+                        f"{row_number}: {', '.join(sorted(missing_fields))}",
+                    )
+
+                month = normalized_values["month"]
+                currency = normalized_values["currency"]
+                rate_value = normalized_values["rate"]
+
+                try:
+                    date = datetime.date.fromisoformat(month)
+                except ValueError as err:
+                    raise ParsingError(
+                        exchange_rates_file,
+                        f"Invalid date '{month}' at line {row_number}",
+                    ) from err
+
+                try:
+                    rate = Decimal(rate_value)
+                except (InvalidOperation, ValueError) as err:
+                    raise ParsingError(
+                        exchange_rates_file,
+                        f"Invalid rate '{rate_value}' at line {row_number}",
+                    ) from err
+
+                # Duplicates suggest conflicting data, so fail fast.
+                if currency in cache[date]:
+                    raise ParsingError(
+                        exchange_rates_file,
+                        "Duplicate currency entry for "
+                        f"{currency} on {month} at line {row_number}",
+                    )
+
+                cache[date][currency] = rate
             return cache
 
     @staticmethod
