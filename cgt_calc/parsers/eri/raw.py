@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
@@ -39,11 +39,19 @@ class EriRaw(EriTransaction):
         isin = row["ISIN"]
         if not is_isin(isin):
             raise ParsingError(file, f"Invalid ISIN value '{isin}' in ERI data")
-        date = datetime.datetime.strptime(
-            row["Fund Reporting Period End Date"], "%d/%m/%Y"
-        ).date()
+        date_str = row["Fund Reporting Period End Date"]
+        try:
+            date = datetime.datetime.strptime(date_str, "%d/%m/%Y").date()
+        except ValueError as err:
+            raise ParsingError(file, f"Invalid date '{date_str}' in ERI data") from err
         currency = row["Currency"]
-        price = Decimal(row["Excess of reporting income over distribution"])
+        price_str = row["Excess of reporting income over distribution"]
+        try:
+            price = Decimal(price_str)
+        except (InvalidOperation, ValueError) as err:
+            raise ParsingError(
+                file, f"Invalid decimal '{price_str}' in ERI data"
+            ) from err
 
         super().__init__(
             date,
@@ -67,13 +75,17 @@ def read_eri_raw(
     """Read ERI raw transactions from file."""
     transactions: list[EriTransaction] = []
 
-    with eri_file.open(encoding="utf-8") as csv_file:
-        lines = list(csv.reader(csv_file))
-
-    header = lines[0]
     file_label = (
         eri_file if isinstance(eri_file, Path) else Path("resources") / eri_file.name
     )
+
+    with eri_file.open(encoding="utf-8") as csv_file:
+        lines = list(csv.reader(csv_file))
+
+    if not lines:
+        raise ParsingError(file_label, "ERI data file is empty")
+
+    header = lines[0]
 
     validate_header(header, file_label, COLUMNS)
 
