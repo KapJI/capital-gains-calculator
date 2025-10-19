@@ -9,7 +9,11 @@ from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, Final
 
-from cgt_calc.exceptions import ParsingError, UnsupportedBrokerActionError
+from cgt_calc.exceptions import (
+    ParsingError,
+    UnsupportedBrokerActionError,
+    UnsupportedBrokerCurrencyError,
+)
 from cgt_calc.model import ActionType, BrokerTransaction
 
 if TYPE_CHECKING:
@@ -74,7 +78,9 @@ class FreetradeTransaction(BrokerTransaction):
 
         # I believe GIA account at Freetrade can be only in GBP
         if row[FreetradeColumn.ACCOUNT_CURRENCY] != "GBP":
-            raise ParsingError(file, "Non-GBP accounts are unsupported")
+            raise UnsupportedBrokerCurrencyError(
+                "Freetrade", row[FreetradeColumn.ACCOUNT_CURRENCY]
+            )
 
         # Convert all numbers in GBP using Freetrade rates
         if action in [ActionType.SELL, ActionType.BUY]:
@@ -194,9 +200,7 @@ def read_freetrade_transactions(transactions_file: Path) -> list[BrokerTransacti
                     FreetradeTransaction(header, row, transactions_file)
                 )
             except ValueError as err:
-                raise ParsingError(
-                    transactions_file, f"Row {index}: {err}"
-                ) from err
+                raise ParsingError(transactions_file, f"Row {index}: {err}") from err
         if len(transactions) == 0:
             LOGGER.warning("No transactions detected in file %s", transactions_file)
         return transactions

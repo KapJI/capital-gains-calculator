@@ -37,6 +37,17 @@ class UnsupportedBrokerActionError(CgtError):
         super().__init__(message)
 
 
+class UnsupportedBrokerCurrencyError(CgtError):
+    """Raised when a broker export uses an unsupported account currency."""
+
+    def __init__(self, broker: str, currency: str):
+        """Initialise."""
+        super().__init__(
+            "Unsupported account currency encountered. "
+            f"Broker: {broker}, currency: {currency}."
+        )
+
+
 class InvalidTransactionError(CgtError):
     """Invalid transaction error."""
 

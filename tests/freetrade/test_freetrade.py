@@ -7,7 +7,11 @@ import subprocess
 
 import pytest
 
-from cgt_calc.exceptions import ParsingError, UnsupportedBrokerActionError
+from cgt_calc.exceptions import (
+    ParsingError,
+    UnsupportedBrokerActionError,
+    UnsupportedBrokerCurrencyError,
+)
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.freetrade import (
     COLUMNS,
@@ -126,6 +130,18 @@ def test_read_freetrade_transactions_invalid_decimal(tmp_path: Path) -> None:
     with pytest.raises(
         ParsingError,
         match="Row 2: Invalid decimal in column 'Quantity'",
+    ):
+        read_freetrade_transactions(path)
+
+
+def test_read_freetrade_transactions_unsupported_currency(tmp_path: Path) -> None:
+    """Non-GBP account currencies raise a dedicated error."""
+    overrides = {FreetradeColumn.ACCOUNT_CURRENCY.value: "USD"}
+    path = _write_csv(tmp_path, COLUMNS, [_default_row(overrides)])
+
+    with pytest.raises(
+        UnsupportedBrokerCurrencyError,
+        match="Unsupported account currency encountered",
     ):
         read_freetrade_transactions(path)
 
