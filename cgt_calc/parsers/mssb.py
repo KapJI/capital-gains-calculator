@@ -206,6 +206,8 @@ def read_mssb_transactions(transactions_folder: Path) -> list[BrokerTransaction]
 
             print(f"Parsing {file}...")
             lines = list(csv.reader(csv_file))
+            if not lines:
+                raise ParsingError(file, "Morgan Stanley CSV file is empty")
             header = lines[0]
             lines = lines[1:]
 
