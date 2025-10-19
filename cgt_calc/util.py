@@ -28,14 +28,14 @@ def luhn_check_digit(payload: str) -> int:
         payload = f"0{payload}"  # zero pad so length is even
     checksum = 0
 
-    LUHN_EVEN_DIGIT_MAX_VALUE = 9
-    LUHN_EVEN_DIGIT_MULTIPLIER = 2
+    luhn_even_digit_max_value = 9
+    luhn_even_digit_multiplier = 2
     for idx, digit_char in enumerate(payload[::-1]):
         digit = int(digit_char)
         if idx % 2 == 0:
-            digit *= LUHN_EVEN_DIGIT_MULTIPLIER
-            if digit > LUHN_EVEN_DIGIT_MAX_VALUE:
-                digit -= LUHN_EVEN_DIGIT_MAX_VALUE
+            digit *= luhn_even_digit_multiplier
+            if digit > luhn_even_digit_max_value:
+                digit -= luhn_even_digit_max_value
         checksum += digit
 
     return (
@@ -46,15 +46,15 @@ def luhn_check_digit(payload: str) -> int:
 def is_isin(isin: str) -> bool:
     """Validate if a string is a valid ISIN."""
     # https://en.wikipedia.org/wiki/International_Securities_Identification_Number
-    ISIN_REGEX = r"^([A-Z]{2})([A-Z0-9]{9})([0-9])$"
-    ISIN_CHAR_IDXS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    isin_regex = r"^([A-Z]{2})([A-Z0-9]{9})([0-9])$"
+    isin_char_idxs = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-    if not re.match(ISIN_REGEX, isin):
+    if not re.match(isin_regex, isin):
         return False
     payload = isin[:11]
     check_digit = int(isin[11])
 
-    payload = "".join(str(ISIN_CHAR_IDXS.index(c)) for c in list(payload))
+    payload = "".join(str(isin_char_idxs.index(c)) for c in list(payload))
     return luhn_check_digit(payload) == check_digit
 
 

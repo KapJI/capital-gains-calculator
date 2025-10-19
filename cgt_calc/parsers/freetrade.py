@@ -117,15 +117,15 @@ class FreetradeTransaction(BrokerTransaction):
         )
 
 
-def action_from_str(type: str, buy_sell: str, file: Path) -> ActionType:
+def action_from_str(action_type: str, buy_sell: str, file: Path) -> ActionType:
     """Infer action type."""
-    if type == "INTEREST_FROM_CASH":
+    if action_type == "INTEREST_FROM_CASH":
         return ActionType.INTEREST
-    if type == "DIVIDEND":
+    if action_type == "DIVIDEND":
         return ActionType.DIVIDEND
-    if type in ["TOP_UP", "WITHDRAWAL"]:
+    if action_type in ["TOP_UP", "WITHDRAWAL"]:
         return ActionType.TRANSFER
-    if type in ["ORDER", "FREESHARE_ORDER"]:
+    if action_type in ["ORDER", "FREESHARE_ORDER"]:
         if buy_sell == "BUY":
             return ActionType.BUY
         if buy_sell == "SELL":
@@ -133,7 +133,7 @@ def action_from_str(type: str, buy_sell: str, file: Path) -> ActionType:
 
         raise ParsingError(file, f"Unknown buy_sell: '{buy_sell}'")
 
-    raise ParsingError(file, f"Unknown type: '{type}'")
+    raise ParsingError(file, f"Unknown type: '{action_type}'")
 
 
 def validate_header(header: list[str], file: Path) -> None:

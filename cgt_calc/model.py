@@ -156,7 +156,7 @@ class ActionType(Enum):
     EXCESS_REPORTED_INCOME = 17
 
 
-class CalcuationType(Enum):
+class CalculationType(Enum):
     """Calculation type enumeration."""
 
     ACQUISITION = 1

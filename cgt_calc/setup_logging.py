@@ -5,15 +5,19 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import TextIO
+from typing import TYPE_CHECKING, TextIO
 
 import colorama
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from typing import Final
 
 
 class ColourMessageFormatter(logging.Formatter):
     """Formatter that colourises log messages."""
 
-    COLOURS = {
+    COLOURS: Final[Mapping[int, str]] = {
         logging.DEBUG: colorama.Fore.CYAN,
         logging.INFO: "",
         logging.WARNING: colorama.Fore.YELLOW,
