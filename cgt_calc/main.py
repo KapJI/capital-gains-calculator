@@ -40,9 +40,9 @@ from .isin_converter import IsinConverter
 from .model import (
     ActionType,
     BrokerTransaction,
-    CalcuationType,
     CalculationEntry,
     CalculationLog,
+    CalculationType,
     CapitalGainsReport,
     Dividend,
     ExcessReportedIncome,
@@ -99,18 +99,18 @@ def _approx_equal_price_rounding(
     quantity_on_record: Decimal,
     price_on_record: Decimal,
     fees_on_record: Decimal,
-    calcuationType: CalcuationType,
+    calculation_type: CalculationType,
 ) -> bool:
     calculated_amount = Decimal(0)
     calculated_price = Decimal(0)
-    if calcuationType is CalcuationType.ACQUISITION:
+    if calculation_type is CalculationType.ACQUISITION:
         calculated_amount = Decimal(-1) * (
             quantity_on_record * price_on_record + fees_on_record
         )
         calculated_price = (
             Decimal(-1) * amount_on_record - fees_on_record
         ) / quantity_on_record
-    elif calcuationType is CalcuationType.DISPOSAL:
+    elif calculation_type is CalculationType.DISPOSAL:
         calculated_amount = quantity_on_record * price_on_record - fees_on_record
         calculated_price = (amount_on_record + fees_on_record) / quantity_on_record
     in_acceptable_range = abs(calculated_price - price_on_record) < Decimal("0.0001")
@@ -226,7 +226,7 @@ class CapitalGainsCalculator:
                 quantity,
                 price,
                 transaction.fees,
-                CalcuationType.ACQUISITION,
+                CalculationType.ACQUISITION,
             ):
                 raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
             amount = -amount
@@ -363,7 +363,7 @@ class CapitalGainsCalculator:
             quantity,
             price,
             transaction.fees,
-            CalcuationType.DISPOSAL,
+            CalculationType.DISPOSAL,
         ):
             raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
         add_to_list(
