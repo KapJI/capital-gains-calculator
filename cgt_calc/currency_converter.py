@@ -51,8 +51,8 @@ class CurrencyConverter:
             return cache
         with exchange_rates_file.open(encoding="utf8") as fin:
             csv_reader = csv.DictReader(fin)
-            # skip the header
-            next(csv_reader)
+            if csv_reader.fieldnames is None:
+                raise ParsingError(exchange_rates_file, "Exchange rate file is empty")
             for line in csv_reader:
                 if sorted(EXCHANGE_RATES_HEADER) != sorted(line.keys()):
                     raise ParsingError(
