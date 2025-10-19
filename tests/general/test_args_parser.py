@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 import datetime
 from pathlib import Path
+import typing
 
 import pytest
 
-from cgt_calc.args_parser import create_parser
+from cgt_calc.args_parser import create_parser, existing_file_type, optional_file_type
 from cgt_calc.const import (
     DEFAULT_EXCHANGE_RATES_FILE,
     DEFAULT_ISIN_TRANSLATION_FILE,
@@ -15,6 +17,8 @@ from cgt_calc.const import (
     DEFAULT_SPIN_OFF_FILE,
     INTERNAL_START_DATE,
 )
+
+ReturnType = typing.TextIO | typing.IO[bytes]
 
 
 def test_output_and_no_report_mutually_exclusive() -> None:
@@ -260,6 +264,64 @@ def test_optional_path_arguments_reject_directory(
     assert exc_info.value.code == 2
     args = parser.parse_args([])
     assert getattr(args, attr) is not None
+
+
+def test_optional_file_type_rejects_unreadable_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """optional_file_type raises when file cannot be read."""
+    target = tmp_path / "data.csv"
+    target.write_text("value,1\n", encoding="utf8")
+    original_open = typing.cast(
+        "typing.Callable[[Path, str, int, str | None, str | None, str | None], ReturnType]",
+        Path.open,
+    )
+
+    def fake_open(
+        self: Path,
+        mode: str = "r",
+        buffering: int = -1,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> ReturnType:
+        if self == target:
+            raise PermissionError("Permission denied")
+        return original_open(self, mode, buffering, encoding, errors, newline)
+
+    monkeypatch.setattr(Path, "open", fake_open)
+
+    with pytest.raises(argparse.ArgumentTypeError, match="unable to read file path"):
+        optional_file_type(str(target))
+
+
+def test_existing_file_type_rejects_unreadable_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """existing_file_type raises when file cannot be read."""
+    target = tmp_path / "data.csv"
+    target.write_text("value,1\n", encoding="utf8")
+    original_open = typing.cast(
+        "typing.Callable[[Path, str, int, str | None, str | None, str | None], ReturnType]",
+        Path.open,
+    )
+
+    def fake_open(
+        self: Path,
+        mode: str = "r",
+        buffering: int = -1,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> ReturnType:
+        if self == target:
+            raise PermissionError("Permission denied")
+        return original_open(self, mode, buffering, encoding, errors, newline)
+
+    monkeypatch.setattr(Path, "open", fake_open)
+
+    with pytest.raises(argparse.ArgumentTypeError, match="unable to read file path"):
+        existing_file_type(str(target))
 
 
 def test_no_report_alone_works() -> None:

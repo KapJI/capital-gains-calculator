@@ -70,7 +70,20 @@ def optional_file_type(value: str) -> Path | None:
         raise argparse.ArgumentTypeError(
             f"expected file path, got directory: '{value}'"
         )
+    if path.exists():
+        _ensure_readable_file(path, value)
     return path
+
+
+def _ensure_readable_file(path: Path, value: str) -> None:
+    """Raise ArgumentTypeError when file cannot be read."""
+    try:
+        with path.open("rb"):
+            pass
+    except OSError as err:  # pragma: no cover - message varies by platform
+        raise argparse.ArgumentTypeError(
+            f"unable to read file path: '{value}': {err}"
+        ) from err
 
 
 def _existing_path_type(value: str, *, require_dir: bool) -> Path:
@@ -82,6 +95,8 @@ def _existing_path_type(value: str, *, require_dir: bool) -> Path:
         raise argparse.ArgumentTypeError(f"expected directory path, got: '{value}'")
     if not require_dir and not path.is_file():
         raise argparse.ArgumentTypeError(f"expected file path, got: '{value}'")
+    if not require_dir:
+        _ensure_readable_file(path, value)
     return path
 
 
