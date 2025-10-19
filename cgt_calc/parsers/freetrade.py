@@ -5,10 +5,11 @@ from __future__ import annotations
 import csv
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, Final
 
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import ParsingError, UnsupportedBrokerActionError
 from cgt_calc.model import ActionType, BrokerTransaction
 
 if TYPE_CHECKING:
@@ -16,37 +17,43 @@ if TYPE_CHECKING:
 
 LOGGER = logging.getLogger(__name__)
 
-COLUMNS: Final[list[str]] = [
-    "Title",
-    "Type",
-    "Timestamp",
-    "Account Currency",
-    "Total Amount",
-    "Buy / Sell",
-    "Ticker",
-    "ISIN",
-    "Price per Share in Account Currency",
-    "Stamp Duty",
-    "Quantity",
-    "Venue",
-    "Order ID",
-    "Order Type",
-    "Instrument Currency",
-    "Total Shares Amount",
-    "Price per Share",
-    "FX Rate",
-    "Base FX Rate",
-    "FX Fee (BPS)",
-    "FX Fee Amount",
-    "Dividend Ex Date",
-    "Dividend Pay Date",
-    "Dividend Eligible Quantity",
-    "Dividend Amount Per Share",
-    "Dividend Gross Distribution Amount",
-    "Dividend Net Distribution Amount",
-    "Dividend Withheld Tax Percentage",
-    "Dividend Withheld Tax Amount",
-]
+
+class FreetradeColumn(StrEnum):
+    """Column names expected in Freetrade CSV exports."""
+
+    TITLE = "Title"
+    TYPE = "Type"
+    TIMESTAMP = "Timestamp"
+    ACCOUNT_CURRENCY = "Account Currency"
+    TOTAL_AMOUNT = "Total Amount"
+    BUY_SELL = "Buy / Sell"
+    TICKER = "Ticker"
+    ISIN = "ISIN"
+    PRICE_PER_SHARE_ACCOUNT = "Price per Share in Account Currency"
+    STAMP_DUTY = "Stamp Duty"
+    QUANTITY = "Quantity"
+    VENUE = "Venue"
+    ORDER_ID = "Order ID"
+    ORDER_TYPE = "Order Type"
+    INSTRUMENT_CURRENCY = "Instrument Currency"
+    TOTAL_SHARES_AMOUNT = "Total Shares Amount"
+    PRICE_PER_SHARE = "Price per Share"
+    FX_RATE = "FX Rate"
+    BASE_FX_RATE = "Base FX Rate"
+    FX_FEE_BPS = "FX Fee (BPS)"
+    FX_FEE_AMOUNT = "FX Fee Amount"
+    DIVIDEND_EX_DATE = "Dividend Ex Date"
+    DIVIDEND_PAY_DATE = "Dividend Pay Date"
+    DIVIDEND_ELIGIBLE_QUANTITY = "Dividend Eligible Quantity"
+    DIVIDEND_AMOUNT_PER_SHARE = "Dividend Amount Per Share"
+    DIVIDEND_GROSS_AMOUNT = "Dividend Gross Distribution Amount"
+    DIVIDEND_NET_AMOUNT = "Dividend Net Distribution Amount"
+    DIVIDEND_WITHHELD_PERCENTAGE = "Dividend Withheld Tax Percentage"
+    DIVIDEND_WITHHELD_AMOUNT = "Dividend Withheld Tax Amount"
+
+
+COLUMNS: Final[list[str]] = [column.value for column in FreetradeColumn]
+REQUIRED_COLUMNS: Final[set[str]] = set(COLUMNS)
 
 
 class FreetradeTransaction(BrokerTransaction):
@@ -55,59 +62,63 @@ class FreetradeTransaction(BrokerTransaction):
     def __init__(self, header: list[str], row_raw: list[str], file: Path):
         """Create transaction from CSV row."""
         row = dict(zip(header, row_raw, strict=False))
-        action = action_from_str(row["Type"], row["Buy / Sell"], file)
+        action = action_from_str(
+            row[FreetradeColumn.TYPE], row[FreetradeColumn.BUY_SELL], file
+        )
 
-        symbol = row["Ticker"] if row["Ticker"] != "" else None
+        symbol = (
+            row[FreetradeColumn.TICKER] if row[FreetradeColumn.TICKER] != "" else None
+        )
         if symbol is None and action not in [ActionType.TRANSFER, ActionType.INTEREST]:
             raise ParsingError(file, f"No symbol for action: {action}")
 
         # I believe GIA account at Freetrade can be only in GBP
-        if row["Account Currency"] != "GBP":
+        if row[FreetradeColumn.ACCOUNT_CURRENCY] != "GBP":
             raise ParsingError(file, "Non-GBP accounts are unsupported")
 
         # Convert all numbers in GBP using Freetrade rates
         if action in [ActionType.SELL, ActionType.BUY]:
-            quantity = Decimal(row["Quantity"])
-            price = Decimal(row["Price per Share"])
-            amount = Decimal(row["Total Shares Amount"])
-            currency = row["Instrument Currency"]
+            quantity = Decimal(row[FreetradeColumn.QUANTITY])
+            price = Decimal(row[FreetradeColumn.PRICE_PER_SHARE])
+            amount = Decimal(row[FreetradeColumn.TOTAL_SHARES_AMOUNT])
+            currency = row[FreetradeColumn.INSTRUMENT_CURRENCY]
             if currency != "GBP":
-                fx_rate = Decimal(row["FX Rate"])
+                fx_rate = Decimal(row[FreetradeColumn.FX_RATE])
                 price /= fx_rate
                 amount /= fx_rate
             currency = "GBP"
         elif action == ActionType.DIVIDEND:
             # Total amount before US tax withholding
-            amount = Decimal(row["Dividend Gross Distribution Amount"])
+            amount = Decimal(row[FreetradeColumn.DIVIDEND_GROSS_AMOUNT])
             quantity, price = None, None
-            currency = row["Instrument Currency"]
+            currency = row[FreetradeColumn.INSTRUMENT_CURRENCY]
             if currency != "GBP":
                 # FX Rate is not defined for dividends,
                 # but we can use base one as there's no fee
-                amount /= Decimal(row["Base FX Rate"])
+                amount /= Decimal(row[FreetradeColumn.BASE_FX_RATE])
             currency = "GBP"
         elif action in [ActionType.TRANSFER, ActionType.INTEREST]:
-            amount = Decimal(row["Total Amount"])
+            amount = Decimal(row[FreetradeColumn.TOTAL_AMOUNT])
             quantity, price = None, None
             currency = "GBP"
         else:
-            raise ParsingError(
-                file, f"Numbers parsing unimplemented for action: {action}"
-            )
+            raise UnsupportedBrokerActionError("Freetrade", row[FreetradeColumn.TYPE])
 
-        if row["Type"] == "FREESHARE_ORDER":
+        if row[FreetradeColumn.TYPE] == "FREESHARE_ORDER":
             price = Decimal(0)
             amount = Decimal(0)
 
-        amount_negative = action == ActionType.BUY or row["Type"] == "WITHDRAWAL"
+        amount_negative = (
+            action == ActionType.BUY or row[FreetradeColumn.TYPE] == "WITHDRAWAL"
+        )
         if amount is not None and amount_negative:
             amount *= -1
 
         super().__init__(
-            date=datetime.fromisoformat(row["Timestamp"]).date(),
+            date=datetime.fromisoformat(row[FreetradeColumn.TIMESTAMP]).date(),
             action=action,
             symbol=symbol,
-            description=f"{row['Title']} {action}",
+            description=f"{row[FreetradeColumn.TITLE]} {action}",
             quantity=quantity,
             price=price,
             fees=Decimal(0),  # not implemented
@@ -138,9 +149,16 @@ def action_from_str(action_type: str, buy_sell: str, file: Path) -> ActionType:
 
 def validate_header(header: list[str], file: Path) -> None:
     """Check if header is valid."""
-    for actual in header:
-        if actual not in COLUMNS:
-            raise ParsingError(file, f"Unknown column {actual}")
+    provided = set(header)
+    missing = REQUIRED_COLUMNS - provided
+    if missing:
+        missing_columns = ", ".join(sorted(missing))
+        raise ParsingError(file, f"Missing columns: {missing_columns}")
+
+    unknown = provided - REQUIRED_COLUMNS
+    if unknown:
+        unknown_columns = ", ".join(sorted(unknown))
+        raise ParsingError(file, f"Unknown columns: {unknown_columns}")
 
 
 def read_freetrade_transactions(transactions_file: Path) -> list[BrokerTransaction]:
