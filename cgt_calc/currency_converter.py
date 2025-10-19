@@ -56,8 +56,8 @@ class CurrencyConverter:
                 if sorted(EXCHANGE_RATES_HEADER) != sorted(line.keys()):
                     raise ParsingError(
                         exchange_rates_file,
-                        f"invalid columns {line.keys()}, "
-                        f"they should be {EXCHANGE_RATES_HEADER}",
+                        "Unexpected columns in exchange rate file: "
+                        f"found {sorted(line.keys())}, expected {EXCHANGE_RATES_HEADER}",
                     )
                 date = datetime.date.fromisoformat(line["month"])
                 cache[date][line["currency"]] = Decimal(line["rate"])
@@ -95,16 +95,28 @@ class CurrencyConverter:
         try:
             response = self.session.get(url, timeout=10)
         except Exception as err:
-            msg = f"Error while fetching HMRC exchange rates for the month {month_str} "
-            msg += f"from the following url: {url}.\n"
-            msg += "Either try again or if you're sure about the rates you can "
-            msg += f"add them manually in {self.exchange_rates_file}.\n"
-            msg += f"The error was: {err}\n"
+            msg = f"Failed to retrieve HMRC exchange rates for {month_str} from {url}. "
+            if self.exchange_rates_file:
+                msg += (
+                    "Try again later or record the rates manually in "
+                    f"{self.exchange_rates_file}. "
+                )
+            else:
+                msg += "Try again later or provide the rates manually. "
+            msg += f"Error: {err}"
             raise ExternalApiError(url, msg) from err
 
         if not response.ok:
+            body = response.text.strip()
+            extra = ""
+            if body:
+                snippet = body[:200]
+                if len(body) > 200:
+                    snippet += "..."
+                extra = f" Response body: {snippet}"
             raise ExternalApiError(
-                url, f"HMRC API returned a {response.status_code} response"
+                url,
+                f"HMRC API returned HTTP {response.status_code} for {month_str}.{extra}",
             )
 
         tree = ET.fromstring(response.text)
@@ -115,7 +127,10 @@ class CurrencyConverter:
             for row in tree
         }
         if None in rates or None in rates.values():
-            raise ExternalApiError(url, "HMRC API produced invalid/unknown data")
+            raise ExternalApiError(
+                url,
+                f"HMRC API response for {month_str} is missing expected currency data",
+            )
         self.cache[date] = rates
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
 
