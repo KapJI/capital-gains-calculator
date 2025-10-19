@@ -13,7 +13,12 @@ from typing import TYPE_CHECKING, Final
 from requests_ratelimiter import LimiterSession
 
 from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_RESOURCE
-from .exceptions import ParsingError, UnexpectedColumnCountError
+from .exceptions import (
+    InvalidTransactionError,
+    IsinTranslationError,
+    ParsingError,
+    UnexpectedColumnCountError,
+)
 from .resources import RESOURCES_PACKAGE
 from .util import is_isin, open_with_parents
 
@@ -67,30 +72,33 @@ class IsinConverter:
 
         reverse_cache: dict[str, str] = {}
         for isin, symbols in self.data.items():
-            assert is_isin(isin), f"{isin} not a valid ISIN!"
+            if not is_isin(isin):
+                raise IsinTranslationError(f"{isin} not a valid ISIN")
             for symbol in symbols:
-                assert symbol, f"Invalid empty ticker for {isin} ISIN"
-                assert (symbol not in reverse_cache) or (
-                    reverse_cache[symbol] == "ISIN"
-                ), (
-                    f"Found multiple ISINs {isin},{reverse_cache[symbol]} "
-                    f"for the same ticker {symbol}"
-                )
+                if not symbol:
+                    raise IsinTranslationError(f"Invalid empty ticker for {isin} ISIN")
+                existing_isin = reverse_cache.get(symbol)
+                if existing_isin and existing_isin != isin:
+                    raise IsinTranslationError(
+                        f"Found multiple ISINs for the same ticker {symbol}: "
+                        f"{isin}, {existing_isin}"
+                    )
                 reverse_cache[symbol] = isin
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Add the ISIN to symbol mapping from an existing transaction."""
         if transaction.symbol and transaction.isin:
-            assert is_isin(transaction.isin), (
-                f"Not a valid ISIN for transaction {transaction}!"
-            )
-            assert (
-                not self.data.get(transaction.isin)
-                or transaction.symbol in self.data[transaction.isin]
-            ), (
-                f"Inconsistent ISIN value from transaction {transaction} and currently "
-                "stored in the mapping {self.data[transaction.isin]}"
-            )
+            if not is_isin(transaction.isin):
+                raise InvalidTransactionError(
+                    transaction, f"{transaction.isin} is not a valid ISIN"
+                )
+            current_symbols = self.data.get(transaction.isin)
+            if current_symbols and transaction.symbol not in current_symbols:
+                raise InvalidTransactionError(
+                    transaction,
+                    "Inconsistent ISIN value compared to existing mapping "
+                    f"{', '.join(sorted(current_symbols))}",
+                )
 
             if transaction.symbol not in self.data.get(transaction.isin, set()):
                 self.data.setdefault(transaction.isin, set()).add(transaction.symbol)
@@ -115,16 +123,21 @@ class IsinConverter:
 
         def load(source: Traversable | Path) -> dict[str, set[str]]:
             """Load ISIN translation data from a CSV source."""
+            file_label = (
+                source if isinstance(source, Path) else Path("resources") / source.name
+            )
             with source.open(encoding="utf-8") as csv_file:
                 lines = list(csv.reader(csv_file))
             if not lines:
                 return {}
             header = lines[0]
-            assert header == ISIN_TRANSLATION_HEADER
+            if header != ISIN_TRANSLATION_HEADER:
+                raise ParsingError(
+                    file_label,
+                    "Invalid ISIN translation header: "
+                    f"expected {ISIN_TRANSLATION_HEADER}, got {header}",
+                )
             entries: dict[str, set[str]] = {}
-            file_label = (
-                source if isinstance(source, Path) else Path("resources") / source.name
-            )
             for row in lines[1:]:
                 entry = IsinTranslationEntry(row, file_label)
                 entries[entry.isin] = entry.symbols

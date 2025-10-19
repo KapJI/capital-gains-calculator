@@ -118,3 +118,12 @@ class LatexRenderError(CgtError):
     def __init__(self, log_path: Path) -> None:
         """Initialise."""
         super().__init__(f"LaTeX compilation failed: see '{log_path}'")
+
+
+class IsinTranslationError(CgtError):
+    """Raised when invalid ISIN translation data is encountered."""
+
+    def __init__(self, message: str):
+        """Initialise."""
+        self.message = message
+        super().__init__(self.message)
