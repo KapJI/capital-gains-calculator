@@ -32,14 +32,15 @@ def test_read_exchange_rates_successfully(tmp_path: Path) -> None:
     assert february_rates == {"EUR": Decimal("1.10")}
 
 
-def test_read_exchange_rates_raises_on_empty_file(tmp_path: Path) -> None:
-    """Empty rates files raise a parsing error."""
+def test_read_exchange_rates_handles_empty_file(tmp_path: Path) -> None:
+    """Empty rates files produce an empty cache without failing."""
     rates_file = tmp_path / "empty.csv"
     # create an empty file
     rates_file.touch()
 
-    with pytest.raises(ParsingError, match="Exchange rate file is empty"):
-        CurrencyConverter(exchange_rates_file=rates_file)
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+
+    assert converter.cache == {}
 
 
 def test_read_exchange_rates_skips_blank_rows(tmp_path: Path) -> None:
