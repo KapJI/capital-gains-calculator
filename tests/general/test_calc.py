@@ -94,7 +94,7 @@ def test_basic(
     )
     spin_off_handler = SpinOffHandler()
     spin_off_handler.cache = {"BAR": "FOO"}
-    initial_prices = InitialPrices({})
+    initial_prices = InitialPrices()
     calculator = CapitalGainsCalculator(
         tax_year,
         currency_converter,

@@ -4,16 +4,11 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-import datetime
-from decimal import Decimal
-from importlib import resources
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from cgt_calc.const import INITIAL_PRICES_RESOURCE
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
-from cgt_calc.resources import RESOURCES_PACKAGE
 from cgt_calc.util import is_isin
 
 from .eri import read_eri_transactions
@@ -36,33 +31,6 @@ INITIAL_PRICES_COLUMNS_NUM: Final = 3
 ISIN_TRANSLATION_HEADER: Final = ["ISIN", "symbol"]
 ISIN_TRANSLATION_COLUMNS_NUM: Final = len(ISIN_TRANSLATION_HEADER)
 LOGGER = logging.getLogger(__name__)
-
-
-@dataclass
-class InitialPricesEntry:
-    """Entry from initial stock prices file."""
-
-    date: datetime.date
-    symbol: str
-    price: Decimal
-
-    def __init__(self, row: list[str], file: Path):
-        """Create entry from CSV row."""
-        if len(row) != INITIAL_PRICES_COLUMNS_NUM:
-            raise UnexpectedColumnCountError(row, INITIAL_PRICES_COLUMNS_NUM, file)
-        # date,symbol,price
-        self.date = self._parse_date(row[0])
-        self.symbol = row[1]
-        self.price = Decimal(row[2])
-
-    @staticmethod
-    def _parse_date(date_str: str) -> datetime.date:
-        """Parse date from string."""
-        return datetime.datetime.strptime(date_str, "%b %d, %Y").date()
-
-    def __str__(self) -> str:
-        """Return string representation."""
-        return f"date: {self.date}, symbol: {self.symbol}, price: {self.price}"
 
 
 @dataclass
@@ -155,33 +123,6 @@ def read_broker_transactions(
 
     transactions.sort(key=lambda k: k.date)
     return transactions
-
-
-def read_initial_prices(
-    initial_prices_file: Path | None,
-) -> dict[datetime.date, dict[str, Decimal]]:
-    """Read initial stock prices from CSV file."""
-    initial_prices: dict[datetime.date, dict[str, Decimal]] = {}
-    if initial_prices_file is None:
-        with (
-            resources.files(RESOURCES_PACKAGE)
-            .joinpath(INITIAL_PRICES_RESOURCE)
-            .open(encoding="utf-8") as csv_file
-        ):
-            lines = list(csv.reader(csv_file))
-    else:
-        with initial_prices_file.open(encoding="utf-8") as csv_file:
-            lines = list(csv.reader(csv_file))
-    lines = lines[1:]
-    for row in lines:
-        entry = InitialPricesEntry(
-            row, initial_prices_file or Path("resources") / INITIAL_PRICES_RESOURCE
-        )
-        date_index = entry.date
-        if date_index not in initial_prices:
-            initial_prices[date_index] = {}
-        initial_prices[date_index][entry.symbol] = entry.price
-    return initial_prices
 
 
 def read_isin_translation_file(

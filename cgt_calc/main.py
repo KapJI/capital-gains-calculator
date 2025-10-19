@@ -58,7 +58,7 @@ from .model import (
     RuleType,
     SpinOff,
 )
-from .parsers import read_broker_transactions, read_initial_prices
+from .parsers import read_broker_transactions
 from .setup_logging import setup_logging
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
@@ -1349,8 +1349,8 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         eri_raw_file=args.eri_raw_file,
     )
     currency_converter = CurrencyConverter(args.exchange_rates_file)
-    initial_prices = InitialPrices(read_initial_prices(args.initial_prices_file))
     price_fetcher = CurrentPriceFetcher(currency_converter)
+    initial_prices = InitialPrices(args.initial_prices_file)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
     isin_converter = IsinConverter(args.isin_translation_file)
 

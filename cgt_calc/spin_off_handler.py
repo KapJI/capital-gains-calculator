@@ -28,8 +28,7 @@ class SpinOffHandler:
     ):
         """Load data from spin_offs_file and optionally from initial_data."""
         self.spin_offs_file = spin_offs_file
-        read_data = self._read_spin_offs_file()
-        self.cache = read_data
+        self.cache = self._read_spin_offs_file()
 
     def _read_spin_offs_file(self) -> dict[str, str]:
         cache: dict[str, str] = {}
