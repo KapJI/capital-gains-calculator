@@ -120,6 +120,14 @@ class LatexRenderError(CgtError):
         super().__init__(f"LaTeX compilation failed: see '{log_path}'")
 
 
+class MissingExternalToolError(CgtError):
+    """Raised when a required external command-line tool is missing."""
+
+    def __init__(self, tool: str):
+        """Initialise."""
+        super().__init__(f"Required tool '{tool}' is not available on PATH")
+
+
 class IsinTranslationError(CgtError):
     """Raised when invalid ISIN translation data is encountered."""
 

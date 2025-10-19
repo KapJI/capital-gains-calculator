@@ -2,13 +2,14 @@
 
 from decimal import Decimal
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 
 import jinja2
 
 from .const import LATEX_TEMPLATE_RESOURCE, PACKAGE_NAME
-from .exceptions import LatexRenderError
+from .exceptions import LatexRenderError, MissingExternalToolError
 from .model import CapitalGainsReport
 from .util import round_decimal, strip_zeros
 
@@ -57,8 +58,9 @@ def render_pdf(
     # Skip for integration tests when pdflatex is not available.
     if skip_pdflatex:
         return
-
     try:
+        if shutil.which("pdflatex") is None:
+            raise MissingExternalToolError("pdflatex")
         cmd = [
             "pdflatex",
             "-file-line-error",
