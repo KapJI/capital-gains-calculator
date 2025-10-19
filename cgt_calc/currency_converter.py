@@ -14,7 +14,7 @@ import requests
 
 from .const import CGT_TEST_MODE
 from .dates import is_date
-from .exceptions import ExchangeRateMissingError, ParsingError
+from .exceptions import ExchangeRateMissingError, ExternalApiError, ParsingError
 from .util import open_with_parents
 
 if TYPE_CHECKING:
@@ -29,7 +29,7 @@ class CurrencyConverter:
 
     def __init__(
         self,
-        exchange_rates_file: str | None = None,
+        exchange_rates_file: Path | None = None,
         initial_data: dict[datetime.date, dict[str, Decimal]] | None = None,
     ):
         """Load data from exchange_rates_file and optionally from initial_data."""
@@ -43,15 +43,12 @@ class CurrencyConverter:
 
     @staticmethod
     def _read_exchange_rates_file(
-        exchange_rates_file: str | None,
+        exchange_rates_file: Path | None,
     ) -> defaultdict[datetime.date, dict[str, Decimal]]:
         cache: defaultdict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
-        if not exchange_rates_file:
+        if exchange_rates_file is None or not exchange_rates_file.is_file():
             return cache
-        path = Path(exchange_rates_file)
-        if not path.is_file():
-            return cache
-        with path.open(encoding="utf8") as fin:
+        with exchange_rates_file.open(encoding="utf8") as fin:
             csv_reader = csv.DictReader(fin)
             # skip the header
             next(csv_reader)
@@ -68,11 +65,11 @@ class CurrencyConverter:
 
     @staticmethod
     def _write_exchange_rates_file(
-        exchange_rates_file: str | None, data: dict[datetime.date, dict[str, Decimal]]
+        exchange_rates_file: Path | None, data: dict[datetime.date, dict[str, Decimal]]
     ) -> None:
-        if not exchange_rates_file or CGT_TEST_MODE:
+        if exchange_rates_file is None or CGT_TEST_MODE:
             return
-        with open_with_parents(Path(exchange_rates_file)) as fout:
+        with open_with_parents(exchange_rates_file) as fout:
             data_rows = [
                 [month, symbol, str(rate)]
                 for month, rates in data.items()
@@ -103,10 +100,10 @@ class CurrencyConverter:
             msg += "Either try again or if you're sure about the rates you can "
             msg += f"add them manually in {self.exchange_rates_file}.\n"
             msg += f"The error was: {err}\n"
-            raise ParsingError(url, msg) from err
+            raise ExternalApiError(url, msg) from err
 
         if not response.ok:
-            raise ParsingError(
+            raise ExternalApiError(
                 url, f"HMRC API returned a {response.status_code} response"
             )
 
@@ -118,7 +115,7 @@ class CurrencyConverter:
             for row in tree
         }
         if None in rates or None in rates.values():
-            raise ParsingError(url, "HMRC API produced invalid/unknown data")
+            raise ExternalApiError(url, "HMRC API produced invalid/unknown data")
         self.cache[date] = rates
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
 
@@ -139,5 +136,4 @@ class CurrencyConverter:
 
     def to_gbp_for(self, amount: Decimal, transaction: BrokerTransaction) -> Decimal:
         """Convert amount from transaction currency to GBP."""
-
         return self.to_gbp(amount, transaction.currency, transaction.date)
