@@ -276,8 +276,7 @@ Environment variables:
     data_group = parser.add_argument_group("Additional data files")
     data_group.add_argument(
         "--initial-prices-file",
-        type=str,
-        default=None,
+        type=existing_file_type,
         metavar="PATH",
         help="stock prices in USD at key events (vesting, splits, etc.) in CSV format",
     )
