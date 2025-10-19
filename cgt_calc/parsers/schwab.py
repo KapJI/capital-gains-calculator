@@ -9,8 +9,7 @@ import datetime
 from decimal import Decimal
 from enum import Enum
 import logging
-from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
@@ -20,6 +19,9 @@ from cgt_calc.exceptions import (
     UnexpectedRowCountError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 OLD_COLUMNS_NUM: Final = 9
 NEW_COLUMNS_NUM: Final = 8

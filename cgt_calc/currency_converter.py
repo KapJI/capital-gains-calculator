@@ -6,7 +6,6 @@ from collections import defaultdict
 import csv
 import datetime
 from decimal import Decimal
-from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from defusedxml import ElementTree as ET
@@ -18,6 +17,8 @@ from .exceptions import ExchangeRateMissingError, ExternalApiError, ParsingError
 from .util import open_with_parents
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from .model import BrokerTransaction
 
 EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
@@ -110,8 +111,9 @@ class CurrencyConverter:
             body = response.text.strip()
             extra = ""
             if body:
-                snippet = body[:200]
-                if len(body) > 200:
+                snippet_length_limit = 200
+                snippet = body[:snippet_length_limit]
+                if len(body) > snippet_length_limit:
                     snippet += "..."
                 extra = f" Response body: {snippet}"
             raise ExternalApiError(

@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
 import datetime
 import importlib.metadata
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .const import (
     DEFAULT_EXCHANGE_RATES_FILE,
@@ -17,6 +16,9 @@ from .const import (
     DEFAULT_SPIN_OFF_FILE,
     INTERNAL_START_DATE,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 LOGGER = logging.getLogger(__name__)
 

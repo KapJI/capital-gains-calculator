@@ -6,12 +6,14 @@ import csv
 from datetime import datetime
 from decimal import Decimal
 import logging
-from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 COLUMNS: Final[list[str]] = [
     "Action",
