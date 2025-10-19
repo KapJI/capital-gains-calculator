@@ -61,20 +61,6 @@ def output_path_type(value: str) -> Path:
     return Path(value)
 
 
-def optional_file_type(value: str) -> Path | None:
-    """Convert non-empty value to Path and ensure file semantics."""
-    if value.strip() == "":
-        return None
-    path = Path(value)
-    if path.exists():
-        if not path.is_file():
-            raise argparse.ArgumentTypeError(
-                f"expected file path, got directory: '{value}'"
-            )
-        _ensure_readable_file(path, value)
-    return path
-
-
 def _ensure_readable_file(path: Path, value: str) -> None:
     """Raise ArgumentTypeError when file cannot be read."""
     try:
@@ -95,6 +81,20 @@ def _ensure_readable_directory(path: Path, value: str) -> None:
         raise argparse.ArgumentTypeError(
             f"unable to read directory path: '{value}': {err}"
         ) from err
+
+
+def optional_file_type(value: str) -> Path | None:
+    """Convert non-empty value to Path and ensure file semantics."""
+    if value.strip() == "":
+        return None
+    path = Path(value)
+    if path.exists():
+        if not path.is_file():
+            raise argparse.ArgumentTypeError(
+                f"expected file path, got directory: '{value}'"
+            )
+        _ensure_readable_file(path, value)
+    return path
 
 
 def _existing_path_type(value: str, *, require_dir: bool) -> Path:
