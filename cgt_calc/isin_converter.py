@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from importlib import resources
-from importlib.resources.abc import Traversable
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
@@ -24,6 +23,8 @@ from .resources import RESOURCES_PACKAGE
 from .util import is_isin, open_with_parents
 
 if TYPE_CHECKING:
+    from importlib.resources.abc import Traversable
+
     from .model import BrokerTransaction
 
 ISIN_TRANSLATION_HEADER: Final = ["ISIN", "symbol"]

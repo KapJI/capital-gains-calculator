@@ -19,13 +19,15 @@ import datetime
 from decimal import Decimal
 import json
 import logging
-from pathlib import Path
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.util import round_decimal
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 OPTIONAL_DETAILS_NAME: Final = "Details"
 FIELD_TO_SCHEMA: Final = {"transactions": 1, "Transactions": 2}

@@ -6,11 +6,13 @@ import csv
 from datetime import datetime
 from decimal import Decimal
 import logging
-from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 LOGGER = logging.getLogger(__name__)
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .eri import read_eri_transactions
@@ -17,6 +16,8 @@ from .trading212 import read_trading212_transactions
 from .vanguard import read_vanguard_transactions
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from cgt_calc.model import BrokerTransaction
 
 LOGGER = logging.getLogger(__name__)

@@ -7,8 +7,7 @@ import csv
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 import logging
-from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
@@ -17,6 +16,9 @@ from cgt_calc.exceptions import (
     UnexpectedColumnCountError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 STOCK_ACTIVITY_COMMENT_MARKER: Final[str] = "Stock Activity"
 LOGGER = logging.getLogger(__name__)

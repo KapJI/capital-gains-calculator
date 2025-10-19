@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from importlib import resources
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cgt_calc.const import ERI_RESOURCE_FOLDER
@@ -21,6 +20,8 @@ from cgt_calc.resources import RESOURCES_PACKAGE
 from .raw import read_eri_raw
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from .model import EriTransaction
 
 LOGGER = logging.getLogger(__name__)

@@ -5,15 +5,17 @@ from __future__ import annotations
 import csv
 import datetime
 from decimal import Decimal
-from importlib.resources.abc import Traversable
 import logging
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.util import is_isin
 
 from .model import EriTransaction
+
+if TYPE_CHECKING:
+    from importlib.resources.abc import Traversable
 
 COLUMNS: Final[list[str]] = [
     "ISIN",
