@@ -3,6 +3,10 @@
 from pathlib import Path
 import subprocess
 
+import pytest
+
+from cgt_calc.exceptions import ParsingError
+from cgt_calc.parsers.freetrade import read_freetrade_transactions
 from tests.utils import build_cmd
 
 
@@ -24,3 +28,12 @@ def test_run_with_freetrade_file() -> None:
         "if you added new features update the test with:\n"
         f"{cmd_str} > {expected_file}"
     )
+
+
+def test_read_freetrade_transactions_empty_file(tmp_path: Path) -> None:
+    """Ensure parser raises when CSV is empty."""
+    empty_file = tmp_path / "empty.csv"
+    empty_file.write_text("")
+
+    with pytest.raises(ParsingError):
+        read_freetrade_transactions(empty_file)

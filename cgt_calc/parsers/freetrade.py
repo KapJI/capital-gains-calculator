@@ -148,6 +148,8 @@ def read_freetrade_transactions(transactions_file: Path) -> list[BrokerTransacti
     with transactions_file.open(encoding="utf-8") as file:
         LOGGER.info("Parsing %s...", transactions_file)
         lines = list(csv.reader(file))
+        if not lines:
+            raise ParsingError(transactions_file, "Freetrade CSV file is empty")
         header = lines[0]
         validate_header(header, transactions_file)
         lines = lines[1:]
