@@ -68,25 +68,25 @@ def _hacky_parse_decimal(decimal: str) -> Decimal:
     return Decimal(decimal.replace(",", ""))
 
 
-def _init_from_release_report(row_raw: list[str], filename: str) -> BrokerTransaction:
+def _init_from_release_report(row_raw: list[str], file: Path) -> BrokerTransaction:
     if len(COLUMNS_RELEASE) != len(row_raw):
-        raise UnexpectedColumnCountError(row_raw, len(COLUMNS_RELEASE), filename)
+        raise UnexpectedColumnCountError(row_raw, len(COLUMNS_RELEASE), file)
     row = {col: row_raw[i] for i, col in enumerate(COLUMNS_RELEASE)}
 
     if row["Type"] != "Release":
-        raise ParsingError(filename, f"Unknown type: {row_raw[3]}")
+        raise ParsingError(file, f"Unknown type: {row_raw[3]}")
 
     if row["Status"] != "Complete" and row["Status"] != "Staged":
-        raise ParsingError(filename, f"Unknown status: {row_raw[5]}")
+        raise ParsingError(file, f"Unknown status: {row_raw[5]}")
 
     if row["Price"][0] != "$":
-        raise ParsingError(filename, f"Unknown price currency: {row_raw[6]}")
+        raise ParsingError(file, f"Unknown price currency: {row_raw[6]}")
 
     if row["Net Cash Proceeds"] != "$0.00":
-        raise ParsingError(filename, f"Non-zero Net Cash Proceeds: {row_raw[8]}")
+        raise ParsingError(file, f"Non-zero Net Cash Proceeds: {row_raw[8]}")
 
     if row["Plan"] not in KNOWN_SYMBOL_DICT:
-        raise ParsingError(filename, f"Unknown plan: {row_raw[3]}")
+        raise ParsingError(file, f"Unknown plan: {row_raw[3]}")
 
     quantity = _hacky_parse_decimal(row["Net Share Proceeds"])
     price = _hacky_parse_decimal(row["Price"][1:])
@@ -135,26 +135,26 @@ def _handle_stock_split(transaction: BrokerTransaction) -> BrokerTransaction:
 
 
 def _init_from_withdrawal_report(
-    row_raw: list[str], filename: str
+    row_raw: list[str], file: Path
 ) -> BrokerTransaction | None:
     if _is_notice(row_raw):
         return None
 
     if len(COLUMNS_WITHDRAWAL) != len(row_raw):
-        raise UnexpectedColumnCountError(row_raw, len(COLUMNS_WITHDRAWAL), filename)
+        raise UnexpectedColumnCountError(row_raw, len(COLUMNS_WITHDRAWAL), file)
     row = {col: row_raw[i] for i, col in enumerate(COLUMNS_WITHDRAWAL)}
 
     if row["Type"] != "Sale":
-        raise ParsingError(filename, f"Unknown type: {row_raw[3]}")
+        raise ParsingError(file, f"Unknown type: {row_raw[3]}")
 
     if row["Order Status"] != "Complete":
-        raise ParsingError(filename, f"Unknown status: {row_raw[5]}")
+        raise ParsingError(file, f"Unknown status: {row_raw[5]}")
 
     if row["Price"][0] != "$":
-        raise ParsingError(filename, f"Unknown price currency: {row_raw[6]}")
+        raise ParsingError(file, f"Unknown price currency: {row_raw[6]}")
 
     if row["Plan"] not in KNOWN_SYMBOL_DICT:
-        raise ParsingError(filename, f"Unknown plan: {row_raw[3]}")
+        raise ParsingError(file, f"Unknown plan: {row_raw[3]}")
 
     quantity = -_hacky_parse_decimal(row["Quantity"])
     price = _hacky_parse_decimal(row["Price"][1:])
@@ -183,25 +183,23 @@ def _init_from_withdrawal_report(
     return _handle_stock_split(transaction)
 
 
-def _validate_header(
-    header: list[str], golden_header: list[str], filename: str
-) -> None:
+def _validate_header(header: list[str], golden_header: list[str], file: Path) -> None:
     """Check if header is valid."""
     if len(golden_header) != len(header):
-        raise UnexpectedColumnCountError(header, len(golden_header), filename)
+        raise UnexpectedColumnCountError(header, len(golden_header), file)
     for i, (expected, actual) in enumerate(zip(golden_header, header, strict=True)):
         if expected != actual:
             msg = f"Expected column {i + 1} to be {expected} but found {actual}"
-            raise ParsingError(filename, msg)
+            raise ParsingError(file, msg)
 
 
-def read_mssb_transactions(transactions_folder: str) -> list[BrokerTransaction]:
+def read_mssb_transactions(transactions_folder: Path) -> list[BrokerTransaction]:
     """Parse Morgan Stanley transactions from CSV file."""
     transactions = []
 
-    for file in sorted(Path(transactions_folder).glob("*.csv")):
-        with Path(file).open(encoding="utf-8") as csv_file:
-            if Path(file).name not in ["Withdrawals Report.csv", "Releases Report.csv"]:
+    for file in sorted(transactions_folder.glob("*.csv")):
+        with file.open(encoding="utf-8") as csv_file:
+            if file.name not in ["Withdrawals Report.csv", "Releases Report.csv"]:
                 continue
 
             print(f"Parsing {file}...")
@@ -209,15 +207,13 @@ def read_mssb_transactions(transactions_folder: str) -> list[BrokerTransaction]:
             header = lines[0]
             lines = lines[1:]
 
-            if Path(file).name == "Withdrawals Report.csv":
-                _validate_header(header, COLUMNS_WITHDRAWAL, str(file))
+            if file.name == "Withdrawals Report.csv":
+                _validate_header(header, COLUMNS_WITHDRAWAL, file)
                 transactions += [
-                    _init_from_withdrawal_report(row, str(file)) for row in lines
+                    _init_from_withdrawal_report(row, file) for row in lines
                 ]
             else:
-                _validate_header(header, COLUMNS_RELEASE, str(file))
-                transactions += [
-                    _init_from_release_report(row, str(file)) for row in lines
-                ]
+                _validate_header(header, COLUMNS_RELEASE, file)
+                transactions += [_init_from_release_report(row, file) for row in lines]
 
     return [transaction for transaction in transactions if transaction]

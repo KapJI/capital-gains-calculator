@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 import datetime
 import importlib.metadata
 import logging
 from pathlib import Path
+from typing import Any
 
 from .const import (
     DEFAULT_EXCHANGE_RATES_FILE,
@@ -57,19 +59,53 @@ def output_path_type(value: str) -> Path:
     return Path(value)
 
 
+def optional_file_type(value: str) -> Path | None:
+    """Convert non-empty value to Path and ensure file semantics."""
+    if value.strip() == "":
+        return None
+    path = Path(value)
+    if path.exists() and not path.is_file():
+        raise argparse.ArgumentTypeError(
+            f"expected file path, got directory: '{value}'"
+        )
+    return path
+
+
+def _existing_path_type(value: str, *, require_dir: bool) -> Path:
+    """Ensure provided path exists and matches expected type."""
+    path = Path(value).expanduser()
+    if not path.exists():
+        raise argparse.ArgumentTypeError(f"path does not exist: '{value}'")
+    if require_dir and not path.is_dir():
+        raise argparse.ArgumentTypeError(f"expected directory path, got: '{value}'")
+    if not require_dir and not path.is_file():
+        raise argparse.ArgumentTypeError(f"expected file path, got: '{value}'")
+    return path
+
+
+def existing_file_type(value: str) -> Path:
+    """Validate that provided value points to an existing file."""
+    return _existing_path_type(value, require_dir=False)
+
+
+def existing_directory_type(value: str) -> Path:
+    """Validate that provided value points to an existing directory."""
+    return _existing_path_type(value, require_dir=True)
+
+
 class DeprecatedAction(argparse.Action):
     """Print warning when deprecated argument is used."""
 
-    def __call__(
+    def __call__(  # type: ignore[explicit-any]
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        values: str,  # type: ignore[override]
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         """Check if argument is deprecated."""
         assert isinstance(option_string, str), "Positional arguments are not supported"
-        replacements = {
+        replacements: dict[str, str] = {
             "--freetrade": "--freetrade-file",
             "--initial-prices": "--initial-prices-file",
             "--mssb": "--mssb-dir",
@@ -118,7 +154,7 @@ Environment variables:
     broker_group = parser.add_argument_group("Broker inputs")
     broker_group.add_argument(
         "--freetrade-file",
-        type=str,
+        type=existing_file_type,
         default=None,
         metavar="PATH",
         help="Freetrade transaction history in CSV format",
@@ -127,12 +163,12 @@ Environment variables:
         "--freetrade",
         action=DeprecatedAction,
         dest="freetrade_file",
-        type=str,
+        type=existing_file_type,
         help=argparse.SUPPRESS,
     )
     broker_group.add_argument(
         "--mssb-dir",
-        type=str,
+        type=existing_directory_type,
         metavar="DIR",
         help="directory with Morgan Stanley transaction history CSV files",
     )
@@ -140,12 +176,12 @@ Environment variables:
         "--mssb",
         action=DeprecatedAction,
         dest="mssb_dir",
-        type=str,
+        type=existing_directory_type,
         help=argparse.SUPPRESS,
     )
     broker_group.add_argument(
         "--raw-file",
-        type=str,
+        type=existing_file_type,
         metavar="PATH",
         help="RAW format transaction history in CSV format",
     )
@@ -153,12 +189,12 @@ Environment variables:
         "--raw",
         action=DeprecatedAction,
         dest="raw_file",
-        type=str,
+        type=existing_file_type,
         help=argparse.SUPPRESS,
     )
     broker_group.add_argument(
         "--schwab-file",
-        type=str,
+        type=existing_file_type,
         metavar="PATH",
         help="Charles Schwab transaction history in CSV format",
     )
@@ -166,12 +202,12 @@ Environment variables:
         "--schwab",
         action=DeprecatedAction,
         dest="schwab_file",
-        type=str,
+        type=existing_file_type,
         help=argparse.SUPPRESS,
     )
     broker_group.add_argument(
         "--schwab-award-file",
-        type=str,
+        type=existing_file_type,
         default=None,
         metavar="PATH",
         help="Charles Schwab Equity Awards transaction history in CSV format",
@@ -180,12 +216,12 @@ Environment variables:
         "--schwab-award",
         action=DeprecatedAction,
         dest="schwab_award_file",
-        type=str,
+        type=existing_file_type,
         help=argparse.SUPPRESS,
     )
     broker_group.add_argument(
         "--schwab-equity-award-json",
-        type=str,
+        type=existing_file_type,
         default=None,
         metavar="PATH",
         help="Charles Schwab Equity Awards transaction history in JSON format",
@@ -193,13 +229,13 @@ Environment variables:
     broker_group.add_argument(
         "--schwab_equity_award_json",
         action=DeprecatedAction,
-        type=str,
+        type=existing_file_type,
         default=None,
         help=argparse.SUPPRESS,
     )
     broker_group.add_argument(
         "--sharesight-dir",
-        type=str,
+        type=existing_directory_type,
         metavar="DIR",
         help="directory with Sharesight reports in CSV format",
     )
@@ -207,12 +243,12 @@ Environment variables:
         "--sharesight",
         action=DeprecatedAction,
         dest="sharesight_dir",
-        type=str,
+        type=existing_directory_type,
         help=argparse.SUPPRESS,
     )
     broker_group.add_argument(
         "--trading212-dir",
-        type=str,
+        type=existing_directory_type,
         metavar="DIR",
         help="directory with Trading 212 transaction history CSV files",
     )
@@ -220,19 +256,19 @@ Environment variables:
         "--trading212",
         action=DeprecatedAction,
         dest="trading212_dir",
-        type=str,
+        type=existing_directory_type,
         help=argparse.SUPPRESS,
     )
     broker_group.add_argument(
         "--vanguard-file",
-        type=str,
+        type=existing_file_type,
         metavar="PATH",
         help="Vanguard transaction history in CSV format",
     )
     broker_group.add_argument(
         "--vanguard",
         dest="vanguard_file",
-        type=str,
+        type=existing_file_type,
         help=argparse.SUPPRESS,
     )
 
@@ -240,40 +276,39 @@ Environment variables:
     data_group = parser.add_argument_group("Additional data files")
     data_group.add_argument(
         "--initial-prices-file",
-        type=str,
-        default=None,
+        type=existing_file_type,
         metavar="PATH",
         help="stock prices in USD at key events (vesting, splits, etc.) in CSV format",
     )
     data_group.add_argument(
         "--initial-prices",
         dest="initial_prices_file",
-        type=str,
+        type=existing_file_type,
         help=argparse.SUPPRESS,
     )
     data_group.add_argument(
         "--eri-raw-file",
-        type=str,
+        type=existing_file_type,
         metavar="PATH",
         help="historical Excess Reported Income data in CSV format",
     )
     data_group.add_argument(
         "--exchange-rates-file",
-        type=str,
+        type=optional_file_type,
         metavar="PATH",
         default=DEFAULT_EXCHANGE_RATES_FILE,
         help="monthly exchange rates in CSV format (generated automatically if missing; default: %(default)s)",
     )
     data_group.add_argument(
         "--isin-translation-file",
-        type=str,
+        type=optional_file_type,
         default=DEFAULT_ISIN_TRANSLATION_FILE,
         metavar="PATH",
         help="ISIN to ticker translations in CSV format (generated automatically if missing; default: %(default)s)",
     )
     data_group.add_argument(
         "--spin-offs-file",
-        type=str,
+        type=optional_file_type,
         metavar="PATH",
         default=DEFAULT_SPIN_OFF_FILE,
         help="spin-offs data in CSV format (default: %(default)s)",

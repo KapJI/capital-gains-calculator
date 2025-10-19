@@ -32,8 +32,8 @@ def parse_decimal(val: str) -> Decimal:
     """Convert value to Decimal."""
     try:
         return Decimal(val.replace(",", ""))
-    except InvalidOperation:
-        raise ValueError(f"Bad decimal: {val}") from None
+    except InvalidOperation as err:
+        raise ValueError(f"Bad decimal: {val}") from err
 
 
 def maybe_decimal(val: str) -> Decimal | None:
@@ -87,7 +87,7 @@ def parse_dividend_payments(
             break
 
         if len(row) != len(columns):
-            raise UnexpectedColumnCountError(row, len(columns), str(file))
+            raise UnexpectedColumnCountError(row, len(columns), file)
 
         row_dict = dict(zip(columns, row, strict=True))
 
@@ -177,7 +177,7 @@ def parse_income_report(file: Path) -> Iterable[SharesightTransaction]:
             elif row[0] == "Foreign Income":
                 yield from parse_foreign_income(rows_iter, file)
     except ValueError as err:
-        raise ParsingError(f"{file}:{rows_iter.line}", str(err)) from None
+        raise ParsingError(file, f"Line: {rows_iter.line}, Error: {err}") from err
 
 
 def parse_trades(
@@ -191,7 +191,7 @@ def parse_trades(
             break
 
         if len(row) != len(columns):
-            raise UnexpectedColumnCountError(row, len(columns), str(file))
+            raise UnexpectedColumnCountError(row, len(columns), file)
 
         row_dict = dict(zip(columns, row, strict=True))
         tpe = row_dict["Type"]
@@ -279,16 +279,18 @@ def parse_trade_report(file: Path) -> Iterable[SharesightTransaction]:
             try:
                 yield from parse_trades(columns, rows_iter, file)
             except (InvalidOperation, ValueError) as err:
-                raise ParsingError(f"{file}:{rows_iter.line}", str(err)) from None
+                raise ParsingError(
+                    file, f"Line: {rows_iter.line}, Error: {err}"
+                ) from err
 
 
 def read_sharesight_transactions(
-    transactions_folder: str,
+    transactions_folder: Path,
 ) -> list[SharesightTransaction]:
     """Parse Sharesight transactions from reports."""
 
     transactions: list[SharesightTransaction] = []
-    for file in sorted(Path(transactions_folder).glob("*.csv")):
+    for file in sorted(transactions_folder.glob("*.csv")):
         if file.match("Taxable Income Report*.csv"):
             print(f"Parsing {file}...")
             income_transactions = list(parse_income_report(file))

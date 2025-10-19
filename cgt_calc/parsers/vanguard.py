@@ -32,7 +32,7 @@ REVERSAL_STR = "Reversal of "
 LOGGER = logging.getLogger(__name__)
 
 
-def action_from_str(label: str, filename: str) -> ActionType:
+def action_from_str(label: str, file: Path) -> ActionType:
     """Convert label to ActionType."""
 
     if TRANSFER_RE.match(label):
@@ -50,7 +50,7 @@ def action_from_str(label: str, filename: str) -> ActionType:
     if label == INTEREST_STR:
         return ActionType.INTEREST
 
-    raise ParsingError(filename, f"Unknown action: {label}")
+    raise ParsingError(file, f"Unknown action: {label}")
 
 
 class VanguardTransaction(BrokerTransaction):
@@ -62,7 +62,7 @@ class VanguardTransaction(BrokerTransaction):
         self,
         header: list[str],
         row_raw: list[str],
-        file: str,
+        file: Path,
     ):
         """Create transaction from CSV row."""
         currency = "GBP"
@@ -124,12 +124,12 @@ class VanguardTransaction(BrokerTransaction):
         )
 
 
-def validate_header(header: list[str], filename: str) -> None:
+def validate_header(header: list[str], file: Path) -> None:
     """Check if header is valid."""
     for actual in header:
         if actual not in COLUMNS:
             msg = f"Unknown column {actual}"
-            raise ParsingError(filename, msg)
+            raise ParsingError(file, msg)
 
 
 def by_date_and_action(
@@ -144,32 +144,23 @@ def by_date_and_action(
     )
 
 
-def read_vanguard_transactions(transactions_file: str) -> list[VanguardTransaction]:
+def read_vanguard_transactions(transactions_file: Path) -> list[VanguardTransaction]:
     """Read Vanguard transactions from file."""
-    transactions = []
-    try:
-        with Path(transactions_file).open(encoding="utf-8") as csv_file:
-            print(f"Parsing {transactions_file}...")
-            lines = list(csv.reader(csv_file))
 
-            header = lines[0]
-            validate_header(header, transactions_file)
+    with transactions_file.open(encoding="utf-8") as csv_file:
+        print(f"Parsing {transactions_file}...")
+        lines = list(csv.reader(csv_file))
 
-            lines = lines[1:]
-            cur_transactions = [
-                VanguardTransaction(header, row, transactions_file) for row in lines
-            ]
-            if len(cur_transactions) == 0:
-                LOGGER.warning(
-                    "No transactions detected in file: %s", transactions_file
-                )
-            transactions += cur_transactions
+    header = lines[0]
+    validate_header(header, transactions_file)
 
-            transactions.sort(key=by_date_and_action)
+    lines = lines[1:]
+    transactions = [
+        VanguardTransaction(header, row, transactions_file) for row in lines
+    ]
+    if len(transactions) == 0:
+        LOGGER.warning("No transactions detected in file: %s", transactions_file)
 
-    except FileNotFoundError as err:
-        raise ParsingError(
-            transactions_file, "Couldn't locate Vanguard transactions file"
-        ) from err
+    transactions.sort(key=by_date_and_action)
 
     return transactions

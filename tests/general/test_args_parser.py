@@ -8,7 +8,13 @@ from pathlib import Path
 import pytest
 
 from cgt_calc.args_parser import create_parser
-from cgt_calc.const import DEFAULT_REPORT_PATH, INTERNAL_START_DATE
+from cgt_calc.const import (
+    DEFAULT_EXCHANGE_RATES_FILE,
+    DEFAULT_ISIN_TRANSLATION_FILE,
+    DEFAULT_REPORT_PATH,
+    DEFAULT_SPIN_OFF_FILE,
+    INTERNAL_START_DATE,
+)
 
 
 def test_output_and_no_report_mutually_exclusive() -> None:
@@ -71,6 +77,191 @@ def test_output_rejects_whitespace_value() -> None:
     assert exc_info.value.code == 2
 
 
+@pytest.mark.parametrize(
+    ("option", "attr", "filename"),
+    [
+        ("--freetrade-file", "freetrade_file", "freetrade.csv"),
+        ("--raw-file", "raw_file", "raw.csv"),
+        ("--schwab-file", "schwab_file", "schwab.csv"),
+        ("--schwab-award-file", "schwab_award_file", "schwab_award.csv"),
+        (
+            "--schwab-equity-award-json",
+            "schwab_equity_award_json",
+            "schwab_equity_award.json",
+        ),
+        ("--vanguard-file", "vanguard_file", "vanguard.csv"),
+    ],
+)
+def test_broker_file_arguments_accept_existing_path(
+    tmp_path: Path, option: str, attr: str, filename: str
+) -> None:
+    """Ensure broker file options accept existing files and return Path."""
+    file_path = tmp_path / filename
+    file_path.write_text("", encoding="utf-8")
+    parser = create_parser()
+
+    args = parser.parse_args([option, str(file_path)])
+
+    assert getattr(args, attr) == file_path
+
+
+@pytest.mark.parametrize(
+    ("option", "attr"),
+    [
+        ("--freetrade-file", "freetrade_file"),
+        ("--raw-file", "raw_file"),
+        ("--schwab-file", "schwab_file"),
+        ("--schwab-award-file", "schwab_award_file"),
+        ("--schwab-equity-award-json", "schwab_equity_award_json"),
+        ("--vanguard-file", "vanguard_file"),
+    ],
+)
+def test_broker_file_arguments_reject_missing_path(
+    tmp_path: Path, option: str, attr: str
+) -> None:
+    """Ensure broker file options reject missing paths."""
+    parser = create_parser()
+    missing_path = tmp_path / "does_not_exist.csv"
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args([option, str(missing_path)])
+
+    assert exc_info.value.code == 2
+    args = parser.parse_args([])
+    assert getattr(args, attr) is None
+
+
+@pytest.mark.parametrize(
+    ("option", "attr", "dirname"),
+    [
+        ("--mssb-dir", "mssb_dir", "mssb"),
+        ("--sharesight-dir", "sharesight_dir", "sharesight"),
+        ("--trading212-dir", "trading212_dir", "trading212"),
+    ],
+)
+def test_broker_dir_arguments_accept_existing_directory(
+    tmp_path: Path, option: str, attr: str, dirname: str
+) -> None:
+    """Ensure broker directory options accept existing directories."""
+    dir_path = tmp_path / dirname
+    dir_path.mkdir()
+    parser = create_parser()
+
+    args = parser.parse_args([option, str(dir_path)])
+
+    assert getattr(args, attr) == dir_path
+
+
+@pytest.mark.parametrize(
+    ("option", "attr"),
+    [
+        ("--mssb-dir", "mssb_dir"),
+        ("--sharesight-dir", "sharesight_dir"),
+        ("--trading212-dir", "trading212_dir"),
+    ],
+)
+def test_broker_dir_arguments_reject_invalid_paths(
+    tmp_path: Path, option: str, attr: str
+) -> None:
+    """Ensure broker directory options reject missing directories or files."""
+    parser = create_parser()
+    missing_dir = tmp_path / "missing"
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args([option, str(missing_dir)])
+
+    assert exc_info.value.code == 2
+
+    file_path = tmp_path / "not_a_dir.csv"
+    file_path.write_text("", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args([option, str(file_path)])
+
+    assert exc_info.value.code == 2
+
+    args = parser.parse_args([])
+    assert getattr(args, attr) is None
+
+
+@pytest.mark.parametrize(
+    ("option", "attr", "default"),
+    [
+        ("--exchange-rates-file", "exchange_rates_file", DEFAULT_EXCHANGE_RATES_FILE),
+        (
+            "--isin-translation-file",
+            "isin_translation_file",
+            DEFAULT_ISIN_TRANSLATION_FILE,
+        ),
+        ("--spin-offs-file", "spin_offs_file", DEFAULT_SPIN_OFF_FILE),
+    ],
+)
+def test_optional_path_arguments_default(option: str, attr: str, default: Path) -> None:
+    """Ensure optional path arguments use their default when not provided."""
+    parser = create_parser()
+    args = parser.parse_args([])
+
+    assert getattr(args, attr) == default
+
+
+@pytest.mark.parametrize(
+    ("option", "attr", "value"),
+    [
+        ("--exchange-rates-file", "exchange_rates_file", "custom_rates.csv"),
+        ("--isin-translation-file", "isin_translation_file", "custom_isin.csv"),
+        ("--spin-offs-file", "spin_offs_file", "custom_spin_offs.csv"),
+    ],
+)
+def test_optional_path_arguments_accept_custom_path(
+    option: str, attr: str, value: str
+) -> None:
+    """Ensure optional path arguments convert provided values to Path."""
+    parser = create_parser()
+    args = parser.parse_args([option, value])
+
+    assert getattr(args, attr) == Path(value)
+
+
+@pytest.mark.parametrize(
+    ("option", "attr"),
+    [
+        ("--exchange-rates-file", "exchange_rates_file"),
+        ("--isin-translation-file", "isin_translation_file"),
+        ("--spin-offs-file", "spin_offs_file"),
+    ],
+)
+def test_optional_path_arguments_allow_empty_string(option: str, attr: str) -> None:
+    """Ensure optional path arguments treat empty values as None."""
+    parser = create_parser()
+    args = parser.parse_args([option, ""])
+
+    assert getattr(args, attr) is None
+
+
+@pytest.mark.parametrize(
+    ("option", "attr"),
+    [
+        ("--exchange-rates-file", "exchange_rates_file"),
+        ("--isin-translation-file", "isin_translation_file"),
+        ("--spin-offs-file", "spin_offs_file"),
+    ],
+)
+def test_optional_path_arguments_reject_directory(
+    tmp_path: Path, option: str, attr: str
+) -> None:
+    """Ensure optional path arguments reject directories when they exist."""
+    parser = create_parser()
+    directory = tmp_path / "existing_dir"
+    directory.mkdir()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args([option, str(directory)])
+
+    assert exc_info.value.code == 2
+    args = parser.parse_args([])
+    assert getattr(args, attr) is not None
+
+
 def test_no_report_alone_works() -> None:
     """Test that --no-report works alone."""
     parser = create_parser()
@@ -78,7 +269,7 @@ def test_no_report_alone_works() -> None:
 
     assert args.no_report is True
     # output still has default value
-    assert args.output == Path("out/calculations.pdf")
+    assert args.output == DEFAULT_REPORT_PATH
 
 
 def test_short_option_output_and_no_report_mutually_exclusive() -> None:

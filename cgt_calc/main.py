@@ -58,7 +58,7 @@ from .model import (
     RuleType,
     SpinOff,
 )
-from .parsers import read_broker_transactions, read_initial_prices
+from .parsers import read_broker_transactions
 from .setup_logging import setup_logging
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
@@ -1337,20 +1337,20 @@ def calculate_cgt(args: argparse.Namespace) -> None:
 
     # Read data from input files
     broker_transactions = read_broker_transactions(
-        args.schwab_file,
-        args.schwab_award_file,
-        args.schwab_equity_award_json,
-        args.trading212_dir,
-        args.mssb_dir,
-        args.sharesight_dir,
-        args.raw_file,
-        args.vanguard_file,
-        args.eri_raw_file,
-        args.freetrade_file,
+        freetrade_transactions_file=args.freetrade_file,
+        schwab_transactions_file=args.schwab_file,
+        schwab_awards_transactions_file=args.schwab_award_file,
+        schwab_equity_award_json_transactions_file=args.schwab_equity_award_json,
+        trading212_transactions_folder=args.trading212_dir,
+        mssb_transactions_folder=args.mssb_dir,
+        sharesight_transactions_folder=args.sharesight_dir,
+        raw_transactions_file=args.raw_file,
+        vanguard_transactions_file=args.vanguard_file,
+        eri_raw_file=args.eri_raw_file,
     )
     currency_converter = CurrencyConverter(args.exchange_rates_file)
-    initial_prices = InitialPrices(read_initial_prices(args.initial_prices_file))
     price_fetcher = CurrentPriceFetcher(currency_converter)
+    initial_prices = InitialPrices(args.initial_prices_file)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
     isin_converter = IsinConverter(args.isin_translation_file)
 

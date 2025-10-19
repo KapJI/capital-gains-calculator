@@ -17,12 +17,12 @@ CSV_COLUMNS_NUM: Final = 7
 LOGGER = logging.getLogger(__name__)
 
 
-def action_from_str(label: str) -> ActionType:
+def action_from_str(label: str, file: Path) -> ActionType:
     """Convert string label to ActionType."""
     try:
         return ActionType[label.upper()]
-    except KeyError as exc:
-        raise ParsingError("raw transactions", f"Unknown action: {label}") from exc
+    except KeyError as err:
+        raise ParsingError(file, f"Unknown action: {label}") from err
 
 
 class RawTransaction(BrokerTransaction):
@@ -41,7 +41,7 @@ class RawTransaction(BrokerTransaction):
     def __init__(
         self,
         row: list[str],
-        file: str,
+        file: Path,
     ):
         """Create transaction from CSV row."""
         if len(row) != CSV_COLUMNS_NUM:
@@ -50,7 +50,7 @@ class RawTransaction(BrokerTransaction):
         date_str = row[0]
         date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
 
-        action = action_from_str(row[1])
+        action = action_from_str(row[1], file)
         symbol = row[2] if row[2] != "" else None
 
         if symbol is not None:
@@ -84,14 +84,10 @@ class RawTransaction(BrokerTransaction):
         )
 
 
-def read_raw_transactions(transactions_file: str) -> list[BrokerTransaction]:
+def read_raw_transactions(transactions_file: Path) -> list[BrokerTransaction]:
     """Read Raw transactions from file."""
-    try:
-        with Path(transactions_file).open(encoding="utf-8") as csv_file:
-            print(f"Parsing {transactions_file}...")
-            lines = list(csv.reader(csv_file))
-    except FileNotFoundError:
-        LOGGER.warning("Couldn't locate RAW transactions file: %s", transactions_file)
-        return []
+    with transactions_file.open(encoding="utf-8") as csv_file:
+        print(f"Parsing {transactions_file}...")
+        lines = list(csv.reader(csv_file))
 
     return [RawTransaction(row, transactions_file) for row in lines]

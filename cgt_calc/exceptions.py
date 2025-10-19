@@ -19,7 +19,7 @@ class CgtError(Exception):
 class ParsingError(CgtError):
     """Parsing error."""
 
-    def __init__(self, file: str, message: str):
+    def __init__(self, file: Path, message: str):
         """Initialise."""
         self.message = f"While parsing {file}: {message}"
         super().__init__(self.message)
@@ -70,7 +70,7 @@ class QuantityNotPositiveError(InvalidTransactionError):
 class UnexpectedColumnCountError(ParsingError):
     """Unexpected column error."""
 
-    def __init__(self, row: list[str], count: int, file: str):
+    def __init__(self, row: list[str], count: int, file: Path):
         """Initialise."""
         super().__init__(
             file, f"The following row doesn't have {count} columns:\n{row}"
@@ -80,7 +80,7 @@ class UnexpectedColumnCountError(ParsingError):
 class UnexpectedRowCountError(ParsingError):
     """Unexpected row error."""
 
-    def __init__(self, count: int, file: str):
+    def __init__(self, count: int, file: Path):
         """Initialise."""
         super().__init__(file, f"The following file doesn't have {count} rows:")
 
@@ -118,3 +118,20 @@ class LatexRenderError(CgtError):
     def __init__(self, log_path: Path) -> None:
         """Initialise."""
         super().__init__(f"LaTeX compilation failed: see '{log_path}'")
+
+
+class IsinTranslationError(CgtError):
+    """Raised when invalid ISIN translation data is encountered."""
+
+    def __init__(self, message: str):
+        """Initialise."""
+        self.message = message
+        super().__init__(self.message)
+
+
+class ExternalApiError(CgtError):
+    """Raised when an external API request fails or returns invalid data."""
+
+    def __init__(self, url: str, message: str):
+        """Initialise."""
+        super().__init__(f"{message} (source: {url})")
