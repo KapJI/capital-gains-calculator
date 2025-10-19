@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable, Iterator
 import datetime
 from pathlib import Path
-import typing
+from typing import IO, TextIO, cast
 
 import pytest
 
-from cgt_calc.args_parser import create_parser, existing_file_type, optional_file_type
+from cgt_calc.args_parser import (
+    create_parser,
+    existing_directory_type,
+    existing_file_type,
+    optional_file_type,
+)
 from cgt_calc.const import (
     DEFAULT_EXCHANGE_RATES_FILE,
     DEFAULT_ISIN_TRANSLATION_FILE,
@@ -18,7 +24,8 @@ from cgt_calc.const import (
     INTERNAL_START_DATE,
 )
 
-ReturnType = typing.TextIO | typing.IO[bytes]
+ReturnType = TextIO | IO[bytes]
+DirIterator = Iterator[Path]
 
 
 def test_output_and_no_report_mutually_exclusive() -> None:
@@ -188,6 +195,31 @@ def test_broker_dir_arguments_reject_invalid_paths(
     assert getattr(args, attr) is None
 
 
+def test_existing_directory_type_rejects_unreadable_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """existing_directory_type raises when directory listing fails."""
+    directory = tmp_path / "blocked"
+    directory.mkdir()
+    target = directory
+    original_iterdir = cast(
+        "Callable[[Path], DirIterator]",
+        Path.iterdir,
+    )
+
+    def fake_iterdir(self: Path) -> DirIterator:
+        if self == target:
+            raise PermissionError("Permission denied")
+        return original_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", fake_iterdir)
+
+    with pytest.raises(
+        argparse.ArgumentTypeError, match="unable to read directory path"
+    ):
+        existing_directory_type(str(directory))
+
+
 @pytest.mark.parametrize(
     ("option", "attr", "default"),
     [
@@ -272,8 +304,8 @@ def test_optional_file_type_rejects_unreadable_file(
     """optional_file_type raises when file cannot be read."""
     target = tmp_path / "data.csv"
     target.write_text("value,1\n", encoding="utf8")
-    original_open = typing.cast(
-        "typing.Callable[[Path, str, int, str | None, str | None, str | None], ReturnType]",
+    original_open = cast(
+        "Callable[[Path, str, int, str | None, str | None, str | None], ReturnType]",
         Path.open,
     )
 
@@ -301,8 +333,8 @@ def test_existing_file_type_rejects_unreadable_file(
     """existing_file_type raises when file cannot be read."""
     target = tmp_path / "data.csv"
     target.write_text("value,1\n", encoding="utf8")
-    original_open = typing.cast(
-        "typing.Callable[[Path, str, int, str | None, str | None, str | None], ReturnType]",
+    original_open = cast(
+        "Callable[[Path, str, int, str | None, str | None, str | None], ReturnType]",
         Path.open,
     )
 

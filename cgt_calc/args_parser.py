@@ -66,11 +66,11 @@ def optional_file_type(value: str) -> Path | None:
     if value.strip() == "":
         return None
     path = Path(value)
-    if path.exists() and not path.is_file():
-        raise argparse.ArgumentTypeError(
-            f"expected file path, got directory: '{value}'"
-        )
     if path.exists():
+        if not path.is_file():
+            raise argparse.ArgumentTypeError(
+                f"expected file path, got directory: '{value}'"
+            )
         _ensure_readable_file(path, value)
     return path
 
@@ -86,6 +86,17 @@ def _ensure_readable_file(path: Path, value: str) -> None:
         ) from err
 
 
+def _ensure_readable_directory(path: Path, value: str) -> None:
+    """Raise ArgumentTypeError when directory contents cannot be listed."""
+    try:
+        iterator = path.iterdir()
+        next(iterator, None)
+    except OSError as err:  # pragma: no cover - message varies by platform
+        raise argparse.ArgumentTypeError(
+            f"unable to read directory path: '{value}': {err}"
+        ) from err
+
+
 def _existing_path_type(value: str, *, require_dir: bool) -> Path:
     """Ensure provided path exists and matches expected type."""
     path = Path(value).expanduser()
@@ -95,7 +106,9 @@ def _existing_path_type(value: str, *, require_dir: bool) -> Path:
         raise argparse.ArgumentTypeError(f"expected directory path, got: '{value}'")
     if not require_dir and not path.is_file():
         raise argparse.ArgumentTypeError(f"expected file path, got: '{value}'")
-    if not require_dir:
+    if require_dir:
+        _ensure_readable_directory(path, value)
+    else:
         _ensure_readable_file(path, value)
     return path
 
