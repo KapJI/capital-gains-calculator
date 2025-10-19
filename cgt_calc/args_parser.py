@@ -289,7 +289,7 @@ Environment variables:
     )
     data_group.add_argument(
         "--eri-raw-file",
-        type=str,
+        type=existing_file_type,
         metavar="PATH",
         help="historical Excess Reported Income data in CSV format",
     )

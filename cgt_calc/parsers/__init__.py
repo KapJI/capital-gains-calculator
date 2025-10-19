@@ -33,7 +33,7 @@ def read_broker_transactions(
     sharesight_transactions_folder: Path | None,
     raw_transactions_file: Path | None,
     vanguard_transactions_file: Path | None,
-    eri_raw_file: str | None,
+    eri_raw_file: Path | None,
 ) -> list[BrokerTransaction]:
     """Read transactions for all brokers."""
     transactions = []

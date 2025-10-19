@@ -27,7 +27,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def read_eri_transactions(
-    eri_raw_file: str | None,
+    eri_raw_file: Path | None,
 ) -> list[EriTransaction]:
     """Read Excess Reported Income transactions for all funds."""
     transactions = []
@@ -39,7 +39,7 @@ def read_eri_transactions(
             transactions += read_eri_raw(file)
 
     if eri_raw_file is not None:
-        transactions += read_eri_raw(Path(eri_raw_file))
+        transactions += read_eri_raw(eri_raw_file)
     else:
         LOGGER.debug("No ERI raw file provided")
 
