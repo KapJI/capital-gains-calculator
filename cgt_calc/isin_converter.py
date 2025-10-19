@@ -14,6 +14,7 @@ from requests_ratelimiter import LimiterSession
 
 from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_RESOURCE
 from .exceptions import (
+    ExternalApiError,
     InvalidTransactionError,
     IsinTranslationError,
     ParsingError,
@@ -43,7 +44,7 @@ class IsinTranslationEntry:
             raise UnexpectedColumnCountError(row, ISIN_TRANSLATION_COLUMNS_NUM, file)
         self.isin = row[0]
         if not is_isin(self.isin):
-            raise ParsingError(file, f"{self.isin} is not a valid ISIN!")
+            raise ParsingError(file, f"Row contains invalid ISIN '{self.isin}'")
         self.symbols = set(row[1:])
 
     def __str__(self) -> str:
@@ -73,15 +74,19 @@ class IsinConverter:
         reverse_cache: dict[str, str] = {}
         for isin, symbols in self.data.items():
             if not is_isin(isin):
-                raise IsinTranslationError(f"{isin} not a valid ISIN")
+                raise IsinTranslationError(
+                    f"Invalid ISIN found in translation data: {isin}"
+                )
             for symbol in symbols:
                 if not symbol:
-                    raise IsinTranslationError(f"Invalid empty ticker for {isin} ISIN")
+                    raise IsinTranslationError(
+                        f"Ticker list for ISIN {isin} contains an empty value"
+                    )
                 existing_isin = reverse_cache.get(symbol)
                 if existing_isin and existing_isin != isin:
                     raise IsinTranslationError(
-                        f"Found multiple ISINs for the same ticker {symbol}: "
-                        f"{isin}, {existing_isin}"
+                        f"Ticker {symbol} already linked to ISIN {existing_isin}; "
+                        f"cannot also link to {isin}"
                     )
                 reverse_cache[symbol] = isin
 
@@ -90,14 +95,15 @@ class IsinConverter:
         if transaction.symbol and transaction.isin:
             if not is_isin(transaction.isin):
                 raise InvalidTransactionError(
-                    transaction, f"{transaction.isin} is not a valid ISIN"
+                    transaction,
+                    f"Transaction uses invalid ISIN {transaction.isin}",
                 )
             current_symbols = self.data.get(transaction.isin)
             if current_symbols and transaction.symbol not in current_symbols:
                 raise InvalidTransactionError(
                     transaction,
-                    "Inconsistent ISIN value compared to existing mapping "
-                    f"{', '.join(sorted(current_symbols))}",
+                    f"Ticker {transaction.symbol} does not match existing mapping: "
+                    f"ISIN {transaction.isin} is linked to {', '.join(sorted(current_symbols))}",
                 )
 
             if transaction.symbol not in self.data.get(transaction.isin, set()):
@@ -134,8 +140,8 @@ class IsinConverter:
             if header != ISIN_TRANSLATION_HEADER:
                 raise ParsingError(
                     file_label,
-                    "Invalid ISIN translation header: "
-                    f"expected {ISIN_TRANSLATION_HEADER}, got {header}",
+                    "Unexpected header in ISIN translation data: "
+                    f"expected {ISIN_TRANSLATION_HEADER}, found {header}",
                 )
             entries: dict[str, set[str]] = {}
             for row in lines[1:]:
@@ -174,13 +180,12 @@ class IsinConverter:
             response_text = response.text
             json_response = response.json()
         except Exception as err:
-            msg = f"Error while fetching ISIN information for {isin} "
+            msg = f"Failed to fetch ISIN information for {isin}. "
             if response_text:
-                msg += f"Response was: {response_text}"
-            msg += "Either try again or if you're sure about the translation you can "
-            msg += f"add it manually in {self.isin_translation_file}.\n"
-            msg += f"The error was: {err}\n"
-            raise ParsingError(url, msg) from err
+                msg += f"Server response: {response_text}. "
+            msg += "Try again later or, if you're confident about the ticker, add it "
+            msg += f"manually to {self.isin_translation_file}. Error: {err}"
+            raise ExternalApiError(url, msg) from err
 
         if (
             not json_response

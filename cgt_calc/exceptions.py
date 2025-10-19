@@ -127,3 +127,11 @@ class IsinTranslationError(CgtError):
         """Initialise."""
         self.message = message
         super().__init__(self.message)
+
+
+class ExternalApiError(CgtError):
+    """Raised when an external API request fails or returns invalid data."""
+
+    def __init__(self, url: str, message: str):
+        """Initialise."""
+        super().__init__(f"{message} (source: {url})")
