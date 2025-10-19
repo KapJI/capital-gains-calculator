@@ -118,6 +118,18 @@ def test_read_freetrade_transactions_unknown_column(tmp_path: Path) -> None:
         read_freetrade_transactions(path)
 
 
+def test_read_freetrade_transactions_invalid_decimal(tmp_path: Path) -> None:
+    """Invalid decimal values surface as ParsingError with row context."""
+    overrides = {FreetradeColumn.QUANTITY.value: "not-a-number"}
+    path = _write_csv(tmp_path, COLUMNS, [_default_row(overrides)])
+
+    with pytest.raises(
+        ParsingError,
+        match="Row 2: Invalid decimal in column 'Quantity'",
+    ):
+        read_freetrade_transactions(path)
+
+
 def test_read_freetrade_transactions_success(tmp_path: Path) -> None:
     """Default row parses into a valid BUY transaction."""
     path = _write_csv(tmp_path, COLUMNS, [_default_row()])

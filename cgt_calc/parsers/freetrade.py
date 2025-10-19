@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, Final
@@ -59,7 +59,7 @@ REQUIRED_COLUMNS: Final[set[str]] = set(COLUMNS)
 class FreetradeTransaction(BrokerTransaction):
     """Represents a single Freetrade transaction."""
 
-    def __init__(self, header: list[str], row_raw: list[str], file: Path):
+    def __init__(self, header: list[str], row_raw: list[str], file: Path) -> None:
         """Create transaction from CSV row."""
         row = dict(zip(header, row_raw, strict=False))
         action = action_from_str(
@@ -78,27 +78,27 @@ class FreetradeTransaction(BrokerTransaction):
 
         # Convert all numbers in GBP using Freetrade rates
         if action in [ActionType.SELL, ActionType.BUY]:
-            quantity = Decimal(row[FreetradeColumn.QUANTITY])
-            price = Decimal(row[FreetradeColumn.PRICE_PER_SHARE])
-            amount = Decimal(row[FreetradeColumn.TOTAL_SHARES_AMOUNT])
+            quantity = _parse_decimal(row, FreetradeColumn.QUANTITY)
+            price = _parse_decimal(row, FreetradeColumn.PRICE_PER_SHARE)
+            amount = _parse_decimal(row, FreetradeColumn.TOTAL_SHARES_AMOUNT)
             currency = row[FreetradeColumn.INSTRUMENT_CURRENCY]
             if currency != "GBP":
-                fx_rate = Decimal(row[FreetradeColumn.FX_RATE])
+                fx_rate = _parse_decimal(row, FreetradeColumn.FX_RATE)
                 price /= fx_rate
                 amount /= fx_rate
             currency = "GBP"
         elif action == ActionType.DIVIDEND:
             # Total amount before US tax withholding
-            amount = Decimal(row[FreetradeColumn.DIVIDEND_GROSS_AMOUNT])
+            amount = _parse_decimal(row, FreetradeColumn.DIVIDEND_GROSS_AMOUNT)
             quantity, price = None, None
             currency = row[FreetradeColumn.INSTRUMENT_CURRENCY]
             if currency != "GBP":
                 # FX Rate is not defined for dividends,
                 # but we can use base one as there's no fee
-                amount /= Decimal(row[FreetradeColumn.BASE_FX_RATE])
+                amount /= _parse_decimal(row, FreetradeColumn.BASE_FX_RATE)
             currency = "GBP"
         elif action in [ActionType.TRANSFER, ActionType.INTEREST]:
-            amount = Decimal(row[FreetradeColumn.TOTAL_AMOUNT])
+            amount = _parse_decimal(row, FreetradeColumn.TOTAL_AMOUNT)
             quantity, price = None, None
             currency = "GBP"
         else:
@@ -161,6 +161,18 @@ def validate_header(header: list[str], file: Path) -> None:
         raise ParsingError(file, f"Unknown columns: {unknown_columns}")
 
 
+def _parse_decimal(row: dict[str, str], column: FreetradeColumn) -> Decimal:
+    """Parse Decimal value for column, raising ValueError with context on failure."""
+
+    value = row[column]
+    try:
+        return Decimal(value)
+    except InvalidOperation as err:
+        raise ValueError(
+            f"Invalid decimal in column '{column.value}': {value!r}"
+        ) from err
+
+
 def read_freetrade_transactions(transactions_file: Path) -> list[BrokerTransaction]:
     """Parse Freetrade transactions from a CSV file."""
     with transactions_file.open(encoding="utf-8") as file:
@@ -171,12 +183,20 @@ def read_freetrade_transactions(transactions_file: Path) -> list[BrokerTransacti
         header = lines[0]
         validate_header(header, transactions_file)
         lines = lines[1:]
+        indexed_rows = list(enumerate(lines, start=2))
         # HACK: reverse transactions to avoid negative balance issues
         # the proper fix would be to use datetime in BrokerTransaction
-        lines.reverse()
-        transactions: list[BrokerTransaction] = [
-            FreetradeTransaction(header, row, transactions_file) for row in lines
-        ]
+        indexed_rows.reverse()
+        transactions: list[BrokerTransaction] = []
+        for index, row in indexed_rows:
+            try:
+                transactions.append(
+                    FreetradeTransaction(header, row, transactions_file)
+                )
+            except ValueError as err:
+                raise ParsingError(
+                    transactions_file, f"Row {index}: {err}"
+                ) from err
         if len(transactions) == 0:
             LOGGER.warning("No transactions detected in file %s", transactions_file)
         return transactions
