@@ -25,6 +25,29 @@ class ParsingError(CgtError):
         super().__init__(self.message)
 
 
+class UnsupportedBrokerActionError(CgtError):
+    """Raised when a broker export contains an unsupported action."""
+
+    def __init__(self, broker: str, action: str):
+        """Initialise."""
+        message = (
+            f"Unsupported {broker} action '{action}'. "
+            "Please check if a newer version of cgt-calc adds support or open an issue."
+        )
+        super().__init__(message)
+
+
+class UnsupportedBrokerCurrencyError(CgtError):
+    """Raised when a broker export uses an unsupported account currency."""
+
+    def __init__(self, broker: str, currency: str):
+        """Initialise."""
+        super().__init__(
+            "Unsupported account currency encountered. "
+            f"Broker: {broker}, currency: {currency}."
+        )
+
+
 class InvalidTransactionError(CgtError):
     """Invalid transaction error."""
 
@@ -118,6 +141,14 @@ class LatexRenderError(CgtError):
     def __init__(self, log_path: Path) -> None:
         """Initialise."""
         super().__init__(f"LaTeX compilation failed: see '{log_path}'")
+
+
+class MissingExternalToolError(CgtError):
+    """Raised when a required external command-line tool is missing."""
+
+    def __init__(self, tool: str):
+        """Initialise."""
+        super().__init__(f"Required tool '{tool}' is not available on PATH")
 
 
 class IsinTranslationError(CgtError):
