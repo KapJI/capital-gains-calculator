@@ -66,7 +66,7 @@ def _ensure_readable_file(path: Path, value: str) -> None:
     try:
         with path.open("rb"):
             pass
-    except OSError as err:  # pragma: no cover - message varies by platform
+    except OSError as err:
         raise argparse.ArgumentTypeError(
             f"unable to read file path: '{value}': {err}"
         ) from err
@@ -77,7 +77,7 @@ def _ensure_readable_directory(path: Path, value: str) -> None:
     try:
         iterator = path.iterdir()
         next(iterator, None)
-    except OSError as err:  # pragma: no cover - message varies by platform
+    except OSError as err:
         raise argparse.ArgumentTypeError(
             f"unable to read directory path: '{value}': {err}"
         ) from err
