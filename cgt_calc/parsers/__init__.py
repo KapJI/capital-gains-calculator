@@ -174,7 +174,9 @@ def read_initial_prices(
             lines = list(csv.reader(csv_file))
     lines = lines[1:]
     for row in lines:
-        entry = InitialPricesEntry(row, initial_prices_file or Path("resources") / INITIAL_PRICES_RESOURCE)
+        entry = InitialPricesEntry(
+            row, initial_prices_file or Path("resources") / INITIAL_PRICES_RESOURCE
+        )
         date_index = entry.date
         if date_index not in initial_prices:
             initial_prices[date_index] = {}
