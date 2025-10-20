@@ -9,7 +9,8 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
 from cgt_calc.const import TICKER_RENAMES
@@ -19,31 +20,43 @@ from cgt_calc.model import ActionType, BrokerTransaction
 if TYPE_CHECKING:
     from pathlib import Path
 
-COLUMNS_RELEASE: Final[list[str]] = [
-    "Vest Date",
-    "Order Number",
-    "Plan",
-    "Type",
-    "Status",
-    "Price",
-    "Quantity",
-    "Net Cash Proceeds",
-    "Net Share Proceeds",
-    "Tax Payment Method",
-]
+BROKER_NAME: Final = "Morgan Stanley"
+WITHDRAWALS_REPORT_FILENAME: Final = "Withdrawals Report.csv"
+RELEASES_REPORT_FILENAME: Final = "Releases Report.csv"
 
-COLUMNS_WITHDRAWAL: Final[list[str]] = [
-    "Execution Date",
-    "Order Number",
-    "Plan",
-    "Type",
-    "Order Status",
-    "Price",
-    "Quantity",
-    "Net Amount",
-    "Net Share Proceeds",
-    "Tax Payment Method",
-]
+
+class ReleaseColumn(StrEnum):
+    """Column names for release reports."""
+
+    VEST_DATE = "Vest Date"
+    ORDER_NUMBER = "Order Number"
+    PLAN = "Plan"
+    TYPE = "Type"
+    STATUS = "Status"
+    PRICE = "Price"
+    QUANTITY = "Quantity"
+    NET_CASH_PROCEEDS = "Net Cash Proceeds"
+    NET_SHARE_PROCEEDS = "Net Share Proceeds"
+    TAX_PAYMENT_METHOD = "Tax Payment Method"
+
+
+class WithdrawalColumn(StrEnum):
+    """Column names for withdrawal reports."""
+
+    EXECUTION_DATE = "Execution Date"
+    ORDER_NUMBER = "Order Number"
+    PLAN = "Plan"
+    TYPE = "Type"
+    ORDER_STATUS = "Order Status"
+    PRICE = "Price"
+    QUANTITY = "Quantity"
+    NET_AMOUNT = "Net Amount"
+    NET_SHARE_PROCEEDS = "Net Share Proceeds"
+    TAX_PAYMENT_METHOD = "Tax Payment Method"
+
+
+COLUMNS_RELEASE: Final[list[str]] = [column.value for column in ReleaseColumn]
+COLUMNS_WITHDRAWAL: Final[list[str]] = [column.value for column in WithdrawalColumn]
 
 # These can be potentially wired through as a flag
 KNOWN_SYMBOL_DICT: Final[dict[str, str]] = {
@@ -66,8 +79,17 @@ STOCK_SPLIT_INFO = [
 ]
 
 
-def _hacky_parse_decimal(decimal: str) -> Decimal:
-    return Decimal(decimal.replace(",", ""))
+def _parse_decimal(row: dict[str, str], column: StrEnum) -> Decimal:
+    """Parse a decimal from the given row, annotating errors with column context."""
+
+    value = row[column]
+    cleaned = value.replace(",", "").replace("$", "")
+    try:
+        return Decimal(cleaned)
+    except InvalidOperation as err:
+        raise ValueError(
+            f"Invalid decimal in column '{column.value}': {value!r}"
+        ) from err
 
 
 def _init_from_release_report(row_raw: list[str], file: Path) -> BrokerTransaction:
@@ -75,38 +97,46 @@ def _init_from_release_report(row_raw: list[str], file: Path) -> BrokerTransacti
         raise UnexpectedColumnCountError(row_raw, len(COLUMNS_RELEASE), file)
     row = {col: row_raw[i] for i, col in enumerate(COLUMNS_RELEASE)}
 
-    if row["Type"] != "Release":
-        raise ParsingError(file, f"Unknown type: {row_raw[3]}")
+    plan = row[ReleaseColumn.PLAN]
 
-    if row["Status"] != "Complete" and row["Status"] != "Staged":
-        raise ParsingError(file, f"Unknown status: {row_raw[5]}")
+    if row[ReleaseColumn.TYPE] != "Release":
+        raise ParsingError(file, f"Unknown type: {row[ReleaseColumn.TYPE]}")
 
-    if row["Price"][0] != "$":
-        raise ParsingError(file, f"Unknown price currency: {row_raw[6]}")
+    if row[ReleaseColumn.STATUS] not in {"Complete", "Staged"}:
+        raise ParsingError(file, f"Unknown status: {row[ReleaseColumn.STATUS]}")
 
-    if row["Net Cash Proceeds"] != "$0.00":
-        raise ParsingError(file, f"Non-zero Net Cash Proceeds: {row_raw[8]}")
+    price_raw = row[ReleaseColumn.PRICE]
+    if not price_raw or not price_raw.startswith("$"):
+        raise ParsingError(file, f"Unknown price currency: {price_raw}")
 
-    if row["Plan"] not in KNOWN_SYMBOL_DICT:
-        raise ParsingError(file, f"Unknown plan: {row_raw[3]}")
+    if row[ReleaseColumn.NET_CASH_PROCEEDS] != "$0.00":
+        raise ParsingError(
+            file,
+            f"Non-zero Net Cash Proceeds: {row[ReleaseColumn.NET_CASH_PROCEEDS]}",
+        )
 
-    quantity = _hacky_parse_decimal(row["Net Share Proceeds"])
-    price = _hacky_parse_decimal(row["Price"][1:])
+    if plan not in KNOWN_SYMBOL_DICT:
+        raise ParsingError(file, f"Unknown plan: {plan}")
+
+    quantity = _parse_decimal(row, ReleaseColumn.NET_SHARE_PROCEEDS)
+    price = _parse_decimal(row, ReleaseColumn.PRICE)
     amount = quantity * price
-    symbol = KNOWN_SYMBOL_DICT[row["Plan"]]
+    symbol = KNOWN_SYMBOL_DICT[plan]
     symbol = TICKER_RENAMES.get(symbol, symbol)
 
     return BrokerTransaction(
-        date=datetime.datetime.strptime(row["Vest Date"], "%d-%b-%Y").date(),
+        date=datetime.datetime.strptime(
+            row[ReleaseColumn.VEST_DATE], "%d-%b-%Y"
+        ).date(),
         action=ActionType.STOCK_ACTIVITY,
         symbol=symbol,
-        description=row["Plan"],
+        description=plan,
         quantity=quantity,
         price=price,
         fees=Decimal(0),
         amount=amount,
         currency="USD",
-        broker="Morgan Stanley",
+        broker=BROKER_NAME,
     )
 
 
@@ -146,40 +176,47 @@ def _init_from_withdrawal_report(
         raise UnexpectedColumnCountError(row_raw, len(COLUMNS_WITHDRAWAL), file)
     row = {col: row_raw[i] for i, col in enumerate(COLUMNS_WITHDRAWAL)}
 
-    if row["Type"] != "Sale":
-        raise ParsingError(file, f"Unknown type: {row_raw[3]}")
+    plan = row[WithdrawalColumn.PLAN]
 
-    if row["Order Status"] != "Complete":
-        raise ParsingError(file, f"Unknown status: {row_raw[5]}")
+    if row[WithdrawalColumn.TYPE] != "Sale":
+        raise ParsingError(file, f"Unknown type: {row[WithdrawalColumn.TYPE]}")
 
-    if row["Price"][0] != "$":
-        raise ParsingError(file, f"Unknown price currency: {row_raw[6]}")
+    if row[WithdrawalColumn.ORDER_STATUS] != "Complete":
+        raise ParsingError(
+            file, f"Unknown status: {row[WithdrawalColumn.ORDER_STATUS]}"
+        )
 
-    if row["Plan"] not in KNOWN_SYMBOL_DICT:
-        raise ParsingError(file, f"Unknown plan: {row_raw[3]}")
+    price_raw = row[WithdrawalColumn.PRICE]
+    if not price_raw or not price_raw.startswith("$"):
+        raise ParsingError(file, f"Unknown price currency: {price_raw}")
 
-    quantity = -_hacky_parse_decimal(row["Quantity"])
-    price = _hacky_parse_decimal(row["Price"][1:])
-    amount = _hacky_parse_decimal(row["Net Amount"][1:])
+    if plan not in KNOWN_SYMBOL_DICT:
+        raise ParsingError(file, f"Unknown plan: {plan}")
+
+    quantity = -_parse_decimal(row, WithdrawalColumn.QUANTITY)
+    price = _parse_decimal(row, WithdrawalColumn.PRICE)
+    amount = _parse_decimal(row, WithdrawalColumn.NET_AMOUNT)
     fees = quantity * price - amount
 
-    if row["Plan"] == "Cash":
+    if plan == "Cash":
         action = ActionType.TRANSFER
         amount *= -1
     else:
         action = ActionType.SELL
 
     transaction = BrokerTransaction(
-        date=datetime.datetime.strptime(row["Execution Date"], "%d-%b-%Y").date(),
+        date=datetime.datetime.strptime(
+            row[WithdrawalColumn.EXECUTION_DATE], "%d-%b-%Y"
+        ).date(),
         action=action,
-        symbol=KNOWN_SYMBOL_DICT[row["Plan"]],
-        description=row["Plan"],
+        symbol=KNOWN_SYMBOL_DICT[plan],
+        description=plan,
         quantity=quantity,
         price=price,
         fees=fees,
         amount=amount,
         currency="USD",
-        broker="Morgan Stanley",
+        broker=BROKER_NAME,
     )
 
     return _handle_stock_split(transaction)
@@ -201,21 +238,35 @@ def read_mssb_transactions(transactions_folder: Path) -> list[BrokerTransaction]
 
     for file in sorted(transactions_folder.glob("*.csv")):
         with file.open(encoding="utf-8") as csv_file:
-            if file.name not in ["Withdrawals Report.csv", "Releases Report.csv"]:
+            if file.name not in [
+                WITHDRAWALS_REPORT_FILENAME,
+                RELEASES_REPORT_FILENAME,
+            ]:
                 continue
 
             print(f"Parsing {file}...")
             lines = list(csv.reader(csv_file))
+            if not lines:
+                raise ParsingError(file, "Morgan Stanley CSV file is empty")
             header = lines[0]
             lines = lines[1:]
 
-            if file.name == "Withdrawals Report.csv":
+            if file.name == WITHDRAWALS_REPORT_FILENAME:
                 _validate_header(header, COLUMNS_WITHDRAWAL, file)
-                transactions += [
-                    _init_from_withdrawal_report(row, file) for row in lines
-                ]
+                for index, row in enumerate(lines, start=2):
+                    try:
+                        transaction = _init_from_withdrawal_report(row, file)
+                    except ValueError as err:
+                        raise ParsingError(file, f"Row {index}: {err}") from err
+                    if transaction:
+                        transactions.append(transaction)
             else:
                 _validate_header(header, COLUMNS_RELEASE, file)
-                transactions += [_init_from_release_report(row, file) for row in lines]
+                for index, row in enumerate(lines, start=2):
+                    try:
+                        transaction = _init_from_release_report(row, file)
+                    except ValueError as err:
+                        raise ParsingError(file, f"Row {index}: {err}") from err
+                    transactions.append(transaction)
 
     return [transaction for transaction in transactions if transaction]

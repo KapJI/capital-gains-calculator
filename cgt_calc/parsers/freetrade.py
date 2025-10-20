@@ -19,6 +19,7 @@ from cgt_calc.model import ActionType, BrokerTransaction
 if TYPE_CHECKING:
     from pathlib import Path
 
+BROKER_NAME: Final = "Freetrade"
 LOGGER = logging.getLogger(__name__)
 
 
@@ -79,7 +80,7 @@ class FreetradeTransaction(BrokerTransaction):
         # I believe GIA account at Freetrade can be only in GBP
         if row[FreetradeColumn.ACCOUNT_CURRENCY] != "GBP":
             raise UnsupportedBrokerCurrencyError(
-                "Freetrade", row[FreetradeColumn.ACCOUNT_CURRENCY]
+                BROKER_NAME, row[FreetradeColumn.ACCOUNT_CURRENCY]
             )
 
         # Convert all numbers in GBP using Freetrade rates
@@ -108,7 +109,7 @@ class FreetradeTransaction(BrokerTransaction):
             quantity, price = None, None
             currency = "GBP"
         else:
-            raise UnsupportedBrokerActionError("Freetrade", row[FreetradeColumn.TYPE])
+            raise UnsupportedBrokerActionError(BROKER_NAME, row[FreetradeColumn.TYPE])
 
         if row[FreetradeColumn.TYPE] == "FREESHARE_ORDER":
             price = Decimal(0)
@@ -130,7 +131,7 @@ class FreetradeTransaction(BrokerTransaction):
             fees=Decimal(0),  # not implemented
             amount=amount,
             currency=currency,
-            broker="Freetrade",
+            broker=BROKER_NAME,
         )
 
 
