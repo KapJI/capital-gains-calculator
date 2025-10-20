@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import csv
 import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Literal, overload
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
@@ -15,7 +16,21 @@ from cgt_calc.model import ActionType, BrokerTransaction
 if TYPE_CHECKING:
     from pathlib import Path
 
-CSV_COLUMNS_NUM: Final = 7
+
+class RawColumn(StrEnum):
+    """Column names for the RAW format."""
+
+    DATE = "date"
+    ACTION = "action"
+    SYMBOL = "symbol"
+    QUANTITY = "quantity"
+    PRICE = "price"
+    FEES = "fees"
+    CURRENCY = "currency"
+
+
+COLUMNS: Final[list[str]] = [column.value for column in RawColumn]
+CSV_COLUMNS_NUM: Final = len(COLUMNS)
 LOGGER = logging.getLogger(__name__)
 
 
@@ -25,6 +40,83 @@ def action_from_str(label: str, file: Path) -> ActionType:
         return ActionType[label.upper()]
     except KeyError as err:
         raise ParsingError(file, f"Unknown action: {label}") from err
+
+
+@overload
+def _parse_decimal(
+    row: dict[RawColumn, str],
+    column: RawColumn,
+    *,
+    allow_empty: Literal[True],
+    default: Decimal,
+) -> Decimal: ...
+
+
+@overload
+def _parse_decimal(
+    row: dict[RawColumn, str],
+    column: RawColumn,
+    *,
+    allow_empty: Literal[True],
+    default: None = ...,
+) -> Decimal | None: ...
+
+
+@overload
+def _parse_decimal(
+    row: dict[RawColumn, str],
+    column: RawColumn,
+    *,
+    allow_empty: Literal[False],
+    default: None = ...,
+) -> Decimal: ...
+
+
+def _parse_decimal(
+    row: dict[RawColumn, str],
+    column: RawColumn,
+    *,
+    allow_empty: bool,
+    default: Decimal | None = None,
+) -> Decimal | None:
+    """Parse decimal value from the row, raising ValueError with context on failure."""
+
+    value = row[column]
+    if value == "":
+        if allow_empty:
+            return default
+        raise ValueError(f"Missing value in column '{column.value}'")
+
+    normalized = value.replace(",", "")
+    try:
+        return Decimal(normalized)
+    except InvalidOperation as err:
+        raise ValueError(
+            f"Invalid decimal in column '{column.value}': {value!r}"
+        ) from err
+
+
+def _validate_header(header: list[str], file: Path) -> None:
+    """Validate optional header row."""
+
+    if len(header) != CSV_COLUMNS_NUM:
+        raise UnexpectedColumnCountError(header, CSV_COLUMNS_NUM, file)
+
+    normalized = [value.strip().lower() for value in header]
+    for index, (exp, act) in enumerate(zip(COLUMNS, normalized, strict=True), start=1):
+        if exp != act:
+            raise ParsingError(
+                file,
+                f"Expected column {index} to be '{exp}' but found '{header[index - 1]}'",
+            )
+
+
+def _has_header(first_row: list[str]) -> bool:
+    """Return True if the first row is likely a RAW header."""
+
+    if not first_row:
+        return False
+    return all(value.strip() != "" and value.strip().isalpha() for value in first_row)
 
 
 class RawTransaction(BrokerTransaction):
@@ -49,17 +141,26 @@ class RawTransaction(BrokerTransaction):
         if len(row) != CSV_COLUMNS_NUM:
             raise UnexpectedColumnCountError(row, CSV_COLUMNS_NUM, file)
 
-        date_str = row[0]
+        row_values: dict[RawColumn, str] = {
+            column: row[i] for i, column in enumerate(RawColumn)
+        }
+
+        date_str = row_values[RawColumn.DATE]
         date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
 
-        action = action_from_str(row[1], file)
-        symbol = row[2] if row[2] != "" else None
+        action = action_from_str(row_values[RawColumn.ACTION], file)
+        symbol = row_values[RawColumn.SYMBOL] or None
 
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
-        quantity = Decimal(row[3].replace(",", "")) if row[4] != "" else None
-        price = Decimal(row[4]) if row[4] != "" else None
-        fees = Decimal(row[5]) if row[5] != "" else Decimal(0)
+        quantity = _parse_decimal(row_values, RawColumn.QUANTITY, allow_empty=True)
+        price = _parse_decimal(row_values, RawColumn.PRICE, allow_empty=True)
+        fees = _parse_decimal(
+            row_values,
+            RawColumn.FEES,
+            allow_empty=True,
+            default=Decimal(0),
+        )
 
         if price is not None and quantity is not None:
             amount = price * quantity
@@ -70,7 +171,7 @@ class RawTransaction(BrokerTransaction):
         else:
             amount = None
 
-        currency = row[6]
+        currency = row_values[RawColumn.CURRENCY]
         broker = "Unknown"
         super().__init__(
             date,
@@ -92,4 +193,28 @@ def read_raw_transactions(transactions_file: Path) -> list[BrokerTransaction]:
         print(f"Parsing {transactions_file}...")
         lines = list(csv.reader(csv_file))
 
-    return [RawTransaction(row, transactions_file) for row in lines]
+    if not lines:
+        raise ParsingError(transactions_file, "RAW CSV file is empty")
+
+    data_rows = lines
+    start_index = 1
+    if _has_header(lines[0]):
+        _validate_header(lines[0], transactions_file)
+        data_rows = lines[1:]
+        start_index = 2
+    else:
+        LOGGER.warning(
+            "RAW CSV file %s is missing header row. The header is required but will be inferred for now.",
+            transactions_file,
+        )
+
+    transactions: list[BrokerTransaction] = []
+    for index, row in enumerate(data_rows, start=start_index):
+        try:
+            transactions.append(RawTransaction(row, transactions_file))
+        except ValueError as err:
+            raise ParsingError(transactions_file, f"Row {index}: {err}") from err
+
+    if len(transactions) == 0:
+        LOGGER.warning("No transactions detected in file %s", transactions_file)
+    return transactions

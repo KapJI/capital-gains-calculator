@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
+import logging
 from typing import TYPE_CHECKING, Final
 
 from cgt_calc.const import TICKER_RENAMES
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
 BROKER_NAME: Final = "Morgan Stanley"
 WITHDRAWALS_REPORT_FILENAME: Final = "Withdrawals Report.csv"
 RELEASES_REPORT_FILENAME: Final = "Releases Report.csv"
+LOGGER = logging.getLogger(__name__)
 
 
 class ReleaseColumn(StrEnum):
@@ -234,7 +236,7 @@ def _validate_header(header: list[str], golden_header: list[str], file: Path) ->
 
 def read_mssb_transactions(transactions_folder: Path) -> list[BrokerTransaction]:
     """Parse Morgan Stanley transactions from CSV file."""
-    transactions = []
+    transactions: list[BrokerTransaction] = []
 
     for file in sorted(transactions_folder.glob("*.csv")):
         with file.open(encoding="utf-8") as csv_file:
@@ -269,4 +271,6 @@ def read_mssb_transactions(transactions_folder: Path) -> list[BrokerTransaction]
                         raise ParsingError(file, f"Row {index}: {err}") from err
                     transactions.append(transaction)
 
-    return [transaction for transaction in transactions if transaction]
+    if len(transactions) == 0:
+        LOGGER.warning("No transactions detected in directory %s", transactions_folder)
+    return transactions
