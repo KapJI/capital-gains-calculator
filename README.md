@@ -29,6 +29,7 @@ brokers that pay daily interest.
   - [Offshore Funds](#offshore-funds)
   - [Additional Files and Options](#additional-files-and-options)
 - [Using Docker](#-using-docker)
+- [Privacy & Data Security](#-privacy--data-security)
 - [Disclaimer](#%EF%B8%8F-disclaimer)
 - [Contributing](#-contributing)
 
@@ -295,9 +296,9 @@ information.
   [`initial_prices.csv`](cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use
   the same format. The program will inform when some required price is missing.
 - **(Automatic) Monthly exchange rates prices from
-  [gov.uk](https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat).** This is
-  needed to convert foreign currencies into GBP amounts. `exchange_rates.csv` gets generated
-  automatically using HMRC API, you need to use the same format if you want to override it.
+  [UK Trade Tariff](https://www.trade-tariff.service.gov.uk/exchange_rates).** This is needed to
+  convert foreign currencies into GBP amounts. `exchange_rates.csv` gets generated automatically
+  using the UK Trade Tariff API, you need to use the same format if you want to override it.
 - **Spin-off file.** Supplies extra information needed for spin-offs transactions through
   `--spin-offs-file`.
 - **Interest fund tickers.** To calculate dividends on bond funds/ETF properly you need to pass the
@@ -336,9 +337,21 @@ transaction data is) mounted inside the container at `/data`. Follow the usage i
 normal, and when you're done, simply exit the shell. You will be dropped back into the shell on your
 host, with your output report pdf etc..
 
+## 🔒 Privacy & Data Security
+
+**Your financial data stays on your computer.** This tool processes all transactions locally and
+does **not send your transaction history or personal information** to any external services.
+
+The only external API calls made are:
+
+- [**UK Trade Tariff API**](https://www.trade-tariff.service.gov.uk/exchange_rates) – to fetch
+  monthly GBP exchange rates (no personal data sent)
+- [**Open FIGI API**](https://www.openfigi.com/api/overview) – to translate ISIN codes to tickers
+  when needed (only ISIN codes are queried, no transaction amounts or personal details)
+
 ## ⚠️ Disclaimer
 
-Please note: I’m **not a tax adviser**. Use this tool and its outputs **at your own risk**.
+Please note: I'm **not a tax adviser**. Use this tool and its outputs **at your own risk**.
 
 ## 🤝 Contributing
 
