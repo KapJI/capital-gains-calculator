@@ -231,15 +231,15 @@ def read_trading212_transactions(transactions_folder: Path) -> list[BrokerTransa
         with file.open(encoding="utf-8") as csv_file:
             print(f"Parsing {file}...")
             lines = list(csv.reader(csv_file))
-            header = lines[0]
-            validate_header(header, file)
-            lines = lines[1:]
-            cur_transactions = [
-                Trading212Transaction(header, row, file) for row in lines
-            ]
-            if len(cur_transactions) == 0:
-                LOGGER.warning("No transactions detected in file: %s", file)
-            transactions += cur_transactions
+        if not lines:
+            raise ParsingError(file, "Trading 212 CSV file is empty")
+        header = lines[0]
+        validate_header(header, file)
+        lines = lines[1:]
+        cur_transactions = [Trading212Transaction(header, row, file) for row in lines]
+        if len(cur_transactions) == 0:
+            LOGGER.warning("No transactions detected in file: %s", file)
+        transactions += cur_transactions
     # Remove duplicates
     transactions = list(set(transactions))
     transactions.sort(key=by_date_and_action)

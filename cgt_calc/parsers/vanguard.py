@@ -153,6 +153,8 @@ def read_vanguard_transactions(transactions_file: Path) -> list[VanguardTransact
         print(f"Parsing {transactions_file}...")
         lines = list(csv.reader(csv_file))
 
+    if not lines:
+        raise ParsingError(transactions_file, "Vanguard CSV file is empty")
     header = lines[0]
     validate_header(header, transactions_file)
 

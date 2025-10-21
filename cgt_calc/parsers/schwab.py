@@ -297,32 +297,36 @@ def read_schwab_transactions(
     with transactions_file.open(encoding="utf-8") as csv_file:
         print(f"Parsing {transactions_file}...")
         lines = list(csv.reader(csv_file))
-        headers = lines[0]
-
-        required_headers = set(
-            {header.value for header in SchwabTransactionsFileRequiredHeaders}
+    if not lines:
+        raise ParsingError(
+            transactions_file, "Charles Schwab transactions CSV file is empty"
         )
-        if not required_headers.issubset(headers):
-            raise ParsingError(
-                transactions_file,
-                "Missing columns in Schwab transaction file: "
-                f"{required_headers.difference(headers)}",
-            )
+    headers = lines[0]
 
-        # Remove header
-        lines = lines[1:]
-        transactions = [
-            SchwabTransaction.create(
-                OrderedDict(zip(headers, row, strict=True)),
-                transactions_file,
-                awards_prices,
-            )
-            for row in lines
-            if any(row)
-        ]
-        transactions = _unify_schwab_cash_merger_trxs(transactions, transactions_file)
-        transactions.reverse()
-        return list(transactions)
+    required_headers = set(
+        {header.value for header in SchwabTransactionsFileRequiredHeaders}
+    )
+    if not required_headers.issubset(headers):
+        raise ParsingError(
+            transactions_file,
+            "Missing columns in Schwab transaction file: "
+            f"{required_headers.difference(headers)}",
+        )
+
+    # Remove header
+    lines = lines[1:]
+    transactions = [
+        SchwabTransaction.create(
+            OrderedDict(zip(headers, row, strict=True)),
+            transactions_file,
+            awards_prices,
+        )
+        for row in lines
+        if any(row)
+    ]
+    transactions = _unify_schwab_cash_merger_trxs(transactions, transactions_file)
+    transactions.reverse()
+    return list(transactions)
 
 
 def _read_schwab_awards(
@@ -340,19 +344,22 @@ def _read_schwab_awards(
     with schwab_award_transactions_file.open(encoding="utf-8") as csv_file:
         print(f"Parsing {schwab_award_transactions_file}...")
         lines = list(csv.reader(csv_file))
-        headers = lines[0]
-        required_headers = set(
-            {header.value for header in AwardsTransactionsFileRequiredHeaders}
+    if not lines:
+        raise ParsingError(
+            schwab_award_transactions_file, "Charles Schwab Award CSV file is empty"
         )
-        if not required_headers.issubset(headers):
-            raise ParsingError(
-                schwab_award_transactions_file,
-                "Missing columns in awards file: "
-                f"{required_headers.difference(headers)}",
-            )
+    headers = lines[0]
+    required_headers = set(
+        {header.value for header in AwardsTransactionsFileRequiredHeaders}
+    )
+    if not required_headers.issubset(headers):
+        raise ParsingError(
+            schwab_award_transactions_file,
+            f"Missing columns in awards file: {required_headers.difference(headers)}",
+        )
 
-        # Remove headers
-        lines = lines[1:]
+    # Remove headers
+    lines = lines[1:]
 
     modulo = len(lines) % 2
     if modulo != 0:
