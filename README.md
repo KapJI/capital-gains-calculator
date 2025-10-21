@@ -27,7 +27,7 @@ brokers that pay daily interest.
 - [Input Data](#-input-data)
   - [Broker Instructions](#broker-instructions)
   - [Offshore Funds](#offshore-funds)
-  - [Additional Files and Options](#additional-files-and-options)
+  - [Configuration Files and Data Sources](#configuration-files-and-data-sources)
 - [Using Docker](#-using-docker)
 - [Privacy & Data Security](#-privacy--data-security)
 - [Disclaimer](#%EF%B8%8F-disclaimer)
@@ -289,28 +289,39 @@ There are a few **unsupported** functionalities at the moment for taxation on of
 Check [ERI data additional instrunctions](docs/excess_reported_income_sources.md) for more
 information.
 
-### Additional Files and Options
+### Configuration Files and Data Sources
 
-- **CSV file with initial stock prices in USD.** This is needed under special circumstances for
-  example at the moment of vesting, split, etc.
-  [`initial_prices.csv`](cgt_calc/resources/initial_prices.csv) comes pre-packaged, you need to use
-  the same format. The program will inform when some required price is missing.
-- **(Automatic) Monthly exchange rates prices from
-  [UK Trade Tariff](https://www.trade-tariff.service.gov.uk/exchange_rates).** This is needed to
-  convert foreign currencies into GBP amounts. `exchange_rates.csv` gets generated automatically
-  using the UK Trade Tariff API, you need to use the same format if you want to override it.
-- **Spin-off file.** Supplies extra information needed for spin-offs transactions through
-  `--spin-offs-file`.
-- **Interest fund tickers.** To calculate dividends on bond funds/ETF properly you need to pass the
-  comma separated list of funds ticker that are taxed as interest instead of dividends, using
-  `--interest-fund-tickers` CLI option.
-- **(Automatic) ISIN to ticker translation from
-  [Open FIGI](https://www.openfigi.com/api/overview).** This is needed to convert funds ISIN to
-  tickers under special circumstances, such as calculating the Excess Reportable Income when your
-  broker doesn't provide the ISIN column.
-  [`initial_isin_translation.csv`](cgt_calc/resources/initial_isin_translation.csv) comes
-  pre-packaged, you need to use the same format. `isin_translation.csv` gets generated automatically
-  using Open FIGI API and you can use it to do manual overrides.
+The following configuration files and options allow you to customize the calculator's behavior:
+
+#### Automatic Data Fetching
+
+- **Exchange rates.** Monthly GBP exchange rates are automatically downloaded from the
+  [UK Trade Tariff API](https://www.trade-tariff.service.gov.uk/exchange_rates) and saved to
+  `out/exchange_rates.csv`. You can override these by providing your own file in the same format
+  using the `--exchange-rates-file` option.
+
+- **ISIN to ticker translation.** When your broker doesn't provide ticker symbols, the tool
+  automatically translates ISIN codes using the
+  [Open FIGI API](https://www.openfigi.com/api/overview). This is used for calculating Excess
+  Reportable Income (ERI) on offshore funds. The results are saved to `out/isin_translation.csv`.
+  Pre-packaged mappings are available in
+  [`initial_isin_translation.csv`](cgt_calc/resources/initial_isin_translation.csv), which you can
+  extend using `--isin-translation-file` option.
+
+#### Manual Configuration Files
+
+- **Initial stock prices.** Required for special events like vesting, splits, or spin-offs when
+  historical prices aren't available from your broker. Prices should be in USD.
+  [`initial_prices.csv`](cgt_calc/resources/initial_prices.csv) comes pre-packaged. The program will
+  inform you when a required price is missing, and you can supply custom data with
+  `--initial-prices-file`.
+
+- **Spin-off transactions.** Provide additional details for spin-off events using the
+  `--spin-offs-file` option.
+
+- **Interest fund tickers.** Some bond funds and ETFs should be taxed as interest rather than
+  dividends. Specify these funds via the `--interest-fund-tickers` CLI option, using a
+  comma-separated list of ticker symbols.
 
 ## 🐳 Using Docker
 
