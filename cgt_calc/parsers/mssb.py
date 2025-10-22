@@ -97,7 +97,7 @@ def _parse_decimal(row: dict[str, str], column: StrEnum) -> Decimal:
 def _init_from_release_report(row_raw: list[str], file: Path) -> BrokerTransaction:
     if len(COLUMNS_RELEASE) != len(row_raw):
         raise UnexpectedColumnCountError(row_raw, len(COLUMNS_RELEASE), file)
-    row = {col: row_raw[i] for i, col in enumerate(COLUMNS_RELEASE)}
+    row = dict(zip(COLUMNS_RELEASE, row_raw, strict=False))
 
     plan = row[ReleaseColumn.PLAN]
 
@@ -176,7 +176,7 @@ def _init_from_withdrawal_report(
 
     if len(COLUMNS_WITHDRAWAL) != len(row_raw):
         raise UnexpectedColumnCountError(row_raw, len(COLUMNS_WITHDRAWAL), file)
-    row = {col: row_raw[i] for i, col in enumerate(COLUMNS_WITHDRAWAL)}
+    row = dict(zip(COLUMNS_WITHDRAWAL, row_raw, strict=False))
 
     plan = row[WithdrawalColumn.PLAN]
 
