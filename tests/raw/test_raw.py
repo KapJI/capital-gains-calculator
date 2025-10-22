@@ -149,7 +149,7 @@ def test_read_raw_transactions_invalid_decimal(tmp_path: Path) -> None:
         read_raw_transactions(raw_file)
 
     message = str(exc.value)
-    assert "Row 2" in message
+    assert "row 2" in message
     assert "Invalid decimal in column 'quantity'" in message
 
 

@@ -86,7 +86,7 @@ def test_read_vanguard_transactions_invalid_decimal(tmp_path: Path) -> None:
         read_vanguard_transactions(vanguard_file)
 
     message = str(exc.value)
-    assert "Row 2" in message
+    assert "row 2" in message
     assert "Invalid decimal" in message
 
 

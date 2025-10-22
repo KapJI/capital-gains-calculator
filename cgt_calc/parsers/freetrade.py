@@ -80,7 +80,7 @@ class FreetradeTransaction(BrokerTransaction):
         # I believe GIA account at Freetrade can be only in GBP
         if row[FreetradeColumn.ACCOUNT_CURRENCY] != "GBP":
             raise UnsupportedBrokerCurrencyError(
-                BROKER_NAME, row[FreetradeColumn.ACCOUNT_CURRENCY]
+                file, BROKER_NAME, row[FreetradeColumn.ACCOUNT_CURRENCY]
             )
 
         # Convert all numbers in GBP using Freetrade rates
@@ -109,7 +109,9 @@ class FreetradeTransaction(BrokerTransaction):
             quantity, price = None, None
             currency = "GBP"
         else:
-            raise UnsupportedBrokerActionError(BROKER_NAME, row[FreetradeColumn.TYPE])
+            raise UnsupportedBrokerActionError(
+                file, BROKER_NAME, row[FreetradeColumn.TYPE]
+            )
 
         if row[FreetradeColumn.TYPE] == "FREESHARE_ORDER":
             price = Decimal(0)
@@ -200,8 +202,13 @@ def read_freetrade_transactions(transactions_file: Path) -> list[BrokerTransacti
                 transactions.append(
                     FreetradeTransaction(header, row, transactions_file)
                 )
+            except ParsingError as err:
+                err.add_row_context(index)
+                raise
             except ValueError as err:
-                raise ParsingError(transactions_file, f"Row {index}: {err}") from err
+                raise ParsingError(
+                    transactions_file, str(err), row_index=index
+                ) from err
         if len(transactions) == 0:
             LOGGER.warning("No transactions detected in file %s", transactions_file)
         return transactions

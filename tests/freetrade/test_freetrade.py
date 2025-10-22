@@ -129,7 +129,7 @@ def test_read_freetrade_transactions_invalid_decimal(tmp_path: Path) -> None:
 
     with pytest.raises(
         ParsingError,
-        match="Row 2: Invalid decimal in column 'Quantity'",
+        match=", row 2: Invalid decimal in column 'Quantity'",
     ):
         read_freetrade_transactions(path)
 
@@ -141,7 +141,7 @@ def test_read_freetrade_transactions_unsupported_currency(tmp_path: Path) -> Non
 
     with pytest.raises(
         UnsupportedBrokerCurrencyError,
-        match="Unsupported account currency encountered",
+        match="parser does not support the provided account currency",
     ):
         read_freetrade_transactions(path)
 

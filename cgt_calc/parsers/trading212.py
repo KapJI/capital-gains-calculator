@@ -289,8 +289,11 @@ def read_trading212_transactions(transactions_folder: Path) -> list[BrokerTransa
         for index, row in enumerate(lines, start=2):
             try:
                 cur_transactions.append(Trading212Transaction(header, row, file))
-            except (ParsingError, ValueError) as err:
-                raise ParsingError(file, f"Row {index}: {err}") from err
+            except ParsingError as err:
+                err.add_row_context(index)
+                raise
+            except ValueError as err:
+                raise ParsingError(file, str(err), row_index=index) from err
         if len(cur_transactions) == 0:
             LOGGER.warning("No transactions detected in file: %s", file)
         transactions += cur_transactions
