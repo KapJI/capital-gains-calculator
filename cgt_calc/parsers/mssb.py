@@ -258,8 +258,11 @@ def read_mssb_transactions(transactions_folder: Path) -> list[BrokerTransaction]
                 for index, row in enumerate(lines, start=2):
                     try:
                         transaction = _init_from_withdrawal_report(row, file)
+                    except ParsingError as err:
+                        err.add_row_context(index)
+                        raise
                     except ValueError as err:
-                        raise ParsingError(file, f"Row {index}: {err}") from err
+                        raise ParsingError(file, str(err), row_index=index) from err
                     if transaction:
                         transactions.append(transaction)
             else:
@@ -267,8 +270,11 @@ def read_mssb_transactions(transactions_folder: Path) -> list[BrokerTransaction]
                 for index, row in enumerate(lines, start=2):
                     try:
                         transaction = _init_from_release_report(row, file)
+                    except ParsingError as err:
+                        err.add_row_context(index)
+                        raise
                     except ValueError as err:
-                        raise ParsingError(file, f"Row {index}: {err}") from err
+                        raise ParsingError(file, str(err), row_index=index) from err
                     transactions.append(transaction)
 
     if len(transactions) == 0:

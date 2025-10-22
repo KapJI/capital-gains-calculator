@@ -133,7 +133,7 @@ def test_read_mssb_withdrawal_invalid_decimal(tmp_path: Path) -> None:
         read_mssb_transactions(tmp_path)
 
     message = str(exc.value)
-    assert "Row 2" in message
+    assert "row 2" in message
     assert "Invalid decimal in column 'Quantity'" in message
 
 

@@ -19,32 +19,49 @@ class CgtError(Exception):
 class ParsingError(CgtError):
     """Parsing error."""
 
-    def __init__(self, file: Path, message: str):
+    def __init__(
+        self, file: Path, message: str, *, row_index: int | None = None
+    ) -> None:
         """Initialise."""
-        self.message = f"While parsing {file}: {message}"
+        self.file = file
+        self.detail = message
+        self.row_index = row_index
+        self._update_message()
         super().__init__(self.message)
 
+    def _update_message(self) -> None:
+        location = f"While parsing {self.file}"
+        if self.row_index is not None:
+            location += f", row {self.row_index}"
+        self.message = f"{location}: {self.detail}"
+        self.args = (self.message,)
 
-class UnsupportedBrokerActionError(CgtError):
+    def add_row_context(self, row_index: int) -> None:
+        """Attach the row number to the error context."""
+        self.row_index = row_index
+        self._update_message()
+
+
+class UnsupportedBrokerActionError(ParsingError):
     """Raised when a broker export contains an unsupported action."""
 
-    def __init__(self, broker: str, action: str):
+    def __init__(self, file: Path, broker: str, action: str):
         """Initialise."""
         message = (
             f"Unsupported {broker} action '{action}'. "
             "Please check if a newer version of cgt-calc adds support or open an issue."
         )
-        super().__init__(message)
+        super().__init__(file, message)
 
 
-class UnsupportedBrokerCurrencyError(CgtError):
+class UnsupportedBrokerCurrencyError(ParsingError):
     """Raised when a broker export uses an unsupported account currency."""
 
-    def __init__(self, broker: str, currency: str):
+    def __init__(self, file: Path, broker: str, currency: str):
         """Initialise."""
         super().__init__(
-            "Unsupported account currency encountered. "
-            f"Broker: {broker}, currency: {currency}."
+            file,
+            f"{broker} parser does not support the provided account currency: {currency}.",
         )
 
 

@@ -184,8 +184,11 @@ def read_vanguard_transactions(transactions_file: Path) -> list[VanguardTransact
     for index, row in enumerate(lines[1:], start=2):
         try:
             transactions.append(VanguardTransaction(header, row, transactions_file))
+        except ParsingError as err:
+            err.add_row_context(index)
+            raise
         except ValueError as err:
-            raise ParsingError(transactions_file, f"Row {index}: {err}") from err
+            raise ParsingError(transactions_file, str(err), row_index=index) from err
     if len(transactions) == 0:
         LOGGER.warning("No transactions detected in file: %s", transactions_file)
 
