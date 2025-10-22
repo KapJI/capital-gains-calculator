@@ -107,7 +107,7 @@ def test_read_vanguard_transactions_invalid_header(tmp_path: Path) -> None:
     with pytest.raises(ParsingError) as exc:
         read_vanguard_transactions(vanguard_file)
 
-    assert "Unknown column Unexpected" in str(exc.value)
+    assert "Expected column 3 to be 'Amount' but found 'Unexpected'" in str(exc.value)
 
 
 def test_read_vanguard_transactions_empty_file(tmp_path: Path) -> None:

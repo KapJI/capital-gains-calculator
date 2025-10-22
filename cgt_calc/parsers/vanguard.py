@@ -150,10 +150,16 @@ class VanguardTransaction(BrokerTransaction):
 
 def validate_header(header: list[str], file: Path) -> None:
     """Check if header is valid."""
-    for actual in header:
-        if actual not in COLUMNS:
-            msg = f"Unknown column {actual}"
-            raise ParsingError(file, msg)
+
+    if len(header) != len(COLUMNS):
+        raise UnexpectedColumnCountError(header, len(COLUMNS), file)
+
+    for index, (exp, act) in enumerate(zip(COLUMNS, header, strict=True), start=1):
+        if exp != act:
+            raise ParsingError(
+                file,
+                f"Expected column {index} to be '{exp}' but found '{header[index - 1]}'",
+            )
 
 
 def by_date_and_action(
