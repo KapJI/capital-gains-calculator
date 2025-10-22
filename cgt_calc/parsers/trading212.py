@@ -123,9 +123,10 @@ class Trading212Transaction(BrokerTransaction):
         if len(row_raw) != len(header):
             raise UnexpectedColumnCountError(row_raw, len(header), file)
 
-        row: dict[Trading212Column, str] = {}
-        for header_value, cell in zip(header, row_raw, strict=True):
-            row[Trading212Column(header_value)] = cell
+        row: dict[Trading212Column, str] = {
+            Trading212Column(column): value
+            for column, value in zip(header, row_raw, strict=False)
+        }
 
         time_str = row[Trading212Column.TIME]
         time_format = "%Y-%m-%d %H:%M:%S.%f" if "." in time_str else "%Y-%m-%d %H:%M:%S"

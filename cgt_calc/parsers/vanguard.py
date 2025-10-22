@@ -89,13 +89,7 @@ class VanguardTransaction(BrokerTransaction):
         if len(row_raw) != len(COLUMNS):
             raise UnexpectedColumnCountError(row_raw, len(COLUMNS), file)
 
-        row: dict[VanguardColumn, str] = {}
-        for header_value, cell in zip(header, row_raw, strict=True):
-            try:
-                column = VanguardColumn(header_value)
-            except ValueError as err:
-                raise ParsingError(file, f"Unknown column {header_value}") from err
-            row[column] = cell
+        row = dict(zip(header, row_raw, strict=False))
 
         date_str = row[VanguardColumn.DATE]
         date = datetime.datetime.strptime(date_str, "%d/%m/%Y").date()
