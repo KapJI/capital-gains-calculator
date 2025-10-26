@@ -5,49 +5,34 @@ on:
     types: [published]
 
 env:
-  PYTHON_VERSION: "3.9"
+  PYTHON_VERSION: "3.12"
 
 jobs:
   publish:
     name: Publish
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Check out the repository
         uses: actions/checkout@v5
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v6
+      - name: Prepare and install deps
+        uses: ./.github/actions/install-deps
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install Poetry
-        uses: abatilo/actions-poetry@v4
+      - name: Set version from tag
+        run: uv version "${{ github.event.release.tag_name }}" --frozen
 
-      - name: Use local virtual environment
-        run: |
-          poetry config virtualenvs.create true --local
-          poetry config virtualenvs.in-project true --local
-
-      - uses: actions/cache@v4
-        id: cache-poetry-deps
-        name: Cache Poetry dependencies
-        with:
-          path: ./.venv
-          key: venv-${{ env.PYTHON_VERSION }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            venv-${{ env.PYTHON_VERSION }}-
-
-      - name: Install dependencies with Poetry
-        if: steps.cache-poetry-deps.outputs.cache-hit != 'true'
-        run: poetry install
-
-      - name: Set version
-        run: poetry version $(git describe --tags --abbrev=0 | sed -e "s/^v//")
+      - name: Run tests
+        run: uv run pytest -q
 
       - name: Build package
-        run: poetry build
+        run: uv build
 
       - name: Publish to PyPI
-        run: |
-          poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
-          poetry publish
+        run: uv publish

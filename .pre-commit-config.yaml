@@ -1,19 +1,73 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
       - id: check-case-conflict
       - id: check-json
+      - id: check-toml
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.1.0
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.12.0-2
     hooks:
-      - id: prettier
+      - id: shfmt
+  - repo: local
+    hooks:
+      - id: codespell
+        name: codespell
+        entry: uv run codespell --write-changes
+        language: system
+        pass_filenames: false
+      - id: dprint
+        name: dprint format
+        language: system
+        entry: uv run dprint fmt
+        pass_filenames: false
+        types_or:
+          - dockerfile
+          - json
+          - markdown
+          - toml
+          - yaml
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types: [python]
+        require_serial: true
+      - id: ruff
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+        require_serial: true
+      - id: mypy
+        name: mypy
+        entry: uv run mypy cgt_calc tests
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: pylint
+        name: pylint
+        entry: uv run pylint
+        language: system
+        types: [python]
+        require_serial: true
+      - id: pytest
+        name: pytest
+        language: system
+        entry: uv run pytest
+        pass_filenames: false
+  - repo: https://github.com/tcort/markdown-link-check
+    rev: v3.14.1
+    hooks:
+      - id: markdown-link-check
+        name: markdown link check
+        args: [-q, --config, .github/markdown-link-check.json]
   - repo: https://github.com/cdce8p/python-typing-update
-    rev: v0.6.0
+    rev: v0.7.2
     hooks:
       # Run `python-typing-update` hook manually from time to time
       # to update python typing syntax.
@@ -21,45 +75,7 @@ repos:
       - id: python-typing-update
         stages: [manual]
         args:
-          - --py39-plus
+          - --py312-plus
           - --force
           - --keep-updates
         files: ^.+\.py$
-  - repo: local
-    hooks:
-      - id: ruff-format
-        name: ruff format
-        entry: poetry run ruff format
-        language: system
-        types: [python]
-        require_serial: true
-      - id: ruff
-        name: ruff check
-        entry: poetry run ruff check --fix
-        language: system
-        types: [python]
-        require_serial: true
-      - id: mypy
-        name: mypy
-        entry: poetry run mypy
-        language: system
-        types: [python]
-        require_serial: true
-      - id: pylint
-        name: pylint
-        entry: poetry run pylint
-        language: system
-        types: [python]
-        require_serial: true
-      - id: pytest
-        name: pytest
-        language: system
-        entry: poetry run pytest
-        pass_filenames: false
-        always_run: true
-      - id: codespell
-        name: codespell
-        entry: poetry run codespell --write-changes
-        language: system
-        pass_filenames: false
-        always_run: true

@@ -2,6 +2,9 @@
 
 import decimal
 from decimal import Decimal
+from pathlib import Path
+import re
+from typing import TextIO
 
 
 def round_decimal(value: Decimal, digits: int = 0) -> Decimal:
@@ -14,3 +17,57 @@ def round_decimal(value: Decimal, digits: int = 0) -> Decimal:
 def strip_zeros(value: Decimal) -> str:
     """Strip trailing zeros from Decimal."""
     return f"{value:.10f}".rstrip("0").rstrip(".")
+
+
+def luhn_check_digit(payload: str) -> int:
+    """Return the check digit given a string of numbers given the Luhn Algorithm.
+
+    Reference: https://en.wikipedia.org/wiki/Luhn_algorithm
+    """
+    if len(payload) % 2 == 1:
+        payload = f"0{payload}"  # zero pad so length is even
+    checksum = 0
+
+    luhn_even_digit_max_value = 9
+    luhn_even_digit_multiplier = 2
+    for idx, digit_char in enumerate(payload[::-1]):
+        digit = int(digit_char)
+        if idx % 2 == 0:
+            digit *= luhn_even_digit_multiplier
+            if digit > luhn_even_digit_max_value:
+                digit -= luhn_even_digit_max_value
+        checksum += digit
+
+    return (
+        10 - (checksum % 10)
+    ) % 10  # using mod operator twice asserts the check digit is < 10
+
+
+def is_isin(isin: str) -> bool:
+    """Validate if a string is a valid ISIN."""
+    # https://en.wikipedia.org/wiki/International_Securities_Identification_Number
+    isin_regex = r"^([A-Z]{2})([A-Z0-9]{9})([0-9])$"
+    isin_char_idxs = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+    if not re.match(isin_regex, isin):
+        return False
+    payload = isin[:11]
+    check_digit = int(isin[11])
+
+    payload = "".join(str(isin_char_idxs.index(c)) for c in list(payload))
+    return luhn_check_digit(payload) == check_digit
+
+
+def approx_equal(val_a: Decimal, val_b: Decimal) -> bool:
+    """Calculate if two decimal are the same within 0.01.
+
+    It is not clear how Schwab or other brokers round the dollar value,
+    so assume the values are equal if they are within 0.01.
+    """
+    return abs(val_a - val_b) < Decimal("0.01")
+
+
+def open_with_parents(path: Path) -> TextIO:
+    """Open a file for writing, creating parent directories if they do not exist."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path.open("w", encoding="utf8")

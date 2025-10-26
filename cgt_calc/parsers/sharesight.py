@@ -6,14 +6,22 @@ from collections.abc import Iterable, Iterator
 import csv
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from pathlib import Path
-from typing import Final
+import logging
+from typing import TYPE_CHECKING, Final
 
 from cgt_calc.const import TICKER_RENAMES
-from cgt_calc.exceptions import InvalidTransactionError, ParsingError
+from cgt_calc.exceptions import (
+    InvalidTransactionError,
+    ParsingError,
+    UnexpectedColumnCountError,
+)
 from cgt_calc.model import ActionType, BrokerTransaction
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 STOCK_ACTIVITY_COMMENT_MARKER: Final[str] = "Stock Activity"
+LOGGER = logging.getLogger(__name__)
 
 
 def parse_date(val: str) -> date:
@@ -26,8 +34,8 @@ def parse_decimal(val: str) -> Decimal:
     """Convert value to Decimal."""
     try:
         return Decimal(val.replace(",", ""))
-    except InvalidOperation:
-        raise ValueError(f"Bad decimal: {val}") from None
+    except InvalidOperation as err:
+        raise ValueError(f"Bad decimal: {val}") from err
 
 
 def maybe_decimal(val: str) -> Decimal | None:
@@ -63,6 +71,7 @@ class RowIterator(Iterator[list[str]]):
 
 def parse_dividend_payments(
     rows: Iterator[list[str]],
+    file: Path,
 ) -> Iterable[SharesightTransaction]:
     """Parse dividend payments from Sharesight data.
 
@@ -79,7 +88,10 @@ def parse_dividend_payments(
             # Don't use the totals row, but it signals the end of the section
             break
 
-        row_dict = dict(zip(columns, row))
+        if len(row) != len(columns):
+            raise UnexpectedColumnCountError(row, len(columns), file)
+
+        row_dict = dict(zip(columns, row, strict=True))
 
         dividend_date = parse_date(row_dict["Date Paid"])
         symbol = row_dict["Code"]
@@ -115,7 +127,7 @@ def parse_dividend_payments(
         if tax:
             yield SharesightTransaction(
                 date=dividend_date,
-                action=ActionType.TAX,
+                action=ActionType.DIVIDEND_TAX,
                 symbol=symbol,
                 description=description,
                 broker=broker,
@@ -127,7 +139,9 @@ def parse_dividend_payments(
             )
 
 
-def parse_local_income(rows: Iterator[list[str]]) -> Iterable[SharesightTransaction]:
+def parse_local_income(
+    rows: Iterator[list[str]], file: Path
+) -> Iterable[SharesightTransaction]:
     """Parse Local Income section from Sharesight data.
 
     This basically just yields to `parse_dividend_payments`, but we skip the
@@ -139,13 +153,15 @@ def parse_local_income(rows: Iterator[list[str]]) -> Iterable[SharesightTransact
             return
 
         if row[0] == "Dividend Payments":
-            yield from parse_dividend_payments(rows)
+            yield from parse_dividend_payments(rows, file)
 
 
-def parse_foreign_income(rows: Iterator[list[str]]) -> Iterable[SharesightTransaction]:
+def parse_foreign_income(
+    rows: Iterator[list[str]], file: Path
+) -> Iterable[SharesightTransaction]:
     """Parse Foreign Income section from Sharesight data."""
 
-    yield from parse_dividend_payments(rows)
+    yield from parse_dividend_payments(rows, file)
 
 
 def parse_income_report(file: Path) -> Iterable[SharesightTransaction]:
@@ -159,15 +175,15 @@ def parse_income_report(file: Path) -> Iterable[SharesightTransaction]:
     try:
         for row in rows_iter:
             if row[0] == "Local Income":
-                yield from parse_local_income(rows_iter)
+                yield from parse_local_income(rows_iter, file)
             elif row[0] == "Foreign Income":
-                yield from parse_foreign_income(rows_iter)
+                yield from parse_foreign_income(rows_iter, file)
     except ValueError as err:
-        raise ParsingError(f"{file}:{rows_iter.line}", str(err)) from None
+        raise ParsingError(file, f"Line: {rows_iter.line}, Error: {err}") from err
 
 
 def parse_trades(
-    columns: list[str], rows: Iterator[list[str]]
+    columns: list[str], rows: Iterator[list[str]], file: Path
 ) -> Iterable[SharesightTransaction]:
     """Parse content in All Trades Report from Sharesight."""
 
@@ -176,7 +192,10 @@ def parse_trades(
             # There is an empty row at the end of the trades list
             break
 
-        row_dict = dict(zip(columns, row))
+        if len(row) != len(columns):
+            raise UnexpectedColumnCountError(row, len(columns), file)
+
+        row_dict = dict(zip(columns, row, strict=True))
         tpe = row_dict["Type"]
         if tpe == "Buy":
             action = ActionType.BUY
@@ -260,29 +279,33 @@ def parse_trade_report(file: Path) -> Iterable[SharesightTransaction]:
         if row[0] == "Market":
             columns = row
             try:
-                yield from parse_trades(columns, rows_iter)
+                yield from parse_trades(columns, rows_iter, file)
             except (InvalidOperation, ValueError) as err:
-                raise ParsingError(f"{file}:{rows_iter.line}", str(err)) from None
+                raise ParsingError(
+                    file, f"Line: {rows_iter.line}, Error: {err}"
+                ) from err
 
 
 def read_sharesight_transactions(
-    transactions_folder: str,
+    transactions_folder: Path,
 ) -> list[SharesightTransaction]:
     """Parse Sharesight transactions from reports."""
 
     transactions: list[SharesightTransaction] = []
-    for file in Path(transactions_folder).glob("*.csv"):
+    for file in sorted(transactions_folder.glob("*.csv")):
         if file.match("Taxable Income Report*.csv"):
+            print(f"Parsing {file}...")
             income_transactions = list(parse_income_report(file))
             if not income_transactions:
-                print(f"WARNING: no transactions detected in file {file}")
+                LOGGER.warning("No transactions detected in file: %s", file)
             else:
                 transactions += income_transactions
 
         if file.match("All Trades Report*.csv"):
+            print(f"Parsing {file}...")
             trade_transactions = list(parse_trade_report(file))
             if not trade_transactions:
-                print(f"WARNING: no transactions detected in file {file}")
+                LOGGER.warning("No transactions detected in file: %s", file)
             else:
                 transactions += trade_transactions
 

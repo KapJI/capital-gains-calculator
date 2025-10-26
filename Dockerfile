@@ -1,39 +1,37 @@
-FROM alpine:3.19
+# syntax=docker/dockerfile:1.7
 
-RUN apk --no-cache add \
-    inkscape \
-    make \
-    ncurses \
-    pandoc-cli \
-    perl \
-    py3-pygments \
-    py3-boto3 \
-    py3-requests \
-    python3 \
-    texlive \
-    texlive-luatex \
-    texmf-dist \
-    texmf-dist-formatsextra \
-    texmf-dist-latexextra \
-    texmf-dist-pictures \
-    texmf-dist-science \
-    wget \
-    curl \
-    git
+FROM python:3.12-slim-trixie
 
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONFAULTHANDLER=1 \
+    PYTHONUNBUFFERED=1
 
-RUN luaotfload-tool --update
-RUN apk --no-cache add py3-pandas
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      bash texlive-latex-base \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy uv static binary
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /build
 
-RUN curl -sSL https://install.python-poetry.org | python3 -
-RUN ln -s /root/.local/share/pypoetry/venv/bin/poetry /bin/
+# 1) Copy dependency manifests first (for caching)
+COPY pyproject.toml uv.lock* /build/
+
+# Install dependencies (no project source yet -> cacheable)
+RUN --mount=type=cache,target=/root/.cache \
+    uv sync --frozen --no-install-project
+
+# 2) Now copy project source and install package
 COPY . /build
-RUN /bin/poetry build
-RUN /bin/poetry install
-RUN echo "/bin/poetry -C /build run cgt-calc \$@" > /bin/cgt-calc
-RUN chmod +x /bin/cgt-calc
+RUN --mount=type=cache,target=/root/.cache \
+    uv sync --frozen
+
+# Simple CLI shim
+RUN printf '%s\n' 'cd /build && uv run cgt-calc "$@"' > /bin/cgt-calc \
+ && chmod +x /bin/cgt-calc
 
 WORKDIR /data
 ENTRYPOINT ["/bin/bash"]

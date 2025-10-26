@@ -8,8 +8,8 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from enum import Enum
-from pathlib import Path
-from typing import Final
+import logging
+from typing import TYPE_CHECKING, Final
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
@@ -20,8 +20,12 @@ from cgt_calc.exceptions import (
 )
 from cgt_calc.model import ActionType, BrokerTransaction
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 OLD_COLUMNS_NUM: Final = 9
 NEW_COLUMNS_NUM: Final = 8
+LOGGER = logging.getLogger(__name__)
 
 
 class SchwabTransactionsFileRequiredHeaders(str, Enum):
@@ -68,7 +72,7 @@ class AwardPrices:
         raise KeyError(f"Award price is not found for symbol {symbol} for date {date}")
 
 
-def action_from_str(label: str) -> ActionType:
+def action_from_str(label: str, file: Path) -> ActionType:
     """Convert string label to ActionType."""
     if label == "Buy":
         return ActionType.BUY
@@ -106,7 +110,7 @@ def action_from_str(label: str) -> ActionType:
         return ActionType.DIVIDEND
 
     if label in ["NRA Tax Adj", "NRA Withholding", "Foreign Tax Paid"]:
-        return ActionType.TAX
+        return ActionType.DIVIDEND_TAX
 
     if label == "ADR Mgmt Fee":
         return ActionType.FEE
@@ -138,7 +142,7 @@ def action_from_str(label: str) -> ActionType:
     if label in ["Cash Merger", "Cash Merger Adj"]:
         return ActionType.CASH_MERGER
 
-    raise ParsingError("schwab transactions", f"Unknown action: {label}")
+    raise ParsingError(file, f"Unknown action: '{label}'")
 
 
 class SchwabTransaction(BrokerTransaction):
@@ -147,7 +151,7 @@ class SchwabTransaction(BrokerTransaction):
     def __init__(
         self,
         row_dict: OrderedDict[str, str],
-        file: str,
+        file: Path,
     ):
         """Create transaction from CSV row."""
         if len(row_dict) < NEW_COLUMNS_NUM or len(row_dict) > OLD_COLUMNS_NUM:
@@ -172,7 +176,7 @@ class SchwabTransaction(BrokerTransaction):
             ) from exc
         action_header = SchwabTransactionsFileRequiredHeaders.ACTION.value
         self.raw_action = row_dict[action_header]
-        action = action_from_str(self.raw_action)
+        action = action_from_str(self.raw_action, file)
         symbol_header = SchwabTransactionsFileRequiredHeaders.SYMBOL.value
         symbol = row_dict[symbol_header] if row_dict[symbol_header] != "" else None
         if symbol is not None:
@@ -221,7 +225,7 @@ class SchwabTransaction(BrokerTransaction):
 
     @staticmethod
     def create(
-        row_dict: OrderedDict[str, str], file: str, awards_prices: AwardPrices
+        row_dict: OrderedDict[str, str], file: Path, awards_prices: AwardPrices
     ) -> SchwabTransaction:
         """Create and post process a SchwabTransaction."""
         transaction = SchwabTransaction(row_dict, file)
@@ -244,32 +248,40 @@ class SchwabTransaction(BrokerTransaction):
 
 def _unify_schwab_cash_merger_trxs(
     transactions: list[SchwabTransaction],
+    transactions_file: Path,
 ) -> list[SchwabTransaction]:
     filtered: list[SchwabTransaction] = []
     for transaction in transactions:
         if transaction.raw_action == "Cash Merger Adj":
-            assert (
-                len(filtered) > 0
-            ), "Cash Merger Adj must be precedeed by a Cash Merger transaction"
-            assert filtered[-1].raw_action == "Cash Merger"
-            assert filtered[-1].description == transaction.description
-            assert filtered[-1].symbol == transaction.symbol
-            assert filtered[-1].date == transaction.date
-            assert filtered[-1].quantity is None
-            assert filtered[-1].price is None
-            assert filtered[-1].amount is not None
-            assert transaction.amount is None
-            assert transaction.quantity is not None
+            assert len(filtered) > 0, (
+                "Cash Merger Adj must be precedeed by a Cash Merger transaction"
+            )
+            try:
+                assert filtered[-1].raw_action == "Cash Merger"
+                assert filtered[-1].description == transaction.description
+                assert filtered[-1].symbol == transaction.symbol
+                assert filtered[-1].date == transaction.date
+                assert filtered[-1].quantity is None
+                assert filtered[-1].price is None
+                assert filtered[-1].amount is not None
+                assert transaction.amount is None
+                assert transaction.quantity is not None
+            except AssertionError as err:
+                raise ParsingError(
+                    transactions_file,
+                    "Invalid format of 'Cash Merger Adj', "
+                    "run with --verbose for more details",
+                ) from err
             # the quantity is negative but
             # because we store it as a 'sell' we need it positive
             filtered[-1].quantity = -1 * transaction.quantity
             filtered[-1].price = filtered[-1].amount / filtered[-1].quantity
             filtered[-1].fees += transaction.fees
-            print(
-                "WARNING: Cash Merger support is not complete and doesn't cover the "
+            LOGGER.warning(
+                "Cash Merger support is not complete and doesn't cover the "
                 "cases when shares are received aside from cash,  "
-                "please review this transaction carefully: "
-                f"{filtered[-1]}"
+                "please review this transaction carefully: %s",
+                filtered[-1],
             )
         else:
             filtered.append(transaction)
@@ -277,98 +289,98 @@ def _unify_schwab_cash_merger_trxs(
 
 
 def read_schwab_transactions(
-    transactions_file: str, schwab_award_transactions_file: str | None
+    transactions_file: Path, schwab_award_transactions_file: Path | None
 ) -> list[BrokerTransaction]:
     """Read Schwab transactions from file."""
     awards_prices = _read_schwab_awards(schwab_award_transactions_file)
-    try:
-        with Path(transactions_file).open(encoding="utf-8") as csv_file:
-            lines = list(csv.reader(csv_file))
-            headers = lines[0]
 
-            required_headers = set(
-                {header.value for header in SchwabTransactionsFileRequiredHeaders}
-            )
-            if not required_headers.issubset(headers):
-                raise ParsingError(
-                    transactions_file,
-                    "Missing columns in Schwab transaction file: "
-                    f"{required_headers.difference(headers)}",
-                )
+    with transactions_file.open(encoding="utf-8") as csv_file:
+        print(f"Parsing {transactions_file}...")
+        lines = list(csv.reader(csv_file))
+    if not lines:
+        raise ParsingError(
+            transactions_file, "Charles Schwab transactions CSV file is empty"
+        )
+    headers = lines[0]
 
-            # Remove header
-            lines = lines[1:]
-            transactions = [
-                SchwabTransaction.create(
-                    OrderedDict(zip(headers, row)), transactions_file, awards_prices
-                )
-                for row in lines
-                if any(row)
-            ]
-            transactions = _unify_schwab_cash_merger_trxs(transactions)
-            transactions.reverse()
-            return list(transactions)
-    except FileNotFoundError:
-        print(f"WARNING: Couldn't locate Schwab transactions file({transactions_file})")
-        return []
+    required_headers = set(
+        {header.value for header in SchwabTransactionsFileRequiredHeaders}
+    )
+    if not required_headers.issubset(headers):
+        raise ParsingError(
+            transactions_file,
+            "Missing columns in Schwab transaction file: "
+            f"{required_headers.difference(headers)}",
+        )
+
+    # Remove header
+    lines = lines[1:]
+    transactions = [
+        SchwabTransaction.create(
+            OrderedDict(zip(headers, row, strict=True)),
+            transactions_file,
+            awards_prices,
+        )
+        for row in lines
+        if any(row)
+    ]
+    transactions = _unify_schwab_cash_merger_trxs(transactions, transactions_file)
+    transactions.reverse()
+    return list(transactions)
 
 
 def _read_schwab_awards(
-    schwab_award_transactions_file: str | None,
+    schwab_award_transactions_file: Path | None,
 ) -> AwardPrices:
     """Read initial stock prices from CSV file."""
+    if schwab_award_transactions_file is None:
+        LOGGER.warning("No Schwab Award file provided")
+        return AwardPrices(award_prices={})
+
     initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
-
     headers = []
-
     lines = []
-    if schwab_award_transactions_file is not None:
-        try:
-            with Path(schwab_award_transactions_file).open(
-                encoding="utf-8"
-            ) as csv_file:
-                lines = list(csv.reader(csv_file))
-                headers = lines[0]
-                required_headers = set(
-                    {header.value for header in AwardsTransactionsFileRequiredHeaders}
-                )
-                if not required_headers.issubset(headers):
-                    raise ParsingError(
-                        schwab_award_transactions_file,
-                        "Missing columns in awards file: "
-                        f"{required_headers.difference(headers)}",
-                    )
 
-                # Remove headers
-                lines = lines[1:]
-        except FileNotFoundError:
-            print(
-                "WARNING: Couldn't locate Schwab award "
-                f"file({schwab_award_transactions_file})"
-            )
-    else:
-        print("WARNING: No schwab award file provided")
+    with schwab_award_transactions_file.open(encoding="utf-8") as csv_file:
+        print(f"Parsing {schwab_award_transactions_file}...")
+        lines = list(csv.reader(csv_file))
+    if not lines:
+        raise ParsingError(
+            schwab_award_transactions_file, "Charles Schwab Award CSV file is empty"
+        )
+    headers = lines[0]
+    required_headers = set(
+        {header.value for header in AwardsTransactionsFileRequiredHeaders}
+    )
+    if not required_headers.issubset(headers):
+        raise ParsingError(
+            schwab_award_transactions_file,
+            f"Missing columns in awards file: {required_headers.difference(headers)}",
+        )
+
+    # Remove headers
+    lines = lines[1:]
 
     modulo = len(lines) % 2
     if modulo != 0:
         raise UnexpectedRowCountError(
-            len(lines) - modulo + 2, schwab_award_transactions_file or ""
+            len(lines) - modulo + 2, schwab_award_transactions_file
         )
 
-    for upper_row, lower_row in zip(lines[::2], lines[1::2]):
+    for upper_row, lower_row in zip(lines[::2], lines[1::2], strict=True):
         # in this format each row is split into two rows,
         # so we combine them safely below
         row = []
-        for upper_col, lower_col in zip(upper_row, lower_row):
+        for upper_col, lower_col in zip(upper_row, lower_row, strict=True):
             assert upper_col == "" or lower_col == ""
             row.append(upper_col + lower_col)
 
         if len(row) != len(headers):
             raise UnexpectedColumnCountError(
-                row, len(headers), schwab_award_transactions_file or ""
+                row, len(headers), schwab_award_transactions_file
             )
 
-        row_dict = OrderedDict(zip(headers, row))
+        row_dict = OrderedDict(zip(headers, row, strict=True))
         date_header = AwardsTransactionsFileRequiredHeaders.DATE.value
         date_str = row_dict[date_header]
         try:

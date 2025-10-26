@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 import csv
-from pathlib import Path
+import logging
 from typing import TYPE_CHECKING, Final
 
 from .exceptions import ParsingError
 
 if TYPE_CHECKING:
     import datetime
+    from pathlib import Path
 
     from .model import Position
 
 CHOICES_TO_SHOW: Final = 10
 SPIN_OFFS_HEADER: Final = ["dst", "src"]
+LOGGER = logging.getLogger(__name__)
 
 
 class SpinOffHandler:
@@ -22,22 +24,18 @@ class SpinOffHandler:
 
     def __init__(
         self,
-        spin_offs_file: str | None = None,
+        spin_offs_file: Path | None = None,
     ):
         """Load data from spin_offs_file and optionally from initial_data."""
         self.spin_offs_file = spin_offs_file
-        read_data = self._read_spin_offs_file()
-        self.cache = read_data
+        self.cache = self._read_spin_offs_file()
 
     def _read_spin_offs_file(self) -> dict[str, str]:
         cache: dict[str, str] = {}
-        if self.spin_offs_file is None:
+        if self.spin_offs_file is None or not self.spin_offs_file.is_file():
             return cache
 
-        path = Path(self.spin_offs_file)
-        if not path.is_file():
-            return cache
-        with path.open(encoding="utf8") as fin:
+        with self.spin_offs_file.open(encoding="utf8") as fin:
             csv_reader = csv.DictReader(fin)
             for line in csv_reader:
                 if sorted(SPIN_OFFS_HEADER) != sorted(line.keys()):
@@ -52,7 +50,7 @@ class SpinOffHandler:
     def _write_spin_off_file(self) -> None:
         if self.spin_offs_file is None:
             return
-        with Path(self.spin_offs_file).open("w", encoding="utf8") as fout:
+        with self.spin_offs_file.open("w", encoding="utf8") as fout:
             data_rows = [[dst, src] for dst, src in self.cache.items()]
             writer = csv.writer(fout)
             writer.writerows([SPIN_OFFS_HEADER, *data_rows])
@@ -73,9 +71,17 @@ class SpinOffHandler:
             )
             if ticker in portfolio:
                 break
-            print(f"Invalid ticker: {ticker}, couldn't find it in the portfolio!")
-            if len(portfolio) <= CHOICES_TO_SHOW:
-                print(f"Available choices: {sorted(portfolio)}")
+            LOGGER.error(
+                "Invalid ticker: %s, couldn't find it in the portfolio!", ticker
+            )
+            if len(portfolio) > CHOICES_TO_SHOW:
+                LOGGER.info(
+                    "Available choices (showing %d): %s",
+                    CHOICES_TO_SHOW,
+                    sorted(portfolio)[:CHOICES_TO_SHOW],
+                )
+            else:
+                LOGGER.info("Available choices: %s", sorted(portfolio))
         self.cache[symbol] = ticker
         self._write_spin_off_file()
         return ticker

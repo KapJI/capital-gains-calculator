@@ -1,0 +1,46 @@
+Parsing tests/schwab/data/schwab_transactions.csv...
+Parsing tests/trading212/data/2020/from_2020-09-11_to_2021-04-02.csv...
+Parsing tests/morgan_stanley/data/Releases Report.csv...
+Parsing tests/morgan_stanley/data/Withdrawals Report.csv...
+Found 27 broker transactions
+First pass completed
+Final portfolio:
+  VNRG: 1.00
+  VUAG: 30.50
+  NVDA: 1.00
+  GOOG: 163.20
+Final balance:
+  Charles Schwab: 9479.30 (USD)
+  Trading212: 33391.30 (GBP)
+  Morgan Stanley: 1.00 (USD)
+Dividends:
+  NVDA: 0.10 (GBP)
+Interests:
+  Charles Schwab: 1.40 (USD)
+Disposal proceeds: £43836.90
+
+Second pass completed
+Portfolio at the end of 2020/2021 tax year:
+  VUAG: 30.50, £645.19
+  VNRG: 1.00, £8.98
+  NVDA: 1.00, £401.01
+  GOOG: 172.00, £12516.55
+For tax year 2020/2021:
+Excess Reported Income:
+  VUAG: £22.26 (included as dividend)
+  VNRG: £0.91 (included as dividend)
+Number of disposals: 4
+Disposal proceeds: £43836.90
+Allowable costs: £18666.33
+Capital gain: £25170.57
+Capital loss: £0.00
+Total capital gain: £25170.57
+Taxable capital gain: £12870.57
+Total dividends proceeds: £23.27
+Total amount of dividends tax yearly allowance: £2000.00
+Total taxable dividends proceeds: £0.00
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £1.03
+
+Generating PDF report...
+All done!

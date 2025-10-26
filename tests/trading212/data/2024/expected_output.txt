@@ -1,0 +1,26 @@
+Parsing tests/trading212/data/2024/inputs/transactions.csv...
+Found 7 broker transactions
+First pass completed
+Final portfolio:
+Final balance:
+  Trading212: 1758.05 (GBP)
+Disposal proceeds: £3143.21
+
+Second pass completed
+Portfolio at the end of 2024/2025 tax year:
+For tax year 2024/2025:
+Number of disposals: 1
+Disposal proceeds: £3143.21
+Allowable costs: £2386.06
+Capital gain: £757.15
+Capital loss: £0.00
+Total capital gain: £757.15
+Taxable capital gain: £0
+Total dividends proceeds: £0.00
+Total amount of dividends tax yearly allowance: £500.00
+Total taxable dividends proceeds: £0.00
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £0.00
+
+Generating PDF report...
+All done!

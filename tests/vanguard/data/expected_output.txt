@@ -1,0 +1,32 @@
+Parsing tests/vanguard/data/report.csv...
+Found 15 broker transactions
+First pass completed
+Final portfolio:
+  FOO: 1550.00
+  BAR: 293.00
+Final balance:
+  Vanguard: 1423.59 (GBP)
+Dividends:
+  FOO: 396.66 (GBP)
+Disposal proceeds: £104.06
+
+Second pass completed
+Portfolio at the end of 2022/2023 tax year:
+  FOO: 1550.00, £14982.06
+  BAR: 293.00, £29845.42
+For tax year 2022/2023:
+Number of disposals: 1
+Disposal proceeds: £104.06
+Allowable costs: £101.86
+Capital gain: £2.20
+Capital loss: £0.00
+Total capital gain: £2.20
+Taxable capital gain: £0
+Total dividends proceeds: £0.00
+Total amount of dividends tax yearly allowance: £2000.00
+Total taxable dividends proceeds: £0.00
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £396.66
+
+Generating PDF report...
+All done!

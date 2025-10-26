@@ -5,17 +5,20 @@ from __future__ import annotations
 from collections import defaultdict
 import csv
 import datetime
-from decimal import Decimal
-from pathlib import Path
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Final
 
 from defusedxml import ElementTree as ET
 import requests
 
+from .const import CGT_TEST_MODE
 from .dates import is_date
-from .exceptions import ExchangeRateMissingError, ParsingError
+from .exceptions import ExchangeRateMissingError, ExternalApiError, ParsingError
+from .util import open_with_parents
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from .model import BrokerTransaction
 
 EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
@@ -27,7 +30,7 @@ class CurrencyConverter:
 
     def __init__(
         self,
-        exchange_rates_file: str | None = None,
+        exchange_rates_file: Path | None = None,
         initial_data: dict[datetime.date, dict[str, Decimal]] | None = None,
     ):
         """Load data from exchange_rates_file and optionally from initial_data."""
@@ -41,36 +44,84 @@ class CurrencyConverter:
 
     @staticmethod
     def _read_exchange_rates_file(
-        exchange_rates_file: str | None,
+        exchange_rates_file: Path | None,
     ) -> defaultdict[datetime.date, dict[str, Decimal]]:
         cache: defaultdict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
-        if exchange_rates_file is None:
+        if exchange_rates_file is None or not exchange_rates_file.is_file():
             return cache
-        path = Path(exchange_rates_file)
-        if not path.is_file():
-            return cache
-        with path.open(encoding="utf8") as fin:
+        with exchange_rates_file.open(encoding="utf8") as fin:
             csv_reader = csv.DictReader(fin)
-            # skip the header
-            next(csv_reader)
-            for line in csv_reader:
+            if csv_reader.fieldnames is None:
+                # File is empty.
+                return cache
+            for row_number, line in enumerate(csv_reader, start=2):
+                # Guard against schema drift before touching row contents.
                 if sorted(EXCHANGE_RATES_HEADER) != sorted(line.keys()):
                     raise ParsingError(
                         exchange_rates_file,
-                        f"invalid columns {line.keys()}, "
-                        f"they should be {EXCHANGE_RATES_HEADER}",
+                        "Unexpected columns in exchange rate file: "
+                        f"found {sorted(line.keys())}, expected {EXCHANGE_RATES_HEADER}",
                     )
-                date = datetime.date.fromisoformat(line["month"])
-                cache[date][line["currency"]] = Decimal(line["rate"])
+
+                # Trim values so that whitespace-only cells count as empty.
+                normalized_values = {
+                    field: (line[field].strip() if line[field] is not None else "")
+                    for field in EXCHANGE_RATES_HEADER
+                }
+
+                # Skip harmless blank lines left by editors or tooling.
+                if not any(normalized_values.values()):
+                    continue
+
+                # Missing values mean we cannot trust the rate entry.
+                missing_fields = [
+                    field for field, value in normalized_values.items() if not value
+                ]
+                if missing_fields:
+                    raise ParsingError(
+                        exchange_rates_file,
+                        "Missing data in exchange rate file at line "
+                        f"{row_number}: {', '.join(sorted(missing_fields))}",
+                    )
+
+                month = normalized_values["month"]
+                currency = normalized_values["currency"]
+                rate_value = normalized_values["rate"]
+
+                try:
+                    date = datetime.date.fromisoformat(month)
+                except ValueError as err:
+                    raise ParsingError(
+                        exchange_rates_file,
+                        f"Invalid date '{month}' at line {row_number}",
+                    ) from err
+
+                try:
+                    rate = Decimal(rate_value)
+                except (InvalidOperation, ValueError) as err:
+                    raise ParsingError(
+                        exchange_rates_file,
+                        f"Invalid rate '{rate_value}' at line {row_number}",
+                    ) from err
+
+                # Duplicates suggest conflicting data, so fail fast.
+                if currency in cache[date]:
+                    raise ParsingError(
+                        exchange_rates_file,
+                        "Duplicate currency entry for "
+                        f"{currency} on {month} at line {row_number}",
+                    )
+
+                cache[date][currency] = rate
             return cache
 
     @staticmethod
     def _write_exchange_rates_file(
-        exchange_rates_file: str | None, data: dict[datetime.date, dict[str, Decimal]]
+        exchange_rates_file: Path | None, data: dict[datetime.date, dict[str, Decimal]]
     ) -> None:
-        if exchange_rates_file is None:
+        if exchange_rates_file is None or CGT_TEST_MODE:
             return
-        with Path(exchange_rates_file).open("w", encoding="utf8") as fout:
+        with open_with_parents(exchange_rates_file) as fout:
             data_rows = [
                 [month, symbol, str(rate)]
                 for month, rates in data.items()
@@ -96,16 +147,29 @@ class CurrencyConverter:
         try:
             response = self.session.get(url, timeout=10)
         except Exception as err:
-            msg = f"Error while fetching HMRC exchange rates for the month {month_str} "
-            msg += f"from the following url: {url}.\n"
-            msg += "Either try again or if you're sure about the rates you can "
-            msg += f"add them manually in {self.exchange_rates_file}.\n"
-            msg += f"The error was: {err}\n"
-            raise ParsingError(url, msg) from err
+            msg = f"Failed to retrieve HMRC exchange rates for {month_str} from {url}. "
+            if self.exchange_rates_file:
+                msg += (
+                    "Try again later or record the rates manually in "
+                    f"{self.exchange_rates_file}. "
+                )
+            else:
+                msg += "Try again later or provide the rates manually. "
+            msg += f"Error: {err}"
+            raise ExternalApiError(url, msg) from err
 
         if not response.ok:
-            raise ParsingError(
-                url, f"HMRC API returned a {response.status_code} response"
+            body = response.text.strip()
+            extra = ""
+            if body:
+                snippet_length_limit = 200
+                snippet = body[:snippet_length_limit]
+                if len(body) > snippet_length_limit:
+                    snippet += "..."
+                extra = f" Response body: {snippet}"
+            raise ExternalApiError(
+                url,
+                f"HMRC API returned HTTP {response.status_code} for {month_str}.{extra}",
             )
 
         tree = ET.fromstring(response.text)
@@ -116,7 +180,10 @@ class CurrencyConverter:
             for row in tree
         }
         if None in rates or None in rates.values():
-            raise ParsingError(url, "HMRC API produced invalid/unknown data")
+            raise ExternalApiError(
+                url,
+                f"HMRC API response for {month_str} is missing expected currency data",
+            )
         self.cache[date] = rates
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
 
@@ -137,5 +204,4 @@ class CurrencyConverter:
 
     def to_gbp_for(self, amount: Decimal, transaction: BrokerTransaction) -> Decimal:
         """Convert amount from transaction currency to GBP."""
-
         return self.to_gbp(amount, transaction.currency, transaction.date)

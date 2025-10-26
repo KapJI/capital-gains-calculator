@@ -2,10 +2,11 @@
 *.log
 .DS_Store
 .mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
 .vscode
 __pycache__
 env
 dist
-calculations.pdf
-exchange_rates.csv
-spin_offs.csv
+out/

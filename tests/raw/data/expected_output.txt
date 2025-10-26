@@ -1,0 +1,37 @@
+Parsing tests/raw/data/test_data.csv...
+Found 16 broker transactions
+First pass completed
+Final portfolio:
+  AMZN: 210.00
+  OPRA: 120.00
+  BABA: 30.00
+  META: 119.00
+Final balance:
+  Unknown: -28486.60 (USD)
+Dividends:
+  OTGLY: 9.68 (USD)
+  OPRA: 3360.00 (USD)
+Disposal proceeds: £11422.10
+
+Second pass completed
+Portfolio at the end of 2022/2023 tax year:
+  AMZN: 210.00, £1900.67
+  OPRA: 120.00, £492.03
+  BABA: 30.00, £1942.83
+  META: 119.00, £18042.21
+For tax year 2022/2023:
+Number of disposals: 3
+Disposal proceeds: £11422.10
+Allowable costs: £13588.22
+Capital gain: £0.00
+Capital loss: £2166.12
+Total capital gain: £-2166.12
+Taxable capital gain: £0
+Total dividends proceeds: £2719.29
+Total amount of dividends tax yearly allowance: £2000.00
+Total taxable dividends proceeds: £719.29
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £0.00
+
+Generating PDF report...
+All done!
