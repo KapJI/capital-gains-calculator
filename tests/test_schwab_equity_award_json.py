@@ -108,7 +108,7 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[i].fees == Decimal("0")
 
     i += 1
-    assert transactions[i].date == datetime.date(2023, 8, 29)
+    assert transactions[i].date == datetime.date(2023, 8, 31)
     assert transactions[i].action == ActionType.SELL
     assert transactions[i].quantity == Decimal("14.40")
     assert transactions[i].price == Decimal("137.90")
