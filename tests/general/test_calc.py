@@ -195,14 +195,15 @@ def test_run_with_example_files() -> None:
         "--mssb-dir",
         "tests/morgan_stanley/data/",
     )
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True)
-    except subprocess.CalledProcessError as e:
-        print(e.stderr.decode("utf-8"))
-        raise
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode:
+        pytest.fail(
+            "Integration test failed\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
 
-    assert result.returncode == 0
-    stderr_lines = result.stderr.decode().strip().split("\n")
+    stderr_lines = result.stderr.strip().split("\n")
     expected_lines = 2
     assert len(stderr_lines) == expected_lines
     assert stderr_lines[0] == "WARNING: No Schwab Award file provided"
@@ -214,7 +215,7 @@ def test_run_with_example_files() -> None:
     )
     expected = expected_file.read_text()
     cmd_str = " ".join([param if param else "''" for param in cmd])
-    assert result.stdout.decode("utf-8") == expected, (
+    assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"
         f"{cmd_str} > {expected_file}"
