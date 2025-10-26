@@ -199,7 +199,7 @@ class SchwabTransaction(BrokerTransaction):
         action = action_from_str(self.raw_action, file)
         symbol = row.get(names.symbol)
         symbol = TICKER_RENAMES.get(symbol, symbol)
-        if symbol != "GOOG":
+        if symbol not in ["GOOG", "GOOGL"]:
             # Stock split hardcoded for GOOG
             raise ParsingError(
                 file,
