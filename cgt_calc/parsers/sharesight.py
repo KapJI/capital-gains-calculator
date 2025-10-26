@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 import csv
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, Final
 
@@ -24,23 +26,90 @@ STOCK_ACTIVITY_COMMENT_MARKER: Final[str] = "Stock Activity"
 LOGGER = logging.getLogger(__name__)
 
 
-def parse_date(val: str) -> date:
-    """Parse a Sharesight report date."""
+class DividendColumn(StrEnum):
+    """Columns available in Sharesight dividend sections."""
 
-    return datetime.strptime(val, "%d/%m/%Y").date()
+    CODE = "Code"
+    NAME = "Name"
+    DATE_PAID = "Date Paid"
+    COMMENTS = "Comments"
+    NET_DIVIDEND = "Net Dividend"
+    TAX_DEDUCTED = "Tax Deducted"
+    TAX_CREDIT = "Tax Credit"
+    GROSS_DIVIDEND = "Gross Dividend"
+    EXCHANGE_RATE = "Exchange Rate"
+    CURRENCY = "Currency"
+    NET_AMOUNT = "Net Amount"
+    FOREIGN_TAX_DEDUCTED = "Foreign Tax Deducted"
+    GROSS_AMOUNT = "Gross Amount"
 
 
-def parse_decimal(val: str) -> Decimal:
-    """Convert value to Decimal."""
-    try:
-        return Decimal(val.replace(",", ""))
-    except InvalidOperation as err:
-        raise ValueError(f"Bad decimal: {val}") from err
+@dataclass(frozen=True)
+class DividendSectionSchema:
+    """Schema describing a dividend section in the income report."""
+
+    section_name: str
+    expected_columns: tuple[DividendColumn, ...]
+    amount_column: DividendColumn
+    tax_column: DividendColumn
+    currency_column: DividendColumn | None
+    default_currency: str | None = None
 
 
-def maybe_decimal(val: str) -> Decimal | None:
-    """Convert value to Decimal."""
-    return parse_decimal(val) if val else None
+LOCAL_DIVIDEND_SCHEMA = DividendSectionSchema(
+    section_name="Sharesight local dividend header",
+    expected_columns=(
+        DividendColumn.CODE,
+        DividendColumn.NAME,
+        DividendColumn.DATE_PAID,
+        DividendColumn.NET_DIVIDEND,
+        DividendColumn.TAX_DEDUCTED,
+        DividendColumn.TAX_CREDIT,
+        DividendColumn.GROSS_DIVIDEND,
+        DividendColumn.COMMENTS,
+    ),
+    amount_column=DividendColumn.GROSS_DIVIDEND,
+    tax_column=DividendColumn.TAX_DEDUCTED,
+    currency_column=None,
+    default_currency="GBP",
+)
+
+
+FOREIGN_DIVIDEND_SCHEMA = DividendSectionSchema(
+    section_name="Sharesight foreign dividend header",
+    expected_columns=(
+        DividendColumn.CODE,
+        DividendColumn.NAME,
+        DividendColumn.DATE_PAID,
+        DividendColumn.EXCHANGE_RATE,
+        DividendColumn.CURRENCY,
+        DividendColumn.NET_AMOUNT,
+        DividendColumn.FOREIGN_TAX_DEDUCTED,
+        DividendColumn.GROSS_AMOUNT,
+        DividendColumn.COMMENTS,
+    ),
+    amount_column=DividendColumn.GROSS_AMOUNT,
+    tax_column=DividendColumn.FOREIGN_TAX_DEDUCTED,
+    currency_column=DividendColumn.CURRENCY,
+    default_currency=None,
+)
+
+
+class TradeColumn(StrEnum):
+    """Columns present in the Sharesight trades report."""
+
+    MARKET = "Market"
+    CODE = "Code"
+    NAME = "Name"
+    TYPE = "Type"
+    DATE = "Date"
+    QUANTITY = "Quantity"
+    PRICE = "Price *"
+    BROKERAGE = "Brokerage *"
+    CURRENCY = "Currency"
+    EXCHANGE_RATE = "Exchange Rate"
+    VALUE = "Value"
+    COMMENTS = "Comments"
 
 
 class SharesightTransaction(BrokerTransaction):
@@ -56,7 +125,7 @@ class RowIterator(Iterator[list[str]]):
     def __init__(self, rows: Iterable[list[str]]) -> None:
         """Initialise RowIterator."""
         self.rows = iter(rows)
-        self.line = 1
+        self.line = 0
 
     def __next__(self) -> list[str]:
         """Produce next element and increment line number."""
@@ -69,7 +138,54 @@ class RowIterator(Iterator[list[str]]):
         return self
 
 
+def parse_date(val: str) -> date:
+    """Parse a Sharesight report date."""
+
+    return datetime.strptime(val, "%d/%m/%Y").date()
+
+
+def parse_decimal[Col: StrEnum](row_dict: Mapping[Col, str], column: Col) -> Decimal:
+    """Convert column value to Decimal."""
+
+    raw_value = row_dict[column]
+    try:
+        return Decimal(raw_value.replace(",", ""))
+    except InvalidOperation as err:
+        raise ValueError(
+            f"Invalid decimal in column '{column.value}': {raw_value!r}"
+        ) from err
+
+
+def maybe_decimal[Col: StrEnum](
+    row_dict: Mapping[Col, str], column: Col
+) -> Decimal | None:
+    """Convert column value to Decimal if provided."""
+
+    raw_value = row_dict.get(column, "")
+    return parse_decimal(row_dict, column) if raw_value else None
+
+
+def validate_header(
+    header: list[str],
+    expected: Iterable[StrEnum],
+    *,
+    file: Path,
+    section: str,
+) -> None:
+    """Validate that all expected columns are present."""
+
+    expected_values = {column.value for column in expected}
+    header_values = {column for column in header if column}
+    missing = expected_values - header_values
+    if missing:
+        raise ParsingError(
+            file,
+            f"Missing expected columns in {section}: {', '.join(sorted(missing))}",
+        )
+
+
 def parse_dividend_payments(
+    schema: DividendSectionSchema,
     rows: Iterator[list[str]],
     file: Path,
 ) -> Iterable[SharesightTransaction]:
@@ -79,36 +195,54 @@ def parse_dividend_payments(
     We parse those two sections very similarly, so we use one function.
     """
 
-    columns = next(rows, None)
-    if columns is None:
+    header = next(rows, None)
+    if header is None:
         return
+
+    validate_header(
+        header,
+        schema.expected_columns,
+        file=file,
+        section=schema.section_name,
+    )
 
     for row in rows:
         if row[0] == "Total":
             # Don't use the totals row, but it signals the end of the section
             break
 
-        if len(row) != len(columns):
-            raise UnexpectedColumnCountError(row, len(columns), file)
+        if len(row) != len(header):
+            raise UnexpectedColumnCountError(row, len(header), file)
 
-        row_dict = dict(zip(columns, row, strict=True))
+        row_dict = {
+            DividendColumn(column): value
+            for column, value in zip(header, row, strict=True)
+            if column
+        }
 
-        dividend_date = parse_date(row_dict["Date Paid"])
-        symbol = row_dict["Code"]
+        dividend_date = parse_date(row_dict[DividendColumn.DATE_PAID])
+        symbol = row_dict[DividendColumn.CODE]
         symbol = TICKER_RENAMES.get(symbol, symbol)
-        description = row_dict["Comments"]
+        description = row_dict[DividendColumn.COMMENTS]
         broker = "Sharesight"
 
-        currency = row_dict.get("Currency")
-        # If we have a currency this is foreign income, otherwise it's local
-        if currency:
-            amount = parse_decimal(row_dict["Gross Amount"])
-            tax = maybe_decimal(row_dict["Foreign Tax Deducted"])
+        if schema.default_currency:
+            currency = schema.default_currency
         else:
-            amount = parse_decimal(row_dict["Gross Dividend"])
-            tax = maybe_decimal(row_dict["Tax Deducted"])
-            # Local income must be in GBP, otherwise why are you using this tool?
-            currency = "GBP"
+            if schema.currency_column is None:
+                raise ValueError(
+                    f"Missing currency column definition for {schema.section_name}"
+                )
+
+            currency = row_dict.get(schema.currency_column, "").strip()
+            if not currency:
+                raise ValueError(
+                    "Missing currency in column "
+                    f"'{schema.currency_column.value}' for {schema.section_name}"
+                )
+
+        amount = parse_decimal(row_dict, schema.amount_column)
+        tax = maybe_decimal(row_dict, schema.tax_column)
 
         yield SharesightTransaction(
             date=dividend_date,
@@ -153,7 +287,7 @@ def parse_local_income(
             return
 
         if row[0] == "Dividend Payments":
-            yield from parse_dividend_payments(rows, file)
+            yield from parse_dividend_payments(LOCAL_DIVIDEND_SCHEMA, rows, file)
 
 
 def parse_foreign_income(
@@ -161,7 +295,7 @@ def parse_foreign_income(
 ) -> Iterable[SharesightTransaction]:
     """Parse Foreign Income section from Sharesight data."""
 
-    yield from parse_dividend_payments(rows, file)
+    yield from parse_dividend_payments(FOREIGN_DIVIDEND_SCHEMA, rows, file)
 
 
 def parse_income_report(file: Path) -> Iterable[SharesightTransaction]:
@@ -178,42 +312,57 @@ def parse_income_report(file: Path) -> Iterable[SharesightTransaction]:
                 yield from parse_local_income(rows_iter, file)
             elif row[0] == "Foreign Income":
                 yield from parse_foreign_income(rows_iter, file)
+    except ParsingError as err:
+        err.add_row_context(rows_iter.line)
+        raise
     except ValueError as err:
-        raise ParsingError(file, f"Line: {rows_iter.line}, Error: {err}") from err
+        raise ParsingError(file, str(err), row_index=rows_iter.line) from err
 
 
 def parse_trades(
-    columns: list[str], rows: Iterator[list[str]], file: Path
+    header: list[str], rows: Iterator[list[str]], file: Path
 ) -> Iterable[SharesightTransaction]:
     """Parse content in All Trades Report from Sharesight."""
+
+    validate_header(
+        header,
+        TradeColumn,
+        file=file,
+        section="Sharesight trades header",
+    )
 
     for row in rows:
         if not any(row):
             # There is an empty row at the end of the trades list
             break
 
-        if len(row) != len(columns):
-            raise UnexpectedColumnCountError(row, len(columns), file)
+        if len(row) != len(header):
+            raise UnexpectedColumnCountError(row, len(header), file)
 
-        row_dict = dict(zip(columns, row, strict=True))
-        tpe = row_dict["Type"]
-        if tpe == "Buy":
+        row_dict = {
+            TradeColumn(column): value
+            for column, value in zip(header, row, strict=True)
+            if column
+        }
+
+        trade_type = row_dict[TradeColumn.TYPE]
+        if trade_type == "Buy":
             action = ActionType.BUY
-        elif tpe == "Sell":
+        elif trade_type == "Sell":
             action = ActionType.SELL
         else:
-            raise ValueError(f"Unknown action: {tpe}")
+            raise ValueError(f"Unknown action: {trade_type}")
 
-        market = row_dict["Market"]
-        symbol = f"{market}:{row_dict['Code']}"
-        trade_date = parse_date(row_dict["Date"])
-        quantity = parse_decimal(row_dict["Quantity"])
-        price = parse_decimal(row_dict["Price *"])
-        fees = maybe_decimal(row_dict["Brokerage *"]) or Decimal(0)
-        currency = row_dict["Currency"]
-        description = row_dict["Comments"]
+        market = row_dict[TradeColumn.MARKET]
+        symbol = f"{market}:{row_dict[TradeColumn.CODE]}"
+        trade_date = parse_date(row_dict[TradeColumn.DATE])
+        quantity = parse_decimal(row_dict, TradeColumn.QUANTITY)
+        price = parse_decimal(row_dict, TradeColumn.PRICE)
+        fees = maybe_decimal(row_dict, TradeColumn.BROKERAGE) or Decimal(0)
+        currency = row_dict[TradeColumn.CURRENCY]
+        description = row_dict[TradeColumn.COMMENTS]
         broker = "Sharesight"
-        gbp_value = maybe_decimal(row_dict["Value"])
+        gbp_value = maybe_decimal(row_dict, TradeColumn.VALUE)
 
         # Sharesight's reports conventions are slightly different from our
         # conventions:
@@ -277,13 +426,14 @@ def parse_trade_report(file: Path) -> Iterable[SharesightTransaction]:
     for row in rows_iter:
         # Skip everything until we find the header
         if row[0] == "Market":
-            columns = row
+            header = row
             try:
-                yield from parse_trades(columns, rows_iter, file)
-            except (InvalidOperation, ValueError) as err:
-                raise ParsingError(
-                    file, f"Line: {rows_iter.line}, Error: {err}"
-                ) from err
+                yield from parse_trades(header, rows_iter, file)
+            except ParsingError as err:
+                err.add_row_context(rows_iter.line)
+                raise
+            except ValueError as err:
+                raise ParsingError(file, str(err), row_index=rows_iter.line) from err
 
 
 def read_sharesight_transactions(
