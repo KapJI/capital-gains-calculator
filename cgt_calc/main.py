@@ -893,8 +893,9 @@ class CapitalGainsCalculator:
                     current_quantity -= available_quantity
                     current_amount -= amount_delta
                     if current_quantity == 0:
-                        assert round_decimal(current_amount, 23) == 0, (
-                            f"current amount {current_amount}"
+                        # Allow for tiny rounding errors (up to 1E-20)
+                        assert abs(current_amount) < Decimal("1E-20"), (
+                            f"current amount {current_amount} is not close enough to zero"
                         )
                     add_to_list(
                         self.bnb_list,
