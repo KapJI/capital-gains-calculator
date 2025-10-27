@@ -16,6 +16,7 @@ from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
+from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
 from tests.utils import build_cmd
@@ -24,7 +25,7 @@ from .calc_test_data import calc_basic_data
 from .calc_test_data_2 import calc_basic_data_2
 
 if TYPE_CHECKING:
-    from cgt_calc.model import BrokerTransaction, CalculationLog, CapitalGainsReport
+    from cgt_calc.model import CalculationLog, CapitalGainsReport
 
 
 def get_report(
@@ -181,6 +182,97 @@ def test_basic(
                     assert round_decimal(result_entry.amount, 4) == round_decimal(
                         expected_entry.amount, 4
                     )
+
+
+def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
+    """Later acquisitions are ignored if the disposal was already satisfied."""
+
+    currency_converter = CurrencyConverter(None, {})
+    price_fetcher = CurrentPriceFetcher(currency_converter, {}, {})
+    calculator = CapitalGainsCalculator(
+        2024,
+        currency_converter,
+        IsinConverter(),
+        price_fetcher,
+        SpinOffHandler(),
+        InitialPrices(),
+        interest_fund_tickers=[],
+    )
+
+    symbol = "TEST"
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=datetime.date(2024, 1, 1),
+            action=ActionType.TRANSFER,
+            symbol=None,
+            description="deposit",
+            quantity=None,
+            price=None,
+            fees=Decimal(0),
+            amount=Decimal(500),
+            currency="GBP",
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 1, 10),
+            action=ActionType.BUY,
+            symbol=symbol,
+            description="initial buy",
+            quantity=Decimal(10),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-100),
+            currency="GBP",
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 3, 1),
+            action=ActionType.SELL,
+            symbol=symbol,
+            description="disposal",
+            quantity=Decimal(5),
+            price=Decimal(12),
+            fees=Decimal(0),
+            amount=Decimal(60),
+            currency="GBP",
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 3, 5),
+            action=ActionType.BUY,
+            symbol=symbol,
+            description="bed and breakfast buy",
+            quantity=Decimal(5),
+            price=Decimal(11),
+            fees=Decimal(0),
+            amount=Decimal(-55),
+            currency="GBP",
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 3, 10),
+            action=ActionType.BUY,
+            symbol=symbol,
+            description="unrelated buy",
+            quantity=Decimal(3),
+            price=Decimal(9),
+            fees=Decimal(0),
+            amount=Decimal(-27),
+            currency="GBP",
+            broker="Test",
+        ),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    # The original disposal is fully matched against the 5-share buy, so no gain.
+    assert report.total_gain() == Decimal(0)
+
+    first_match = datetime.date(2024, 3, 5)
+    assert calculator.bnb_list[first_match][symbol].quantity == Decimal(5)
+
+    second_match = datetime.date(2024, 3, 10)
+    assert symbol not in calculator.bnb_list.get(second_match, {})
 
 
 def test_run_with_example_files() -> None:
