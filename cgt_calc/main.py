@@ -833,18 +833,21 @@ class CapitalGainsCalculator:
                         == 0
                     ):
                         continue
+                    available_quantity = min(
+                        disposal_quantity,
+                        acquisition.quantity
+                        - same_day_disposal.quantity
+                        - bnb_acquisition.quantity,
+                    )
+                    # Skip if no shares available for bed and breakfast
+                    if available_quantity == 0:
+                        continue
                     LOGGER.warning(
                         "Bed and breakfasting for %s. "
                         "Disposed on %s and acquired again on %s",
                         symbol,
                         date_index,
                         search_index,
-                    )
-                    available_quantity = min(
-                        disposal_quantity,
-                        acquisition.quantity
-                        - same_day_disposal.quantity
-                        - bnb_acquisition.quantity,
                     )
                     fees = (
                         disposal.fees * available_quantity / original_disposal_quantity
