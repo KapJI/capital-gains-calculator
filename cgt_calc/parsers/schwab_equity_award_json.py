@@ -171,14 +171,18 @@ def _decimal_from_number_or_str(
     """Get a number from a row, preferably from the number field.
 
     Fall back to the string representation field, or default to Decimal(0)
-    if the fields are not there or both have a value of None.
+    if the fields are not there or both have a value of None or empty string.
     """
     # We prefer native number to strings as more efficient/safer parsing
     float_name = f"{field_basename}{field_float_suffix}"
     if float_name in row and row[float_name] is not None:
         return Decimal(row[float_name])
 
-    if field_basename in row and row[field_basename] is not None:
+    if (
+        field_basename in row
+        and row[field_basename] is not None
+        and row[field_basename] != ""
+    ):
         return _decimal_from_str(row[field_basename])
 
     return Decimal(0)
