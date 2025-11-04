@@ -210,9 +210,9 @@ class FreetradeParser(BaseSingleFileParser):
         missing = REQUIRED_COLUMNS - provided
         if missing:
             missing_columns = ", ".join(sorted(missing))
-            raise ParsingError(file, f"Missing columns: {missing_columns}")
+            raise ParsingError(file, f"Missing columns: {missing_columns}", row_index=1)
 
         unknown = provided - REQUIRED_COLUMNS
         if unknown:
             unknown_columns = ", ".join(sorted(unknown))
-            raise ParsingError(file, f"Unknown columns: {unknown_columns}")
+            raise ParsingError(file, f"Unknown columns: {unknown_columns}", row_index=1)

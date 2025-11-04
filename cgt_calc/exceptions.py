@@ -118,10 +118,14 @@ class QuantityNotPositiveError(InvalidTransactionError):
 class UnexpectedColumnCountError(ParsingError):
     """Unexpected column error."""
 
-    def __init__(self, row: list[str], count: int, file: Path):
+    def __init__(
+        self, row: list[str], count: int, file: Path, *, row_index: int | None = None
+    ):
         """Initialise."""
         super().__init__(
-            file, f"The following row doesn't have {count} columns:\n{row}"
+            file,
+            f"The following row doesn't have {count} columns:\n{row}",
+            row_index=row_index,
         )
 
 

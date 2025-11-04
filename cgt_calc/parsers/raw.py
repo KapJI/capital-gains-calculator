@@ -179,7 +179,7 @@ class RawParser(BaseSingleFileParser):
         """Validate optional header row."""
 
         if len(header) != CSV_COLUMNS_NUM:
-            raise UnexpectedColumnCountError(header, CSV_COLUMNS_NUM, file)
+            raise UnexpectedColumnCountError(header, CSV_COLUMNS_NUM, file, row_index=1)
 
         normalized = [value.strip().lower() for value in header]
         for index, (exp, act) in enumerate(
@@ -189,6 +189,7 @@ class RawParser(BaseSingleFileParser):
                 raise ParsingError(
                     file,
                     f"Expected column {index} to be '{exp}' but found '{header[index - 1]}'",
+                    row_index=1,
                 )
 
     @staticmethod
