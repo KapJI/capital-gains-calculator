@@ -164,8 +164,8 @@ class SchwabTransaction(BrokerTransaction):
         as_of_str = " as of "
         date_header = SchwabTransactionsFileRequiredHeaders.DATE.value
         if as_of_str in row_dict[date_header]:
-            index = row_dict[date_header].find(as_of_str) + len(as_of_str)
-            date_str = row_dict[date_header][index:]
+            index = row_dict[date_header].find(as_of_str)
+            date_str = row_dict[date_header][:index]
         else:
             date_str = row_dict[date_header]
         try:
@@ -240,9 +240,7 @@ class SchwabTransaction(BrokerTransaction):
             # for awards which don't match the PDF statements.
             # We want to make sure to match date and price form the awards
             # spreadsheet.
-            transaction.date, transaction.price = awards_prices.get(
-                transaction.date, symbol
-            )
+            _vest_date, transaction.price = awards_prices.get(transaction.date, symbol)
         return transaction
 
 
