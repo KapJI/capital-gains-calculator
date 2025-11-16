@@ -66,3 +66,34 @@ def test_run_with_schwab_cash_merger_files() -> None:
         "if you added new features update the test with:\n"
         f"{cmd_str} > {expected_file}"
     )
+
+
+def test_run_with_schwab_rsu_settlement_files() -> None:
+    """Runs the script and verifies it doesn't fail."""
+    cmd = build_cmd(
+        "--year",
+        "2023",
+        "--schwab-file",
+        "tests/schwab/data/rsu_settlement/transactions.csv",
+        "--schwab-award-file",
+        "tests/schwab/data/rsu_settlement/awards.csv",
+    )
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode:
+        pytest.fail(
+            "Integration test failed\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    stderr = result.stderr.strip()
+    assert stderr == ""
+    expected_file = (
+        Path("tests") / "schwab" / "data" / "rsu_settlement" / "expected_output.txt"
+    )
+    expected = expected_file.read_text()
+    cmd_str = " ".join([param if param else "''" for param in cmd])
+    assert result.stdout == expected, (
+        "Run with example files generated unexpected outputs, "
+        "if you added new features update the test with:\n"
+        f"{cmd_str} > {expected_file}"
+    )
