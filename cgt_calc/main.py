@@ -918,6 +918,10 @@ class CapitalGainsCalculator:
                             new_pool_cost=current_amount,
                         )
                     )
+                    # If we completely matched the current disposal,
+                    # there's no need to keep looking for more B&D days
+                    if disposal_quantity <= 0:
+                        break
         if disposal_quantity > 0:
             available_quantity = disposal_quantity
             fees = disposal.fees * available_quantity / original_disposal_quantity
