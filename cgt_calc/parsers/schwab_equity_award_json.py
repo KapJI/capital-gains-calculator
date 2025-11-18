@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 OPTIONAL_DETAILS_NAME: Final = "Details"
 FIELD_TO_SCHEMA: Final = {"transactions": 1, "Transactions": 2}
 LOGGER = logging.getLogger(__name__)
+GOOGLE_SYMBOLS = {"GOOG", "GOOGL"}
 
 
 @dataclass
@@ -199,11 +200,12 @@ class SchwabTransaction(BrokerTransaction):
         action = action_from_str(self.raw_action, file)
         symbol = row.get(names.symbol)
         symbol = TICKER_RENAMES.get(symbol, symbol)
-        if symbol != "GOOG":
-            # Stock split hardcoded for GOOG
-            raise ParsingError(
-                file,
-                f"Schwab Equity Award JSON only supports GOOG stock but found {symbol}",
+        if symbol not in GOOGLE_SYMBOLS:
+            LOGGER.warning(
+                "The Schwab Equity Award JSON parser was only tested for Google stocks (%s), "
+                "but found symbol '%s'. Please check the parsing and output are correct!",
+                ", ".join(GOOGLE_SYMBOLS),
+                symbol,
             )
         quantity = _decimal_from_number_or_str(row, names.quantity)
         initially_parsed_amount = _decimal_from_number_or_str(row, names.amount)
@@ -329,9 +331,10 @@ class SchwabTransaction(BrokerTransaction):
             broker,
         )
 
-        self._normalize_split()
+        if symbol in GOOGLE_SYMBOLS:
+            self._normalize_google_split()
 
-    def _normalize_split(self) -> None:
+    def _normalize_google_split(self) -> None:
         """Ensure past transactions are normalized to split values.
 
         This is in the context of the 20:1 GOOG stock split which happened at
