@@ -1150,6 +1150,10 @@ calc_basic_data = [
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
         {
             datetime.date(day=2, month=5, year=2023): {
                 "buy$FOO": [
@@ -1193,6 +1197,7 @@ calc_basic_data = [
                 ],
             },
         },
+        {},  # Calculation Log Other
         id="split",
     ),
 ]
