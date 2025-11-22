@@ -99,6 +99,14 @@ class PriceMissingError(InvalidTransactionError):
         super().__init__(transaction, "Price missing")
 
 
+class QuantityMissingError(InvalidTransactionError):
+    """Price is missing error."""
+
+    def __init__(self, transaction: BrokerTransaction):
+        """Initialise."""
+        super().__init__(transaction, "Quantity missing")
+
+
 class QuantityNotPositiveError(InvalidTransactionError):
     """Quantity is negative error."""
 

@@ -1211,6 +1211,119 @@ calc_basic_data = [
             },
         },
         {},  # Calculation Log Other
-        id="split",
+        id="split_then_sell",
+    ),
+    pytest.param(
+        2023,  # tax year
+        [
+            transfer_transaction(datetime.date(day=1, month=5, year=2020), 100),
+            buy_transaction(
+                date=datetime.date(day=7, month=4, year=2023),
+                symbol="FOO",
+                quantity=12,
+                price=5,
+                amount=-60,
+                fees=0,
+            ),
+            sell_transaction(
+                date=datetime.date(day=10, month=5, year=2023),
+                symbol="FOO",
+                quantity=2,
+                price=6,
+                amount=12,  # 2.00 gain
+                fees=0,
+            ),
+            split_transaction(
+                date=datetime.date(day=15, month=5, year=2023),
+                symbol="FOO",
+                quantity=10,  # 2x split
+            ),
+            buy_transaction(
+                date=datetime.date(day=8, month=6, year=2023),
+                symbol="FOO",
+                quantity=2,
+                price=5,
+                amount=-10,  # 5.00 gain
+                fees=0,
+            ),
+        ],
+        -3.00,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
+        {
+            datetime.date(day=7, month=4, year=2023): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(12),
+                        amount=Decimal(-60),
+                        allowable_cost=Decimal(60),
+                        new_quantity=Decimal(12),
+                        fees=Decimal(0),
+                        new_pool_cost=Decimal(60),
+                    ),
+                ],
+            },
+            datetime.date(day=10, month=5, year=2023): {
+                "sell$FOO": [
+                    CalculationEntry(
+                        RuleType.BED_AND_BREAKFAST,
+                        quantity=Decimal(1),
+                        amount=Decimal(6),
+                        gain=Decimal(-4),
+                        allowable_cost=Decimal(10),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(11),
+                        new_pool_cost=Decimal(55),
+                        bed_and_breakfast_date_index=(
+                            datetime.date(day=8, month=6, year=2023)
+                        ),
+                    ),
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(1),
+                        amount=Decimal(6),
+                        gain=Decimal(1),
+                        allowable_cost=Decimal(5),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(10),
+                        new_pool_cost=Decimal(50),
+                    ),
+                ],
+            },
+            datetime.date(day=15, month=5, year=2023): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.SECTION_104,
+                        quantity=Decimal(10),
+                        amount=Decimal(0),
+                        allowable_cost=Decimal(0),
+                        new_quantity=Decimal(20),
+                        fees=Decimal(0),
+                        new_pool_cost=Decimal(50),
+                    ),
+                ],
+            },
+            datetime.date(day=8, month=6, year=2023): {
+                "buy$FOO": [
+                    CalculationEntry(
+                        RuleType.BED_AND_BREAKFAST,
+                        quantity=Decimal(2),
+                        amount=Decimal(-5),
+                        fees=Decimal(0),
+                        allowable_cost=Decimal(10),
+                        new_quantity=Decimal(22),
+                        new_pool_cost=Decimal(55),
+                    ),
+                ],
+            },
+        },
+        {},  # Calculation Log Other
+        id="split_then_bnb",
     ),
 ]
