@@ -833,6 +833,17 @@ class CapitalGainsCalculator:
                         == 0
                     ):
                         continue
+                    # Splits are the only transaction that receive shares for free
+                    # they can't be part of a B&B
+                    if acquisition.amount == 0:
+                        LOGGER.warning(
+                            "A split happened shortly after a disposal of %s, double check these transactions."
+                            "Disposed on %s and split happened on %s",
+                            symbol,
+                            date_index,
+                            search_index,
+                        )
+                        continue
                     LOGGER.warning(
                         "Bed and breakfasting for %s. "
                         "Disposed on %s and acquired again on %s",
