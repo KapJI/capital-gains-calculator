@@ -127,7 +127,9 @@ def test_basic(
     )
     if calculation_log is not None:
         result_log = report.calculation_log
-        assert len(result_log) == len(calculation_log)
+        assert len(result_log) == len(calculation_log), (
+            f"Actual:\n{result_log}\n\nExpected:\n{calculation_log}\n\n"
+        )
         for date_index, expected_entries_map in calculation_log.items():
             assert date_index in result_log
             result_entries_map = result_log[date_index]

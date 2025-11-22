@@ -32,6 +32,7 @@ from .exceptions import (
     CgtError,
     InvalidTransactionError,
     PriceMissingError,
+    QuantityMissingError,
     QuantityNotPositiveError,
     SymbolMissingError,
 )
@@ -84,6 +85,14 @@ def get_symbol_or_fail(transaction: BrokerTransaction) -> str:
     if symbol is None:
         raise SymbolMissingError(transaction)
     return symbol
+
+
+def get_quantity_or_fail(transaction: BrokerTransaction) -> Decimal:
+    """Return the transaction quantity or throw an error."""
+    quantity = transaction.quantity
+    if quantity is None:
+        raise QuantityMissingError(transaction)
+    return quantity
 
 
 # Amount difference can be caused by rounding errors in the price.
@@ -167,6 +176,7 @@ class CapitalGainsCalculator:
         self.acquisition_list: HmrcTransactionLog = {}
         self.disposal_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
+        self.split_list: dict[tuple[str, datetime.date], Decimal] = {}
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
@@ -527,8 +537,17 @@ class CapitalGainsCalculator:
             elif transaction.action in [
                 ActionType.STOCK_ACTIVITY,
                 ActionType.SPIN_OFF,
+            ]:
+                self.add_acquisition(transaction)
+            elif transaction.action in [
                 ActionType.STOCK_SPLIT,
             ]:
+                # Calculate the multiplier based on portfolio and received shares
+                acquired_quantity = get_quantity_or_fail(transaction)
+                symbol = get_symbol_or_fail(transaction)
+                holding_quantity = self.portfolio[symbol].quantity
+                multiplier = (acquired_quantity + holding_quantity) / holding_quantity
+                self.split_list[(symbol, transaction.date)] = multiplier
                 self.add_acquisition(transaction)
             elif transaction.action in [ActionType.DIVIDEND, ActionType.CAPITAL_GAIN]:
                 amount = get_amount_or_fail(transaction)
@@ -795,8 +814,15 @@ class CapitalGainsCalculator:
             if eri:
                 eris.append(eri)
 
+            split_multiplier = Decimal(1)
+
             for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = date_index + datetime.timedelta(days=i + 1)
+
+                # Check if there was any stock split, in which case we need to adjust the B&D quantity
+                split_multiplier *= self.split_list.get(
+                    (symbol, search_index), Decimal(1)
+                )
 
                 # ERI are distributed annually but when a fund close we might have
                 # multiple ERI distribution in close succession
@@ -833,6 +859,17 @@ class CapitalGainsCalculator:
                         == 0
                     ):
                         continue
+                    # Splits are the only transaction that receive shares for free
+                    # they can't be part of a B&B
+                    if acquisition.amount == 0:
+                        LOGGER.warning(
+                            "A split happened shortly after a disposal of %s, double check these transactions."
+                            "Disposed on %s and split happened on %s",
+                            symbol,
+                            date_index,
+                            search_index,
+                        )
+                        continue
                     LOGGER.warning(
                         "Bed and breakfasting for %s. "
                         "Disposed on %s and acquired again on %s",
@@ -840,16 +877,25 @@ class CapitalGainsCalculator:
                         date_index,
                         search_index,
                     )
+                    if split_multiplier != Decimal(1):
+                        LOGGER.warning(
+                            "Bed & breakfast for %s is taking into account a {%.2f}x split "
+                            "that happened shortly before the repurchase of shares",
+                            symbol,
+                            split_multiplier,
+                        )
                     available_quantity = min(
                         disposal_quantity,
-                        acquisition.quantity
+                        acquisition.quantity / split_multiplier
                         - same_day_disposal.quantity
                         - bnb_acquisition.quantity,
                     )
                     fees = (
                         disposal.fees * available_quantity / original_disposal_quantity
                     )
-                    acquisition_price = acquisition.amount / acquisition.quantity
+                    acquisition_price = acquisition.amount / (
+                        acquisition.quantity / split_multiplier
+                    )
                     bed_and_breakfast_amount = available_quantity * disposal_price
                     bed_and_breakfast_proceeds = bed_and_breakfast_amount + fees
                     bed_and_breakfast_allowable_cost = (
@@ -900,7 +946,7 @@ class CapitalGainsCalculator:
                         self.bnb_list,
                         search_index,
                         symbol,
-                        available_quantity,
+                        available_quantity * split_multiplier,
                         amount_delta + total_dist_amount,
                         Decimal(0),
                         eris,
