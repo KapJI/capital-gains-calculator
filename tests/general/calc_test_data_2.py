@@ -695,4 +695,3 @@ calc_basic_data_2 = [
         id="HS265_excess_income_reported_bnb",
     ),
 ]
-

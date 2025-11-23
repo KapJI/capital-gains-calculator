@@ -180,7 +180,9 @@ class CapitalGainsCalculator:
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
-        self.interest_list: dict[tuple[str, str, datetime.date], ForeignCurrencyAmount] = defaultdict(ForeignCurrencyAmount)
+        self.interest_list: dict[
+            tuple[str, str, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
 
         # Log for the report section related only to interests and dividends
         self.calculation_log_yields: CalculationLog = defaultdict(dict)
@@ -575,9 +577,9 @@ class CapitalGainsCalculator:
             elif transaction.action is ActionType.INTEREST:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
-                self.interest_list[(transaction.broker, transaction.currency, transaction.date)] += (
-                    ForeignCurrencyAmount(amount, transaction.currency)
-                )
+                self.interest_list[
+                    (transaction.broker, transaction.currency, transaction.date)
+                ] += ForeignCurrencyAmount(amount, transaction.currency)
                 if self.date_in_tax_year(transaction.date):
                     interests[(transaction.broker, transaction.currency)] += amount
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
@@ -1077,13 +1079,15 @@ class CapitalGainsCalculator:
         It groups them by month, using the last date on each month for the report
         and updates the interest totals for the year.
         """
-        monthly_interests: dict[tuple[str, str, datetime.date], ForeignCurrencyAmount] = defaultdict(ForeignCurrencyAmount)
+        monthly_interests: dict[
+            tuple[str, str, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
         for (broker, currency, date), foreign_amount in self.interest_list.items():
             if self.date_in_tax_year(date):
                 date = date.replace(day=1)
                 monthly_interests[(broker, currency, date)] += foreign_amount
 
-        for (broker, _, date), foreign_amount in monthly_interests.items():
+        for (broker, currency, date), foreign_amount in monthly_interests.items():
             gbp_amount = self.currency_converter.to_gbp(
                 foreign_amount.amount, foreign_amount.currency, date
             )
@@ -1466,4 +1470,3 @@ def init() -> None:
 
 if __name__ == "__main__":
     init()
-
