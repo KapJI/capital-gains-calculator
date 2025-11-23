@@ -322,12 +322,12 @@ calc_basic_data_2 = [
                 amount=1500,
             ),
             interest_transaction(
-                date=datetime.date(day=20, month=6, year=2020),
+                date=datetime.date(day=1, month=6, year=2020),
                 amount=1500,
                 currency="GBP",
             ),
             interest_transaction(
-                date=datetime.date(day=20, month=7, year=2020),
+                date=datetime.date(day=1, month=7, year=2020),
                 amount=1000,
             ),
         ],
@@ -390,7 +390,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=20, month=6, year=2020): {
+            datetime.date(day=1, month=6, year=2020): {
                 "interestUK$Testing": [
                     CalculationEntry(
                         RuleType.INTEREST,
@@ -403,8 +403,8 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=20, month=7, year=2020): {
-                "interestForeign$Testing": [
+            datetime.date(day=1, month=7, year=2020): {
+                "interestUSD$Testing": [
                     CalculationEntry(
                         RuleType.INTEREST,
                         quantity=Decimal(1),
@@ -695,3 +695,4 @@ calc_basic_data_2 = [
         id="HS265_excess_income_reported_bnb",
     ),
 ]
+
