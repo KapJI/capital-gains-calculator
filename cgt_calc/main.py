@@ -1084,7 +1084,10 @@ class CapitalGainsCalculator:
         ] = defaultdict(ForeignCurrencyAmount)
         for (broker, currency, date), foreign_amount in self.interest_list.items():
             if self.date_in_tax_year(date):
-                date = date.replace(day=1)
+                # Keep all of the interests for a month at a single day, this does not
+                # matter for the calculations as the UK exchange rates are monthly anywa
+                # We cannot use 1st due to the UK tax year starting at 6th
+                date = date.replace(day=15)
                 monthly_interests[(broker, currency, date)] += foreign_amount
 
         for (broker, currency, date), foreign_amount in monthly_interests.items():
