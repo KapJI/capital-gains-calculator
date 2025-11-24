@@ -162,8 +162,8 @@
         \BLOCK{ set symbol = symbol[11:] }
         \BLOCK{ set is_interest = True }
         \BLOCK{ set interest_str = "UK" }
-    \BLOCK{ elif symbol.startswith("interestForeign$") }
-        \BLOCK{ set symbol = symbol[16:] }
+    \BLOCK{ elif symbol.startswith("interest") }
+        \BLOCK{ set symbol = symbol.split('$')[0][8:] }
         \BLOCK{ set is_interest = True }
         \BLOCK{ set interest_str = "Foreign" }
     \BLOCK{ elif symbol.startswith("excess-reported-income-distribution$") }
