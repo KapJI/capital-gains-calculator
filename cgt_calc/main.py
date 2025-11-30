@@ -1082,13 +1082,26 @@ class CapitalGainsCalculator:
         monthly_interests: dict[
             tuple[str, str, datetime.date], ForeignCurrencyAmount
         ] = defaultdict(ForeignCurrencyAmount)
-        for (broker, currency, date), foreign_amount in self.interest_list.items():
+        last_date: datetime.date = datetime.date.min
+        last_broker: str | None = None
+        last_currency: str | None = None
+
+        for (broker, currency, date), foreign_amount in sorted(
+            self.interest_list.items()
+        ):
             if self.date_in_tax_year(date):
-                # Keep all of the interests for a month at a single day, this does not
-                # matter for the calculations as the UK exchange rates are monthly anywa
-                # We cannot use 1st due to the UK tax year starting at 6th
-                date = date.replace(day=15)
+                if (
+                    broker == last_broker
+                    and date.month == last_date.month
+                    and currency == last_currency
+                ):
+                    monthly_interests[(broker, currency, date)] = monthly_interests.pop(
+                        (broker, currency, last_date)
+                    )
                 monthly_interests[(broker, currency, date)] += foreign_amount
+                last_date = date
+                last_broker = broker
+                last_currency = currency
 
         for (broker, currency, date), foreign_amount in monthly_interests.items():
             gbp_amount = self.currency_converter.to_gbp(
