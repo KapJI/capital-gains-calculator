@@ -321,13 +321,32 @@ calc_basic_data_2 = [
                 symbol="BAR",
                 amount=1500,
             ),
+            # This should never appear in the calcs for 2020/2021 tax year
             interest_transaction(
-                date=datetime.date(day=20, month=6, year=2020),
+                date=datetime.date(day=1, month=4, year=2020),
+                amount=2000,
+                currency="GBP",
+            ),
+            interest_transaction(
+                date=datetime.date(day=10, month=4, year=2020),
                 amount=1500,
                 currency="GBP",
             ),
             interest_transaction(
-                date=datetime.date(day=20, month=7, year=2020),
+                date=datetime.date(day=15, month=7, year=2020),
+                amount=250,
+            ),
+            interest_transaction(
+                date=datetime.date(day=17, month=7, year=2020),
+                amount=250,
+            ),
+            interest_transaction(
+                date=datetime.date(day=2, month=4, year=2021),
+                amount=500,
+            ),
+            # This should never appear in the calcs for 2020/2021 tax year
+            interest_transaction(
+                date=datetime.date(day=10, month=4, year=2021),
                 amount=1000,
             ),
         ],
@@ -366,6 +385,19 @@ calc_basic_data_2 = [
             }
         },
         {
+            datetime.date(day=10, month=4, year=2020): {
+                "interestUK$Testing": [
+                    CalculationEntry(
+                        RuleType.INTEREST,
+                        quantity=Decimal(1),
+                        amount=Decimal(1500),
+                        allowable_cost=Decimal(0),
+                        new_pool_cost=Decimal(0),
+                        fees=Decimal(0),
+                        new_quantity=Decimal(1),
+                    ),
+                ],
+            },
             datetime.date(day=20, month=5, year=2020): {
                 "dividend$FOO": [
                     CalculationEntry(
@@ -390,12 +422,12 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=20, month=6, year=2020): {
-                "interestUK$Testing": [
+            datetime.date(day=17, month=7, year=2020): {
+                "interestUSD$Testing": [
                     CalculationEntry(
                         RuleType.INTEREST,
                         quantity=Decimal(1),
-                        amount=Decimal(1500),
+                        amount=Decimal(500),
                         allowable_cost=Decimal(0),
                         new_pool_cost=Decimal(0),
                         fees=Decimal(0),
@@ -403,12 +435,12 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=20, month=7, year=2020): {
-                "interestForeign$Testing": [
+            datetime.date(day=2, month=4, year=2021): {
+                "interestUSD$Testing": [
                     CalculationEntry(
                         RuleType.INTEREST,
                         quantity=Decimal(1),
-                        amount=Decimal(1000),
+                        amount=Decimal(500),
                         allowable_cost=Decimal(0),
                         new_pool_cost=Decimal(0),
                         fees=Decimal(0),
