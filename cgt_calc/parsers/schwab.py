@@ -88,6 +88,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Wire Sent",
         "Funds Received",
         "Journal",
+        "Journaled Shares",
         "Cash In Lieu",
         "Visa Purchase",
         "MoneyLink Deposit",
