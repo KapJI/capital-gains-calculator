@@ -222,9 +222,11 @@ class SchwabTransaction(BrokerTransaction):
                 details = row[names.transac_details][0]["Details"]
             else:
                 details = row[names.transac_details][0]
-            date = datetime.datetime.strptime(
+            vest_date = datetime.datetime.strptime(
                 details[names.vest_date], "%m/%d/%Y"
             ).date()
+            # For JSON format, we use vest_date as primary date (settlement not available)
+            date = vest_date
             # Schwab only provide this one as string:
             price = _decimal_from_str(details[names.vest_fair_market_value])
             if amount == Decimal(0):
@@ -318,6 +320,8 @@ class SchwabTransaction(BrokerTransaction):
 
         currency = "USD"
         broker = "Charles Schwab"
+        # Store vest_date for Deposit actions
+        vest_date_param = vest_date if row[names.action] == "Deposit" else None
         super().__init__(
             date,
             action,
@@ -329,6 +333,8 @@ class SchwabTransaction(BrokerTransaction):
             amount,
             currency,
             broker,
+            None,  # isin
+            vest_date_param,  # vest_date
         )
 
         if symbol in GOOGLE_SYMBOLS:

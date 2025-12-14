@@ -56,7 +56,23 @@ class AwardPrices:
     award_prices: dict[datetime.date, dict[str, Decimal]]
 
     def get(self, date: datetime.date, symbol: str) -> tuple[datetime.date, Decimal]:
-        """Get initial stock price at given date."""
+        """Get vest date and FMV price for RSU grant.
+
+        Searches backward up to 7 days from the settlement date to find the vest date
+        and corresponding Fair Market Value (FMV) used for income tax purposes.
+
+        Args:
+            date: Settlement date from transaction
+            symbol: Stock symbol
+
+        Returns:
+            (vest_date, fmv_price) where vest_date is the actual vesting date
+            and fmv_price is the fair market value used for income tax calculations
+
+        Raises:
+            KeyError: If no award price found within 7-day window
+
+        """
         # Award dates may go back for few days, depending on
         # holidays or weekends, so we do a linear search
         # in the past to find the award price
@@ -163,9 +179,17 @@ class SchwabTransaction(BrokerTransaction):
             raise ParsingError(file, f"Column {OLD_COLUMNS_NUM} should be empty")
         as_of_str = " as of "
         date_header = SchwabTransactionsFileRequiredHeaders.DATE.value
+        vest_date_str: str | None = None
         if as_of_str in row_dict[date_header]:
+            # Parse both settlement date (before "as of") and vest date (after "as of")
+            # Example: "08/18/2023 as of 08/15/2023"
+            #          ^^^^^^^^^^        ^^^^^^^^^^
+            #          settlement        vest date
             index = row_dict[date_header].find(as_of_str)
-            date_str = row_dict[date_header][:index]
+            date_str = row_dict[date_header][
+                :index
+            ].strip()  # Settlement date (primary)
+            vest_date_str = row_dict[date_header][index + len(as_of_str) :].strip()
         else:
             date_str = row_dict[date_header]
         try:
@@ -174,6 +198,15 @@ class SchwabTransaction(BrokerTransaction):
             raise ParsingError(
                 file, f"Invalid date format: {date_str} from row: {row_dict}"
             ) from exc
+        vest_date: datetime.date | None = None
+        if vest_date_str:
+            try:
+                vest_date = datetime.datetime.strptime(vest_date_str, "%m/%d/%Y").date()
+            except ValueError as exc:
+                raise ParsingError(
+                    file,
+                    f"Invalid vest date format: {vest_date_str} from row: {row_dict}",
+                ) from exc
         action_header = SchwabTransactionsFileRequiredHeaders.ACTION.value
         self.raw_action = row_dict[action_header]
         action = action_from_str(self.raw_action, file)
@@ -221,6 +254,8 @@ class SchwabTransaction(BrokerTransaction):
             amount,
             currency,
             broker,
+            None,  # isin
+            vest_date,  # vest_date from "as of" parsing
         )
 
     @staticmethod
@@ -240,7 +275,12 @@ class SchwabTransaction(BrokerTransaction):
             # for awards which don't match the PDF statements.
             # We want to make sure to match date and price form the awards
             # spreadsheet.
-            _vest_date, transaction.price = awards_prices.get(transaction.date, symbol)
+            awards_vest_date, transaction.price = awards_prices.get(
+                transaction.date, symbol
+            )
+            # Store vest_date if not already set from "as of" parsing
+            if transaction.vest_date is None:
+                transaction.vest_date = awards_vest_date
         return transaction
 
 

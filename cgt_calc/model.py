@@ -178,6 +178,7 @@ class BrokerTransaction:
     currency: str
     broker: str
     isin: str | None = None
+    vest_date: datetime.date | None = None
 
 
 class RuleType(Enum):

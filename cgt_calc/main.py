@@ -177,6 +177,11 @@ class CapitalGainsCalculator:
         self.disposal_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
         self.split_list: dict[tuple[str, datetime.date], Decimal] = {}
+        self.vest_date_matched: dict[datetime.date, dict[str, Decimal]] = {}
+        # Track vest_date for acquisitions (date, symbol) -> vest_date
+        self.acquisition_vest_dates: dict[tuple[datetime.date, str], datetime.date] = {}
+        # Track quantities for vest-date acquisitions (date, symbol) -> quantity
+        self.vest_date_quantities: dict[tuple[datetime.date, str], Decimal] = {}
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
@@ -253,6 +258,12 @@ class CapitalGainsCalculator:
             self.currency_converter.to_gbp_for(amount, transaction),
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
+
+        # Store vest_date for RSU acquisitions (used for vest-date same-day matching)
+        if transaction.vest_date is not None:
+            self.acquisition_vest_dates[(transaction.date, symbol)] = (
+                transaction.vest_date
+            )
 
     def handle_spin_off(
         self,
@@ -339,6 +350,51 @@ class CapitalGainsCalculator:
         amount = (1 - share_of_original_cost) * original_src_amount
         return amount / quantity, round_decimal(amount, 2)
 
+    def _get_vest_date_quantity_available(
+        self, symbol: str, disposal_date: datetime.date
+    ) -> Decimal:
+        """Calculate quantity available from vest-date same-day matching.
+
+        This checks if there are any acquisitions with vest_dates where
+        vest_date <= disposal_date <= settlement_date, and returns the
+        total quantity available for matching.
+
+        Uses pre-pass data (vest_date_quantities) to determine availability
+        even before acquisitions are processed chronologically.
+
+        Args:
+            symbol: Stock symbol
+            disposal_date: Date of the disposal
+
+        Returns:
+            Total quantity available from vest-date acquisitions
+
+        """
+        total_quantity = Decimal(0)
+
+        for (
+            acquisition_date,
+            acq_symbol,
+        ), vest_date in self.acquisition_vest_dates.items():
+            if acq_symbol != symbol:
+                continue
+
+            # Check if disposal falls within [vest_date, settlement_date]
+            settlement_date = acquisition_date
+            if vest_date <= disposal_date <= settlement_date:
+                # Get quantity from pre-pass data
+                key = (acquisition_date, symbol)
+                if key in self.vest_date_quantities:
+                    quantity = self.vest_date_quantities[key]
+                    # Subtract already matched shares
+                    already_matched = self.vest_date_matched.get(
+                        settlement_date, {}
+                    ).get(symbol, Decimal(0))
+                    available = quantity - already_matched
+                    total_quantity += available
+
+        return total_quantity
+
     def add_disposal(
         self,
         transaction: BrokerTransaction,
@@ -346,26 +402,47 @@ class CapitalGainsCalculator:
         """Add new disposal to the given list."""
         symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
-        if symbol not in self.portfolio:
+
+        # Check if we can cover this disposal with vest-date same-day matching
+        # This allows sales to occur between vest date and settlement date
+        vest_date_quantity = self._get_vest_date_quantity_available(
+            symbol, transaction.date
+        )
+
+        current_quantity = self.portfolio.get(symbol, Position()).quantity
+
+        if symbol not in self.portfolio and vest_date_quantity == 0:
             raise InvalidTransactionError(
                 transaction, "Tried to sell not owned symbol, reversed order?"
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
-        if self.portfolio[symbol].quantity < quantity:
+
+        total_available = current_quantity + vest_date_quantity
+        if total_available < quantity:
             raise InvalidTransactionError(
                 transaction,
-                "Tried to sell more than the available "
-                f"balance({self.portfolio[symbol].quantity})",
+                f"Tried to sell more than the available balance "
+                f"(current: {current_quantity}, vest-date available: {vest_date_quantity}, "
+                f"total: {total_available}, trying to sell: {quantity})",
             )
 
         amount = get_amount_or_fail(transaction)
         price = transaction.price
 
-        self.portfolio[symbol] -= Position(quantity, amount)
+        # Update portfolio: only deduct from current holdings, not vest-date shares
+        # Vest-date shares aren't in portfolio yet (they settle later)
+        # Calculate how much we're selling from current holdings
+        qty_from_current = min(quantity, current_quantity)
 
-        if self.portfolio[symbol].quantity == 0:
-            del self.portfolio[symbol]
+        if symbol in self.portfolio and qty_from_current > 0:
+            # Deduct the portion sold from current holdings
+            # Note: We're deducting the full 'amount' here, which is fine because
+            # the disposal is recorded with the full sale proceeds regardless of source
+            self.portfolio[symbol] -= Position(qty_from_current, amount)
+
+            if self.portfolio[symbol].quantity == 0:
+                del self.portfolio[symbol]
 
         if price is None:
             raise PriceMissingError(transaction)
@@ -496,6 +573,32 @@ class CapitalGainsCalculator:
 
         for transaction in transactions:
             self.isin_converter.add_from_transaction(transaction)
+
+        # Pre-pass: Build vest_dates mapping for all acquisitions
+        # This allows vest-date same-day matching to work even when sales
+        # occur chronologically before settlement (e.g., sell on vest date)
+        # We also track quantities to enable proper balance checking
+        for transaction in transactions:
+            if (
+                transaction.action
+                in [
+                    ActionType.BUY,
+                    ActionType.REINVEST_SHARES,
+                    ActionType.STOCK_ACTIVITY,
+                    ActionType.SPIN_OFF,
+                    ActionType.STOCK_SPLIT,
+                ]
+                and transaction.vest_date is not None
+            ):
+                symbol = get_symbol_or_fail(transaction)
+                quantity = get_quantity_or_fail(transaction)
+                key = (transaction.date, symbol)
+                self.acquisition_vest_dates[key] = transaction.vest_date
+                # Store quantity for balance checking
+                # Use a separate dict to track vest-date quantities
+                if key not in self.vest_date_quantities:
+                    self.vest_date_quantities[key] = Decimal(0)
+                self.vest_date_quantities[key] += quantity
 
         for i, transaction in enumerate(transactions):
             if transaction.action == ActionType.EXCESS_REPORTED_INCOME:
@@ -710,6 +813,119 @@ class CapitalGainsCalculator:
             )
         return calculation_entries
 
+    def _process_vest_date_same_day_matching(
+        self,
+        symbol: str,
+        date_index: datetime.date,
+        disposal_quantity: Decimal,
+        disposal_price: Decimal,
+        fees: Decimal,
+        original_disposal_quantity: Decimal,
+    ) -> list[CalculationEntry]:
+        """Match disposal to acquisition using vest_date instead of transaction date.
+
+        This handles RSU tax withholding sales that occur between vest and settlement.
+
+        For example, if an RSU vests on 08/15 and settles on 08/18, a tax withholding
+        sale on 08/15-08/18 should be matched using the vest date, even though the
+        acquisition's transaction date is the settlement date (08/18).
+
+        Args:
+            symbol: Stock symbol
+            date_index: Disposal date
+            disposal_quantity: Shares being sold
+            disposal_price: Price per share from disposal
+            fees: Total transaction fees for the full disposal
+            original_disposal_quantity: Original disposal quantity for fee allocation
+
+        Returns:
+            List of CalculationEntry objects for vest-date matches
+
+        """
+        entries = []
+        matched_quantity = Decimal(0)
+
+        # Search through all acquisitions with vest_dates to find matches
+        # An acquisition matches if: vest_date <= disposal_date <= settlement_date
+        # This handles RSU tax sales that occur between vest and settlement (inclusive)
+        for (
+            acquisition_date,
+            acq_symbol,
+        ), vest_date in self.acquisition_vest_dates.items():
+            # Only consider acquisitions for the same symbol
+            if acq_symbol != symbol:
+                continue
+
+            # Check if the disposal date falls within [vest_date, settlement_date] inclusive
+            # acquisition_date is the settlement date
+            settlement_date = acquisition_date
+            if not (vest_date <= date_index <= settlement_date):
+                continue
+
+            # Check if we have this acquisition in our list
+            if not has_key(self.acquisition_list, settlement_date, symbol):
+                continue
+
+            acquisition = self.acquisition_list[settlement_date][symbol]
+
+            # Calculate how many shares we can match
+            already_matched = self.vest_date_matched.get(settlement_date, {}).get(
+                symbol, Decimal(0)
+            )
+            available = acquisition.quantity - already_matched
+            to_match = min(disposal_quantity - matched_quantity, available)
+
+            if to_match > 0:
+                # Allocate fees proportionally
+                allocated_fees = fees * to_match / original_disposal_quantity
+
+                acquisition_price = acquisition.amount / acquisition.quantity
+                sale_amount = to_match * disposal_price
+                sale_proceeds = sale_amount + allocated_fees
+                allowable_cost = to_match * acquisition_price + allocated_fees
+                gain = sale_proceeds - allowable_cost
+
+                matched_quantity += to_match
+
+                # Track that we matched these shares
+                if settlement_date not in self.vest_date_matched:
+                    self.vest_date_matched[settlement_date] = {}
+                self.vest_date_matched[settlement_date][symbol] = (
+                    already_matched + to_match
+                )
+
+                LOGGER.info(
+                    "Vest-date same-day match: %s shares of %s "
+                    "(vest %s, settlement %s, disposal %s, gain £%.2f)",
+                    to_match,
+                    symbol,
+                    vest_date,
+                    settlement_date,
+                    date_index,
+                    float(gain),
+                )
+
+                # Create CalculationEntry for vest-date same-day match
+                # Note: new_quantity and new_pool_cost are placeholders,
+                # they will be updated by the caller based on portfolio state
+                entries.append(
+                    CalculationEntry(
+                        rule_type=RuleType.SAME_DAY,  # Use SAME_DAY type for vest-date matching
+                        quantity=to_match,
+                        amount=sale_amount,
+                        gain=gain,
+                        allowable_cost=allowable_cost,
+                        fees=allocated_fees,
+                        new_quantity=Decimal(0),  # Placeholder, updated by caller
+                        new_pool_cost=Decimal(0),  # Placeholder, updated by caller
+                    )
+                )
+
+                if matched_quantity >= disposal_quantity:
+                    break
+
+        return entries
+
     def process_disposal(
         self,
         symbol: str,
@@ -761,10 +977,42 @@ class CapitalGainsCalculator:
                 )
 
         current_amount = self.portfolio[symbol].amount
-        assert disposal_quantity <= current_quantity
+        # Note: We don't assert disposal_quantity <= current_quantity here
+        # because vest-date same-day matching allows selling shares that will
+        # settle later (e.g., sell on vest date before settlement)
         chargeable_gain = Decimal(0)
         calculation_entries = []
-        # Same day rule is first
+
+        # Vest-date same-day matching (for RSU tax withholding sales)
+        vest_entries = self._process_vest_date_same_day_matching(
+            symbol,
+            date_index,
+            disposal_quantity,
+            disposal_price,
+            disposal.fees,
+            original_disposal_quantity,
+        )
+
+        for entry in vest_entries:
+            # Update portfolio state for each vest-date match
+            disposal_quantity -= entry.quantity
+            chargeable_gain += entry.gain
+            # Get acquisition price from the entry
+            # entry.quantity should always be > 0 here since we only create entries with to_match > 0
+            assert entry.quantity > 0, f"Invalid entry quantity: {entry.quantity}"
+            acquisition_price = (
+                entry.allowable_cost / entry.quantity - entry.fees / entry.quantity
+            )
+            current_quantity -= entry.quantity
+            current_amount -= entry.quantity * acquisition_price
+            proceeds_amount -= entry.quantity * disposal_price
+
+            # Update entry with current portfolio state
+            entry.new_quantity = current_quantity
+            entry.new_pool_cost = current_amount
+            calculation_entries.append(entry)
+
+        # Same day rule is next (after vest-date matching)
         if has_key(self.acquisition_list, date_index, symbol):
             same_day_acquisition = self.acquisition_list[date_index][symbol]
 
