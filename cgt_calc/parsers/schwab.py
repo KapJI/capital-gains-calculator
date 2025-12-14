@@ -147,6 +147,9 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label in ["Cash Merger", "Cash Merger Adj"]:
         return ActionType.CASH_MERGER
 
+    if label in ["Full Redemption", "Full Redemption Adj"]:
+        return ActionType.FULL_REDEMPTION
+
     raise ParsingError(file, f"Unknown action: '{label}'")
 
 
@@ -190,7 +193,7 @@ class SchwabTransaction(BrokerTransaction):
         description = row_dict[description_header]
         price_header = SchwabTransactionsFileRequiredHeaders.PRICE.value
         price = (
-            Decimal(row_dict[price_header].replace("$", ""))
+            Decimal(row_dict[price_header].replace("$", "").replace(",", ""))
             if row_dict[price_header] != ""
             else None
         )
@@ -249,45 +252,193 @@ class SchwabTransaction(BrokerTransaction):
         return transaction
 
 
-def _unify_schwab_cash_merger_trxs(
+def _combine_cash_merger_pair(
+    cash_merger: SchwabTransaction,
+    cash_merger_adj: SchwabTransaction,
+    transactions_file: Path,
+) -> SchwabTransaction:
+    """Combine Cash Merger + Cash Merger Adj into single transaction.
+
+    Cash Merger: Has Amount (proceeds), No Quantity/Price
+    Cash Merger Adj: Has Quantity (shares), No Amount
+
+    Returns: Unified transaction with calculated price
+    """
+    try:
+        # Validate matching fields
+        assert cash_merger.description == cash_merger_adj.description
+        assert cash_merger.symbol == cash_merger_adj.symbol
+        assert cash_merger.date == cash_merger_adj.date
+
+        # Validate data pattern: Cash Merger has amount, Adj has quantity
+        assert cash_merger.amount is not None, "Cash Merger must have Amount"
+        assert cash_merger.quantity is None, "Cash Merger should not have Quantity"
+        assert cash_merger.price is None, "Cash Merger should not have Price"
+
+        assert cash_merger_adj.quantity is not None, (
+            "Cash Merger Adj must have Quantity"
+        )
+        assert cash_merger_adj.amount is None, "Cash Merger Adj should not have Amount"
+
+    except AssertionError as err:
+        raise ParsingError(
+            transactions_file,
+            f"Invalid Cash Merger format: {cash_merger.raw_action}, "
+            "run with --verbose for more details",
+        ) from err
+
+    # Create unified transaction
+    unified = cash_merger
+    # Quantity is negative (shares leaving), convert to positive for SELL
+    unified.quantity = -1 * cash_merger_adj.quantity
+    # Mypy: at this point unified.amount and unified.quantity are guaranteed non-None
+    assert unified.amount is not None
+    assert unified.quantity is not None
+    unified.price = unified.amount / unified.quantity
+    unified.fees += cash_merger_adj.fees
+
+    return unified
+
+
+def _combine_full_redemption_pair(
+    full_redemption_adj: SchwabTransaction,
+    full_redemption: SchwabTransaction,
+    transactions_file: Path,
+) -> SchwabTransaction:
+    """Combine Full Redemption Adj + Full Redemption into single transaction.
+
+    Actual Schwab CSV format:
+    Full Redemption Adj: Has Amount (proceeds), No Price/Quantity
+    Full Redemption: Has Quantity (shares), No Price/Amount
+
+    Returns: Unified transaction with calculated price
+    """
+    try:
+        # Validate matching fields
+        assert full_redemption_adj.description == full_redemption.description
+        assert full_redemption_adj.symbol == full_redemption.symbol
+        assert full_redemption_adj.date == full_redemption.date
+
+        # Validate data pattern: Adj has amount, Full Redemption has quantity
+        assert full_redemption_adj.amount is not None, (
+            "Full Redemption Adj must have Amount"
+        )
+        assert full_redemption_adj.quantity is None, (
+            "Full Redemption Adj should not have Quantity"
+        )
+        assert full_redemption_adj.price is None, (
+            "Full Redemption Adj should not have Price"
+        )
+
+        assert full_redemption.quantity is not None, (
+            "Full Redemption must have Quantity"
+        )
+        assert full_redemption.price is None, "Full Redemption should not have Price"
+        assert full_redemption.amount is None, "Full Redemption should not have Amount"
+
+    except AssertionError as err:
+        raise ParsingError(
+            transactions_file,
+            f"Invalid Full Redemption format: {full_redemption.raw_action}, "
+            "run with --verbose for more details",
+        ) from err
+
+    # Create unified transaction (use Full Redemption as base for action type)
+    unified = full_redemption
+    # Quantity is negative (shares leaving), convert to positive
+    unified.quantity = -1 * full_redemption.quantity
+    unified.amount = full_redemption_adj.amount
+    # Mypy: at this point unified.amount and unified.quantity are guaranteed non-None
+    assert unified.amount is not None
+    assert unified.quantity is not None
+    unified.price = unified.amount / unified.quantity
+    unified.fees += full_redemption_adj.fees
+
+    return unified
+
+
+def _unify_schwab_paired_transactions(
     transactions: list[SchwabTransaction],
     transactions_file: Path,
 ) -> list[SchwabTransaction]:
+    """Unify paired transactions (Cash Merger and Full Redemption).
+
+    Both follow a similar pattern where transactions are split into two rows:
+    1. One row has the amount (proceeds)
+    2. Other row has the quantity (shares)
+    We combine them to calculate the price per share.
+
+    Cash Merger pattern:
+        Row 1: "Cash Merger" - Has Amount ($1000), No Quantity/Price
+        Row 2: "Cash Merger Adj" - Has Quantity (-100 shares), No Amount
+        Result: Sell 100 shares at $10/share
+
+    Full Redemption pattern:
+        Row 1: "Full Redemption Adj" - Has Quantity (-100 shares), No Amount
+        Row 2: "Full Redemption" - Has Amount ($1000), No Quantity/Price
+        Result: Sell 100 shares at $10/share
+    """
     filtered: list[SchwabTransaction] = []
-    for transaction in transactions:
+    i = 0
+    while i < len(transactions):
+        transaction = transactions[i]
+
         if transaction.raw_action == "Cash Merger Adj":
+            # Cash Merger Adj comes AFTER Cash Merger
             assert len(filtered) > 0, (
-                "Cash Merger Adj must be precedeed by a Cash Merger transaction"
+                "Cash Merger Adj must be preceded by a Cash Merger transaction"
             )
-            try:
-                assert filtered[-1].raw_action == "Cash Merger"
-                assert filtered[-1].description == transaction.description
-                assert filtered[-1].symbol == transaction.symbol
-                assert filtered[-1].date == transaction.date
-                assert filtered[-1].quantity is None
-                assert filtered[-1].price is None
-                assert filtered[-1].amount is not None
-                assert transaction.amount is None
-                assert transaction.quantity is not None
-            except AssertionError as err:
-                raise ParsingError(
-                    transactions_file,
-                    "Invalid format of 'Cash Merger Adj', "
-                    "run with --verbose for more details",
-                ) from err
-            # the quantity is negative but
-            # because we store it as a 'sell' we need it positive
-            filtered[-1].quantity = -1 * transaction.quantity
-            filtered[-1].price = filtered[-1].amount / filtered[-1].quantity
-            filtered[-1].fees += transaction.fees
+            main_transaction = filtered[-1]
+            adj_transaction = transaction
+
+            # Validate it's a Cash Merger pair
+            assert main_transaction.raw_action == "Cash Merger", (
+                "Cash Merger Adj must follow Cash Merger"
+            )
+
+            unified = _combine_cash_merger_pair(
+                main_transaction, adj_transaction, transactions_file
+            )
+
+            # Replace the previous Cash Merger with unified transaction
+            filtered[-1] = unified
             LOGGER.warning(
                 "Cash Merger support is not complete and doesn't cover the "
-                "cases when shares are received aside from cash,  "
+                "cases when shares are received aside from cash, "
                 "please review this transaction carefully: %s",
-                filtered[-1],
+                unified,
             )
+
+        elif transaction.raw_action == "Full Redemption Adj":
+            # Full Redemption Adj comes BEFORE Full Redemption
+            assert i + 1 < len(transactions), (
+                "Full Redemption Adj must be followed by a Full Redemption transaction"
+            )
+            adj_transaction = transaction
+            main_transaction = transactions[i + 1]
+
+            # Validate it's a Full Redemption pair
+            assert main_transaction.raw_action == "Full Redemption", (
+                "Full Redemption Adj must be followed by Full Redemption"
+            )
+
+            unified = _combine_full_redemption_pair(
+                adj_transaction, main_transaction, transactions_file
+            )
+
+            # Add unified transaction and skip next (Full Redemption)
+            filtered.append(unified)
+            i += 1  # Skip the Full Redemption transaction
+            LOGGER.warning(
+                "Full Redemption combined with adjustment: %s",
+                unified,
+            )
+
         else:
             filtered.append(transaction)
+
+        i += 1
+
     return filtered
 
 
@@ -406,7 +557,7 @@ def read_schwab_transactions(
         for row in lines
         if any(row)
     ]
-    transactions = _unify_schwab_cash_merger_trxs(transactions, transactions_file)
+    transactions = _unify_schwab_paired_transactions(transactions, transactions_file)
     transactions = _filter_cancelled_buy_transactions(transactions)
     transactions.reverse()
     return list(transactions)
