@@ -27,6 +27,11 @@ OLD_COLUMNS_NUM: Final = 9
 NEW_COLUMNS_NUM: Final = 8
 LOGGER = logging.getLogger(__name__)
 
+# Cancel Buy search window: Arbitrary time window chosen as a sensible limit for
+# how far to search backward from a Cancel Buy to find the original Buy transaction.
+# This is not based on any documented Schwab settlement period - just a practical limit.
+CANCEL_BUY_SEARCH_DAYS: Final = 5
+
 
 class SchwabTransactionsFileRequiredHeaders(str, Enum):
     """Enum to list the headers in Schwab transactions file that we will use."""
@@ -74,7 +79,7 @@ class AwardPrices:
 
 def action_from_str(label: str, file: Path) -> ActionType:
     """Convert string label to ActionType."""
-    if label == "Buy":
+    if label in ["Buy", "Cancel Buy"]:
         return ActionType.BUY
 
     if label == "Sell":
@@ -286,6 +291,85 @@ def _unify_schwab_cash_merger_trxs(
     return filtered
 
 
+def _filter_cancelled_buy_transactions(
+    transactions: list[SchwabTransaction],
+) -> list[SchwabTransaction]:
+    """Filter out Cancel Buy transactions and their matching Buy transactions.
+
+    Schwab reports both the original Buy and a "Cancel Buy" transaction when a
+    purchase is cancelled. Both need to be removed to avoid incorrect capital
+    gains calculations.
+
+    This is a Schwab-specific quirk - other brokers may not report cancellations
+    at all or may handle them differently.
+
+    Args:
+        transactions: List of parsed Schwab transactions
+
+    Returns:
+        Filtered list with Cancel Buy pairs removed
+
+    """
+    indices_to_remove: set[int] = set()
+
+    # Find all Cancel Buy transactions
+    for cancel_idx, transaction in enumerate(transactions):
+        if transaction.raw_action != "Cancel Buy":
+            continue
+
+        # Already marked for removal
+        if cancel_idx in indices_to_remove:
+            continue
+
+        # Search backward for matching Buy within search window
+        for buy_idx in range(cancel_idx - 1, -1, -1):
+            buy_txn = transactions[buy_idx]
+
+            # Stop if beyond search window
+            if abs((buy_txn.date - transaction.date).days) > CANCEL_BUY_SEARCH_DAYS:
+                break
+
+            # Skip if already marked for removal
+            if buy_idx in indices_to_remove:
+                continue
+
+            # Check if this is the matching Buy transaction
+            if (
+                buy_txn.action == ActionType.BUY
+                and buy_txn.symbol == transaction.symbol
+                and buy_txn.quantity == transaction.quantity
+                and buy_txn.price == transaction.price
+            ):
+                # Found matching pair - mark both for removal
+                indices_to_remove.add(cancel_idx)
+                indices_to_remove.add(buy_idx)
+                LOGGER.info(
+                    "Matched Cancel Buy with original Buy: symbol=%s, qty=%s, "
+                    "price=%s, buy_date=%s, cancel_date=%s",
+                    buy_txn.symbol,
+                    buy_txn.quantity,
+                    buy_txn.price,
+                    buy_txn.date,
+                    transaction.date,
+                )
+                break
+        else:
+            # No matching Buy found
+            LOGGER.warning(
+                "Could not find matching Buy for Cancel Buy: %s",
+                transaction,
+            )
+
+    if len(indices_to_remove) > 0:
+        LOGGER.info(
+            "Removed %d cancelled transaction(s) and their originals",
+            len(indices_to_remove),
+        )
+
+    # Return filtered list
+    return [txn for i, txn in enumerate(transactions) if i not in indices_to_remove]
+
+
 def read_schwab_transactions(
     transactions_file: Path, schwab_award_transactions_file: Path | None
 ) -> list[BrokerTransaction]:
@@ -323,6 +407,7 @@ def read_schwab_transactions(
         if any(row)
     ]
     transactions = _unify_schwab_cash_merger_trxs(transactions, transactions_file)
+    transactions = _filter_cancelled_buy_transactions(transactions)
     transactions.reverse()
     return list(transactions)
 
