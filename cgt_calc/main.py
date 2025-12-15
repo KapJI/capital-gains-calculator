@@ -180,7 +180,9 @@ class CapitalGainsCalculator:
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
-        self.interest_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        self.interest_list: dict[
+            tuple[str, str, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
 
         # Log for the report section related only to interests and dividends
         self.calculation_log_yields: CalculationLog = defaultdict(dict)
@@ -575,9 +577,9 @@ class CapitalGainsCalculator:
             elif transaction.action is ActionType.INTEREST:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
-                self.interest_list[(transaction.broker, transaction.date)] += (
-                    ForeignCurrencyAmount(amount, transaction.currency)
-                )
+                self.interest_list[
+                    (transaction.broker, transaction.currency, transaction.date)
+                ] += ForeignCurrencyAmount(amount, transaction.currency)
                 if self.date_in_tax_year(transaction.date):
                     interests[(transaction.broker, transaction.currency)] += amount
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
@@ -1077,25 +1079,31 @@ class CapitalGainsCalculator:
         It groups them by month, using the last date on each month for the report
         and updates the interest totals for the year.
         """
-        monthly_interests: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        monthly_interests: dict[
+            tuple[str, str, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
         last_date: datetime.date = datetime.date.min
         last_broker: str | None = None
-        # sort by broker and date
-        for (broker, date), foreign_amount in sorted(self.interest_list.items()):
+        last_currency: str | None = None
+
+        for (broker, currency, date), foreign_amount in sorted(
+            self.interest_list.items()
+        ):
             if self.date_in_tax_year(date):
-                # If it's still the same month bring forward the value to the current
-                # date
-                if broker == last_broker and date.replace(day=1) == last_date.replace(
-                    day=1
+                if (
+                    broker == last_broker
+                    and date.month == last_date.month
+                    and currency == last_currency
                 ):
-                    monthly_interests[(broker, date)] = monthly_interests.pop(
-                        (broker, last_date)
+                    monthly_interests[(broker, currency, date)] = monthly_interests.pop(
+                        (broker, currency, last_date)
                     )
-                monthly_interests[(broker, date)] += foreign_amount
+                monthly_interests[(broker, currency, date)] += foreign_amount
                 last_date = date
                 last_broker = broker
+                last_currency = currency
 
-        for (broker, date), foreign_amount in monthly_interests.items():
+        for (broker, currency, date), foreign_amount in monthly_interests.items():
             gbp_amount = self.currency_converter.to_gbp(
                 foreign_amount.amount, foreign_amount.currency, date
             )
@@ -1104,7 +1112,7 @@ class CapitalGainsCalculator:
                 rule_prefix = "interestUK"
             else:
                 self.total_foreign_interest += gbp_amount
-                rule_prefix = "interestForeign"
+                rule_prefix = f"interest{currency.upper()}"
 
             self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
                 CalculationEntry(
@@ -1127,7 +1135,6 @@ class CapitalGainsCalculator:
 
             treaty = None
             is_interest_fund = symbol in self.interest_fund_tickers
-
             if tax.amount < 0:
                 if is_interest_fund:
                     LOGGER.warning(
