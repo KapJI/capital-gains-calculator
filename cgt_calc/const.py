@@ -63,7 +63,12 @@ DIVIDEND_DOUBLE_TAXATION_RULES: Final[dict[str, TaxTreaty]] = {
 
 CGT_TEST_MODE = os.environ.get("CGT_TEST_MODE", "0") == "1"
 INTERNAL_START_DATE: Final = datetime.date(2010, 1, 1)
+
+# Bed and Breakfast rule: HMRC requires matching disposals with acquisitions
+# within 30 days following the disposal to prevent tax avoidance.
+# See: https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51560
 BED_AND_BREAKFAST_DAYS: Final = 30
+
 UK_CURRENCY: Final = "GBP"
 ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 
