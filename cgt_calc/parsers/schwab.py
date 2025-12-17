@@ -129,7 +129,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label == "Spin-off":
         return ActionType.SPIN_OFF
 
-    if label == "Credit Interest":
+    if label in ["Credit Interest", "Bond Interest"]:
         return ActionType.INTEREST
 
     if label == "Reinvest Shares":
