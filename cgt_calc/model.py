@@ -154,6 +154,7 @@ class ActionType(Enum):
     STOCK_SPLIT = 15
     CASH_MERGER = 16
     EXCESS_REPORTED_INCOME = 17
+    FULL_REDEMPTION = 18
 
 
 class CalculationType(Enum):
