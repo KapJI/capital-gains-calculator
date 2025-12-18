@@ -500,8 +500,10 @@ class CapitalGainsCalculator:
         for i, transaction in enumerate(transactions):
             if transaction.action == ActionType.EXCESS_REPORTED_INCOME:
                 self.add_eri(transaction)
+                balance_history.append(
+                    Decimal(0)
+                )  # dummy value, this will get filtered out
                 continue
-
             new_balance = balance[(transaction.broker, transaction.currency)]
             if transaction.action is ActionType.TRANSFER:
                 new_balance += get_amount_or_fail(transaction)
@@ -600,14 +602,20 @@ class CapitalGainsCalculator:
                 msg = f"Reached a negative balance({new_balance})"
                 msg += f" for broker {transaction.broker} ({transaction.currency})"
                 msg += " after processing the following transactions:\n"
-                msg += "\n".join(
-                    [
-                        f"{trx}\nBalance after transaction={balance_after}"
-                        for trx, balance_after in zip(
-                            transactions[: i + 1], balance_history, strict=True
-                        )
-                    ]
+                msg += (
+                    "\n".join(
+                        [
+                            f"{trx}\nBalance after transaction={balance_after}"
+                            for trx, balance_after in zip(
+                                transactions[: i + 1], balance_history, strict=True
+                            )
+                            # filter out ERI transactions, they don't affect the balance
+                            if trx.action != ActionType.EXCESS_REPORTED_INCOME
+                        ]
+                    )
+                    + "\n"
                 )
+                msg += "Tip: If your input file is missing deposits/withdrawals use --no-balance-check."
                 raise CalculationError(msg)
             balance[(transaction.broker, transaction.currency)] = new_balance
 
