@@ -60,6 +60,36 @@ def test_run_with_raw_files_no_balance_check() -> None:
     )
 
 
+def test_run_with_raw_files() -> None:
+    """Runs the script and verifies it doesn't fail."""
+    cmd = build_cmd(
+        "--year",
+        "2022",
+        "--raw-file",
+        "tests/raw/data/test_data_2.csv",
+    )
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode:
+        pytest.fail(
+            "Integration test failed\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    stderr_lines = result.stderr.strip().split("\n")
+    assert len(stderr_lines) == 1
+    assert stderr_lines[0].startswith("WARNING: Bed and breakfasting for META"), (
+        "Unexpected stderr message"
+    )
+    expected_file = Path("tests") / "raw" / "data" / "expected_output_2.txt"
+    expected = expected_file.read_text()
+    cmd_str = " ".join([param if param else "''" for param in cmd])
+    assert result.stdout == expected, (
+        "Run with example files generated unexpected outputs, "
+        "if you added new features update the test with:\n"
+        f"{cmd_str} > {expected_file}"
+    )
+
+
 def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
     """Parse a RAW file including a header row."""
 
