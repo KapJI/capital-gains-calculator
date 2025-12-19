@@ -19,6 +19,7 @@ from cgt_calc.exceptions import (
     UnexpectedRowCountError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -215,6 +216,9 @@ class SchwabTransaction(BrokerTransaction):
             if row_dict[amount_header] != ""
             else None
         )
+
+        # Handle bonds/notes: CUSIP symbols have price per $100 face value
+        price, fees = adjust_cusip_bond_price(symbol, price, quantity, amount, fees)
 
         currency = "USD"
         broker = "Charles Schwab"
