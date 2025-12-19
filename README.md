@@ -235,9 +235,9 @@ You will need:
 
 - **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert
   whatever report you can produce into this basic format.
-  [See example](tests/raw/data/test_data.csv). Include the header row shown below (lower-case column
-  names in this order). The parser can infer the column order when the header is missing, but it
-  will emit a warning so you can update your export the next time.
+  [See example](tests/raw/data/test_data_2.csv). Include the header row shown below (lower-case
+  column names in this order). The parser can infer the column order when the header is missing, but
+  it will emit a warning so you can update your export the next time.
 
   - `date` – transaction date in `YYYY-MM-DD` format.
   - `action` – one of the supported broker actions (see [`ActionType`](cgt_calc/model.py)).
