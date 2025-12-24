@@ -7,11 +7,13 @@ import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, Final, Literal, overload
+from typing import TYPE_CHECKING, Final, Literal, TextIO, overload
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
+
+from .base_parsers import BaseSingleFileParser
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -34,7 +36,7 @@ CSV_COLUMNS_NUM: Final = len(COLUMNS)
 LOGGER = logging.getLogger(__name__)
 
 
-def action_from_str(label: str, file: Path) -> ActionType:
+def _action_from_str(label: str, file: Path) -> ActionType:
     """Convert string label to ActionType."""
     try:
         return ActionType[label.upper()]
@@ -96,29 +98,6 @@ def _parse_decimal(
         ) from err
 
 
-def _validate_header(header: list[str], file: Path) -> None:
-    """Validate optional header row."""
-
-    if len(header) != CSV_COLUMNS_NUM:
-        raise UnexpectedColumnCountError(header, CSV_COLUMNS_NUM, file)
-
-    normalized = [value.strip().lower() for value in header]
-    for index, (exp, act) in enumerate(zip(COLUMNS, normalized, strict=True), start=1):
-        if exp != act:
-            raise ParsingError(
-                file,
-                f"Expected column {index} to be '{exp}' but found '{header[index - 1]}'",
-            )
-
-
-def _has_header(first_row: list[str]) -> bool:
-    """Return True if the first row is likely a RAW header."""
-
-    if not first_row:
-        return False
-    return all(value.strip() != "" and value.strip().isalpha() for value in first_row)
-
-
 class RawTransaction(BrokerTransaction):
     """Represents a single raw transaction.
 
@@ -148,7 +127,7 @@ class RawTransaction(BrokerTransaction):
         date_str = row_values[RawColumn.DATE]
         date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
 
-        action = action_from_str(row_values[RawColumn.ACTION], file)
+        action = _action_from_str(row_values[RawColumn.ACTION], file)
         symbol = row_values[RawColumn.SYMBOL] or None
 
         if symbol is not None:
@@ -187,37 +166,69 @@ class RawTransaction(BrokerTransaction):
         )
 
 
-def read_raw_transactions(transactions_file: Path) -> list[BrokerTransaction]:
-    """Read Raw transactions from file."""
-    with transactions_file.open(encoding="utf-8") as csv_file:
-        print(f"Parsing {transactions_file}...")
-        lines = list(csv.reader(csv_file))
+class RawParser(BaseSingleFileParser):
+    """Parser for RAW format transaction files."""
 
-    if not lines:
-        raise ParsingError(transactions_file, "RAW CSV file is empty")
+    arg_name = "raw"
+    pretty_name = "RAW format"
+    format_name = "CSV"
 
-    data_rows = lines
-    start_index = 1
-    if _has_header(lines[0]):
-        _validate_header(lines[0], transactions_file)
-        data_rows = lines[1:]
-        start_index = 2
-    else:
-        LOGGER.warning(
-            "RAW CSV file %s is missing header row. The header is required but will be inferred for now.",
-            transactions_file,
+    @staticmethod
+    def _validate_header(header: list[str], file: Path) -> None:
+        """Validate optional header row."""
+
+        if len(header) != CSV_COLUMNS_NUM:
+            raise UnexpectedColumnCountError(header, CSV_COLUMNS_NUM, file)
+
+        normalized = [value.strip().lower() for value in header]
+        for index, (exp, act) in enumerate(
+            zip(COLUMNS, normalized, strict=True), start=1
+        ):
+            if exp != act:
+                raise ParsingError(
+                    file,
+                    f"Expected column {index} to be '{exp}' but found '{header[index - 1]}'",
+                )
+
+    @staticmethod
+    def _has_header(first_row: list[str]) -> bool:
+        """Return True if the first row is likely a RAW header."""
+
+        if not first_row:
+            return False
+        return all(
+            value.strip() != "" and value.strip().isalpha() for value in first_row
         )
 
-    transactions: list[BrokerTransaction] = []
-    for index, row in enumerate(data_rows, start=start_index):
-        try:
-            transactions.append(RawTransaction(row, transactions_file))
-        except ParsingError as err:
-            err.add_row_context(index)
-            raise
-        except ValueError as err:
-            raise ParsingError(transactions_file, str(err), row_index=index) from err
+    @classmethod
+    def read_transactions(
+        cls, file: TextIO, file_path: Path
+    ) -> list[BrokerTransaction]:
+        """Read Raw transactions from file."""
+        lines = list(csv.reader(file))
 
-    if len(transactions) == 0:
-        LOGGER.warning("No transactions detected in file %s", transactions_file)
-    return transactions
+        if not lines:
+            raise ParsingError(file_path, "RAW CSV file is empty")
+
+        data_rows = lines
+        start_index = 1
+        if cls._has_header(lines[0]):
+            cls._validate_header(lines[0], file_path)
+            data_rows = lines[1:]
+            start_index = 2
+        else:
+            LOGGER.warning(
+                "RAW CSV file %s is missing header row. The header is required but will be inferred for now.",
+                file_path,
+            )
+
+        transactions: list[BrokerTransaction] = []
+        for index, row in enumerate(data_rows, start=start_index):
+            try:
+                transactions.append(RawTransaction(row, file_path))
+            except ParsingError as err:
+                err.add_row_context(index)
+                raise
+            except ValueError as err:
+                raise ParsingError(file_path, str(err), row_index=index) from err
+        return transactions

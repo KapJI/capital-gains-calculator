@@ -10,8 +10,8 @@ from typing import IO, TextIO, cast
 
 import pytest
 
-from cgt_calc.args_parser import (
-    create_parser,
+from cgt_calc.args_parser import create_parser
+from cgt_calc.args_validators import (
     existing_directory_type,
     existing_file_type,
     optional_file_type,
