@@ -47,7 +47,6 @@ class CurrentPriceFetcher:
             return self.historical_prices_data[symbol][date]
 
         prices = yf.Ticker(symbol).history(
-            period="1d",
             interval="1d",
             start=date.strftime("%Y-%m-%d"),
             end=(date + datetime.timedelta(days=1)).strftime("%Y-%m-%d"),
