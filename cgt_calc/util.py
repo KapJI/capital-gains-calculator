@@ -14,6 +14,20 @@ def round_decimal(value: Decimal, digits: int = 0) -> Decimal:
         return Decimal(round(value, digits))
 
 
+def normalize_amount(amount: Decimal) -> Decimal:
+    """Normalize amount to prevent unbounded precision growth.
+
+    Financial amounts are rounded to 10 decimal places, which is far more
+    precision than needed for real-world financial calculations, while preventing
+    precision from growing unbounded through currency conversions with repeating
+    decimals (e.g., GBP/USD conversions).
+
+    This allows using Python's default 28-digit Decimal precision instead of
+    requiring 50+ digits.
+    """
+    return round_decimal(amount, 10)
+
+
 def strip_zeros(value: Decimal) -> str:
     """Strip trailing zeros from Decimal."""
     return f"{value:.10f}".rstrip("0").rstrip(".")

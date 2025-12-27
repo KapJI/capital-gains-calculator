@@ -28,12 +28,37 @@ if TYPE_CHECKING:
     from cgt_calc.model import CalculationLog, CapitalGainsReport
 
 
+# USD to GBP exchange rate used in tests (creates repeating decimals)
+USD_TO_GBP = Decimal(6) / Decimal(7)  # 0.857142857...
+
+
+def gbp_from_usd(usd: str, qty: int) -> Decimal:
+    """Convert USD amount to GBP for testing with repeating decimal exchange rate."""
+    return Decimal(qty) * Decimal(usd) * USD_TO_GBP
+
+
 def get_report(
     calculator: CapitalGainsCalculator, broker_transactions: list[BrokerTransaction]
 ) -> CapitalGainsReport:
     """Get calculation report."""
     calculator.convert_to_hmrc_transactions(broker_transactions)
     return calculator.calculate_capital_gain()
+
+
+def create_calculator(tax_year: int = 2024) -> CapitalGainsCalculator:
+    """Create a calculator with standard test configuration."""
+    currency_converter = CurrencyConverter(None, {})
+    price_fetcher = CurrentPriceFetcher(currency_converter, {}, {})
+    return CapitalGainsCalculator(
+        tax_year,
+        currency_converter,
+        IsinConverter(),
+        price_fetcher,
+        SpinOffHandler(),
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
 
 
 def test_main_prints_help_when_no_arguments() -> None:
@@ -275,6 +300,188 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
 
     second_match = datetime.date(2024, 3, 10)
     assert symbol not in calculator.bnb_list.get(second_match, {})
+
+
+def test_proportional_disposal_no_rounding_error() -> None:
+    """Test that disposing all shares doesn't cause rounding errors.
+
+    This test verifies the fix for the issue where sequential disposals
+    using the divide-then-multiply pattern could accumulate rounding errors,
+    causing assertions like "current amount -1E-23" to fail.
+
+    The fix reorders operations from quantity * (amount / total) to
+    (quantity * amount) / total, which ensures exact cancellation when
+    disposing all shares: (total * amount) / total = amount.
+    """
+    calculator = create_calculator()
+    symbol = "TEST"
+
+    # Create scenario that would trigger rounding errors:
+    # Buy 3 shares for £10, then dispose all 3 shares
+    # Using 3 creates a repeating decimal (10/3 = 3.333...) which triggers the issue
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),  # Tax year 2024 (Apr 6, 2024 - Apr 5, 2025)
+            action=ActionType.BUY,
+            symbol=symbol,
+            description="buy 3 shares",
+            quantity=Decimal(3),
+            price=Decimal("3.33"),
+            fees=Decimal("0.01"),
+            amount=Decimal("-10.00"),
+            currency="GBP",
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 6, 1),  # Tax year 2024
+            action=ActionType.SELL,
+            symbol=symbol,
+            description="sell all 3 shares",
+            quantity=Decimal(3),
+            price=Decimal("5.00"),
+            fees=Decimal(0),
+            amount=Decimal("15.00"),
+            currency="GBP",
+            broker="Test",
+        ),
+    ]
+
+    # This should complete without AssertionError about rounding errors
+    # Before the fix, this could fail with: AssertionError: current amount -1E-23
+    report = get_report(calculator, transactions)
+
+    # Verify the calculation completed successfully
+    # The exact gain is: £15.00 proceeds - £10.00 cost = £5.00 gain
+    assert report.total_gain() == Decimal("5.00")
+
+    # Verify portfolio is now empty (all shares disposed)
+    assert calculator.portfolio[symbol].quantity == Decimal(0)
+
+    # Verify pool amount is exactly zero (no rounding errors)
+    # This is the key assertion - without operation reordering,
+    # the pool amount could be a tiny non-zero value like -1E-27
+    assert calculator.portfolio[symbol].amount == Decimal(0), (
+        "Pool amount should be exactly zero (no rounding error)"
+    )
+
+
+def test_high_precision_amount_no_rounding_error() -> None:
+    """Test that high-precision amounts (29+ digits) don't cause rounding errors.
+
+    This test uses USD->GBP currency conversion (6/7 exchange rate) which creates
+    repeating decimals. When combined with realistic share quantities, the amounts
+    accumulate 29+ significant digits of precision.
+
+    Without the fix (28-digit precision), this fails with:
+    AssertionError: current amount 2E-23
+    """
+    calculator = create_calculator()
+    symbol = "ACME"
+
+    transactions: list[BrokerTransaction] = [
+        # Acquisition 1
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),
+            action=ActionType.BUY,
+            symbol=symbol,
+            description="Vest",
+            quantity=Decimal(10000),
+            price=Decimal("50.00") * USD_TO_GBP,
+            fees=Decimal(0),
+            amount=-gbp_from_usd("50.00", 10000),
+            currency="GBP",
+            broker="Test",
+        ),
+        # Acquisition 2
+        BrokerTransaction(
+            date=datetime.date(2024, 6, 1),
+            action=ActionType.BUY,
+            symbol=symbol,
+            description="Vest",
+            quantity=Decimal(10000),
+            price=Decimal("60.00") * USD_TO_GBP,
+            fees=Decimal(0),
+            amount=-gbp_from_usd("60.00", 10000),
+            currency="GBP",
+            broker="Test",
+        ),
+        # Sell all - triggers disposal with high-precision amounts
+        BrokerTransaction(
+            date=datetime.date(2024, 7, 1),
+            action=ActionType.SELL,
+            symbol=symbol,
+            description="Sale",
+            quantity=Decimal(20000),
+            price=Decimal("70.00") * USD_TO_GBP,
+            fees=Decimal(0),
+            amount=gbp_from_usd("70.00", 20000),
+            currency="GBP",
+            broker="Test",
+        ),
+    ]
+
+    # Without proper precision handling we get
+    # AssertionError: current amount 2E-23
+    get_report(calculator, transactions)
+
+    assert calculator.portfolio[symbol].quantity == Decimal(0)
+    assert calculator.portfolio[symbol].amount == Decimal(0), (
+        f"Rounding error: {calculator.portfolio[symbol].amount}"
+    )
+
+
+def test_same_day_rule_all_shares_disposed_no_rounding_error() -> None:
+    """Test that same day rule disposing ALL shares doesn't cause rounding errors."""
+    calculator = create_calculator()
+    symbol = "TEST"
+    same_day = datetime.date(2024, 5, 1)
+
+    # Use 3 shares to create 1/3 repeating decimal (strongest case)
+    buy_quantity = Decimal(3)
+    buy_amount_gbp = -gbp_from_usd("100.00", 3)  # Creates amount/3 repeating
+    sell_quantity = Decimal(3)
+    sell_amount_gbp = gbp_from_usd("120.00", 3)
+
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=same_day,
+            action=ActionType.BUY,
+            symbol=symbol,
+            description="buy 3 shares USD",
+            quantity=buy_quantity,
+            price=Decimal("100.00") * USD_TO_GBP,
+            fees=Decimal(0),
+            amount=buy_amount_gbp,
+            currency="GBP",
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=same_day,
+            action=ActionType.SELL,
+            symbol=symbol,
+            description="sell all 3 shares same day",
+            quantity=sell_quantity,
+            price=Decimal("120.00") * USD_TO_GBP,
+            fees=Decimal(0),
+            amount=sell_amount_gbp,
+            currency="GBP",
+            broker="Test",
+        ),
+    ]
+
+    # No AssertionError should get thrown here
+    report = get_report(calculator, transactions)
+
+    # Verify the gain calculation
+    # Buy: 3 * £100 * (6/7) = £257.14, Sell: 3 * £120 * (6/7) = £308.57
+    # Gain = £308.57 - £257.14 = £51.43
+    assert report.total_gain() == Decimal("51.43")
+
+    assert calculator.portfolio[symbol].quantity == Decimal(0)
+    assert calculator.portfolio[symbol].amount == Decimal(0), (
+        f"Pool amount should be exactly zero after disposing all shares on same day, "
+        f"got {calculator.portfolio[symbol].amount}"
+    )
 
 
 def test_run_with_example_files() -> None:
