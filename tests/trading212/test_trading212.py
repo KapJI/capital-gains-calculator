@@ -13,8 +13,8 @@ from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.trading212 import (
     Trading212Column,
+    Trading212Parser,
     Trading212Transaction,
-    read_trading212_transactions,
 )
 from tests.utils import build_cmd
 
@@ -144,7 +144,7 @@ def test_read_trading212_transactions_supports_2020_export(tmp_path: Path) -> No
     ]
     folder = _prepare_file(tmp_path, rows)
 
-    transactions = read_trading212_transactions(folder)
+    transactions = Trading212Parser().load_from_dir(folder)
 
     assert [transaction.action for transaction in transactions] == [
         ActionType.TRANSFER,
@@ -228,7 +228,7 @@ def test_read_trading212_transactions_supports_2024_export(tmp_path: Path) -> No
     ]
     folder = _prepare_file(tmp_path, rows)
 
-    transactions = read_trading212_transactions(folder)
+    transactions = Trading212Parser().load_from_dir(folder)
 
     assert [transaction.action for transaction in transactions] == [
         ActionType.TRANSFER,
@@ -280,7 +280,7 @@ def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
     folder = _prepare_file(tmp_path, rows)
 
     with pytest.raises(ParsingError) as exc:
-        read_trading212_transactions(folder)
+        Trading212Parser().load_from_dir(folder)
 
     message = str(exc.value)
     assert "row 2" in message

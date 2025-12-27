@@ -10,7 +10,7 @@ import pytest
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
-from cgt_calc.parsers.vanguard import COLUMNS, read_vanguard_transactions
+from cgt_calc.parsers.vanguard import COLUMNS, VanguardParser
 from tests.utils import build_cmd
 
 
@@ -61,7 +61,7 @@ def test_read_vanguard_transactions_buy(tmp_path: Path) -> None:
     ]
     _write_csv(vanguard_file, rows)
 
-    transactions = read_vanguard_transactions(vanguard_file)
+    transactions = VanguardParser().load_from_file(vanguard_file)
 
     assert len(transactions) == 1
     transaction = transactions[0]
@@ -89,7 +89,7 @@ def test_read_vanguard_transactions_invalid_decimal(tmp_path: Path) -> None:
     _write_csv(vanguard_file, rows)
 
     with pytest.raises(ParsingError) as exc:
-        read_vanguard_transactions(vanguard_file)
+        VanguardParser().load_from_file(vanguard_file)
 
     message = str(exc.value)
     assert "row 2" in message
@@ -111,7 +111,7 @@ def test_read_vanguard_transactions_invalid_header(tmp_path: Path) -> None:
     _write_csv(vanguard_file, rows)
 
     with pytest.raises(ParsingError) as exc:
-        read_vanguard_transactions(vanguard_file)
+        VanguardParser().load_from_file(vanguard_file)
 
     assert "Expected column 3 to be 'Amount' but found 'Unexpected'" in str(exc.value)
 
@@ -123,6 +123,6 @@ def test_read_vanguard_transactions_empty_file(tmp_path: Path) -> None:
     vanguard_file.write_text("", encoding="utf-8")
 
     with pytest.raises(ParsingError) as exc:
-        read_vanguard_transactions(vanguard_file)
+        VanguardParser().load_from_file(vanguard_file)
 
     assert "Vanguard CSV file is empty" in str(exc.value)

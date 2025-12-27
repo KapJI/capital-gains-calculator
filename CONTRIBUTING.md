@@ -94,10 +94,11 @@ uv run mypy cgt_calc
 
 ## 🧩 Adding support for a new broker
 
-1. Add a new parser in `cgt_calc/parsers/`
-2. Add tests in `tests/`
-3. Update documentation and examples
-4. Submit a pull request describing your changes
+1. Add a new parser class in `cgt_calc/parsers/`
+2. Add the newly created class into `cgt_calc/parsers/broker_registry.py`
+3. Add tests in `tests/`
+4. Update documentation and examples
+5. Submit a pull request describing your changes
 
 ## 📦 Managing dependencies
 

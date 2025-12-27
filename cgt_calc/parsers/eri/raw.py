@@ -5,17 +5,23 @@ from __future__ import annotations
 import csv
 import datetime
 from decimal import Decimal, InvalidOperation
+from importlib import resources
 import logging
-from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, TextIO
 
+if TYPE_CHECKING:
+    import argparse
+    from pathlib import Path
+
+    from cgt_calc.model import BrokerTransaction
+
+from cgt_calc.const import ERI_RESOURCE_FOLDER
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.parsers.base_parsers import BaseSingleFileParser
+from cgt_calc.resources import RESOURCES_PACKAGE
 from cgt_calc.util import is_isin
 
 from .model import EriTransaction
-
-if TYPE_CHECKING:
-    from importlib.resources.abc import Traversable
 
 COLUMNS: Final[list[str]] = [
     "ISIN",
@@ -61,38 +67,48 @@ class EriRaw(EriTransaction):
         )
 
 
-def validate_header(header: list[str], file: Path, columns: list[str]) -> None:
-    """Check if header is valid."""
-    for actual in header:
-        if actual not in columns:
-            msg = f"Unknown column {actual}"
-            raise ParsingError(file, msg)
+class ERIRawParser(BaseSingleFileParser):
+    """Parser for RAW format transaction files."""
 
+    arg_name = "eri-raw"
+    pretty_name = "Historical Excess Reported Income data"
+    format_name = "CSV"
 
-def read_eri_raw(
-    eri_file: Path | Traversable,
-) -> list[EriTransaction]:
-    """Read ERI raw transactions from file."""
-    transactions: list[EriTransaction] = []
+    @staticmethod
+    def _validate_header(header: list[str], file: Path, columns: list[str]) -> None:
+        """Check if header is valid."""
+        for actual in header:
+            if actual not in columns:
+                msg = f"Unknown column {actual}"
+                raise ParsingError(file, msg)
 
-    file_label = (
-        eri_file if isinstance(eri_file, Path) else Path("resources") / eri_file.name
-    )
+    @classmethod
+    def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
+        """Load ERI data from arguments and pre-packaged data."""
+        transactions: list[BrokerTransaction] = []
+        for entry in (
+            resources.files(RESOURCES_PACKAGE).joinpath(ERI_RESOURCE_FOLDER).iterdir()
+        ):
+            if entry.is_file() and entry.name.endswith(".csv"):
+                with resources.as_file(entry) as path:
+                    transactions += cls.load_from_file(path, show_parsing_msg=False)
+        transactions += super().load_from_args(args)
+        return transactions
 
-    with eri_file.open(encoding="utf-8") as csv_file:
-        lines = list(csv.reader(csv_file))
+    @classmethod
+    def read_transactions(
+        cls, file: TextIO, file_path: Path
+    ) -> list[BrokerTransaction]:
+        """Read ERI raw transactions from file."""
 
-    if not lines:
-        raise ParsingError(file_label, "ERI data file is empty")
+        lines = list(csv.reader(file))
 
-    header = lines[0]
+        if not lines:
+            raise ParsingError(file_path, "ERI data file is empty")
 
-    validate_header(header, file_label, COLUMNS)
+        header = lines[0]
 
-    lines = lines[1:]
-    cur_transactions = [EriRaw(header, row, file_label) for row in lines]
-    if len(cur_transactions) == 0:
-        LOGGER.warning("No transactions detected in file: %s", eri_file)
-    transactions += cur_transactions
+        ERIRawParser._validate_header(header, file_path, COLUMNS)
 
-    return transactions
+        lines = lines[1:]
+        return [EriRaw(header, row, file_path) for row in lines]

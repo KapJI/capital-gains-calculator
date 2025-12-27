@@ -7,11 +7,13 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, TextIO
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
+
+from .base_parsers import BaseDirParser
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -256,48 +258,60 @@ class Trading212Transaction(BrokerTransaction):
         return hash(self.transaction_id)
 
 
-def validate_header(header: list[str], file: Path) -> None:
-    """Check if header is valid. Not all columns exist in every export."""
-    unknown = set(header) - COLUMN_SET
-    if unknown:
-        msg = f"Unknown column(s) {', '.join(sorted(unknown))}"
-        raise ParsingError(file, msg)
+class Trading212Parser(BaseDirParser):
+    """Morgan Stanley parser."""
 
+    arg_name = "trading212"
+    pretty_name = "Trading 212"
+    format_name = "CSV"
+    glob_dir = "*.csv"
 
-def by_date_and_action(transaction: Trading212Transaction) -> tuple[datetime, bool]:
-    """Sort by date and action type."""
-
-    # If there's a deposit in the same second as a buy
-    # (happens with the referral award at least)
-    # we want to put the buy last to avoid negative balance errors
-    return (transaction.datetime, transaction.action == ActionType.BUY)
-
-
-def read_trading212_transactions(transactions_folder: Path) -> list[BrokerTransaction]:
-    """Parse Trading 212 transactions from CSV file."""
-    transactions = []
-    for file in sorted(transactions_folder.glob("*.csv")):
-        with file.open(encoding="utf-8") as csv_file:
-            print(f"Parsing {file}...")
-            lines = list(csv.reader(csv_file))
+    @classmethod
+    def read_transactions(
+        cls, file: TextIO, file_path: Path
+    ) -> list[BrokerTransaction]:
+        """Parse Trading 212 transactions from CSV file."""
+        lines = list(csv.reader(file))
         if not lines:
-            raise ParsingError(file, "Trading 212 CSV file is empty")
+            raise ParsingError(file_path, "Trading 212 CSV file is empty")
         header = lines[0]
-        validate_header(header, file)
+        cls._validate_header(header, file_path)
         lines = lines[1:]
-        cur_transactions: list[Trading212Transaction] = []
+        transactions: list[BrokerTransaction] = []
         for index, row in enumerate(lines, start=2):
             try:
-                cur_transactions.append(Trading212Transaction(header, row, file))
+                transactions.append(Trading212Transaction(header, row, file_path))
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
             except ValueError as err:
-                raise ParsingError(file, str(err), row_index=index) from err
-        if len(cur_transactions) == 0:
-            LOGGER.warning("No transactions detected in file: %s", file)
-        transactions += cur_transactions
-    # Remove duplicates
-    transactions = list(set(transactions))
-    transactions.sort(key=by_date_and_action)
-    return list(transactions)
+                raise ParsingError(file_path, str(err), row_index=index) from err
+        return transactions
+
+    @staticmethod
+    def _validate_header(header: list[str], file: Path) -> None:
+        """Check if header is valid. Not all columns exist in every export."""
+        unknown = set(header) - COLUMN_SET
+        if unknown:
+            msg = f"Unknown column(s) {', '.join(sorted(unknown))}"
+            raise ParsingError(file, msg)
+
+    @staticmethod
+    def _by_date_and_action(
+        transaction: Trading212Transaction,
+    ) -> tuple[datetime, bool]:
+        """Sort by date and action type."""
+
+        # If there's a deposit in the same second as a buy
+        # (happens with the referral award at least)
+        # we want to put the buy last to avoid negative balance errors
+        return (transaction.datetime, transaction.action == ActionType.BUY)
+
+    @classmethod
+    def post_process_transactions(
+        cls, transactions: list[BrokerTransaction]
+    ) -> list[BrokerTransaction]:
+        """Remove duplicates and sort."""
+        transactions = list(set(transactions))
+        transactions.sort(key=cls._by_date_and_action)  # type: ignore[arg-type]
+        return transactions
