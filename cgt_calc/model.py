@@ -8,7 +8,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from .util import approx_equal, round_decimal
+from .util import approx_equal, normalize_amount, round_decimal
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -294,14 +294,14 @@ class Position:
         """Add two positions."""
         return Position(
             self.quantity + other.quantity,
-            self.amount + other.amount,
+            normalize_amount(self.amount + other.amount),
         )
 
     def __sub__(self, other: Position) -> Position:
         """Subtract two positions."""
         return Position(
             self.quantity - other.quantity,
-            self.amount - other.amount,
+            normalize_amount(self.amount - other.amount),
         )
 
     def __str__(self) -> str:

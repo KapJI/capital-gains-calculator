@@ -63,7 +63,7 @@ from .parsers import read_broker_transactions
 from .setup_logging import setup_logging
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
-from .util import approx_equal, round_decimal
+from .util import approx_equal, normalize_amount, round_decimal
 
 if TYPE_CHECKING:
     import argparse
@@ -671,10 +671,13 @@ class CapitalGainsCalculator:
         bed_and_breakfast_fees = Decimal(0)
 
         if acquisition.quantity > 0 and has_key(self.bnb_list, date_index, symbol):
-            acquisition_price = acquisition.amount / acquisition.quantity
             bnb_acquisition = self.bnb_list[date_index][symbol]
             assert bnb_acquisition.quantity <= acquisition.quantity
-            modified_amount -= bnb_acquisition.quantity * acquisition_price
+            # Multiply by available_quantity before divide to avoid rounding errors from division
+            bnb_cost_basis = normalize_amount(
+                (bnb_acquisition.quantity * acquisition.amount) / acquisition.quantity
+            )
+            modified_amount -= bnb_cost_basis
             modified_amount += bnb_acquisition.amount
             assert modified_amount > 0
             bed_and_breakfast_fees = (
@@ -783,12 +786,17 @@ class CapitalGainsCalculator:
             available_quantity = min(disposal_quantity, same_day_acquisition.quantity)
             if available_quantity > 0:
                 fees = disposal.fees * available_quantity / original_disposal_quantity
-                acquisition_price = (
-                    same_day_acquisition.amount / same_day_acquisition.quantity
+
+                # Multiply by available_quantity before divide to avoid rounding errors from division
+                acquisition_cost = normalize_amount(
+                    (available_quantity * same_day_acquisition.amount)
+                    / same_day_acquisition.quantity
                 )
+
+                acquisition_price = acquisition_cost / available_quantity
                 same_day_amount = available_quantity * disposal_price
                 same_day_proceeds = same_day_amount + fees
-                same_day_allowable_cost = available_quantity * acquisition_price + fees
+                same_day_allowable_cost = acquisition_cost + fees
                 same_day_gain = same_day_proceeds - same_day_allowable_cost
                 chargeable_gain += same_day_gain
                 LOGGER.debug(
@@ -803,7 +811,7 @@ class CapitalGainsCalculator:
                 proceeds_amount -= available_quantity * disposal_price
                 current_quantity -= available_quantity
                 # These shares shouldn't be added to Section 104 holding
-                current_amount -= available_quantity * acquisition_price
+                current_amount -= acquisition_cost
                 if current_quantity == 0:
                     assert round_decimal(current_amount, 23) == 0, (
                         f"current amount {current_amount}"
@@ -907,14 +915,18 @@ class CapitalGainsCalculator:
                     fees = (
                         disposal.fees * available_quantity / original_disposal_quantity
                     )
-                    acquisition_price = acquisition.amount / (
+                    adjusted_acquisition_quantity = (
                         acquisition.quantity / split_multiplier
                     )
+                    # Multiply by available_quantity before divide to avoid rounding errors from division
+                    bnb_acquisition_cost = normalize_amount(
+                        (available_quantity * acquisition.amount)
+                        / adjusted_acquisition_quantity
+                    )
+                    acquisition_price = bnb_acquisition_cost / available_quantity
                     bed_and_breakfast_amount = available_quantity * disposal_price
                     bed_and_breakfast_proceeds = bed_and_breakfast_amount + fees
-                    bed_and_breakfast_allowable_cost = (
-                        available_quantity * acquisition_price
-                    ) + fees
+                    bed_and_breakfast_allowable_cost = bnb_acquisition_cost + fees
                     # ERI needs to be reported when doing bed and breakfast as if you
                     # held the stocks at the reporting end date.
                     # https://www.rawknowledge.ltd/eri-explained-four-tricky-questions-answered/
@@ -948,8 +960,12 @@ class CapitalGainsCalculator:
                     )
                     disposal_quantity -= available_quantity
                     proceeds_amount -= available_quantity * disposal_price
-                    current_price = current_amount / current_quantity
-                    amount_delta = available_quantity * current_price
+
+                    # Multiply by available_quantity before divide to avoid rounding errors from division
+                    amount_delta = normalize_amount(
+                        (available_quantity * current_amount) / current_quantity
+                    )
+
                     current_quantity -= available_quantity
                     current_amount -= amount_delta
                     if current_quantity == 0:
@@ -985,10 +1001,15 @@ class CapitalGainsCalculator:
         if disposal_quantity > 0:
             available_quantity = disposal_quantity
             fees = disposal.fees * available_quantity / original_disposal_quantity
-            acquisition_price = current_amount / current_quantity
+
+            # Multiply by available_quantity before divide to avoid rounding errors from division
+            amount_delta = normalize_amount(
+                (available_quantity * current_amount) / current_quantity
+            )
+
             r104_amount = available_quantity * disposal_price
             r104_proceeds = r104_amount + fees
-            r104_allowable_cost = available_quantity * acquisition_price + fees
+            r104_allowable_cost = amount_delta + fees
             r104_gain = r104_proceeds - r104_allowable_cost
             chargeable_gain += r104_gain
             LOGGER.debug(
@@ -1001,8 +1022,6 @@ class CapitalGainsCalculator:
             )
             disposal_quantity -= available_quantity
             proceeds_amount -= available_quantity * disposal_price
-            current_price = current_amount / current_quantity
-            amount_delta = available_quantity * current_price
             current_quantity -= available_quantity
             current_amount -= amount_delta
             if current_quantity == 0:
@@ -1026,7 +1045,9 @@ class CapitalGainsCalculator:
         assert round_decimal(disposal_quantity, 23) == 0, (
             f"disposal quantity {disposal_quantity}"
         )
-        self.portfolio[symbol] = Position(current_quantity, current_amount)
+        self.portfolio[symbol] = Position(
+            current_quantity, normalize_amount(current_amount)
+        )
         chargeable_gain = round_decimal(chargeable_gain, 2)
         return (
             chargeable_gain,
