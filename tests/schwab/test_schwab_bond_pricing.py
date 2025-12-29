@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from cgt_calc.parsers.schwab import read_schwab_transactions
+from cgt_calc.parsers.schwab import SchwabParser
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
 
 
@@ -24,7 +24,7 @@ class TestBondPricing:
             "01/01/2024,Buy,91282CMF5,US TREASURY NOTE,$9917.27,40000,$0.00,-$3966908.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Price should be divided by 100
         assert len(transactions) == 1
@@ -38,7 +38,7 @@ class TestBondPricing:
             "01/01/2024,Sell,91282CKS9,US TREASURY NOTE,$10076.95,50000,$50.00,$5038425.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Price should be divided by 100
         assert len(transactions) == 1
@@ -52,7 +52,7 @@ class TestBondPricing:
             "01/01/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Price should remain as-is
         assert len(transactions) == 1

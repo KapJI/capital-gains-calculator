@@ -12,12 +12,7 @@ import pytest
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
-from cgt_calc.parsers.raw import (
-    COLUMNS,
-    RawColumn,
-    _parse_decimal,
-    read_raw_transactions,
-)
+from cgt_calc.parsers.raw import COLUMNS, RawColumn, RawParser, _parse_decimal
 from tests.utils import build_cmd
 
 
@@ -108,7 +103,7 @@ def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
     ]
     _write_csv(raw_file, rows)
 
-    transactions = read_raw_transactions(raw_file)
+    transactions = RawParser().load_from_file(raw_file)
 
     assert len(transactions) == 1
     transaction = transactions[0]
@@ -141,7 +136,7 @@ def test_read_raw_transactions_without_header(
     _write_csv(raw_file, rows)
 
     with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.raw"):
-        transactions = read_raw_transactions(raw_file)
+        transactions = RawParser().load_from_file(raw_file)
 
     assert len(transactions) == 1
     transaction = transactions[0]
@@ -158,7 +153,7 @@ def test_read_raw_transactions_invalid_header(tmp_path: Path) -> None:
     _write_csv(raw_file, [bad_header])
 
     with pytest.raises(ParsingError) as exc:
-        read_raw_transactions(raw_file)
+        RawParser().load_from_file(raw_file)
 
     assert "Expected column 3" in str(exc.value)
 
@@ -182,7 +177,7 @@ def test_read_raw_transactions_invalid_decimal(tmp_path: Path) -> None:
     _write_csv(raw_file, rows)
 
     with pytest.raises(ParsingError) as exc:
-        read_raw_transactions(raw_file)
+        RawParser().load_from_file(raw_file)
 
     message = str(exc.value)
     assert "row 2" in message
@@ -196,7 +191,7 @@ def test_read_raw_transactions_empty_file(tmp_path: Path) -> None:
     raw_file.write_text("", encoding="utf-8")
 
     with pytest.raises(ParsingError) as exc:
-        read_raw_transactions(raw_file)
+        RawParser().load_from_file(raw_file)
 
     assert "CSV file is empty" in str(exc.value)
 
@@ -219,7 +214,7 @@ def test_read_raw_transactions_applies_ticker_renames(tmp_path: Path) -> None:
     ]
     _write_csv(raw_file, rows)
 
-    transactions = read_raw_transactions(raw_file)
+    transactions = RawParser().load_from_file(raw_file)
 
     assert len(transactions) == 1
     assert transactions[0].symbol == "META"

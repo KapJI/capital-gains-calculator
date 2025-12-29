@@ -9,7 +9,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from cgt_calc.model import ActionType
-from cgt_calc.parsers.schwab import read_schwab_transactions
+from cgt_calc.parsers.schwab import SchwabParser
 
 
 class TestCorporateActionPairing:
@@ -24,7 +24,7 @@ class TestCorporateActionPairing:
             "03/02/2021,Cash Merger Adj,FOO,FOO INC,,-100,$5,\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Should have 1 unified transaction
         assert len(transactions) == 1
@@ -47,7 +47,7 @@ class TestCorporateActionPairing:
             "05/15/2023,Full Redemption,BAR,BAR CORP,,-50,,\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Should have 1 unified transaction
         assert len(transactions) == 1
@@ -71,7 +71,7 @@ class TestCorporateActionPairing:
             "03/02/2021,Cash Merger Adj,FOO,FOO INC,,-100,,\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Should have 2 transactions: unified Cash Merger + Buy
         # Note: transactions are reversed, so most recent first
@@ -92,7 +92,7 @@ class TestCorporateActionPairing:
             "04/15/2021,Cash Merger Adj,BAR,BAR CORP,,-200,,\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Should have 2 unified transactions
         # Note: transactions are reversed, so most recent first

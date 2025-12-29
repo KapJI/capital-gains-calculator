@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from cgt_calc.parsers.schwab import read_schwab_transactions
+from cgt_calc.parsers.schwab import SchwabParser
 
 
 class TestCancelBuyFiltering:
@@ -29,7 +29,7 @@ class TestCancelBuyFiltering:
             "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Both transactions should be removed
         assert len(transactions) == 0
@@ -43,7 +43,7 @@ class TestCancelBuyFiltering:
             "01/10/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # 9 days apart - Cancel Buy won't match, both should remain
         assert len(transactions) == 2
@@ -62,7 +62,7 @@ class TestCancelBuyFiltering:
             "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Only the first Buy should be removed (exact price match)
         assert len(transactions) == 1
@@ -77,7 +77,7 @@ class TestCancelBuyFiltering:
             "01/12/2024,Cancel Buy,MSFT,MICROSOFT CORP,$150.00,10,$0.00,$0.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Different symbols - no match, both remain
         assert len(transactions) == 2
@@ -91,7 +91,7 @@ class TestCancelBuyFiltering:
             "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10.5,$0.00,$0.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Both should be removed (exact fractional quantity match)
         assert len(transactions) == 0
@@ -107,7 +107,7 @@ class TestCancelBuyFiltering:
             "01/13/2024,Cancel Buy,AAPL,APPLE INC,$151.00,20,$0.00,$0.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # All should be removed
         assert len(transactions) == 0
@@ -123,7 +123,7 @@ class TestCancelBuyFiltering:
             "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Only AAPL Buy and Cancel Buy removed, MSFT transactions remain
         assert len(transactions) == 2
@@ -145,7 +145,7 @@ class TestCancelBuyFiltering:
             f"{cancel_date.strftime('%m/%d/%Y')},Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # Within 5 days - should match and remove both
         assert len(transactions) == 0
@@ -162,7 +162,7 @@ class TestCancelBuyFiltering:
             f"{cancel_date.strftime('%m/%d/%Y')},Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # 6 days apart - no match, both remain
         assert len(transactions) == 2
@@ -176,7 +176,7 @@ class TestCancelBuyFiltering:
             "01/15/2024,Sell,AAPL,APPLE INC,$155.00,10,$0.00,$1550.00\n"
         )
 
-        transactions = read_schwab_transactions(csv_file, None)
+        transactions = SchwabParser().load_from_file(csv_file)
 
         # No Cancel Buy - both transactions remain
         assert len(transactions) == 2
