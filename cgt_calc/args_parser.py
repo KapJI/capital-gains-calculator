@@ -402,10 +402,14 @@ Environment variables:
         action="help",
         help="show this help message and exit",
     )
+    try:
+        version = f"cgt-calc {importlib.metadata.version(__package__)}"
+    except importlib.metadata.PackageNotFoundError:
+        version = "cgt-calc (unknown version)"
     general_group.add_argument(
         "--version",
         action="version",
-        version=f"cgt-calc {importlib.metadata.version(__package__)}",
+        version=version,
         help="show version and exit",
     )
     general_group.add_argument(
