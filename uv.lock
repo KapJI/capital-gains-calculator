@@ -837,15 +837,15 @@ wheels = [
 
 [[package]]
 name = "requests-ratelimiter"
-version = "0.7.0"
+version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyrate-limiter" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0a/9b/06ef6289f3b774593354286b2d032ca7df30e28a5aeb9423c97bcd13c676/requests_ratelimiter-0.7.0.tar.gz", hash = "sha256:a070c8a359a6f3a001b0ccb08f17228b7ae0a6e21d8df5b6f6bd58389cddde45", size = 14200, upload-time = "2024-07-02T21:58:09.085Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ee/ad/78e0022aaa5b9db1c6ca7ff6eb2d9f2dafb63508acad8de6c2b2031640ba/requests_ratelimiter-0.8.0.tar.gz", hash = "sha256:8b43c35dbf6fa2bee30b9814411baa44c3e5fe793248ec1ed15c0cb8c8844bfe", size = 10781, upload-time = "2026-01-03T17:40:29.518Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ae/81/2d9e20bfc065fe083494e656c1c396a33303d10d1ccfc11efe886ba51458/requests_ratelimiter-0.7.0-py3-none-any.whl", hash = "sha256:1a7ef2faaa790272722db8539728690046237766fcc479f85b9591e5356a8185", size = 9314, upload-time = "2024-07-02T21:58:07.613Z" },
+    { url = "https://files.pythonhosted.org/packages/51/5e/ccd98e17b1f6500b36bdc787bb7ecbedc0c89fb127f8b6613a94a0a6a69d/requests_ratelimiter-0.8.0-py3-none-any.whl", hash = "sha256:13bf89ec2c6f64e06e2b883a30f3b1874ee8c15d9f054ed48daeb120e8d4bec2", size = 9186, upload-time = "2026-01-03T17:40:28.253Z" },
 ]
 
 [[package]]
