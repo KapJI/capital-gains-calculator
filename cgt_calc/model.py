@@ -366,7 +366,6 @@ class CapitalGainsReport:
     calculation_log_yields: CalculationLog
     total_uk_interest: Decimal
     total_foreign_interest: Decimal
-    total_uk_interest_tax: Decimal
     total_foreign_interest_tax: Decimal
     show_unrealized_gains: bool
 
@@ -515,7 +514,6 @@ class CapitalGainsReport:
             )
         out += f"Total UK interest proceeds: £{self.total_uk_interest}\n"
         out += f"Total foreign interest proceeds: £{self.total_foreign_interest}\n"
-        out += f"Total UK interest tax paid: £{self.total_uk_interest_tax}\n"
         out += f"Total foreign interest tax paid: £{self.total_foreign_interest_tax}\n"
 
         return out

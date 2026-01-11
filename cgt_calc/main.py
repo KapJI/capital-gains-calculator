@@ -172,7 +172,6 @@ class CapitalGainsCalculator:
         self.interest_fund_tickers = interest_fund_tickers
         self.total_uk_interest = Decimal(0)
         self.total_foreign_interest = Decimal(0)
-        self.total_uk_interest_tax = Decimal(0)
         self.total_foreign_interest_tax = Decimal(0)
 
         self.acquisition_list: HmrcTransactionLog = {}
@@ -1211,11 +1210,10 @@ class CapitalGainsCalculator:
             )
             tax_amount = abs(gbp_amount)
             if foreign_amount.currency == UK_CURRENCY:
-                self.total_uk_interest_tax += tax_amount
                 rule_prefix = "interestTaxUK"
             else:
-                self.total_foreign_interest_tax += tax_amount
                 rule_prefix = f"interestTax{currency.upper()}"
+            self.total_foreign_interest_tax += tax_amount
 
             self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
                 CalculationEntry(
@@ -1467,7 +1465,6 @@ class CapitalGainsCalculator:
             dict(sorted(self.calculation_log_yields.items())),
             round_decimal(self.total_uk_interest, 2),
             round_decimal(self.total_foreign_interest, 2),
-            round_decimal(self.total_uk_interest_tax, 2),
             round_decimal(self.total_foreign_interest_tax, 2),
             show_unrealized_gains=self.calc_unrealized_gains,
         )

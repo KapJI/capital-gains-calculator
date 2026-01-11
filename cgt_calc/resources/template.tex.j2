@@ -238,7 +238,6 @@
 \subsection*{Total amount of taxable dividends proceeds: £\VAR{ "{:,}".format(round_decimal(report.total_dividend_taxable_gain(), 2)) }}
 \subsection*{Total amount of UK interests proceeds: £\VAR{ "{:,}".format(report.total_uk_interest) }}
 \subsection*{Total amount of foreign interests proceeds: £\VAR{ "{:,}".format(report.total_foreign_interest) }}
-\subsection*{Total amount of UK interest tax paid: £\VAR{ "{:,}".format(report.total_uk_interest_tax) }}
 \subsection*{Total amount of foreign interest tax paid: £\VAR{ "{:,}".format(report.total_foreign_interest_tax) }}
 \BLOCK{ if report.total_eri_amount(True) > 0 }
 \subsubsection*{   (including £\VAR{ "{:,}".format(round_decimal(report.total_eri_amount(True), 2))} from excess reported income distributions)}
