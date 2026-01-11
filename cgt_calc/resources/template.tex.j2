@@ -163,14 +163,14 @@
         \BLOCK{ set symbol = symbol[11:] }
         \BLOCK{ set is_interest = True }
         \BLOCK{ set interest_str = "UK" }
-    \BLOCK{ elif symbol.startswith("interestTaxUK$") }
-        \BLOCK{ set symbol = symbol[14:] }
-        \BLOCK{ set is_interest_tax = True }
-        \BLOCK{ set interest_tax_str = "UK" }
     \BLOCK{ elif symbol.startswith("interestTax") }
         \BLOCK{ set symbol = symbol.split('$')[0][11:] }
         \BLOCK{ set is_interest_tax = True }
-        \BLOCK{ set interest_tax_str = "Foreign" }
+        \BLOCK{ if symbol == "GBP" }
+            \BLOCK{ set interest_tax_str = "UK" }
+        \BLOCK{ else }
+            \BLOCK{ set interest_tax_str = "Foreign" }
+        \BLOCK{ endif }
     \BLOCK{ elif symbol.startswith("interest") }
         \BLOCK{ set symbol = symbol.split('$')[0][8:] }
         \BLOCK{ set is_interest = True }

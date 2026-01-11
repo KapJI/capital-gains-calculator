@@ -1209,10 +1209,7 @@ class CapitalGainsCalculator:
                 foreign_amount.amount, foreign_amount.currency, date
             )
             tax_amount = abs(gbp_amount)
-            if foreign_amount.currency == UK_CURRENCY:
-                rule_prefix = "interestTaxUK"
-            else:
-                rule_prefix = f"interestTax{currency.upper()}"
+            rule_prefix = f"interestTax{currency.upper()}"
             self.total_foreign_interest_tax += tax_amount
 
             self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
