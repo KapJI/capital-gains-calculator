@@ -1175,9 +1175,9 @@ class CapitalGainsCalculator:
                     and date.month == last_tax_date.month
                     and currency == last_tax_currency
                 ):
-                    monthly_interest_taxes[
-                        (broker, currency, date)
-                    ] = monthly_interest_taxes.pop((broker, currency, last_tax_date))
+                    monthly_interest_taxes[(broker, currency, date)] = (
+                        monthly_interest_taxes.pop((broker, currency, last_tax_date))
+                    )
                 monthly_interest_taxes[(broker, currency, date)] += foreign_amount
                 last_tax_date = date
                 last_tax_broker = broker
