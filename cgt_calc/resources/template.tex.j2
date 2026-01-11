@@ -11,6 +11,7 @@
 \BLOCK{ set disposal_count = namespace(value=0) }
 \BLOCK{ set dividend_count = namespace(value=0) }
 \BLOCK{ set interest_count = namespace(value=0) }
+\BLOCK{ set interest_tax_count = namespace(value=0) }
 \BLOCK{ set eri_count = namespace(value=0) }
 
 \section*{Capital Gains Events}
@@ -162,6 +163,14 @@
         \BLOCK{ set symbol = symbol[11:] }
         \BLOCK{ set is_interest = True }
         \BLOCK{ set interest_str = "UK" }
+    \BLOCK{ elif symbol.startswith("interestTaxUK$") }
+        \BLOCK{ set symbol = symbol[14:] }
+        \BLOCK{ set is_interest_tax = True }
+        \BLOCK{ set interest_tax_str = "UK" }
+    \BLOCK{ elif symbol.startswith("interestTax") }
+        \BLOCK{ set symbol = symbol.split('$')[0][11:] }
+        \BLOCK{ set is_interest_tax = True }
+        \BLOCK{ set interest_tax_str = "Foreign" }
     \BLOCK{ elif symbol.startswith("interest") }
         \BLOCK{ set symbol = symbol.split('$')[0][8:] }
         \BLOCK{ set is_interest = True }
@@ -186,6 +195,9 @@
     \BLOCK{ elif is_interest } % if is_interest
         \BLOCK{ set interest_count.value = interest_count.value + 1 }
         \textbf{Interest \VAR{ interest_str } \VAR{ interest_count.value }:} \VAR{ symbol } for £\VAR{ "{:,}".format(round_decimal(entries[0].amount, 2)) }
+    \BLOCK{ elif is_interest_tax } % if is_interest_tax
+        \BLOCK{ set interest_tax_count.value = interest_tax_count.value + 1 }
+        \textbf{Interest tax \VAR{ interest_tax_str } \VAR{ interest_tax_count.value }:} \VAR{ symbol } for £\VAR{ "{:,}".format(round_decimal(entries[0].amount, 2)) }
     \BLOCK{ elif is_eri_tax } % if is_eri_tax
         \BLOCK{ if entries[0].eris[0].is_interest }
             \BLOCK{ set type_str = " (interest)" }
@@ -215,6 +227,7 @@
 \section*{Overall - Dividends and Interests}
 \subsection*{Number of dividend distributions: \VAR{ dividend_count.value }}
 \subsection*{Number of interest transactions: \VAR{ interest_count.value }}
+\subsection*{Number of interest tax transactions: \VAR{ interest_tax_count.value }}
 \subsection*{Number of excess reported income distributions: \VAR{ eri_count.value }}
 \subsection*{Total amount of dividends proceeds: £\VAR{ "{:,}".format(round_decimal(report.total_dividends_amount(), 2)) }}
 \BLOCK{ if report.total_eri_amount(False) > 0 }
@@ -225,6 +238,8 @@
 \subsection*{Total amount of taxable dividends proceeds: £\VAR{ "{:,}".format(round_decimal(report.total_dividend_taxable_gain(), 2)) }}
 \subsection*{Total amount of UK interests proceeds: £\VAR{ "{:,}".format(report.total_uk_interest) }}
 \subsection*{Total amount of foreign interests proceeds: £\VAR{ "{:,}".format(report.total_foreign_interest) }}
+\subsection*{Total amount of UK interest tax paid: £\VAR{ "{:,}".format(report.total_uk_interest_tax) }}
+\subsection*{Total amount of foreign interest tax paid: £\VAR{ "{:,}".format(report.total_foreign_interest_tax) }}
 \BLOCK{ if report.total_eri_amount(True) > 0 }
 \subsubsection*{   (including £\VAR{ "{:,}".format(round_decimal(report.total_eri_amount(True), 2))} from excess reported income distributions)}
 \BLOCK{ endif }

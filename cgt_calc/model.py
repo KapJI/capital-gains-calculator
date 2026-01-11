@@ -155,6 +155,7 @@ class ActionType(Enum):
     CASH_MERGER = 16
     EXCESS_REPORTED_INCOME = 17
     FULL_REDEMPTION = 18
+    INTEREST_TAX = 19
 
 
 class CalculationType(Enum):
@@ -190,8 +191,9 @@ class RuleType(Enum):
     SPIN_OFF = 4
     DIVIDEND = 5
     INTEREST = 6
-    EXCESS_REPORTED_INCOME = 7
-    EXCESS_REPORTED_INCOME_DISTRIBUTION = 8
+    INTEREST_TAX = 7
+    EXCESS_REPORTED_INCOME = 8
+    EXCESS_REPORTED_INCOME_DISTRIBUTION = 9
 
 
 @dataclass
@@ -256,6 +258,7 @@ class CalculationEntry:
             RuleType.SPIN_OFF,
             RuleType.DIVIDEND,
             RuleType.INTEREST,
+            RuleType.INTEREST_TAX,
             RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
         ):
             assert self.gain == self.amount + self.fees - self.allowable_cost, (
@@ -363,6 +366,8 @@ class CapitalGainsReport:
     calculation_log_yields: CalculationLog
     total_uk_interest: Decimal
     total_foreign_interest: Decimal
+    total_uk_interest_tax: Decimal
+    total_foreign_interest_tax: Decimal
     show_unrealized_gains: bool
 
     def _filter_calculation_log(
@@ -510,5 +515,7 @@ class CapitalGainsReport:
             )
         out += f"Total UK interest proceeds: £{self.total_uk_interest}\n"
         out += f"Total foreign interest proceeds: £{self.total_foreign_interest}\n"
+        out += f"Total UK interest tax paid: £{self.total_uk_interest_tax}\n"
+        out += f"Total foreign interest tax paid: £{self.total_foreign_interest_tax}\n"
 
         return out
