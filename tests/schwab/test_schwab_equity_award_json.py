@@ -52,8 +52,10 @@ def test_decimal_from_number_or_str_default() -> None:
 
 def test_schwab_transaction_v1() -> None:
     """Test read_schwab_equity_award_json_transactions() on v1 data."""
-    transactions = schwab_equity_award_json.read_schwab_equity_award_json_transactions(
-        Path("tests/schwab/data/equity_award/schwab_equity_award_v1.json")
+    transactions = (
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            Path("tests/schwab/data/equity_award/schwab_equity_award_v1.json")
+        )
     )
 
     assert transactions[0].date == datetime.date(2022, 4, 25)
@@ -90,8 +92,10 @@ def test_schwab_transaction_v1() -> None:
 
 def test_schwab_transaction_v2() -> None:
     """Test read_schwab_equity_award_json_transactions() on v2 data."""
-    transactions = schwab_equity_award_json.read_schwab_equity_award_json_transactions(
-        Path("tests/schwab/data/equity_award/schwab_equity_award_v2.json")
+    transactions = (
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            Path("tests/schwab/data/equity_award/schwab_equity_award_v2.json")
+        )
     )
 
     i = 0
@@ -168,8 +172,10 @@ def test_schwab_transaction_v2_rounding() -> None:
 
     This tests 13 vesting events with 7 shares each, which are then sold.
     """
-    transactions = schwab_equity_award_json.read_schwab_equity_award_json_transactions(
-        Path("tests/schwab/data/equity_award/schwab_equity_award_v2_rounding.json")
+    transactions = (
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            Path("tests/schwab/data/equity_award/schwab_equity_award_v2_rounding.json")
+        )
     )
 
     assert transactions[0].date == datetime.date(2020, 4, 24)
