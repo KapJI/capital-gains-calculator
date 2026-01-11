@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, Final, TextIO
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO
 
 from cgt_calc.exceptions import (
     ParsingError,
@@ -175,6 +175,7 @@ class FreetradeParser(BaseSingleFileParser):
     arg_name = "freetrade"
     pretty_name = "Freetrade"
     format_name = "CSV"
+    deprecated_flags: ClassVar[list[str]] = ["--freetrade"]
 
     @classmethod
     def read_transactions(

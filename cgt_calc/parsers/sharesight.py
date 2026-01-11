@@ -9,7 +9,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, Final, TextIO
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
@@ -147,6 +147,7 @@ class SharesightParser(BaseDirParser):
     pretty_name = "Sharesight"
     format_name = "CSV"
     glob_dir = "*.csv"
+    deprecated_flags: ClassVar[list[str]] = ["--sharesight"]
 
     # ===== public API =====
 

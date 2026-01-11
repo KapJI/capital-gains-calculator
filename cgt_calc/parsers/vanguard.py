@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
 import re
-from typing import TYPE_CHECKING, Final, TextIO, cast
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO, cast
 
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
@@ -162,6 +162,7 @@ class VanguardParser(BaseSingleFileParser):
     arg_name = "vanguard"
     pretty_name = "Vanguard"
     format_name = "CSV"
+    deprecated_flags: ClassVar[list[str]] = ["--vanguard"]
 
     @classmethod
     def read_transactions(

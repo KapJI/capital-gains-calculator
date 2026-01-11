@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
-from typing import TYPE_CHECKING, Final, TextIO
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
@@ -101,6 +101,7 @@ class MSSBParser(BaseDirParser):
     pretty_name = BROKER_NAME
     format_name = "CSV"
     glob_dir = "*.csv"
+    deprecated_flags: ClassVar[list[str]] = ["--mssb"]
 
     @classmethod
     def file_path_filter(cls, file_path: Path) -> bool:

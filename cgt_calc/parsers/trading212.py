@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, Final, TextIO
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
@@ -265,6 +265,7 @@ class Trading212Parser(BaseDirParser):
     pretty_name = "Trading 212"
     format_name = "CSV"
     glob_dir = "*.csv"
+    deprecated_flags: ClassVar[list[str]] = ["--trading212"]
 
     @classmethod
     def read_transactions(

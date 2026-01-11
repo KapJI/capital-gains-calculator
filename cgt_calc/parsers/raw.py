@@ -7,7 +7,7 @@ import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, Final, Literal, TextIO, overload
+from typing import TYPE_CHECKING, ClassVar, Final, Literal, TextIO, overload
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
@@ -172,6 +172,7 @@ class RawParser(BaseSingleFileParser):
     arg_name = "raw"
     pretty_name = "RAW format"
     format_name = "CSV"
+    deprecated_flags: ClassVar[list[str]] = ["--raw"]
 
     @staticmethod
     def _validate_header(header: list[str], file: Path) -> None:

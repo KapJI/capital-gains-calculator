@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from collections import OrderedDict, defaultdict
 import csv
 from dataclasses import dataclass
@@ -9,9 +10,9 @@ import datetime
 from decimal import Decimal
 from enum import Enum
 import logging
-from typing import TYPE_CHECKING, Final, TextIO
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO
 
-from cgt_calc.args_validators import existing_file_type
+from cgt_calc.args_validators import DeprecatedAction, existing_file_type
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
     ParsingError,
@@ -25,7 +26,6 @@ from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
 from .base_parsers import BaseSingleFileParser
 
 if TYPE_CHECKING:
-    import argparse
     from pathlib import Path
 
 OLD_COLUMNS_NUM: Final = 9
@@ -612,6 +612,7 @@ class SchwabParser(BaseSingleFileParser):
     arg_name = "schwab"
     pretty_name = "Charles Schwab"
     format_name = "CSV"
+    deprecated_flags: ClassVar[list[str]] = ["--schwab"]
 
     awards_prices: AwardPrices = _read_schwab_awards(None)
 
@@ -624,6 +625,13 @@ class SchwabParser(BaseSingleFileParser):
             default=None,
             metavar="PATH",
             help="Charles Schwab Equity Awards transaction history in CSV format",
+        )
+        arg_group.add_argument(
+            "--schwab-award",
+            action=DeprecatedAction,
+            dest="schwab_award_file",
+            type=existing_file_type,
+            help=argparse.SUPPRESS,
         )
         super().register_arguments(arg_group)
 

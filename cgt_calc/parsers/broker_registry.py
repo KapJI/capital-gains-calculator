@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import argparse
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-from cgt_calc.args_validators import (
-    DeprecatedAction,
-    existing_directory_type,
-    existing_file_type,
-)
 from cgt_calc.parsers.eri.raw import ERIRawParser
 from cgt_calc.parsers.freetrade import FreetradeParser
 from cgt_calc.parsers.mssb import MSSBParser
@@ -22,6 +16,8 @@ from cgt_calc.parsers.trading212 import Trading212Parser
 from cgt_calc.parsers.vanguard import VanguardParser
 
 if TYPE_CHECKING:
+    import argparse
+
     from cgt_calc.model import BrokerTransaction
 
     from .base_parsers import BaseParser
@@ -52,73 +48,6 @@ class BrokerRegistry:
 
         # ERI Raw is not a broker but is close enough to one to be here
         ERIRawParser.register_arguments(broker_group)
-
-        BrokerRegistry._register_deprecated_arguments(broker_group)
-
-    @staticmethod
-    def _register_deprecated_arguments(broker_group: argparse._ArgumentGroup) -> None:
-        broker_group.add_argument(
-            "--freetrade",
-            action=DeprecatedAction,
-            dest="freetrade_file",
-            type=existing_file_type,
-            help=argparse.SUPPRESS,
-        )
-        broker_group.add_argument(
-            "--mssb",
-            action=DeprecatedAction,
-            dest="mssb_dir",
-            type=existing_directory_type,
-            help=argparse.SUPPRESS,
-        )
-        broker_group.add_argument(
-            "--raw",
-            action=DeprecatedAction,
-            dest="raw_file",
-            type=existing_file_type,
-            help=argparse.SUPPRESS,
-        )
-        broker_group.add_argument(
-            "--schwab",
-            action=DeprecatedAction,
-            dest="schwab_file",
-            type=existing_file_type,
-            help=argparse.SUPPRESS,
-        )
-        broker_group.add_argument(
-            "--schwab-award",
-            action=DeprecatedAction,
-            dest="schwab_award_file",
-            type=existing_file_type,
-            help=argparse.SUPPRESS,
-        )
-        broker_group.add_argument(
-            "--schwab_equity_award_json",
-            action=DeprecatedAction,
-            type=existing_file_type,
-            default=None,
-            help=argparse.SUPPRESS,
-        )
-        broker_group.add_argument(
-            "--sharesight",
-            action=DeprecatedAction,
-            dest="sharesight_dir",
-            type=existing_directory_type,
-            help=argparse.SUPPRESS,
-        )
-        broker_group.add_argument(
-            "--trading212",
-            action=DeprecatedAction,
-            dest="trading212_dir",
-            type=existing_directory_type,
-            help=argparse.SUPPRESS,
-        )
-        broker_group.add_argument(
-            "--vanguard",
-            dest="vanguard_file",
-            type=existing_file_type,
-            help=argparse.SUPPRESS,
-        )
 
     @staticmethod
     def load_all_transactions(args: argparse.Namespace) -> list[BrokerTransaction]:

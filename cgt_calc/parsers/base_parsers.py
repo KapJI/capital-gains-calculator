@@ -4,9 +4,13 @@ from abc import ABC, abstractmethod
 import argparse
 import logging
 from pathlib import Path
-from typing import TextIO
+from typing import ClassVar, TextIO
 
-from cgt_calc.args_validators import existing_directory_type, existing_file_type
+from cgt_calc.args_validators import (
+    DeprecatedAction,
+    existing_directory_type,
+    existing_file_type,
+)
 from cgt_calc.model import BrokerTransaction
 
 LOGGER = logging.getLogger(__name__)
@@ -33,6 +37,7 @@ class BaseSingleFileParser(BaseParser):
     pretty_name: str
     format_name: str
     full_arg: str
+    deprecated_flags: ClassVar[list[str]] = []
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Compute full arg."""
@@ -51,6 +56,14 @@ class BaseSingleFileParser(BaseParser):
             metavar="PATH",
             help=f"{cls.pretty_name} transaction history in {cls.format_name} format",
         )
+        for deprecated_flag in cls.deprecated_flags:
+            arg_group.add_argument(
+                deprecated_flag,
+                action=DeprecatedAction,
+                dest=cls.full_arg.replace("-", "_"),
+                type=existing_file_type,
+                help=argparse.SUPPRESS,
+            )
 
     @classmethod
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
@@ -85,6 +98,7 @@ class BaseDirParser(BaseSingleFileParser):
     """Parser for loading all files within a directory."""
 
     glob_dir: str
+    deprecated_flags: ClassVar[list[str]] = []
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Compute full arg."""
@@ -101,6 +115,14 @@ class BaseDirParser(BaseSingleFileParser):
             metavar="DIR",
             help=f"directory with {cls.pretty_name} reports in {cls.format_name} format",
         )
+        for deprecated_flag in cls.deprecated_flags:
+            arg_group.add_argument(
+                deprecated_flag,
+                action=DeprecatedAction,
+                dest=cls.full_arg.replace("-", "_"),
+                type=existing_directory_type,
+                help=argparse.SUPPRESS,
+            )
 
     @classmethod
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:

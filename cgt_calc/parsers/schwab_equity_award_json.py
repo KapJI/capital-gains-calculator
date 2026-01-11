@@ -19,7 +19,7 @@ import datetime
 from decimal import Decimal
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Final, TextIO
+from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
@@ -366,6 +366,7 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
     arg_name = "schwab-equity-award"
     pretty_name = "Charles Schwab Equity Awards"
     format_name = "JSON"
+    deprecated_flags: ClassVar[list[str]] = ["--schwab_equity_award_json"]
 
     @classmethod
     def read_transactions(
