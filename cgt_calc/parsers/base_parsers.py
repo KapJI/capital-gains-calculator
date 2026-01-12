@@ -2,6 +2,8 @@
 
 from abc import ABC, abstractmethod
 import argparse
+from collections.abc import Iterable, Sequence
+import csv
 import logging
 from pathlib import Path
 from typing import ClassVar, TextIO
@@ -11,6 +13,7 @@ from cgt_calc.args_validators import (
     existing_directory_type,
     existing_file_type,
 )
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import BrokerTransaction
 
 LOGGER = logging.getLogger(__name__)
@@ -92,6 +95,68 @@ class BaseSingleFileParser(BaseParser):
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
         """Parse broker transactions from open file."""
+
+
+class StandardCSVParser(BaseSingleFileParser):
+    """Parser for RAW format transaction files."""
+
+    columns: ClassVar[set[str]]
+
+    @classmethod
+    def _validate_header(cls, header: Sequence[str], file_path: Path) -> None:
+        """Validate optional header row."""
+        if cls.columns != set(header):
+            missing = cls.columns - set(header)
+            extra = set(header) - cls.columns
+            raise ParsingError(
+                file_path,
+                f"CSV header mismatch. "
+                f"Missing: {missing or 'none'}, Extra: {extra or 'none'}",
+            )
+
+    @classmethod
+    @abstractmethod
+    def read_row(cls, row: dict[str, str], file_path: Path) -> BrokerTransaction | None:
+        """Read a single transaction from a row in the CSV."""
+
+    @classmethod
+    def pre_reading(cls, file: TextIO, file_path: Path) -> Iterable[str]:
+        """Do any preprocessing of the file before parsing the csv."""
+        return file
+
+    @classmethod
+    def read_transactions(
+        cls, file: TextIO, file_path: Path
+    ) -> list[BrokerTransaction]:
+        """Read Raw transactions from file."""
+        reader = csv.DictReader(cls.pre_reading(file, file_path))
+        if reader.fieldnames is None:
+            raise ParsingError(
+                file_path, f"{cls.pretty_name} {cls.format_name} doesn't have a header"
+            )
+        cls._validate_header(reader.fieldnames, file_path)
+
+        if not reader:
+            raise ParsingError(
+                file_path, f"{cls.pretty_name} {cls.format_name} file is empty"
+            )
+
+        transactions: list[BrokerTransaction] = []
+        for index, row in enumerate(reader):
+            try:
+                if len(row) != len(cls.columns):
+                    raise UnexpectedColumnCountError(
+                        list(row.values()), len(cls.columns), file_path
+                    )
+                transaction = cls.read_row(row, file_path)
+                if transaction:
+                    transactions.append(transaction)
+            except ParsingError as err:
+                err.add_row_context(index)
+                raise
+            except ValueError as err:
+                raise ParsingError(file_path, str(err), row_index=index) from err
+        return transactions
 
 
 class BaseDirParser(BaseSingleFileParser):

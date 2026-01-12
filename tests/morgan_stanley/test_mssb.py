@@ -39,7 +39,7 @@ def test_read_mssb_transactions_empty_file(tmp_path: Path) -> None:
     with pytest.raises(ParsingError) as exc:
         MSSBParser().load_from_dir(tmp_path)
 
-    assert "CSV file is empty" in str(exc.value)
+    assert "CSV doesn't have a header" in str(exc.value)
 
 
 def test_read_mssb_release_success(tmp_path: Path) -> None:
@@ -133,7 +133,7 @@ def test_read_mssb_withdrawal_invalid_decimal(tmp_path: Path) -> None:
         MSSBParser().load_from_dir(tmp_path)
 
     message = str(exc.value)
-    assert "row 2" in message
+    assert "row 0" in message
     assert "Invalid decimal in column 'Quantity'" in message
 
 
@@ -147,4 +147,4 @@ def test_read_mssb_release_invalid_header(tmp_path: Path) -> None:
     with pytest.raises(ParsingError) as exc:
         MSSBParser().load_from_dir(tmp_path)
 
-    assert "Expected column 1" in str(exc.value)
+    assert "CSV header mismatch" in str(exc.value)

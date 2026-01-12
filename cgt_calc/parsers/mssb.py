@@ -6,7 +6,6 @@ for another company, or for a full profile.
 
 from __future__ import annotations
 
-import csv
 from dataclasses import dataclass
 import datetime
 from decimal import Decimal, InvalidOperation
@@ -14,12 +13,13 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO
 
 from cgt_calc.const import TICKER_RENAMES
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 
-from .base_parsers import BaseDirParser
+from .base_parsers import BaseDirParser, StandardCSVParser
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
 BROKER_NAME: Final = "Morgan Stanley"
@@ -94,7 +94,7 @@ def _parse_decimal(row: dict[str, str], column: StrEnum) -> Decimal:
         ) from err
 
 
-class MSSBParser(BaseDirParser):
+class MSSBParser(StandardCSVParser, BaseDirParser):
     """Morgan Stanley parser."""
 
     arg_name = "mssb"
@@ -112,48 +112,23 @@ class MSSBParser(BaseDirParser):
         ]
 
     @classmethod
-    def read_transactions(
-        cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
-        """Parse Morgan Stanley transactions from CSV file."""
-        transactions: list[BrokerTransaction] = []
-        lines = list(csv.reader(file))
-        if not lines:
-            raise ParsingError(file_path, "Morgan Stanley CSV file is empty")
-        header = lines[0]
-        lines = lines[1:]
-
+    def pre_reading(cls, file: TextIO, file_path: Path) -> Iterable[str]:
+        """Do any preprocessing of the file before parsing the csv."""
         if file_path.name == WITHDRAWALS_REPORT_FILENAME:
-            cls._validate_header(header, COLUMNS_WITHDRAWAL, file_path)
-            for index, row in enumerate(lines, start=2):
-                try:
-                    transaction = cls._init_from_withdrawal_report(row, file_path)
-                except ParsingError as err:
-                    err.add_row_context(index)
-                    raise
-                except ValueError as err:
-                    raise ParsingError(file_path, str(err), row_index=index) from err
-                if transaction:
-                    transactions.append(transaction)
+            cls.columns = set(COLUMNS_WITHDRAWAL)
         else:
-            cls._validate_header(header, COLUMNS_RELEASE, file_path)
-            for index, row in enumerate(lines, start=2):
-                try:
-                    transaction = cls._init_from_release_report(row, file_path)
-                except ParsingError as err:
-                    err.add_row_context(index)
-                    raise
-                except ValueError as err:
-                    raise ParsingError(file_path, str(err), row_index=index) from err
-                transactions.append(transaction)
-        return transactions
+            cls.columns = set(COLUMNS_RELEASE)
+        return file
+
+    @classmethod
+    def read_row(cls, row: dict[str, str], file_path: Path) -> BrokerTransaction | None:
+        """Read a single transaction from a row in the CSV."""
+        if file_path.name == WITHDRAWALS_REPORT_FILENAME:
+            return cls._init_from_withdrawal_report(row, file_path)
+        return cls._init_from_release_report(row, file_path)
 
     @staticmethod
-    def _init_from_release_report(row_raw: list[str], file: Path) -> BrokerTransaction:
-        if len(COLUMNS_RELEASE) != len(row_raw):
-            raise UnexpectedColumnCountError(row_raw, len(COLUMNS_RELEASE), file)
-        row = dict(zip(COLUMNS_RELEASE, row_raw, strict=False))
-
+    def _init_from_release_report(row: dict[str, str], file: Path) -> BrokerTransaction:
         plan = row[ReleaseColumn.PLAN]
 
         if row[ReleaseColumn.TYPE] != "Release":
@@ -204,19 +179,16 @@ class MSSBParser(BaseDirParser):
     # For GSU vests, your activity is displayed in post-split values."
     # It makes sense, but it totally breaks the CSV parsing
     @staticmethod
-    def _is_notice(row: list[str]) -> bool:
-        return row[0][:11] == "Please note"
+    def _is_notice(row: dict[str, str]) -> bool:
+        row_str = ",".join([c for c in row.values() if c])
+        return row_str.startswith("Please note")
 
     @staticmethod
     def _init_from_withdrawal_report(
-        row_raw: list[str], file: Path
+        row: dict[str, str], file: Path
     ) -> BrokerTransaction | None:
-        if MSSBParser._is_notice(row_raw):
+        if MSSBParser._is_notice(row):
             return None
-
-        if len(COLUMNS_WITHDRAWAL) != len(row_raw):
-            raise UnexpectedColumnCountError(row_raw, len(COLUMNS_WITHDRAWAL), file)
-        row = dict(zip(COLUMNS_WITHDRAWAL, row_raw, strict=False))
 
         plan = row[WithdrawalColumn.PLAN]
 
@@ -277,15 +249,3 @@ class MSSBParser(BaseDirParser):
                     transaction.price /= split.factor
 
         return transaction
-
-    @staticmethod
-    def _validate_header(
-        header: list[str], golden_header: list[str], file: Path
-    ) -> None:
-        """Check if header is valid."""
-        if len(golden_header) != len(header):
-            raise UnexpectedColumnCountError(header, len(golden_header), file)
-        for i, (expected, actual) in enumerate(zip(golden_header, header, strict=True)):
-            if expected != actual:
-                msg = f"Expected column {i + 1} to be {expected} but found {actual}"
-                raise ParsingError(file, msg)
