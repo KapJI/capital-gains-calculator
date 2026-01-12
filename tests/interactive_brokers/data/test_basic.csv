@@ -1,0 +1,19 @@
+Statement,Header,Field Name,Field Value
+Statement,Data,Title,Transaction History
+Statement,Data,Period,"January 1, 2024 - December 31, 2025"
+Statement,Data,WhenGenerated,"2025-12-31, 23:59:59 EST"
+Summary,Header,Field Name,Field Value
+Summary,Data,Base Currency,GBP
+Summary,Data,Starting Cash,0.0
+Summary,Data,Change,200.00
+Summary,Data,Ending Cash,200.00
+Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Gross Amount ,Commission,Net Amount
+Transaction History,Data,2025-10-01,U***00000,IBKR(US45841N1072) Payment in Lieu of Dividend (Ordinary Dividend),Payment in Lieu,IBKR,-,-,1.0,-,1.0
+Transaction History,Data,2025-10-01,U***00000,IBKR(US45841N1072) Payment in Lieu of Dividend - US Tax,Foreign Tax Withholding,IBKR,-,-,-0.2,-,-0.2
+Transaction History,Data,2025-10-01,U***00000,Net Amount in Base from Forex Trade: 0.8 GBP.USD,Forex Trade Component,GBP.USD,0.8,1.32,-2.637591265E-4,-,-2.637591265E-4
+Transaction History,Data,2025-08-15,U***00000,ISHARES NASDAQ 100 USD ACC,Sell,CNX1,-2.0,1001.00,2002.0,-3.0,1999.0
+Transaction History,Data,2025-03-15,U***00000,ISHARES NASDAQ 100 USD ACC,Buy,CNX1,4.0,1000.0,-4000.0,-3.0,-4003.0
+Transaction History,Data,2025-02-08,U***00000,CANCEL WITHHOLDING ON Credit Interest for Feb-2025,Foreign Tax Withholding,-,-,-,3.9,-,3.9
+Transaction History,Data,2025-02-01,U***00000,Withholding @ 30% on Credit Interest for Feb-2025,Foreign Tax Withholding,-,-,-,-3.9,-,-3.9
+Transaction History,Data,2025-02-01,U***00000,GBP Credit Interest for Feb-2025,Credit Interest,-,-,-,13.0,-,13.0
+Transaction History,Data,2025-01-01,U***00000,Electronic Fund Transfer,Deposit,-,-,-,5000.0,-,5000.0
