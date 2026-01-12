@@ -16,7 +16,7 @@ from cgt_calc.parsers.mssb import (
     COLUMNS_WITHDRAWAL,
     RELEASES_REPORT_FILENAME,
     WITHDRAWALS_REPORT_FILENAME,
-    read_mssb_transactions,
+    MSSBParser,
 )
 
 if TYPE_CHECKING:
@@ -37,9 +37,9 @@ def test_read_mssb_transactions_empty_file(tmp_path: Path) -> None:
     empty_file.write_text("", encoding="utf-8")
 
     with pytest.raises(ParsingError) as exc:
-        read_mssb_transactions(tmp_path)
+        MSSBParser().load_from_dir(tmp_path)
 
-    assert "CSV file is empty" in str(exc.value)
+    assert "CSV doesn't have a header" in str(exc.value)
 
 
 def test_read_mssb_release_success(tmp_path: Path) -> None:
@@ -63,7 +63,7 @@ def test_read_mssb_release_success(tmp_path: Path) -> None:
     ]
     _write_csv(release_file, rows)
 
-    transactions = read_mssb_transactions(tmp_path)
+    transactions = MSSBParser().load_from_dir(tmp_path)
 
     assert len(transactions) == 1
     transaction = transactions[0]
@@ -99,7 +99,7 @@ def test_read_mssb_withdrawal_skips_notice(tmp_path: Path) -> None:
     ]
     _write_csv(withdrawal_file, rows)
 
-    transactions = read_mssb_transactions(tmp_path)
+    transactions = MSSBParser().load_from_dir(tmp_path)
 
     assert len(transactions) == 1
     transaction = transactions[0]
@@ -130,10 +130,10 @@ def test_read_mssb_withdrawal_invalid_decimal(tmp_path: Path) -> None:
     _write_csv(withdrawal_file, rows)
 
     with pytest.raises(ParsingError) as exc:
-        read_mssb_transactions(tmp_path)
+        MSSBParser().load_from_dir(tmp_path)
 
     message = str(exc.value)
-    assert "row 2" in message
+    assert "row 0" in message
     assert "Invalid decimal in column 'Quantity'" in message
 
 
@@ -145,6 +145,6 @@ def test_read_mssb_release_invalid_header(tmp_path: Path) -> None:
     _write_csv(release_file, [invalid_header])
 
     with pytest.raises(ParsingError) as exc:
-        read_mssb_transactions(tmp_path)
+        MSSBParser().load_from_dir(tmp_path)
 
-    assert "Expected column 1" in str(exc.value)
+    assert "CSV header mismatch" in str(exc.value)
