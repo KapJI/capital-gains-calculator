@@ -229,7 +229,7 @@ cgt-calc --year 2024 --freetrade-file freetrade_GIA.csv
 </details>
  <br />
  <details>
-    <summary>🏦 Instructions for Interactive Brokers</summary>
+    <summary>🏦 Instructions for Interactive Brokers (IBKR)</summary>
 
 You will need:
 
