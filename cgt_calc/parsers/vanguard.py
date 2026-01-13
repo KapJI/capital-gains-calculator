@@ -8,10 +8,12 @@ from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
 import re
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO, cast
 
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
+
+from .base_parsers import BaseSingleFileParser
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -142,20 +144,6 @@ class VanguardTransaction(BrokerTransaction):
         )
 
 
-def validate_header(header: list[str], file: Path) -> None:
-    """Check if header is valid."""
-
-    if len(header) != len(COLUMNS):
-        raise UnexpectedColumnCountError(header, len(COLUMNS), file)
-
-    for index, (exp, act) in enumerate(zip(COLUMNS, header, strict=True), start=1):
-        if exp != act:
-            raise ParsingError(
-                file,
-                f"Expected column {index} to be '{exp}' but found '{header[index - 1]}'",
-            )
-
-
 def by_date_and_action(
     transaction: VanguardTransaction,
 ) -> tuple[datetime.date, bool, bool]:
@@ -168,30 +156,48 @@ def by_date_and_action(
     )
 
 
-def read_vanguard_transactions(transactions_file: Path) -> list[VanguardTransaction]:
-    """Read Vanguard transactions from file."""
+class VanguardParser(BaseSingleFileParser):
+    """Parser for Vanguard transaction files."""
 
-    with transactions_file.open(encoding="utf-8") as csv_file:
-        print(f"Parsing {transactions_file}...")
-        lines = list(csv.reader(csv_file))
+    arg_name = "vanguard"
+    pretty_name = "Vanguard"
+    format_name = "CSV"
+    deprecated_flags: ClassVar[list[str]] = ["--vanguard"]
 
-    if not lines:
-        raise ParsingError(transactions_file, "Vanguard CSV file is empty")
-    header = lines[0]
-    validate_header(header, transactions_file)
+    @classmethod
+    def read_transactions(
+        cls, file: TextIO, file_path: Path
+    ) -> list[BrokerTransaction]:
+        """Read Vanguard transactions from file."""
+        lines = list(csv.reader(file))
 
-    transactions: list[VanguardTransaction] = []
-    for index, row in enumerate(lines[1:], start=2):
-        try:
-            transactions.append(VanguardTransaction(header, row, transactions_file))
-        except ParsingError as err:
-            err.add_row_context(index)
-            raise
-        except ValueError as err:
-            raise ParsingError(transactions_file, str(err), row_index=index) from err
-    if len(transactions) == 0:
-        LOGGER.warning("No transactions detected in file: %s", transactions_file)
+        if not lines:
+            raise ParsingError(file_path, "Vanguard CSV file is empty")
+        header = lines[0]
+        cls._validate_header(header, file_path)
 
-    transactions.sort(key=by_date_and_action)
+        transactions: list[VanguardTransaction] = []
+        for index, row in enumerate(lines[1:], start=2):
+            try:
+                transactions.append(VanguardTransaction(header, row, file_path))
+            except ParsingError as err:
+                err.add_row_context(index)
+                raise
+            except ValueError as err:
+                raise ParsingError(file_path, str(err), row_index=index) from err
+        transactions.sort(key=by_date_and_action)
+        return cast("list[BrokerTransaction]", transactions)
 
-    return transactions
+    @classmethod
+    def _validate_header(cls, header: list[str], file: Path) -> None:
+        """Check if header is valid."""
+
+        if len(header) != len(COLUMNS):
+            raise UnexpectedColumnCountError(header, len(COLUMNS), file)
+
+        for index, (exp, act) in enumerate(zip(COLUMNS, header, strict=True), start=1):
+            if exp != act:
+                raise ParsingError(
+                    file,
+                    f"Expected column {index} to be '{exp}' but found '{header[index - 1]}'",
+                )

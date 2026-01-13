@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from collections import OrderedDict, defaultdict
 import csv
 from dataclasses import dataclass
@@ -9,8 +10,9 @@ import datetime
 from decimal import Decimal
 from enum import Enum
 import logging
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO
 
+from cgt_calc.args_validators import DeprecatedAction, existing_file_type
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
     ParsingError,
@@ -20,6 +22,8 @@ from cgt_calc.exceptions import (
 )
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
+
+from .base_parsers import BaseSingleFileParser
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -60,6 +64,10 @@ class AwardPrices:
     """Class to store initial stock prices."""
 
     award_prices: dict[datetime.date, dict[str, Decimal]]
+
+    def __bool__(self) -> bool:
+        """Return True if not empty."""
+        return bool(self.award_prices)
 
     def get(self, date: datetime.date, symbol: str) -> tuple[datetime.date, Decimal]:
         """Get initial stock price at given date."""
@@ -531,54 +539,11 @@ def _filter_cancelled_buy_transactions(
     return [txn for i, txn in enumerate(transactions) if i not in indices_to_remove]
 
 
-def read_schwab_transactions(
-    transactions_file: Path, schwab_award_transactions_file: Path | None
-) -> list[BrokerTransaction]:
-    """Read Schwab transactions from file."""
-    awards_prices = _read_schwab_awards(schwab_award_transactions_file)
-
-    with transactions_file.open(encoding="utf-8") as csv_file:
-        print(f"Parsing {transactions_file}...")
-        lines = list(csv.reader(csv_file))
-    if not lines:
-        raise ParsingError(
-            transactions_file, "Charles Schwab transactions CSV file is empty"
-        )
-    headers = lines[0]
-
-    required_headers = set(
-        {header.value for header in SchwabTransactionsFileRequiredHeaders}
-    )
-    if not required_headers.issubset(headers):
-        raise ParsingError(
-            transactions_file,
-            "Missing columns in Schwab transaction file: "
-            f"{required_headers.difference(headers)}",
-        )
-
-    # Remove header
-    lines = lines[1:]
-    transactions = [
-        SchwabTransaction.create(
-            OrderedDict(zip(headers, row, strict=True)),
-            transactions_file,
-            awards_prices,
-        )
-        for row in lines
-        if any(row)
-    ]
-    transactions = _unify_schwab_paired_transactions(transactions, transactions_file)
-    transactions = _filter_cancelled_buy_transactions(transactions)
-    transactions.reverse()
-    return list(transactions)
-
-
 def _read_schwab_awards(
     schwab_award_transactions_file: Path | None,
 ) -> AwardPrices:
     """Read initial stock prices from CSV file."""
     if schwab_award_transactions_file is None:
-        LOGGER.warning("No Schwab Award file provided")
         return AwardPrices(award_prices={})
 
     initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
@@ -645,3 +610,81 @@ def _read_schwab_awards(
             symbol = TICKER_RENAMES.get(symbol, symbol)
             initial_prices[date][symbol] = price
     return AwardPrices(award_prices=dict(initial_prices))
+
+
+class SchwabParser(BaseSingleFileParser):
+    """Parser for RAW format transaction files."""
+
+    arg_name = "schwab"
+    pretty_name = "Charles Schwab"
+    format_name = "CSV"
+    deprecated_flags: ClassVar[list[str]] = ["--schwab"]
+
+    awards_prices: AwardPrices = _read_schwab_awards(None)
+
+    @classmethod
+    def register_arguments(cls, arg_group: argparse._ArgumentGroup) -> None:
+        """Register argparse arguments for this broker."""
+        arg_group.add_argument(
+            "--schwab-award-file",
+            type=existing_file_type,
+            default=None,
+            metavar="PATH",
+            help="Charles Schwab Equity Awards transaction history in CSV format",
+        )
+        arg_group.add_argument(
+            "--schwab-award",
+            action=DeprecatedAction,
+            dest="schwab_award_file",
+            type=existing_file_type,
+            help=argparse.SUPPRESS,
+        )
+        super().register_arguments(arg_group)
+
+    @classmethod
+    def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
+        """Load broker data from parsed arguments."""
+        award_path = args.schwab_award_file
+        cls.awards_prices = _read_schwab_awards(award_path)
+        return super().load_from_args(args)
+
+    @classmethod
+    def read_transactions(
+        cls, file: TextIO, file_path: Path
+    ) -> list[BrokerTransaction]:
+        """Read Schwab transactions from file."""
+
+        lines = list(csv.reader(file))
+        if not lines:
+            raise ParsingError(
+                file_path, "Charles Schwab transactions CSV file is empty"
+            )
+        if not cls.awards_prices:
+            LOGGER.warning("No Schwab Award file provided")
+        headers = lines[0]
+
+        required_headers = set(
+            {header.value for header in SchwabTransactionsFileRequiredHeaders}
+        )
+        if not required_headers.issubset(headers):
+            raise ParsingError(
+                file_path,
+                "Missing columns in Schwab transaction file: "
+                f"{required_headers.difference(headers)}",
+            )
+
+        # Remove header
+        lines = lines[1:]
+        transactions = [
+            SchwabTransaction.create(
+                OrderedDict(zip(headers, row, strict=True)),
+                file_path,
+                cls.awards_prices,
+            )
+            for row in lines
+            if any(row)
+        ]
+        transactions = _unify_schwab_paired_transactions(transactions, file_path)
+        transactions = _filter_cancelled_buy_transactions(transactions)
+        transactions.reverse()
+        return list(transactions)
