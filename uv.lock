@@ -136,7 +136,7 @@ requires-dist = [
     { name = "defusedxml", specifier = ">=0.7.1,<1.0.0" },
     { name = "jinja2", specifier = ">=2.11.3,<4.0.0" },
     { name = "pandas", specifier = ">=2.2" },
-    { name = "pyrate-limiter", specifier = ">=3.9.0" },
+    { name = "pyrate-limiter", specifier = ">=4.0.0" },
     { name = "requests", specifier = ">=2.27.1" },
     { name = "yfinance", specifier = ">=0.2.36" },
 ]
