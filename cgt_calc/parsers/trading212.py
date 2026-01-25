@@ -4,76 +4,58 @@ from __future__ import annotations
 
 import csv
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
-from enum import StrEnum
-import logging
-from typing import TYPE_CHECKING, ClassVar, Final, TextIO
+from decimal import Decimal
+from pathlib import Path
+from typing import Final
 
 from cgt_calc.const import TICKER_RENAMES
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 
-from .base_parsers import BaseDirParser
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
-
-class Trading212Column(StrEnum):
-    """Columns exported in the Trading 212 transaction CSV."""
-
-    ACTION = "Action"
-    TIME = "Time"
-    ISIN = "ISIN"
-    TICKER = "Ticker"
-    NAME = "Name"
-    NO_OF_SHARES = "No. of shares"
-    PRICE_PER_SHARE = "Price / share"
-    CURRENCY_PRICE_PER_SHARE = "Currency (Price / share)"
-    EXCHANGE_RATE = "Exchange rate"
-    RESULT_GBP = "Result (GBP)"
-    RESULT = "Result"
-    CURRENCY_RESULT = "Currency (Result)"
-    TOTAL_GBP = "Total (GBP)"
-    TOTAL = "Total"
-    CURRENCY_TOTAL = "Currency (Total)"
-    WITHHOLDING_TAX = "Withholding tax"
-    CURRENCY_WITHHOLDING_TAX = "Currency (Withholding tax)"
-    CHARGE_AMOUNT_GBP = "Charge amount (GBP)"
-    TRANSACTION_FEE_GBP = "Transaction fee (GBP)"
-    TRANSACTION_FEE = "Transaction fee"
-    FINRA_FEE_GBP = "Finra fee (GBP)"
-    FINRA_FEE = "Finra fee"
-    STAMP_DUTY_GBP = "Stamp duty (GBP)"
-    NOTES = "Notes"
-    TRANSACTION_ID = "ID"
-    CURRENCY_CONVERSION_FEE_GBP = "Currency conversion fee (GBP)"
-    CURRENCY_CONVERSION_FEE = "Currency conversion fee"
-    CURRENCY_CURRENCY_CONVERSION_FEE = "Currency (Currency conversion fee)"
-    CURRENCY_TRANSACTION_FEE = "Currency (Transaction fee)"
-    CURRENCY_FINRA_FEE = "Currency (Finra fee)"
+COLUMNS: Final[list[str]] = [
+    "Action",
+    "Time",
+    "ISIN",
+    "Ticker",
+    "Name",
+    "No. of shares",
+    "Price / share",
+    "Currency (Price / share)",
+    "Exchange rate",
+    "Result (GBP)",
+    "Result",
+    "Currency (Result)",
+    "Total (GBP)",
+    "Total",
+    "Currency (Total)",
+    "Withholding tax",
+    "Currency (Withholding tax)",
+    "Charge amount (GBP)",
+    "Transaction fee (GBP)",
+    "Transaction fee",
+    "Finra fee (GBP)",
+    "Finra fee",
+    "Stamp duty (GBP)",
+    "Stamp duty reserve tax",
+    "Currency (Stamp duty reserve tax)",
+    "Notes",
+    "ID",
+    "Currency conversion fee (GBP)",
+    "Currency conversion fee",
+    "Currency (Currency conversion fee)",
+    "Currency (Transaction fee)",
+    "Currency (Finra fee)",
+    "Merchant name",
+    "Merchant category",
+]
 
 
-COLUMNS: Final[list[str]] = [column.value for column in Trading212Column]
-COLUMN_SET: Final[set[str]] = {column.value for column in Trading212Column}
-LOGGER = logging.getLogger(__name__)
+def decimal_or_none(val: str) -> Decimal | None:
+    """Convert value to Decimal."""
+    return Decimal(val) if val not in ["", "Not available"] else None
 
 
-def decimal_or_none(
-    row: dict[Trading212Column, str], column: Trading212Column
-) -> Decimal | None:
-    """Convert a column value to Decimal or return None when blank."""
-
-    value = row.get(column)
-    if value is None or value in ("", "Not available"):
-        return None
-    try:
-        return Decimal(value)
-    except InvalidOperation as err:
-        raise ValueError(f"Invalid decimal in {column.value}: {value!r}") from err
-
-
-def action_from_str(label: str, file: Path) -> ActionType:
+def action_from_str(label: str, filename: str) -> ActionType:
     """Convert label to ActionType."""
     if label in [
         "Market buy",
@@ -86,12 +68,16 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Market sell",
         "Limit sell",
         "Stop sell",
+        "Stop limit sell",
     ]:
         return ActionType.SELL
 
     if label in [
         "Deposit",
         "Withdrawal",
+        "Card debit",
+        "Card credit",
+        "Spending cashback",
     ]:
         return ActionType.TRANSFER
 
@@ -99,6 +85,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Dividend (Ordinary)",
         "Dividend (Dividend)",
         "Dividend (Dividends paid by us corporations)",
+        "Dividend (Dividend manufactured payment)",
     ]:
         return ActionType.DIVIDEND
 
@@ -108,136 +95,111 @@ def action_from_str(label: str, file: Path) -> ActionType:
     ]:
         return ActionType.INTEREST
 
-    if label == "Stock Split":
+    if label in ["Stock Split", "Stock split close", "Stock split open"]:
         return ActionType.STOCK_SPLIT
 
     if label in ["Result adjustment"]:
         return ActionType.ADJUSTMENT
 
-    raise ParsingError(file, f"Unknown action: {label}")
+    if label == "Spin off":
+        return ActionType.SPIN_OFF
+
+    raise ParsingError(filename, f"Unknown action: {label}")
 
 
 class Trading212Transaction(BrokerTransaction):
     """Represent single Trading 212 transaction."""
 
-    def __init__(self, header: list[str], row_raw: list[str], file: Path) -> None:
+    def __init__(self, header: list[str], row_raw: list[str], filename: str):
         """Create transaction from CSV row."""
-        if len(row_raw) != len(header):
-            raise UnexpectedColumnCountError(row_raw, len(header), file)
-
-        row: dict[Trading212Column, str] = {
-            Trading212Column(column): value
-            for column, value in zip(header, row_raw, strict=False)
-        }
-
-        time_str = row[Trading212Column.TIME]
+        row = dict(zip(header, row_raw))
+        time_str = row["Time"]
         time_format = "%Y-%m-%d %H:%M:%S.%f" if "." in time_str else "%Y-%m-%d %H:%M:%S"
         self.datetime = datetime.strptime(time_str, time_format)
         date = self.datetime.date()
-        self.raw_action = row[Trading212Column.ACTION]
-        action = action_from_str(self.raw_action, file)
-
-        symbol = row[Trading212Column.TICKER] or None
+        self.raw_action = row["Action"]
+        action = action_from_str(self.raw_action, filename)
+        symbol = row["Ticker"] if row["Ticker"] != "" else None
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
-        description = row[Trading212Column.NAME]
-
-        quantity = decimal_or_none(row, Trading212Column.NO_OF_SHARES)
-        self.price_foreign = decimal_or_none(row, Trading212Column.PRICE_PER_SHARE)
-        self.currency_foreign = row[Trading212Column.CURRENCY_PRICE_PER_SHARE]
-        self.exchange_rate = decimal_or_none(row, Trading212Column.EXCHANGE_RATE)
-
-        self.transaction_fee = decimal_or_none(
-            row, Trading212Column.TRANSACTION_FEE_GBP
-        ) or Decimal(0)
-
-        transaction_fee_foreign = decimal_or_none(
-            row, Trading212Column.TRANSACTION_FEE
-        ) or Decimal(0)
+        description = row["Name"]
+        quantity = decimal_or_none(row["No. of shares"])
+        self.price_foreign = decimal_or_none(row["Price / share"])
+        self.currency_foreign = row["Currency (Price / share)"]
+        self.exchange_rate = decimal_or_none(row["Exchange rate"])
+        self.transaction_fee = Decimal(row.get("Transaction fee (GBP)") or "0")
+        transaction_fee_foreign = Decimal(row.get("Transaction fee") or "0")
         if transaction_fee_foreign > 0:
-            if row.get(Trading212Column.CURRENCY_TRANSACTION_FEE) != "GBP":
+            if row.get("Currency (Transaction fee)") != "GBP":
                 raise ParsingError(
-                    file,
+                    filename,
                     "The transaction fee is not in GBP which is not supported yet",
                 )
             self.transaction_fee += transaction_fee_foreign
-
-        self.finra_fee = decimal_or_none(
-            row, Trading212Column.FINRA_FEE_GBP
-        ) or Decimal(0)
-
-        finra_fee_foreign = decimal_or_none(row, Trading212Column.FINRA_FEE) or Decimal(
-            0
-        )
+        self.finra_fee = Decimal(row.get("Finra fee (GBP)") or "0")
+        finra_fee_foreign = Decimal(row.get("Finra fee") or "0")
         if finra_fee_foreign > 0:
-            if row.get(Trading212Column.CURRENCY_FINRA_FEE) != "GBP":
+            if row.get("Currency (Finra fee)") != "GBP":
                 raise ParsingError(
-                    file,
+                    filename,
                     "Finra fee is not in GBP which is not supported yet",
                 )
             self.finra_fee += finra_fee_foreign
-
-        self.stamp_duty = decimal_or_none(
-            row, Trading212Column.STAMP_DUTY_GBP
-        ) or Decimal(0)
-
-        self.conversion_fee = decimal_or_none(
-            row, Trading212Column.CURRENCY_CONVERSION_FEE_GBP
-        ) or Decimal(0)
-
-        conversion_fee_foreign = decimal_or_none(
-            row, Trading212Column.CURRENCY_CONVERSION_FEE
-        ) or Decimal(0)
-        if conversion_fee_foreign > 0:
-            if row.get(Trading212Column.CURRENCY_CURRENCY_CONVERSION_FEE) != "GBP":
+        self.stamp_duty = Decimal(row.get("Stamp duty (GBP)") or "0")
+        self.stamp_duty_reserve_tax = Decimal(row.get("Stamp duty reserve tax") or "0")
+        # Validate that stamp duty reserve tax is in GBP if currency is specified
+        if self.stamp_duty_reserve_tax > 0 and row.get("Currency (Stamp duty reserve tax)"):
+            if row.get("Currency (Stamp duty reserve tax)") != "GBP":
                 raise ParsingError(
-                    file,
+                    filename,
+                    "Stamp duty reserve tax is not in GBP which is not supported yet",
+                )
+        self.conversion_fee = Decimal(row.get("Currency conversion fee (GBP)") or "0")
+        conversion_fee_foreign = Decimal(row.get("Currency conversion fee") or "0")
+        if conversion_fee_foreign > 0:
+            if row.get("Currency (Currency conversion fee)") != "GBP":
+                raise ParsingError(
+                    filename,
                     "The transaction fee is not in GBP which is not supported yet",
                 )
             self.conversion_fee += conversion_fee_foreign
-
-        fees = self.transaction_fee + self.finra_fee + self.conversion_fee
-
-        if Trading212Column.TOTAL in row:
-            amount = decimal_or_none(row, Trading212Column.TOTAL)
-            currency = row[Trading212Column.CURRENCY_TOTAL]
+        fees = self.transaction_fee + self.finra_fee + self.conversion_fee + self.stamp_duty + self.stamp_duty_reserve_tax
+        if "Total" in row:
+            amount = decimal_or_none(row["Total"])
+            currency = row["Currency (Total)"]
         else:
-            amount = decimal_or_none(row, Trading212Column.TOTAL_GBP)
+            amount = decimal_or_none(row["Total (GBP)"])
             currency = "GBP"
-
         if (
             amount is not None
             and (action == ActionType.BUY or self.raw_action == "Withdrawal")
             and amount > 0
         ):
             amount *= -1
-
         price = (
             abs(amount + fees) / quantity
             if amount is not None and quantity is not None
             else None
         )
-
         if (
             price is not None
             and self.price_foreign is not None
             and (self.currency_foreign == "GBP" or self.exchange_rate is not None)
         ):
-            exchange_rate = self.exchange_rate or Decimal(1)
-            calculated_price_foreign = price * exchange_rate
+            calculated_price_foreign = price * (self.exchange_rate or Decimal("1"))
             discrepancy = self.price_foreign - calculated_price_foreign
             if abs(discrepancy) > Decimal("0.015"):
-                LOGGER.warning(
-                    "The Price per Share for this transaction after converting and "
-                    "adding in the fees does not add up to the total amount. "
-                    "You can fix the CSV by reviewing the transaction in the UI. "
-                    "Discrepancy per Share: %.3f.",
-                    float(discrepancy),
+                print(
+                    "WARNING: The Price / share for this transaction "
+                    "after converting and adding in the fees "
+                    f"doesn't add up to the total amount: {row}. "
+                    "You may fix the csv by looking at the transaction "
+                    f"in the UI. Discrepancy / share: {discrepancy:.3f}."
                 )
 
-        isin = row[Trading212Column.ISIN]
-        self.transaction_id = row.get(Trading212Column.TRANSACTION_ID)
-        self.notes = row.get(Trading212Column.NOTES)
+        isin = row["ISIN"]
+        self.transaction_id = row.get("ID")
+        self.notes = row.get("Notes")
         broker = "Trading212"
         super().__init__(
             date,
@@ -258,61 +220,40 @@ class Trading212Transaction(BrokerTransaction):
         return hash(self.transaction_id)
 
 
-class Trading212Parser(BaseDirParser):
-    """Morgan Stanley parser."""
+def validate_header(header: list[str], filename: str) -> None:
+    """Check if header is valid."""
+    for actual in header:
+        if actual not in COLUMNS:
+            msg = f"Unknown column {actual}"
+            raise ParsingError(filename, msg)
 
-    arg_name = "trading212"
-    pretty_name = "Trading 212"
-    format_name = "CSV"
-    glob_dir = "*.csv"
-    deprecated_flags: ClassVar[list[str]] = ["--trading212"]
 
-    @classmethod
-    def read_transactions(
-        cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
-        """Parse Trading 212 transactions from CSV file."""
-        lines = list(csv.reader(file))
-        if not lines:
-            raise ParsingError(file_path, "Trading 212 CSV file is empty")
-        header = lines[0]
-        cls._validate_header(header, file_path)
-        lines = lines[1:]
-        transactions: list[BrokerTransaction] = []
-        for index, row in enumerate(lines, start=2):
-            try:
-                transactions.append(Trading212Transaction(header, row, file_path))
-            except ParsingError as err:
-                err.add_row_context(index)
-                raise
-            except ValueError as err:
-                raise ParsingError(file_path, str(err), row_index=index) from err
-        return transactions
+def by_date_and_action(transaction: Trading212Transaction) -> tuple[datetime, bool]:
+    """Sort by date and action type."""
 
-    @staticmethod
-    def _validate_header(header: list[str], file: Path) -> None:
-        """Check if header is valid. Not all columns exist in every export."""
-        unknown = set(header) - COLUMN_SET
-        if unknown:
-            msg = f"Unknown column(s) {', '.join(sorted(unknown))}"
-            raise ParsingError(file, msg)
+    # If there's a deposit in the same second as a buy
+    # (happens with the referral award at least)
+    # we want to put the buy last to avoid negative balance errors
+    return (transaction.datetime, transaction.action == ActionType.BUY)
 
-    @staticmethod
-    def _by_date_and_action(
-        transaction: Trading212Transaction,
-    ) -> tuple[datetime, bool]:
-        """Sort by date and action type."""
 
-        # If there's a deposit in the same second as a buy
-        # (happens with the referral award at least)
-        # we want to put the buy last to avoid negative balance errors
-        return (transaction.datetime, transaction.action == ActionType.BUY)
-
-    @classmethod
-    def post_process_transactions(
-        cls, transactions: list[BrokerTransaction]
-    ) -> list[BrokerTransaction]:
-        """Remove duplicates and sort."""
-        transactions = list(set(transactions))
-        transactions.sort(key=cls._by_date_and_action)  # type: ignore[arg-type]
-        return transactions
+def read_trading212_transactions(transactions_folder: str) -> list[BrokerTransaction]:
+    """Parse Trading 212 transactions from CSV file."""
+    transactions = []
+    for file in Path(transactions_folder).glob("*.csv"):
+        with Path(file).open(encoding="utf-8") as csv_file:
+            print(f"Parsing {file}")
+            lines = list(csv.reader(csv_file))
+            header = lines[0]
+            validate_header(header, str(file))
+            lines = lines[1:]
+            cur_transactions = [
+                Trading212Transaction(header, row, str(file)) for row in lines
+            ]
+            if len(cur_transactions) == 0:
+                print(f"WARNING: no transactions detected in file {file}")
+            transactions += cur_transactions
+    # remove duplicates
+    transactions = list(set(transactions))
+    transactions.sort(key=by_date_and_action)
+    return list(transactions)
