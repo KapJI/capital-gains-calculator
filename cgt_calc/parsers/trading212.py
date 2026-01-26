@@ -101,6 +101,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Dividend (Ordinary)",
         "Dividend (Dividend)",
         "Dividend (Dividends paid by us corporations)",
+        "Dividend (Dividend manufactured payment)",
     ]:
         return ActionType.DIVIDEND
 
@@ -113,7 +114,10 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label == "Stock Split":
         return ActionType.STOCK_SPLIT
 
-    if label in ["Result adjustment"]:
+    if label in [
+        "Currency conversion",
+        "Result adjustment",
+    ]:
         return ActionType.ADJUSTMENT
 
     raise ParsingError(file, f"Unknown action: {label}")
