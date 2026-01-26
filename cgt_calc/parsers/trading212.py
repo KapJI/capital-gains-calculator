@@ -99,6 +99,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Dividend (Ordinary)",
         "Dividend (Dividend)",
         "Dividend (Dividends paid by us corporations)",
+        "Dividend (Dividend manufactured payment)",
     ]:
         return ActionType.DIVIDEND
 
