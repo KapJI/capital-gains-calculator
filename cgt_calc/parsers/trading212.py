@@ -79,6 +79,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Market buy",
         "Limit buy",
         "Stop buy",
+        "Stop limit buy",
     ]:
         return ActionType.BUY
 
@@ -86,6 +87,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Market sell",
         "Limit sell",
         "Stop sell",
+        "Stop limit sell",
     ]:
         return ActionType.SELL
 
