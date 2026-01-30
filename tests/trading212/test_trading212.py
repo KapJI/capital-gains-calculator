@@ -313,3 +313,158 @@ def test_run_with_trading212_2024_files() -> None:
         "if you added new features update the test with:\n"
         f"{cmd_str} > {expected_file}"
     )
+
+
+# Header for 2025 format with stamp duty reserve tax fields
+HEADER_2025 = [
+    "Action",
+    "Time",
+    "ISIN",
+    "Ticker",
+    "Name",
+    "No. of shares",
+    "Price / share",
+    "Currency (Price / share)",
+    "Exchange rate",
+    "Result",
+    "Total",
+    "Currency (Result)",
+    "Currency (Total)",
+    "Withholding tax",
+    "Currency (Withholding tax)",
+    "Stamp duty reserve tax",
+    "Currency (Stamp duty reserve tax)",
+    "Merchant name",
+    "Merchant category",
+]
+
+
+def test_stamp_duty_reserve_tax_gbp(tmp_path: Path) -> None:
+    """Stamp duty reserve tax in GBP is added to stamp_duty and fees."""
+    rows = [
+        HEADER_2025,
+        _make_row(
+            HEADER_2025,
+            {
+                "Action": "Market buy",
+                "Time": "2025-01-15 10:30:00",
+                "ISIN": "GB0000000001",
+                "Ticker": "LLOY",
+                "Name": "Lloyds Banking Group",
+                "No. of shares": "1000",
+                "Price / share": "0.50",
+                "Currency (Price / share)": "GBP",
+                "Total": "502.50",
+                "Currency (Total)": "GBP",
+                "Stamp duty reserve tax": "2.50",
+                "Currency (Stamp duty reserve tax)": "GBP",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert len(transactions) == 1
+    buy = transactions[0]
+    assert isinstance(buy, Trading212Transaction)
+    assert buy.stamp_duty == Decimal("2.50")
+    assert buy.fees == Decimal("2.50")
+
+
+def test_stamp_duty_reserve_tax_empty_currency(tmp_path: Path) -> None:
+    """Stamp duty reserve tax with empty currency is treated as GBP."""
+    rows = [
+        HEADER_2025,
+        _make_row(
+            HEADER_2025,
+            {
+                "Action": "Market buy",
+                "Time": "2025-01-15 10:30:00",
+                "ISIN": "GB0000000001",
+                "Ticker": "LLOY",
+                "Name": "Lloyds Banking Group",
+                "No. of shares": "1000",
+                "Price / share": "0.50",
+                "Currency (Price / share)": "GBP",
+                "Total": "502.50",
+                "Currency (Total)": "GBP",
+                "Stamp duty reserve tax": "2.50",
+                "Currency (Stamp duty reserve tax)": "",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert len(transactions) == 1
+    buy = transactions[0]
+    assert isinstance(buy, Trading212Transaction)
+    assert buy.stamp_duty == Decimal("2.50")
+
+
+def test_stamp_duty_reserve_tax_non_gbp_raises_error(tmp_path: Path) -> None:
+    """Stamp duty reserve tax in non-GBP currency raises ParsingError."""
+    rows = [
+        HEADER_2025,
+        _make_row(
+            HEADER_2025,
+            {
+                "Action": "Market buy",
+                "Time": "2025-01-15 10:30:00",
+                "ISIN": "US0000000001",
+                "Ticker": "AAPL",
+                "Name": "Apple Inc",
+                "No. of shares": "10",
+                "Price / share": "150.00",
+                "Currency (Price / share)": "USD",
+                "Exchange rate": "1.25",
+                "Total": "1207.50",
+                "Currency (Total)": "GBP",
+                "Stamp duty reserve tax": "7.50",
+                "Currency (Stamp duty reserve tax)": "USD",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        Trading212Parser().load_from_dir(folder)
+
+    assert "Stamp duty reserve tax is not in GBP" in str(exc.value)
+
+
+def test_stamp_duty_reserve_tax_combined_with_stamp_duty_gbp(tmp_path: Path) -> None:
+    """Both Stamp duty (GBP) and Stamp duty reserve tax are summed."""
+    header_with_both = [*HEADER_2025, "Stamp duty (GBP)"]
+    rows = [
+        header_with_both,
+        _make_row(
+            header_with_both,
+            {
+                "Action": "Market buy",
+                "Time": "2025-01-15 10:30:00",
+                "ISIN": "GB0000000001",
+                "Ticker": "LLOY",
+                "Name": "Lloyds Banking Group",
+                "No. of shares": "1000",
+                "Price / share": "0.50",
+                "Currency (Price / share)": "GBP",
+                "Total": "505.00",
+                "Currency (Total)": "GBP",
+                "Stamp duty (GBP)": "2.00",
+                "Stamp duty reserve tax": "2.50",
+                "Currency (Stamp duty reserve tax)": "GBP",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert len(transactions) == 1
+    buy = transactions[0]
+    assert isinstance(buy, Trading212Transaction)
+    assert buy.stamp_duty == Decimal("4.50")  # 2.00 + 2.50
+    assert buy.fees == Decimal("4.50")
