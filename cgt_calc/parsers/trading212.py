@@ -45,6 +45,8 @@ class Trading212Column(StrEnum):
     FINRA_FEE_GBP = "Finra fee (GBP)"
     FINRA_FEE = "Finra fee"
     STAMP_DUTY_GBP = "Stamp duty (GBP)"
+    STAMP_DUTY_RESERVE_TAX = "Stamp duty reserve tax"
+    CURRENCY_STAMP_DUTY_RESERVE_TAX = "Currency (Stamp duty reserve tax)"
     NOTES = "Notes"
     TRANSACTION_ID = "ID"
     CURRENCY_CONVERSION_FEE_GBP = "Currency conversion fee (GBP)"
@@ -186,6 +188,20 @@ class Trading212Transaction(BrokerTransaction):
         self.stamp_duty = decimal_or_none(
             row, Trading212Column.STAMP_DUTY_GBP
         ) or Decimal(0)
+
+        stamp_duty_reserve_tax = decimal_or_none(
+            row, Trading212Column.STAMP_DUTY_RESERVE_TAX
+        ) or Decimal(0)
+        if stamp_duty_reserve_tax > 0:
+            stamp_duty_currency = row.get(
+                Trading212Column.CURRENCY_STAMP_DUTY_RESERVE_TAX
+            )
+            if stamp_duty_currency not in ("GBP", None, ""):
+                raise ParsingError(
+                    file,
+                    "Stamp duty reserve tax is not in GBP which is not supported yet",
+                )
+            self.stamp_duty += stamp_duty_reserve_tax
 
         self.conversion_fee = decimal_or_none(
             row, Trading212Column.CURRENCY_CONVERSION_FEE_GBP
