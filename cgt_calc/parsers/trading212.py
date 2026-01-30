@@ -60,6 +60,8 @@ class Trading212Column(StrEnum):
     CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT = "Currency (Currency conversion to amount)"
     CURRENCY_TRANSACTION_FEE = "Currency (Transaction fee)"
     CURRENCY_FINRA_FEE = "Currency (Finra fee)"
+    MERCHANT_CATEGORY = "Merchant category"
+    MERCHANT_NAME = "Merchant name"
 
 
 COLUMNS: Final[list[str]] = [column.value for column in Trading212Column]
@@ -100,6 +102,8 @@ def action_from_str(label: str, file: Path) -> ActionType:
         return ActionType.SELL
 
     if label in [
+        "Card debit",
+        "Card refund",
         "Deposit",
         "Withdrawal",
     ]:
@@ -125,6 +129,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label in [
         "Currency conversion",
         "Result adjustment",
+        "Spending cashback",
     ]:
         return ActionType.ADJUSTMENT
 
