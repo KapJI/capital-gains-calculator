@@ -75,6 +75,38 @@ def test_main_prints_help_when_no_arguments() -> None:
     assert "Calculate UK capital gains" in result.stdout
 
 
+def test_interest_tax_totals_are_positive() -> None:
+    """Ensure interest tax totals are reported as positive amounts."""
+    date = datetime.date(2024, 5, 1)
+    currency_converter = CurrencyConverter(None, {date: {"USD": Decimal(1)}})
+    calculator = CapitalGainsCalculator(
+        2024,
+        currency_converter,
+        IsinConverter(),
+        CurrentPriceFetcher(currency_converter, {}, {}),
+        SpinOffHandler(),
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    broker_transactions = [
+        BrokerTransaction(
+            date=date,
+            action=ActionType.INTEREST_TAX,
+            symbol=None,
+            description="NRA Tax Adj",
+            quantity=None,
+            price=None,
+            fees=Decimal(0),
+            amount=Decimal("-20.31"),
+            currency="USD",
+            broker="Charles Schwab",
+        )
+    ]
+    report = get_report(calculator, broker_transactions)
+    assert report.total_foreign_interest_tax == Decimal("20.31")
+
+
 @pytest.mark.parametrize(
     (
         "tax_year",
