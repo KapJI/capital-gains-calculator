@@ -52,6 +52,12 @@ class Trading212Column(StrEnum):
     CURRENCY_CONVERSION_FEE_GBP = "Currency conversion fee (GBP)"
     CURRENCY_CONVERSION_FEE = "Currency conversion fee"
     CURRENCY_CURRENCY_CONVERSION_FEE = "Currency (Currency conversion fee)"
+    CURRENCY_CONVERSION_FROM_AMOUNT = "Currency conversion from amount"
+    CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT = (
+        "Currency (Currency conversion from amount)"
+    )
+    CURRENCY_CONVERSION_TO_AMOUNT = "Currency conversion to amount"
+    CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT = "Currency (Currency conversion to amount)"
     CURRENCY_TRANSACTION_FEE = "Currency (Transaction fee)"
     CURRENCY_FINRA_FEE = "Currency (Finra fee)"
     MERCHANT_NAME = "Merchant name"
@@ -100,6 +106,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Withdrawal",
         "Card debit",
         "Card credit",
+        "Card refund",
         "Spending cashback",
     ]:
         return ActionType.TRANSFER

@@ -338,6 +338,115 @@ HEADER_2025 = [
     "Merchant category",
 ]
 
+# Header for 2026 format with currency conversion amount fields
+HEADER_2026 = [
+    "Action",
+    "Time",
+    "ISIN",
+    "Ticker",
+    "Name",
+    "Notes",
+    "ID",
+    "No. of shares",
+    "Price / share",
+    "Currency (Price / share)",
+    "Exchange rate",
+    "Result",
+    "Currency (Result)",
+    "Total",
+    "Currency (Total)",
+    "Withholding tax",
+    "Currency (Withholding tax)",
+    "Currency conversion from amount",
+    "Currency (Currency conversion from amount)",
+    "Currency conversion to amount",
+    "Currency (Currency conversion to amount)",
+    "Currency conversion fee",
+    "Currency (Currency conversion fee)",
+    "Merchant name",
+    "Merchant category",
+]
+
+
+def test_read_trading212_transactions_supports_2026_export(tmp_path: Path) -> None:
+    """Parse transactions using the 2026 column set with card operations."""
+    rows = [
+        HEADER_2026,
+        _make_row(
+            HEADER_2026,
+            {
+                Trading212Column.ACTION: "Deposit",
+                Trading212Column.TIME: "2025-04-07 09:15:20.149",
+                Trading212Column.TOTAL: "1000.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "deposit-3",
+            },
+        ),
+        _make_row(
+            HEADER_2026,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2025-04-08 10:10:05.175",
+                Trading212Column.ISIN: "US0000000004",
+                Trading212Column.TICKER: "QUX",
+                Trading212Column.NAME: "Qux Ltd",
+                Trading212Column.NO_OF_SHARES: "4",
+                Trading212Column.PRICE_PER_SHARE: "12.50",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
+                Trading212Column.EXCHANGE_RATE: "1.25",
+                Trading212Column.TOTAL: "41.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: "50.00",
+                Trading212Column.CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT: "USD",
+                Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT: "41.00",
+                Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT: "GBP",
+                Trading212Column.CURRENCY_CONVERSION_FEE: "1.00",
+                Trading212Column.CURRENCY_CURRENCY_CONVERSION_FEE: "GBP",
+                Trading212Column.TRANSACTION_ID: "buy-3",
+            },
+        ),
+        _make_row(
+            HEADER_2026,
+            {
+                Trading212Column.ACTION: "Card debit",
+                Trading212Column.TIME: "2025-04-09 12:00:00",
+                Trading212Column.TOTAL: "20.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.NOTES: "Coffee shop",
+                Trading212Column.MERCHANT_NAME: "Cafe 212",
+                Trading212Column.MERCHANT_CATEGORY: "Food & Drink",
+                Trading212Column.TRANSACTION_ID: "debit-1",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert [transaction.action for transaction in transactions] == [
+        ActionType.TRANSFER,
+        ActionType.BUY,
+        ActionType.TRANSFER,
+    ]
+
+    deposit = transactions[0]
+    assert deposit.amount == Decimal("1000.00")
+    assert deposit.currency == "GBP"
+
+    buy = transactions[1]
+    assert isinstance(buy, Trading212Transaction)
+    assert buy.amount == Decimal("-41.00")
+    assert buy.currency == "GBP"
+    assert buy.conversion_fee == Decimal("1.00")
+    assert buy.price_foreign == Decimal("12.50")
+    assert buy.exchange_rate == Decimal("1.25")
+
+    debit = transactions[2]
+    assert isinstance(debit, Trading212Transaction)
+    assert debit.amount == Decimal("20.00")
+    assert debit.currency == "GBP"
+    assert debit.notes == "Coffee shop"
+
 
 def test_stamp_duty_reserve_tax_gbp(tmp_path: Path) -> None:
     """Stamp duty reserve tax in GBP is added to stamp_duty and fees."""
