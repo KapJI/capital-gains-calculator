@@ -229,7 +229,12 @@ class Trading212Transaction(BrokerTransaction):
                 )
             self.conversion_fee += conversion_fee_foreign
 
-        fees = self.transaction_fee + self.finra_fee + self.conversion_fee
+        fees = (
+            self.transaction_fee
+            + self.finra_fee
+            + self.conversion_fee
+            + self.stamp_duty
+        )
 
         if Trading212Column.TOTAL in row:
             amount = decimal_or_none(row, Trading212Column.TOTAL)
