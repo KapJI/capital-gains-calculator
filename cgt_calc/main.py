@@ -172,6 +172,7 @@ class CapitalGainsCalculator:
         self.interest_fund_tickers = interest_fund_tickers
         self.total_uk_interest = Decimal(0)
         self.total_foreign_interest = Decimal(0)
+        self.total_foreign_interest_tax = Decimal(0)
 
         self.acquisition_list: HmrcTransactionLog = {}
         self.disposal_list: HmrcTransactionLog = {}
@@ -181,6 +182,9 @@ class CapitalGainsCalculator:
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.interest_list: dict[
+            tuple[str, str, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
+        self.interest_tax_list: dict[
             tuple[str, str, datetime.date], ForeignCurrencyAmount
         ] = defaultdict(ForeignCurrencyAmount)
 
@@ -491,6 +495,7 @@ class CapitalGainsCalculator:
         dividends: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         dividends_tax: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         interests: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+        interest_taxes: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         total_disposal_proceeds = Decimal(0)
         balance_history: list[Decimal] = []
 
@@ -588,6 +593,14 @@ class CapitalGainsCalculator:
                 ] += ForeignCurrencyAmount(amount, transaction.currency)
                 if self.date_in_tax_year(transaction.date):
                     interests[(transaction.broker, transaction.currency)] += amount
+            elif transaction.action is ActionType.INTEREST_TAX:
+                amount = get_amount_or_fail(transaction)
+                new_balance += amount
+                self.interest_tax_list[
+                    (transaction.broker, transaction.currency, transaction.date)
+                ] += ForeignCurrencyAmount(amount, transaction.currency)
+                if self.date_in_tax_year(transaction.date):
+                    interest_taxes[(transaction.broker, transaction.currency)] += amount
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
@@ -620,7 +633,12 @@ class CapitalGainsCalculator:
             balance[(transaction.broker, transaction.currency)] = new_balance
 
         self.first_pass_report(
-            balance, dividends, dividends_tax, interests, total_disposal_proceeds
+            balance,
+            dividends,
+            dividends_tax,
+            interests,
+            interest_taxes,
+            total_disposal_proceeds,
         )
 
     def first_pass_report(
@@ -629,6 +647,7 @@ class CapitalGainsCalculator:
         dividends: dict[tuple[str, str], Decimal],
         dividends_tax: dict[tuple[str, str], Decimal],
         interests: dict[tuple[str, str], Decimal],
+        interest_taxes: dict[tuple[str, str], Decimal],
         total_disposal_proceeds: Decimal,
     ) -> None:
         """Print the results of the first pass."""
@@ -649,6 +668,10 @@ class CapitalGainsCalculator:
             print("Interests:")
             for (broker, currency), amount in interests.items():
                 print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
+        if interest_taxes:
+            print("Interest taxes:")
+            for (broker, currency), amount in interest_taxes.items():
+                print(f"  {broker}: {round_decimal(abs(amount), 2)} ({currency})")
         print(f"Disposal proceeds: £{round_decimal(total_disposal_proceeds, 2)}")
         print()
 
@@ -1115,9 +1138,15 @@ class CapitalGainsCalculator:
         monthly_interests: dict[
             tuple[str, str, datetime.date], ForeignCurrencyAmount
         ] = defaultdict(ForeignCurrencyAmount)
+        monthly_interest_taxes: dict[
+            tuple[str, str, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
         last_date: datetime.date = datetime.date.min
         last_broker: str | None = None
         last_currency: str | None = None
+        last_tax_date: datetime.date = datetime.date.min
+        last_tax_broker: str | None = None
+        last_tax_currency: str | None = None
 
         for (broker, currency, date), foreign_amount in sorted(
             self.interest_list.items()
@@ -1136,6 +1165,23 @@ class CapitalGainsCalculator:
                 last_broker = broker
                 last_currency = currency
 
+        for (broker, currency, date), foreign_amount in sorted(
+            self.interest_tax_list.items()
+        ):
+            if self.date_in_tax_year(date):
+                if (
+                    broker == last_tax_broker
+                    and date.month == last_tax_date.month
+                    and currency == last_tax_currency
+                ):
+                    monthly_interest_taxes[(broker, currency, date)] = (
+                        monthly_interest_taxes.pop((broker, currency, last_tax_date))
+                    )
+                monthly_interest_taxes[(broker, currency, date)] += foreign_amount
+                last_tax_date = date
+                last_tax_broker = broker
+                last_tax_currency = currency
+
         for (broker, currency, date), foreign_amount in monthly_interests.items():
             gbp_amount = self.currency_converter.to_gbp(
                 foreign_amount.amount, foreign_amount.currency, date
@@ -1152,6 +1198,25 @@ class CapitalGainsCalculator:
                     rule_type=RuleType.INTEREST,
                     quantity=Decimal(1),
                     amount=gbp_amount,
+                    new_quantity=Decimal(1),
+                    new_pool_cost=Decimal(0),
+                    fees=Decimal(0),
+                )
+            ]
+
+        for (broker, currency, date), foreign_amount in monthly_interest_taxes.items():
+            gbp_amount = self.currency_converter.to_gbp(
+                foreign_amount.amount, foreign_amount.currency, date
+            )
+            tax_amount = abs(gbp_amount)
+            rule_prefix = f"interestTax{currency.upper()}"
+            self.total_foreign_interest_tax += tax_amount
+
+            self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
+                CalculationEntry(
+                    rule_type=RuleType.INTEREST_TAX,
+                    quantity=Decimal(1),
+                    amount=tax_amount,
                     new_quantity=Decimal(1),
                     new_pool_cost=Decimal(0),
                     fees=Decimal(0),
@@ -1397,6 +1462,7 @@ class CapitalGainsCalculator:
             dict(sorted(self.calculation_log_yields.items())),
             round_decimal(self.total_uk_interest, 2),
             round_decimal(self.total_foreign_interest, 2),
+            round_decimal(self.total_foreign_interest_tax, 2),
             show_unrealized_gains=self.calc_unrealized_gains,
         )
 

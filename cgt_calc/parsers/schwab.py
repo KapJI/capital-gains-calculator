@@ -200,6 +200,12 @@ class SchwabTransaction(BrokerTransaction):
             symbol = TICKER_RENAMES.get(symbol, symbol)
         description_header = SchwabTransactionsFileRequiredHeaders.DESCRIPTION.value
         description = row_dict[description_header]
+        if (
+            action == ActionType.DIVIDEND_TAX
+            and symbol is None
+            and "SCHWAB1 INT" in description
+        ):
+            action = ActionType.INTEREST_TAX
         price_header = SchwabTransactionsFileRequiredHeaders.PRICE.value
         price = (
             Decimal(row_dict[price_header].replace("$", "").replace(",", ""))
