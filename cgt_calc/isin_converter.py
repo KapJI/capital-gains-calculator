@@ -9,7 +9,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from pyrate_limiter import Duration, limiter_factory
+from pyrate_limiter import limiter_factory
+from pyrate_limiter.abstracts.rate import Duration
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 
 from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_RESOURCE
