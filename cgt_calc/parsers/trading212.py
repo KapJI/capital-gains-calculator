@@ -45,13 +45,23 @@ class Trading212Column(StrEnum):
     FINRA_FEE_GBP = "Finra fee (GBP)"
     FINRA_FEE = "Finra fee"
     STAMP_DUTY_GBP = "Stamp duty (GBP)"
+    STAMP_DUTY_RESERVE_TAX = "Stamp duty reserve tax"
+    CURRENCY_STAMP_DUTY_RESERVE_TAX = "Currency (Stamp duty reserve tax)"
     NOTES = "Notes"
     TRANSACTION_ID = "ID"
     CURRENCY_CONVERSION_FEE_GBP = "Currency conversion fee (GBP)"
     CURRENCY_CONVERSION_FEE = "Currency conversion fee"
     CURRENCY_CURRENCY_CONVERSION_FEE = "Currency (Currency conversion fee)"
+    CURRENCY_CONVERSION_FROM_AMOUNT = "Currency conversion from amount"
+    CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT = (
+        "Currency (Currency conversion from amount)"
+    )
+    CURRENCY_CONVERSION_TO_AMOUNT = "Currency conversion to amount"
+    CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT = "Currency (Currency conversion to amount)"
     CURRENCY_TRANSACTION_FEE = "Currency (Transaction fee)"
     CURRENCY_FINRA_FEE = "Currency (Finra fee)"
+    MERCHANT_CATEGORY = "Merchant category"
+    MERCHANT_NAME = "Merchant name"
 
 
 COLUMNS: Final[list[str]] = [column.value for column in Trading212Column]
@@ -92,6 +102,8 @@ def action_from_str(label: str, file: Path) -> ActionType:
         return ActionType.SELL
 
     if label in [
+        "Card debit",
+        "Card refund",
         "Deposit",
         "Withdrawal",
     ]:
@@ -117,6 +129,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label in [
         "Currency conversion",
         "Result adjustment",
+        "Spending cashback",
     ]:
         return ActionType.ADJUSTMENT
 
@@ -187,6 +200,20 @@ class Trading212Transaction(BrokerTransaction):
             row, Trading212Column.STAMP_DUTY_GBP
         ) or Decimal(0)
 
+        stamp_duty_reserve_tax = decimal_or_none(
+            row, Trading212Column.STAMP_DUTY_RESERVE_TAX
+        ) or Decimal(0)
+        if stamp_duty_reserve_tax > 0:
+            stamp_duty_currency = row.get(
+                Trading212Column.CURRENCY_STAMP_DUTY_RESERVE_TAX
+            )
+            if stamp_duty_currency not in ("GBP", None, ""):
+                raise ParsingError(
+                    file,
+                    "Stamp duty reserve tax is not in GBP which is not supported yet",
+                )
+            self.stamp_duty += stamp_duty_reserve_tax
+
         self.conversion_fee = decimal_or_none(
             row, Trading212Column.CURRENCY_CONVERSION_FEE_GBP
         ) or Decimal(0)
@@ -202,7 +229,12 @@ class Trading212Transaction(BrokerTransaction):
                 )
             self.conversion_fee += conversion_fee_foreign
 
-        fees = self.transaction_fee + self.finra_fee + self.conversion_fee
+        fees = (
+            self.transaction_fee
+            + self.finra_fee
+            + self.conversion_fee
+            + self.stamp_duty
+        )
 
         if Trading212Column.TOTAL in row:
             amount = decimal_or_none(row, Trading212Column.TOTAL)
