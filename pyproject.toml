@@ -36,7 +36,7 @@ dependencies = [
   "Jinja2>=2.11.3,<4.0.0",
   "pandas>=2.2",
   "requests>=2.27.1",
-  "pyrate-limiter>=3.9.0",
+  "pyrate-limiter>=4.0.0",
   "yfinance>=0.2.36",
 ]
 

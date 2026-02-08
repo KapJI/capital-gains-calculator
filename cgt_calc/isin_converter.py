@@ -9,8 +9,9 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from pyrate_limiter import Duration, limiter_factory
-import requests
+from pyrate_limiter import limiter_factory
+from pyrate_limiter.abstracts.rate import Duration
+from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 
 from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_RESOURCE
 from .exceptions import (
@@ -63,11 +64,10 @@ class IsinConverter:
     ):
         """Create the IsinConverter."""
         # https://www.openfigi.com/api/documentation#rate-limits
-        self.limiter = limiter_factory.create_inmemory_limiter(
+        limiter = limiter_factory.create_inmemory_limiter(
             rate_per_duration=24, duration=Duration.MINUTE
         )
-        # pyrate-limiter 4.0 will add RateLimitedRequestsSession, but for now we limit manually
-        self.session = requests.Session()
+        self.session = RateLimitedRequestsSession(limiter)
         self.isin_translation_file = isin_translation_file
         self.data: dict[str, set[str]] = {}
         self.write_data: dict[str, set[str]] = {}
@@ -182,7 +182,6 @@ class IsinConverter:
         data = [{"idType": "ID_ISIN", "idValue": isin}]
         response_text = ""
         try:
-            self.limiter.try_acquire("isin")
             response = self.session.post(url, json=data, headers=headers, timeout=10)
             response_text = response.text
             json_response = response.json()

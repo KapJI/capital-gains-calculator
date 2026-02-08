@@ -136,7 +136,7 @@ requires-dist = [
     { name = "defusedxml", specifier = ">=0.7.1,<1.0.0" },
     { name = "jinja2", specifier = ">=2.11.3,<4.0.0" },
     { name = "pandas", specifier = ">=2.2" },
-    { name = "pyrate-limiter", specifier = ">=3.9.0" },
+    { name = "pyrate-limiter", specifier = ">=4.0.0" },
     { name = "requests", specifier = ">=2.27.1" },
     { name = "yfinance", specifier = ">=0.2.36" },
 ]
@@ -753,11 +753,11 @@ wheels = [
 
 [[package]]
 name = "pyrate-limiter"
-version = "3.9.0"
+version = "4.0.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ec/da/f682c5c5f9f0a5414363eb4397e6b07d84a02cde69c4ceadcbf32c85537c/pyrate_limiter-3.9.0.tar.gz", hash = "sha256:6b882e2c77cda07a241d3730975daea4258344b39c878f1dd8849df73f70b0ce", size = 289308, upload-time = "2025-07-30T14:36:58.659Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/03/98/2b3dc1ba6bdf2efaeaa3e102124cbd2636a4ccec241ffeb8a1de207f5cd4/pyrate_limiter-4.0.2.tar.gz", hash = "sha256:b678841e2215f114ef6f98c7093755ca3b466de83cb5a881231fd6e321fa14b5", size = 301304, upload-time = "2026-01-23T09:37:33.612Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/af/d8bf0959ece9bc4679bd203908c31019556a421d76d8143b0c6871c7f614/pyrate_limiter-3.9.0-py3-none-any.whl", hash = "sha256:77357840c8cf97a36d67005d4e090787043f54000c12c2b414ff65657653e378", size = 33628, upload-time = "2025-07-30T14:36:57.71Z" },
+    { url = "https://files.pythonhosted.org/packages/13/b9/80ffe3f2c34d3247186d74b1d08c1fed1e3ad4127ff6a8a5501b7bf16a97/pyrate_limiter-4.0.2-py3-none-any.whl", hash = "sha256:35ec42b9bb9cfabcafab14d0c5c6523f48378c3da2949e534ce3cbdfea71eadd", size = 36439, upload-time = "2026-01-23T09:37:32.097Z" },
 ]
 
 [[package]]
