@@ -59,7 +59,7 @@ class VanguardImporter(ERIImporter):
         # funds and we want to skip it
 
         # Search for the header row
-        mask = df.astype(str).map(lambda x: isinstance(x,str) and x.startswith("ISIN"))
+        mask = df.astype(str).map(lambda x: isinstance(x, str) and x.startswith("ISIN"))
         header_loc = mask[mask].dropna(axis=1, how="all").dropna(how="all")
 
         # first row is the header row
