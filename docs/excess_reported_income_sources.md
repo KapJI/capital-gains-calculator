@@ -35,10 +35,9 @@ ETFs.
 
 Note this tool **already includes** Vanguard Funds ERI data from 2018 to 2024.
 
-To contribute new data to the tool please run the tool on your capital gains data from the git
-repository with the `--import-eri-reports` options pointing to either the file or the folder
-containing the ERI reports for Blackrock or iShares. The tool will recognize the funds provider from
-the filename and import the data in the resource CSV for
+To contribute new data to the tool please run the `import_eri_reports.py` script pointing to either
+the file or the folder containing the ERI reports for Blackrock or iShares. The tool will recognize
+the funds provider from the filename and import the data in the resource CSV for
 [vanguard](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv).
 
 - **ISIN:** same name column
@@ -71,10 +70,9 @@ https://www.ishares.com/uk/individual/en/education/library?materialType=tax+info
 
 They are split in different companies holding the funds each reporting yearly.
 
-To contribute new data to the tool please run the tool on your capital gains data from the git
-repository with the `--import-eri-reports` options pointing to either the file or the folder
-containing the ERI reports for Blackrock or iShares. The tool will recognize the funds provider from
-the filename and import the data in the resource CSV for
+To contribute new data to the tool please run the `import_eri_reports.py` script pointing to either
+the file or the folder containing the ERI reports for Blackrock or iShares. The tool will recognize
+the funds provider from the filename and import the data in the resource CSV for
 [blackrock](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
 or
 [ishares](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv).
