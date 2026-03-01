@@ -179,6 +179,7 @@ class BrokerTransaction:
     currency: str
     broker: str
     isin: str | None = None
+    exchange_rate: Decimal | None = None
 
 
 class RuleType(Enum):

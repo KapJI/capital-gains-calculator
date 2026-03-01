@@ -37,9 +37,17 @@ class InteractiveBrokersColumn(StrEnum):
     SYMBOL = "Symbol"
     QUANTITY = "Quantity"
     PRICE = "Price"
+    PRICE_CURRENCY = "Price Currency"
     GROSS_AMOUNT = "Gross Amount "
     COMMISSION = "Commission"
     NET_AMOUNT = "Net Amount"
+    EXCHANGE_RATE = "Exchange Rate"
+
+
+_IBKR_OPTIONAL_COLUMNS: Final[frozenset[str]] = frozenset({
+    InteractiveBrokersColumn.PRICE_CURRENCY,
+    InteractiveBrokersColumn.EXCHANGE_RATE,
+})
 
 
 def _action_from_str(action_type: str, file_path: Path) -> ActionType:
@@ -99,6 +107,12 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         price = _parse_decimal(row, InteractiveBrokersColumn.PRICE)
         amount = _parse_decimal(row, InteractiveBrokersColumn.NET_AMOUNT)
         fees = _parse_decimal(row, InteractiveBrokersColumn.COMMISSION) or Decimal(0)
+        price_currency = row.get(InteractiveBrokersColumn.PRICE_CURRENCY) or "GBP"
+        exchange_rate = (
+            _parse_decimal(row, InteractiveBrokersColumn.EXCHANGE_RATE)
+            if InteractiveBrokersColumn.EXCHANGE_RATE in row
+            else Decimal(1)
+        )
 
         super().__init__(
             date=date,
@@ -109,8 +123,9 @@ class InteractiveBrokersTransaction(BrokerTransaction):
             price=price,
             fees=-fees,
             amount=amount,
-            currency="GBP",
+            currency=price_currency,
             broker="Interactive Brokers",
+            exchange_rate=exchange_rate,
         )
 
 
@@ -120,7 +135,12 @@ class InteractiveBrokersParser(StandardCSVParser):
     arg_name = "interactive-brokers"
     pretty_name = "Interactive Brokers"
     format_name = "CSV"
-    columns: ClassVar[set[str]] = {column.value for column in InteractiveBrokersColumn}
+    optional_columns: ClassVar[set[str]] = _IBKR_OPTIONAL_COLUMNS
+    columns: ClassVar[set[str]] = {
+        column.value
+        for column in InteractiveBrokersColumn
+        if column.value not in _IBKR_OPTIONAL_COLUMNS
+    }
 
     @classmethod
     def read_row(cls, row: dict[str, str], file_path: Path) -> BrokerTransaction | None:
