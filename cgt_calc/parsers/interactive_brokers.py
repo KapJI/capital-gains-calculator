@@ -114,6 +114,13 @@ class InteractiveBrokersTransaction(BrokerTransaction):
             else Decimal(1)
         )
 
+        # The Gross/Net Amount and Commission columns are always in the account's base
+        # currency (GBP). When the Price is in a foreign currency, convert it to GBP so
+        # that the internal validation (quantity × price + fees ≈ |amount|) holds.
+        if price is not None and price_currency != "GBP" and exchange_rate is not None:
+            price = price * exchange_rate
+            price_currency = "GBP"
+
         super().__init__(
             date=date,
             action=action,
