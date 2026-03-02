@@ -458,10 +458,14 @@ class CapitalGainsCalculator:
 
         symbols = self.isin_converter.get_symbols(transaction.isin)
         for symbol in symbols:
+            # For some funds we don't have symbol translation
+            if not symbol:
+                continue
+
             for report_date, report_by_symbol in self.eris.items():
                 if symbol in report_by_symbol and report_date == transaction.date:
                     previous_price = report_by_symbol[symbol].price
-                    if approx_equal(previous_price, price):
+                    if approx_equal(previous_price, price, Decimal("0.0001")):
                         LOGGER.warning(
                             "Skipping duplicated ERI transaction: %s", transaction
                         )
@@ -1425,13 +1429,15 @@ class CapitalGainsCalculator:
 def calculate_cgt(args: argparse.Namespace) -> None:
     """Perform all the computations."""
 
+    isin_translation_file = args.isin_translation_file
+
     # Read data from input files
     broker_transactions = BrokerRegistry.load_all_transactions(args)
     currency_converter = CurrencyConverter(args.exchange_rates_file)
     price_fetcher = CurrentPriceFetcher(currency_converter)
     initial_prices = InitialPrices(args.initial_prices_file)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
-    isin_converter = IsinConverter(args.isin_translation_file)
+    isin_converter = IsinConverter(isin_translation_file)
 
     calculator = CapitalGainsCalculator(
         args.year,
