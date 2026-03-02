@@ -155,7 +155,7 @@ class InteractiveBrokersParser(StandardCSVParser):
             if line.startswith("Summary,Data,Base Currency,"):
                 rows = line.split(",")
                 if (
-                    len(rows) != EXPECTED_COLS_IN_SUMMARY_SECTION
+                    len(rows) < EXPECTED_COLS_IN_SUMMARY_SECTION
                     or rows[3].strip() != "GBP"
                 ):
                     raise ParsingError(
