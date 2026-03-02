@@ -160,7 +160,7 @@ class InteractiveBrokersParser(StandardCSVParser):
                 ):
                     raise ParsingError(
                         file_path,
-                        f"Unexpected base currency: {rows[3]}, only GBP is supported",
+                        f"Unexpected base currency: '{rows[3]}', only GBP is supported",
                     )
             if line.startswith("Transaction History"):
                 return chain([line], file)
