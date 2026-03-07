@@ -64,7 +64,7 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
         return ActionType.SELL
     if action_type in ["Foreign Tax Withholding"]:
         return ActionType.DIVIDEND_TAX
-    if action_type == "Forex Trade Component":
+    if action_type in ["Forex Trade Component", "Other Fee"]:
         return ActionType.FEE
 
     raise ParsingError(file_path, f"Unknown type: '{action_type}'")
