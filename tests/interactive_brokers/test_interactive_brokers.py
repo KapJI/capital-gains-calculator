@@ -90,10 +90,10 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         In IBKR exports the Gross/Net Amount and Commission are always in the account's
         base currency (GBP), while Price can be in the instrument's trading currency.
         The parser must convert Price to GBP using the Exchange Rate so that the
-        internal consistency check (quantity × price + fees ≈ |amount|) passes.
+        internal consistency check (quantity x price + fees ≈ |amount|) passes.
 
         Transaction: Buy 217 IWDE at EUR 67.71, exchange rate 0.88542 EUR→GBP.
-        GBP gross = 217 × 67.71 × 0.88542 = 13009.5380394
+        GBP gross = 217 x 67.71 x 0.88542 = 13009.5380394
         GBP commission = 6.5047690197
         GBP net = 13016.0428084197
         """
@@ -111,7 +111,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert txn.date == date(2023, 2, 10)
         assert txn.action == ActionType.BUY
         assert txn.symbol == "IWDE"
-        assert txn.quantity == Decimal("217")
+        assert txn.quantity == Decimal(217)
         assert txn.price == expected_price_gbp
         assert txn.fees == Decimal("6.5047690197")
         assert txn.amount == Decimal("-13016.0428084197")
