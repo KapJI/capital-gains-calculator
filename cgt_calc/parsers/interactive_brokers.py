@@ -44,10 +44,12 @@ class InteractiveBrokersColumn(StrEnum):
     EXCHANGE_RATE = "Exchange Rate"
 
 
-_IBKR_OPTIONAL_COLUMNS: Final[set[str]] = set({
-    InteractiveBrokersColumn.PRICE_CURRENCY,
-    InteractiveBrokersColumn.EXCHANGE_RATE,
-})
+_IBKR_OPTIONAL_COLUMNS: Final[set[str]] = set(
+    {
+        InteractiveBrokersColumn.PRICE_CURRENCY,
+        InteractiveBrokersColumn.EXCHANGE_RATE,
+    }
+)
 
 
 def _action_from_str(action_type: str, file_path: Path) -> ActionType:
