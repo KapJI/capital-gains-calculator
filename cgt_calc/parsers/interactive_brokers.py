@@ -44,7 +44,7 @@ class InteractiveBrokersColumn(StrEnum):
     EXCHANGE_RATE = "Exchange Rate"
 
 
-_IBKR_OPTIONAL_COLUMNS: Final[frozenset[str]] = frozenset({
+_IBKR_OPTIONAL_COLUMNS: Final[set[str]] = set({
     InteractiveBrokersColumn.PRICE_CURRENCY,
     InteractiveBrokersColumn.EXCHANGE_RATE,
 })
