@@ -134,7 +134,6 @@ class InteractiveBrokersTransaction(BrokerTransaction):
             amount=amount,
             currency=price_currency,
             broker="Interactive Brokers",
-            exchange_rate=exchange_rate,
         )
 
 

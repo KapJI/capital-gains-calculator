@@ -116,7 +116,6 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert txn.fees == Decimal("6.5047690197")
         assert txn.amount == Decimal("-13016.0428084197")
         assert txn.currency == "GBP"
-        assert txn.exchange_rate == Decimal("0.88542")
 
     def test_basic_csv_file(self) -> None:
         """Runs the script and verifies it doesn't fail."""

@@ -289,7 +289,6 @@ class Trading212Transaction(BrokerTransaction):
             currency,
             broker,
             isin,
-            self.exchange_rate,
         )
 
     def __hash__(self) -> int:
