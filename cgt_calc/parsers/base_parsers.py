@@ -101,13 +101,15 @@ class StandardCSVParser(BaseSingleFileParser):
     """Parser for RAW format transaction files."""
 
     columns: ClassVar[set[str]]
+    optional_columns: ClassVar[set[str]] = set()
 
     @classmethod
     def _validate_header(cls, header: Sequence[str], file_path: Path) -> None:
         """Validate optional header row."""
-        if cls.columns != set(header):
-            missing = cls.columns - set(header)
-            extra = set(header) - cls.columns
+        header_set = set(header)
+        missing = cls.columns - header_set
+        extra = header_set - cls.columns - cls.optional_columns
+        if missing or extra:
             raise ParsingError(
                 file_path,
                 f"CSV header mismatch. "
@@ -135,6 +137,7 @@ class StandardCSVParser(BaseSingleFileParser):
                 file_path, f"{cls.pretty_name} {cls.format_name} doesn't have a header"
             )
         cls._validate_header(reader.fieldnames, file_path)
+        expected_col_count = len(reader.fieldnames)
 
         if not reader:
             raise ParsingError(
@@ -144,9 +147,9 @@ class StandardCSVParser(BaseSingleFileParser):
         transactions: list[BrokerTransaction] = []
         for index, row in enumerate(reader):
             try:
-                if len(row) != len(cls.columns):
+                if len(row) != expected_col_count:
                     raise UnexpectedColumnCountError(
-                        list(row.values()), len(cls.columns), file_path
+                        list(row.values()), expected_col_count, file_path
                     )
                 transaction = cls.read_row(row, file_path)
                 if transaction:
