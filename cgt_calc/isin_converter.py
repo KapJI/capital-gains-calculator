@@ -83,6 +83,8 @@ class IsinConverter:
                 raise IsinTranslationError(
                     f"Invalid ISIN found in translation data: {isin}"
                 )
+            if symbols == {""}:
+                continue
             for symbol in symbols:
                 if not symbol:
                     raise IsinTranslationError(
@@ -172,7 +174,9 @@ class IsinConverter:
         if self.isin_translation_file is None or CGT_TEST_MODE:
             return
         with open_with_parents(self.isin_translation_file) as fout:
-            data_rows = [[isin, *symbols] for isin, symbols in self.write_data.items()]
+            data_rows = [
+                [isin, *sorted(symbols)] for isin, symbols in self.write_data.items()
+            ]
             writer = csv.writer(fout)
             writer.writerows([ISIN_TRANSLATION_HEADER, *data_rows])
 
