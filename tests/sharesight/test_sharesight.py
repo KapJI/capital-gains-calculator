@@ -32,6 +32,8 @@ def test_run_with_sharesight_files_no_balance_check() -> None:
         "--sharesight-dir",
         "tests/sharesight/data/inputs/",
         "--no-balance-check",
+        "--exchange-rates-file",
+        "tests/exchange_rates_data.csv"
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

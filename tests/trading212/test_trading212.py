@@ -505,6 +505,8 @@ def test_run_with_trading212_2024_files() -> None:
         "2024",
         "--trading212-dir",
         "tests/trading212/data/2024/inputs/",
+        "--exchange-rates-file",
+        "tests/exchange_rates_data.csv"
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

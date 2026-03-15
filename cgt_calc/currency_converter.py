@@ -9,7 +9,12 @@ from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Final
 
 from defusedxml import ElementTree as ET
-import requests
+
+from pyrate_limiter import limiter_factory
+from pyrate_limiter.abstracts.rate import Duration
+from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
+
+from requests.adapters import HTTPAdapter, Retry
 
 from .const import CGT_TEST_MODE
 from .dates import is_date
@@ -40,7 +45,14 @@ class CurrencyConverter:
             **read_data,
             **(initial_data or {}),
         }
-        self.session = requests.Session()
+        # https://developer-specs.company-information.service.gov.uk/guides/rateLimiting
+        limiter = limiter_factory.create_inmemory_limiter(
+            rate_per_duration=600, duration=Duration.MINUTE * 5
+        )
+        self.session = RateLimitedRequestsSession(limiter)        
+        retries = Retry(total=5, backoff_factor=1, status_forcelist=[ 502, 503, 504 ])
+        self.session.mount('https://', HTTPAdapter(max_retries=retries))
+
 
     @staticmethod
     def _read_exchange_rates_file(
@@ -131,6 +143,8 @@ class CurrencyConverter:
             writer.writerows([EXCHANGE_RATES_HEADER, *data_rows])
 
     def _query_hmrc_api(self, date: datetime.date) -> None:
+        if CGT_TEST_MODE:
+            raise RuntimeError("HMRC values should be provided for tests to avoid flakiness!")
         # Pre 2021 we need to use the old HMRC endpoint
         if date.year < NEW_ENDPOINT_FROM_YEAR:
             month_str = date.strftime("%m%y")

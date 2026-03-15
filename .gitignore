@@ -10,3 +10,4 @@ __pycache__
 env
 dist
 out/
+exchange_rates.csv
