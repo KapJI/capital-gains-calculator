@@ -28,7 +28,7 @@ def test_run_with_vanguard_files() -> None:
         "--interest-fund-tickers",
         "FOO",
         "--exchange-rates-file",
-        "tests/exchange_rates_data.csv"
+        "tests/exchange_rates_data.csv",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

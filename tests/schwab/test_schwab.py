@@ -16,7 +16,7 @@ def test_run_with_schwab_example_2023_files() -> None:
         "--schwab-file",
         "tests/schwab/data/2023/transactions.csv",
         "--exchange-rates-file",
-        "tests/exchange_rates_data.csv"
+        "tests/exchange_rates_data.csv",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -46,7 +46,7 @@ def test_run_with_schwab_cash_merger_files() -> None:
         "--schwab-file",
         "tests/schwab/data/cash_merger/transactions.csv",
         "--exchange-rates-file",
-        "tests/exchange_rates_data.csv"
+        "tests/exchange_rates_data.csv",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -82,7 +82,7 @@ def test_run_with_schwab_rsu_settlement_files() -> None:
         "--schwab-award-file",
         "tests/schwab/data/rsu_settlement/awards.csv",
         "--exchange-rates-file",
-        "tests/exchange_rates_data.csv"
+        "tests/exchange_rates_data.csv",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -113,7 +113,7 @@ def test_run_with_schwab_bond_interest_files() -> None:
         "--schwab-file",
         "tests/schwab/data/bond_interest/transactions.csv",
         "--exchange-rates-file",
-        "tests/exchange_rates_data.csv"
+        "tests/exchange_rates_data.csv",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

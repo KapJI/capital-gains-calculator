@@ -33,7 +33,7 @@ def test_run_with_raw_files_no_balance_check() -> None:
         "tests/raw/data/test_data.csv",
         "--no-balance-check",
         "--exchange-rates-file",
-        "tests/exchange_rates_data.csv"
+        "tests/exchange_rates_data.csv",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -65,7 +65,7 @@ def test_run_with_raw_files() -> None:
         "--raw-file",
         "tests/raw/data/test_data_2.csv",
         "--exchange-rates-file",
-        "tests/exchange_rates_data.csv"
+        "tests/exchange_rates_data.csv",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

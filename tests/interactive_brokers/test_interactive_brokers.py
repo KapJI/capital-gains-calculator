@@ -125,7 +125,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "--interactive-brokers-file",
             "tests/interactive_brokers/data/test_basic.csv",
             "--exchange-rates-file",
-            "tests/exchange_rates_data.csv"
+            "tests/exchange_rates_data.csv",
         )
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode:

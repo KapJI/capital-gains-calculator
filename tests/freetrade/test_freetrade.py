@@ -83,7 +83,7 @@ def test_run_with_freetrade_file() -> None:
         "--freetrade-file",
         "tests/freetrade/data/transactions.csv",
         "--exchange-rates-file",
-        "tests/exchange_rates_data.csv"
+        "tests/exchange_rates_data.csv",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
