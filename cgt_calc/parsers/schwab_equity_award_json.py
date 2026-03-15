@@ -97,7 +97,7 @@ JsonRowType = Any  # type: ignore[explicit-any]
 
 def action_from_str(label: str, file: Path) -> ActionType:
     """Convert string label to ActionType."""
-    if label in {"Buy"}:
+    if label == "Buy":
         return ActionType.BUY
 
     if label in {"Sell", "Sale"}:

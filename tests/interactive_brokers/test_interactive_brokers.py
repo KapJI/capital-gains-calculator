@@ -88,7 +88,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             Path("tests") / "interactive_brokers" / "data" / "expected_output.txt"
         )
         expected = expected_file.read_text()
-        cmd_str = " ".join([param if param else "''" for param in cmd])
+        cmd_str = " ".join([param or "''" for param in cmd])
         assert result.stdout == expected, (
             "Run with example files generated unexpected outputs, "
             "if you added new features update the test with:\n"

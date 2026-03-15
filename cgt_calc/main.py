@@ -547,9 +547,7 @@ class CapitalGainsCalculator:
                 ActionType.SPIN_OFF,
             ]:
                 self.add_acquisition(transaction)
-            elif transaction.action in [
-                ActionType.STOCK_SPLIT,
-            ]:
+            elif transaction.action == ActionType.STOCK_SPLIT:
                 # Calculate the multiplier based on portfolio and received shares
                 acquired_quantity = get_quantity_or_fail(transaction)
                 symbol = get_symbol_or_fail(transaction)
