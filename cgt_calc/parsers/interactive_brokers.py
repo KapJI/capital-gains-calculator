@@ -37,9 +37,19 @@ class InteractiveBrokersColumn(StrEnum):
     SYMBOL = "Symbol"
     QUANTITY = "Quantity"
     PRICE = "Price"
+    PRICE_CURRENCY = "Price Currency"
     GROSS_AMOUNT = "Gross Amount "
     COMMISSION = "Commission"
     NET_AMOUNT = "Net Amount"
+    EXCHANGE_RATE = "Exchange Rate"
+
+
+_IBKR_OPTIONAL_COLUMNS: Final[set[str]] = set(
+    {
+        InteractiveBrokersColumn.PRICE_CURRENCY,
+        InteractiveBrokersColumn.EXCHANGE_RATE,
+    }
+)
 
 
 def _action_from_str(action_type: str, file_path: Path) -> ActionType:
@@ -56,7 +66,7 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
         return ActionType.SELL
     if action_type == "Foreign Tax Withholding":
         return ActionType.DIVIDEND_TAX
-    if action_type == "Forex Trade Component":
+    if action_type in ["Forex Trade Component", "Other Fee"]:
         return ActionType.FEE
 
     raise ParsingError(file_path, f"Unknown type: '{action_type}'")
@@ -99,6 +109,19 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         price = _parse_decimal(row, InteractiveBrokersColumn.PRICE)
         amount = _parse_decimal(row, InteractiveBrokersColumn.NET_AMOUNT)
         fees = _parse_decimal(row, InteractiveBrokersColumn.COMMISSION) or Decimal(0)
+        price_currency = row.get(InteractiveBrokersColumn.PRICE_CURRENCY) or "GBP"
+        exchange_rate = (
+            _parse_decimal(row, InteractiveBrokersColumn.EXCHANGE_RATE)
+            if InteractiveBrokersColumn.EXCHANGE_RATE in row
+            else Decimal(1)
+        )
+
+        # The Gross/Net Amount and Commission columns are always in the account's base
+        # currency (GBP). When the Price is in a foreign currency, convert it to GBP so
+        # that the internal validation (quantity x price + fees ≈ |amount|) holds.
+        if price is not None and price_currency != "GBP" and exchange_rate is not None:
+            price = price * exchange_rate
+            price_currency = "GBP"
 
         super().__init__(
             date=date,
@@ -109,7 +132,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
             price=price,
             fees=-fees,
             amount=amount,
-            currency="GBP",
+            currency=price_currency,
             broker="Interactive Brokers",
         )
 
@@ -120,7 +143,12 @@ class InteractiveBrokersParser(StandardCSVParser):
     arg_name = "interactive-brokers"
     pretty_name = "Interactive Brokers"
     format_name = "CSV"
-    columns: ClassVar[set[str]] = {column.value for column in InteractiveBrokersColumn}
+    optional_columns: ClassVar[set[str]] = _IBKR_OPTIONAL_COLUMNS
+    columns: ClassVar[set[str]] = {
+        column.value
+        for column in InteractiveBrokersColumn
+        if column.value not in _IBKR_OPTIONAL_COLUMNS
+    }
 
     @classmethod
     def read_row(cls, row: dict[str, str], file_path: Path) -> BrokerTransaction | None:
@@ -135,12 +163,12 @@ class InteractiveBrokersParser(StandardCSVParser):
             if line.startswith("Summary,Data,Base Currency,"):
                 rows = line.split(",")
                 if (
-                    len(rows) != EXPECTED_COLS_IN_SUMMARY_SECTION
+                    len(rows) < EXPECTED_COLS_IN_SUMMARY_SECTION
                     or rows[3].strip() != "GBP"
                 ):
                     raise ParsingError(
                         file_path,
-                        f"Unexpected base currency: {rows[3]}, only GBP is supported",
+                        f"Unexpected base currency: '{rows[3]}', only GBP is supported",
                     )
             if line.startswith("Transaction History"):
                 return chain([line], file)

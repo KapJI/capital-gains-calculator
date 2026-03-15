@@ -73,6 +73,61 @@ def test_read_vanguard_transactions_buy(tmp_path: Path) -> None:
     assert transaction.currency == "GBP"
 
 
+def test_read_vanguard_missing_symbol(tmp_path: Path) -> None:
+    """Use the full string investment name if no symbol within ( ) is matched."""
+
+    vanguard_file = tmp_path / "buy.csv"
+    rows = [
+        COLUMNS,
+        [
+            "09/03/2022",
+            "Bought 10 Foo Fund",
+            "-100.00",
+            "0",
+        ],
+    ]
+    _write_csv(vanguard_file, rows)
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action is ActionType.BUY
+    assert transaction.symbol == "Foo Fund"
+    assert transaction.quantity == Decimal(10)
+    assert transaction.price == Decimal(10)
+    assert transaction.amount == Decimal(-100)
+    assert transaction.currency == "GBP"
+
+
+def test_read_vanguard_fractional_share(tmp_path: Path) -> None:
+    """Make sure it handles fractional share."""
+
+    vanguard_file = tmp_path / "buy.csv"
+    rows = [
+        COLUMNS,
+        [
+            "09/03/2022",
+            "Bought .2 Foo Fund (GBP) (FOO)",
+            "-100.00",
+            "0",
+        ],
+    ]
+    _write_csv(vanguard_file, rows)
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action is ActionType.BUY
+    assert transaction.symbol == "FOO"
+    assert transaction.quantity is not None
+    assert transaction.quantity - Decimal("0.2") < Decimal("0.000001")
+    assert transaction.price == Decimal(500)
+    assert transaction.amount == Decimal(-100)
+    assert transaction.currency == "GBP"
+
+
 def test_read_vanguard_transactions_invalid_decimal(tmp_path: Path) -> None:
     """Raise ParsingError when amount cannot be parsed as Decimal."""
 

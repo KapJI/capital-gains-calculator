@@ -30,11 +30,11 @@ class VanguardColumn(StrEnum):
 
 COLUMNS: Final[list[str]] = [column.value for column in VanguardColumn]
 
-BOUGHT_RE = re.compile(r"^Bought (\d*[,]?\d*) .*\((.*)\)$")
-SOLD_RE = re.compile(r"^Sold (\d*[,]?\d*) .*\((.*)\)$")
+BOUGHT_RE = re.compile(r"^Bought ([\d,]*\.?\d+) (.+?)(?:\s*\(([^()]+)\))?$")
+SOLD_RE = re.compile(r"^Sold ([\d,]*\.?\d+) (.+?)(?:\s*\(([^()]+)\))?$")
 DIV_RE = re.compile(r"^DIV: ([^\.]+)\.[^ ]+ @ ([A-Z]+) (\d*[,\.]?\d*)")
 TRANSFER_RE = re.compile(
-    r".*(Regular Deposit|Deposit via|Deposit for|Payment by|Account Fee).*"
+    r".*(Regular Deposit|Cash transfer|Deposit via|Deposit for|Payment by|Account [Ff]ee).*"
 )
 
 INTEREST_STR = "Cash Account Interest"
@@ -114,13 +114,13 @@ class VanguardTransaction(BrokerTransaction):
             match = BOUGHT_RE.match(details)
             assert match
             quantity = _parse_decimal(match.group(1), "Details quantity")
-            symbol = match.group(2)
+            symbol = match.group(3) or match.group(2).strip()
             price = abs(amount) / quantity
         elif action == ActionType.SELL:
             match = SOLD_RE.match(details)
             assert match
             quantity = _parse_decimal(match.group(1), "Details quantity")
-            symbol = match.group(2)
+            symbol = match.group(3) or match.group(2).strip()
             price = amount / quantity
         elif action == ActionType.DIVIDEND:
             match = DIV_RE.match(details)
