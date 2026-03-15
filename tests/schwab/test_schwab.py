@@ -28,7 +28,7 @@ def test_run_with_schwab_example_2023_files() -> None:
     assert stderr_lines[0] == "WARNING: No Schwab Award file provided"
     expected_file = Path("tests") / "schwab" / "data" / "2023" / "expected_output.txt"
     expected = expected_file.read_text()
-    cmd_str = " ".join([param if param else "''" for param in cmd])
+    cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"
@@ -60,7 +60,7 @@ def test_run_with_schwab_cash_merger_files() -> None:
         Path("tests") / "schwab" / "data" / "cash_merger" / "expected_output.txt"
     )
     expected = expected_file.read_text()
-    cmd_str = " ".join([param if param else "''" for param in cmd])
+    cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"
@@ -91,7 +91,7 @@ def test_run_with_schwab_rsu_settlement_files() -> None:
         Path("tests") / "schwab" / "data" / "rsu_settlement" / "expected_output.txt"
     )
     expected = expected_file.read_text()
-    cmd_str = " ".join([param if param else "''" for param in cmd])
+    cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"
@@ -121,7 +121,7 @@ def test_run_with_schwab_bond_interest_files() -> None:
         Path("tests") / "schwab" / "data" / "bond_interest" / "expected_output.txt"
     )
     expected = expected_file.read_text()
-    cmd_str = " ".join([param if param else "''" for param in cmd])
+    cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"

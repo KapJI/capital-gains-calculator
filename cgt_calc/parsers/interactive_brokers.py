@@ -64,7 +64,7 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
         return ActionType.BUY
     if action_type == "Sell":
         return ActionType.SELL
-    if action_type in ["Foreign Tax Withholding"]:
+    if action_type == "Foreign Tax Withholding":
         return ActionType.DIVIDEND_TAX
     if action_type in ["Forex Trade Component", "Other Fee"]:
         return ActionType.FEE

@@ -47,7 +47,7 @@ def test_run_with_raw_files_no_balance_check() -> None:
     )
     expected_file = Path("tests") / "raw" / "data" / "expected_output.txt"
     expected = expected_file.read_text()
-    cmd_str = " ".join([param if param else "''" for param in cmd])
+    cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"
@@ -77,7 +77,7 @@ def test_run_with_raw_files() -> None:
     )
     expected_file = Path("tests") / "raw" / "data" / "expected_output_2.txt"
     expected = expected_file.read_text()
-    cmd_str = " ".join([param if param else "''" for param in cmd])
+    cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"

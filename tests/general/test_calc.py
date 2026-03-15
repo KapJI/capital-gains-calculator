@@ -515,7 +515,7 @@ def test_run_with_example_files() -> None:
         Path("tests") / "general" / "data" / "test_run_with_example_files_output.txt"
     )
     expected = expected_file.read_text()
-    cmd_str = " ".join([param if param else "''" for param in cmd])
+    cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"

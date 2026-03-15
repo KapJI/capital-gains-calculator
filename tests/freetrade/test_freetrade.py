@@ -93,7 +93,7 @@ def test_run_with_freetrade_file() -> None:
     assert result.stderr == "", "Run with example files generated errors"
     expected_file = Path("tests") / "freetrade" / "data" / "expected_output.txt"
     expected = expected_file.read_text()
-    cmd_str = " ".join([param if param else "''" for param in cmd])
+    cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"

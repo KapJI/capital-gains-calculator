@@ -8,7 +8,7 @@ import csv
 from dataclasses import dataclass
 import datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO
 
@@ -38,7 +38,7 @@ LOGGER = logging.getLogger(__name__)
 CANCEL_BUY_SEARCH_DAYS: Final = 5
 
 
-class SchwabTransactionsFileRequiredHeaders(str, Enum):
+class SchwabTransactionsFileRequiredHeaders(StrEnum):
     """Enum to list the headers in Schwab transactions file that we will use."""
 
     DATE = "Date"
@@ -51,7 +51,7 @@ class SchwabTransactionsFileRequiredHeaders(str, Enum):
     AMOUNT = "Amount"
 
 
-class AwardsTransactionsFileRequiredHeaders(str, Enum):
+class AwardsTransactionsFileRequiredHeaders(StrEnum):
     """Enum to list the headers in Awards transactions file that we will use."""
 
     DATE = "Date"
