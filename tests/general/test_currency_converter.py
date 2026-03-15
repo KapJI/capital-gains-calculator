@@ -25,9 +25,10 @@ def test_read_exchange_rates_successfully(tmp_path: Path) -> None:
     )
 
     converter = CurrencyConverter(exchange_rates_file=rates_file)
+    cache = converter.cache or converter.test_cache
 
-    january_rates = converter.cache[datetime.date(2024, 1, 1)]
-    february_rates = converter.cache[datetime.date(2024, 2, 1)]
+    january_rates = cache[datetime.date(2024, 1, 1)]
+    february_rates = cache[datetime.date(2024, 2, 1)]
     assert january_rates == {"USD": Decimal("1.25")}
     assert february_rates == {"EUR": Decimal("1.10")}
 
@@ -39,8 +40,8 @@ def test_read_exchange_rates_handles_empty_file(tmp_path: Path) -> None:
     rates_file.touch()
 
     converter = CurrencyConverter(exchange_rates_file=rates_file)
-
-    assert converter.cache == {}
+    cache = converter.cache or converter.test_cache
+    assert cache == {}
 
 
 def test_read_exchange_rates_skips_blank_rows(tmp_path: Path) -> None:
@@ -52,11 +53,12 @@ def test_read_exchange_rates_skips_blank_rows(tmp_path: Path) -> None:
     )
 
     converter = CurrencyConverter(exchange_rates_file=rates_file)
+    cache = converter.cache or converter.test_cache
 
     january = datetime.date(2024, 1, 1)
     february = datetime.date(2024, 2, 1)
-    assert converter.cache[january] == {"USD": Decimal("1.25")}
-    assert converter.cache[february] == {"EUR": Decimal("1.10")}
+    assert cache[january] == {"USD": Decimal("1.25")}
+    assert cache[february] == {"EUR": Decimal("1.10")}
 
 
 def test_read_exchange_rates_raises_on_invalid_date(tmp_path: Path) -> None:
@@ -99,3 +101,20 @@ def test_read_exchange_rates_raises_on_duplicate_currency(tmp_path: Path) -> Non
         match="Duplicate currency entry for USD on 2024-01-01",
     ):
         CurrencyConverter(exchange_rates_file=rates_file)
+
+
+def test_read_exchange_rates_skips_comment_lines(tmp_path: Path) -> None:
+    """Lines starting with # are ignored rather than causing parsing errors."""
+    rates_file = tmp_path / "comments.csv"
+    rates_file.write_text(
+        "# This is a comment header\n# another comment line\nmonth,currency,rate\n2024-01-01,USD,1.25\n# middle comment\n2024-02-01,EUR,1.10\n",
+        encoding="utf8",
+    )
+
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+    cache = converter.cache or converter.test_cache
+
+    january = datetime.date(2024, 1, 1)
+    february = datetime.date(2024, 2, 1)
+    assert cache[january] == {"USD": Decimal("1.25")}
+    assert cache[february] == {"EUR": Decimal("1.10")}

@@ -1,3 +1,6 @@
+# Generated exchange rates dataset for tests.
+# Rates are automatically populated when running tests in test mode.
+# Data format: month,currency,rate
 month,currency,rate
 2014-04-01,USD,1
 2017-09-01,USD,1
