@@ -3,9 +3,9 @@
 This guide is only needed in case the funds data you're looking for is not pre-bundled with the
 tool. Currently bundled data:
 
-- [Vanguard Funds 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
-- [Blackrock Funds 2019-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
-- [iShares Funds 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv)
+- [Vanguard Funds 2018-2024](../cgt_calc/resources/eri/vanguard_eri.csv)
+- [Blackrock Funds 2019-2024](../cgt_calc/resources/eri/blackrock_eri.csv)
+- [iShares Funds 2018-2024](../cgt_calc/resources/eri/ishares_eri.csv)
 
 <details>
     <summary>🏦 Instructions for ERI_RAW format</summary>
@@ -14,7 +14,7 @@ You will need:
 
 - **CSV using the ERI_RAW format.** This is currently the only format supported for excess reported
   income.
-  [See example.](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+  [See example.](../cgt_calc/resources/eri/vanguard_eri.csv)
 
 Example usage for the tax year 2024/25:
 
@@ -38,20 +38,20 @@ Note this tool **already includes** Vanguard Funds ERI data from 2018 to 2024.
 To contribute new data to the tool please run the `import_eri_reports.py` script pointing to either
 the file or the folder containing the ERI reports for Blackrock or iShares. The tool will recognize
 the funds provider from the filename and import the data in the resource CSV for
-[vanguard](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv).
+[vanguard](../cgt_calc/resources/eri/vanguard_eri.csv).
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** End date in the Reporting Period column
 - **Currency:** Share Class Currency column
 - **Excess of reporting income over distribution:** same name column The tool also record any new
   ISIN translation to the resource CSV for
-  [ISIN](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv)
+  [ISIN](../cgt_calc/resources/initial_isin_translation.csv)
 
 To contribute new data to the tool please add it at the bottom of the
-[ERI RAW file](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+[ERI RAW file](../cgt_calc/resources/eri/vanguard_eri.csv)
 for Vanguard. Then run the tool once to generate any new ISIN translations (if needed) and copy them
 from your own isin translation file (default `isin_translation.csv`) into the
-[tool one](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv).
+[tool one](../cgt_calc/resources/initial_isin_translation.csv).
 Create a pull request with both files in GitHub adjusting the README and this file with the updated
 bundled data.
 
@@ -73,12 +73,12 @@ They are split in different companies holding the funds each reporting yearly.
 To contribute new data to the tool please run the `import_eri_reports.py` script pointing to either
 the file or the folder containing the ERI reports for Blackrock or iShares. The tool will recognize
 the funds provider from the filename and import the data in the resource CSV for
-[blackrock](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
+[blackrock](../cgt_calc/resources/eri/blackrock_eri.csv)
 or
-[ishares](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv).
+[ishares](../cgt_calc/resources/eri/ishares_eri.csv).
 
 The tool also record any new ISIN translation to the resource CSV for
-[ISIN](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv)
+[ISIN](../cgt_calc/resources/initial_isin_translation.csv)
 
 Create a pull request with all the files in GitHub adjusting the README and this file with the
 updated bundled data.
