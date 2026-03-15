@@ -13,8 +13,7 @@ tool. Currently bundled data:
 You will need:
 
 - **CSV using the ERI_RAW format.** This is currently the only format supported for excess reported
-  income.
-  [See example.](../cgt_calc/resources/eri/vanguard_eri.csv)
+  income. [See example.](../cgt_calc/resources/eri/vanguard_eri.csv)
 
 Example usage for the tax year 2024/25:
 
@@ -48,12 +47,11 @@ the funds provider from the filename and import the data in the resource CSV for
   [ISIN](../cgt_calc/resources/initial_isin_translation.csv)
 
 To contribute new data to the tool please add it at the bottom of the
-[ERI RAW file](../cgt_calc/resources/eri/vanguard_eri.csv)
-for Vanguard. Then run the tool once to generate any new ISIN translations (if needed) and copy them
-from your own isin translation file (default `isin_translation.csv`) into the
-[tool one](../cgt_calc/resources/initial_isin_translation.csv).
-Create a pull request with both files in GitHub adjusting the README and this file with the updated
-bundled data.
+[ERI RAW file](../cgt_calc/resources/eri/vanguard_eri.csv) for Vanguard. Then run the tool once to
+generate any new ISIN translations (if needed) and copy them from your own isin translation file
+(default `isin_translation.csv`) into the
+[tool one](../cgt_calc/resources/initial_isin_translation.csv). Create a pull request with both
+files in GitHub adjusting the README and this file with the updated bundled data.
 
 </details>
  <br />
@@ -73,8 +71,7 @@ They are split in different companies holding the funds each reporting yearly.
 To contribute new data to the tool please run the `import_eri_reports.py` script pointing to either
 the file or the folder containing the ERI reports for Blackrock or iShares. The tool will recognize
 the funds provider from the filename and import the data in the resource CSV for
-[blackrock](../cgt_calc/resources/eri/blackrock_eri.csv)
-or
+[blackrock](../cgt_calc/resources/eri/blackrock_eri.csv) or
 [ishares](../cgt_calc/resources/eri/ishares_eri.csv).
 
 The tool also record any new ISIN translation to the resource CSV for
