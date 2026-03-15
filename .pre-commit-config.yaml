@@ -58,7 +58,7 @@ repos:
       - id: pytest
         name: pytest
         language: system
-        entry: uv run pytest
+        entry: uv run --env-file=.env pytest
         pass_filenames: false
   - repo: https://github.com/tcort/markdown-link-check
     rev: v3.14.1

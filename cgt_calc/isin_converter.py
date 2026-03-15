@@ -13,7 +13,7 @@ from pyrate_limiter import limiter_factory
 from pyrate_limiter.abstracts.rate import Duration
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 
-from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_RESOURCE
+from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_RESOURCE, TestMode
 from .exceptions import (
     ExternalApiError,
     InvalidTransactionError,
@@ -169,7 +169,7 @@ class IsinConverter:
 
     def _write_isin_translation_file(self) -> None:
         self.validate_data()
-        if self.isin_translation_file is None or CGT_TEST_MODE:
+        if self.isin_translation_file is None or CGT_TEST_MODE != TestMode.PROD:
             return
         with open_with_parents(self.isin_translation_file) as fout:
             data_rows = [[isin, *symbols] for isin, symbols in self.write_data.items()]
