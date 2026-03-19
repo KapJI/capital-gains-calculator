@@ -81,7 +81,7 @@ def approx_equal(val_a: Decimal, val_b: Decimal) -> bool:
     return abs(val_a - val_b) < Decimal("0.01")
 
 
-def open_with_parents(path: Path) -> TextIO:
+def open_with_parents(path: Path, clear_content: bool = True) -> TextIO:
     """Open a file for writing, creating parent directories if they do not exist."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    return path.open("w", encoding="utf8")
+    return path.open("w" if clear_content else "r+", encoding="utf8")
