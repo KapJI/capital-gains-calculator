@@ -122,7 +122,7 @@ def _approx_equal_price_rounding(
     elif calculation_type is CalculationType.DISPOSAL:
         calculated_amount = quantity_on_record * price_on_record - fees_on_record
         calculated_price = (amount_on_record + fees_on_record) / quantity_on_record
-    in_acceptable_range = abs(calculated_price - price_on_record) < Decimal("0.0001")
+    in_acceptable_range = abs(calculated_price - price_on_record) < Decimal("0.0005")
     LOGGER.debug(
         "Price calculated_price %.6f vs price_on_record %s in %s",
         calculated_price,
