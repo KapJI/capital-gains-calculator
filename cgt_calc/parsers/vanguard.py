@@ -50,6 +50,7 @@ class TableType(StrEnum):
     CASH = "cash"
     INVESTMENT = "investment"
 
+
 # Backward-compatible alias used by tests
 COLUMNS: Final[list[str]] = [c.value for c in CashColumn]
 
@@ -148,8 +149,8 @@ class VanguardTransaction(BrokerTransaction):
     """Represents a single Vanguard transaction."""
 
     is_reversal: bool
-    _details: str
-    _file: Path
+    details_text: str
+    source_file: Path
 
     def __init__(
         self,
@@ -168,46 +169,56 @@ class VanguardTransaction(BrokerTransaction):
 
         row = dict(zip(header, row_raw, strict=False))
 
-        date = datetime.datetime.strptime(
-            row[CashColumn.DATE], "%d/%m/%Y"
-        ).date()
-        self._details, self.is_reversal = _strip_reversal(row[CashColumn.DETAILS])
-        self._file = file
-        action = action_from_str(self._details, file)
+        date = datetime.datetime.strptime(row[CashColumn.DATE], "%d/%m/%Y").date()
+        self.details_text, self.is_reversal = _strip_reversal(row[CashColumn.DETAILS])
+        self.source_file = file
+        action = action_from_str(self.details_text, file)
         amount = _parse_decimal(row[CashColumn.AMOUNT], CashColumn.AMOUNT.value)
 
         super().__init__(
-            date, action, None, "", None, None,
-            Decimal(0), amount, "GBP", "Vanguard",
+            date,
+            action,
+            None,
+            "",
+            None,
+            None,
+            Decimal(0),
+            amount,
+            "GBP",
+            "Vanguard",
         )
 
-    def enrich_details(
-        self, inv_row: dict[str, str] | None = None
-    ) -> None:
+    def enrich_details(self, investment_row: dict[str, str] | None = None) -> None:
         """Fill in symbol, quantity, price, and currency.
 
-        If inv_row is provided, use its numeric fields; otherwise fall
+        If investment_row is provided, use its numeric fields; otherwise fall
         back to regex parsing of the cash Details text.
         """
-        if inv_row is not None:
-            self.symbol = _symbol_from_details(self._details)
+        if investment_row is not None:
+            self.symbol = _symbol_from_details(self.details_text)
             self.quantity = abs(
                 _parse_decimal(
-                    inv_row[InvestmentColumn.QUANTITY],
+                    investment_row[InvestmentColumn.QUANTITY],
                     InvestmentColumn.QUANTITY.value,
                 )
             )
             self.price = _parse_decimal(
-                inv_row[InvestmentColumn.PRICE],
+                investment_row[InvestmentColumn.PRICE],
                 InvestmentColumn.PRICE.value,
             )
+            # update the amount using the more precise record from investment table
+            self.amount = self.quantity * self.price
+            if self.action == ActionType.BUY:
+                self.amount *= -1
+
             if self.action == ActionType.DIVIDEND:
-                match = DIV_RE.match(self._details)
+                match = DIV_RE.match(self.details_text)
                 if match:
                     self.currency = match.group(2)
         else:
-            self.symbol, self.quantity, self.price, self.currency = (
-                _parse_details(self._details, self.action, self.amount, self._file)
+            assert self.amount is not None
+            self.symbol, self.quantity, self.price, self.currency = _parse_details(
+                self.details_text, self.action, self.amount, self.source_file
             )
 
     @classmethod
@@ -225,11 +236,20 @@ class VanguardTransaction(BrokerTransaction):
         """Create a VanguardTransaction from pre-parsed fields."""
         txn = object.__new__(cls)
         txn.is_reversal = is_reversal
-        txn._details = ""
-        txn._file = None  # type: ignore[assignment]
+        txn.details_text = ""
+        txn.source_file = None  # type: ignore[assignment]
         BrokerTransaction.__init__(
-            txn, date, action, symbol, "", quantity, price,
-            Decimal(0), amount, currency, "Vanguard",
+            txn,
+            date,
+            action,
+            symbol,
+            "",
+            quantity,
+            price,
+            Decimal(0),
+            amount,
+            currency,
+            "Vanguard",
         )
         return txn
 
@@ -239,9 +259,7 @@ def _make_transaction_from_investment(
     file: Path,
 ) -> VanguardTransaction:
     """Create a VanguardTransaction from an Investment Transactions row."""
-    date = datetime.datetime.strptime(
-        row[InvestmentColumn.DATE], "%d/%m/%Y"
-    ).date()
+    date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
     details, is_reversal = _strip_reversal(row[InvestmentColumn.TRANSACTION_DETAILS])
     action = action_from_str(details, file)
     symbol = _symbol_from_details(details)
@@ -251,7 +269,9 @@ def _make_transaction_from_investment(
         action=action,
         symbol=symbol,
         quantity=abs(
-            _parse_decimal(row[InvestmentColumn.QUANTITY], InvestmentColumn.QUANTITY.value)
+            _parse_decimal(
+                row[InvestmentColumn.QUANTITY], InvestmentColumn.QUANTITY.value
+            )
         ),
         price=_parse_decimal(row[InvestmentColumn.PRICE], InvestmentColumn.PRICE.value),
         amount=_parse_decimal(row[InvestmentColumn.COST], InvestmentColumn.COST.value),
@@ -285,25 +305,25 @@ def _split_tables(
 ) -> tuple[list[list[str]] | None, list[list[str]] | None]:
     """Split parsed CSV lines into cash and investment table sections by header detection."""
     cash_table: list[list[str]] | None = None
-    inv_table: list[list[str]] | None = None
+    investment_table: list[list[str]] | None = None
 
     current: list[list[str]] = []
     current_type: TableType | None = None
 
     def _flush() -> None:
-        nonlocal cash_table, inv_table
+        nonlocal cash_table, investment_table
         if current_type == TableType.CASH:
             cash_table = list(current)
         elif current_type == TableType.INVESTMENT:
-            inv_table = list(current)
+            investment_table = list(current)
 
     for row in lines:
         stripped = {c.strip() for c in row}
-        if CASH_COLUMNS <= stripped:
+        if stripped >= CASH_COLUMNS:
             _flush()
             current = [row]
             current_type = TableType.CASH
-        elif INVESTMENT_COLUMNS <= stripped:
+        elif stripped >= INVESTMENT_COLUMNS:
             _flush()
             current = [row]
             current_type = TableType.INVESTMENT
@@ -311,7 +331,34 @@ def _split_tables(
             current.append(row)
 
     _flush()
-    return cash_table, inv_table
+    return cash_table, investment_table
+
+
+def _find_investment_match(
+    txn: VanguardTransaction,
+    investment_lookup: dict[str, list[dict[str, str]]],
+) -> dict[str, str] | None:
+    """Find the best matching investment row for a cash transaction.
+
+    When multiple investment rows share the same TransactionDetails key:
+    - BUY: earliest investment date on or after the cash date (cash transaction happen first, then investment buy)
+    - SELL: latest investment date on or before the cash date (investment sell happen first, then cash in)
+    """
+    candidates = investment_lookup.get(txn.details_text)
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+
+    def _investment_date(r: dict[str, str]) -> datetime.date:
+        return datetime.datetime.strptime(r[InvestmentColumn.DATE], "%d/%m/%Y").date()
+
+    if txn.action == ActionType.BUY:
+        after = [r for r in candidates if _investment_date(r) >= txn.date]
+        return min(after, key=_investment_date) if after else None
+    # SELL or other: latest date on or before the cash date
+    before = [r for r in candidates if _investment_date(r) <= txn.date]
+    return max(before, key=_investment_date) if before else None
 
 
 class VanguardParser(BaseSingleFileParser):
@@ -328,9 +375,7 @@ class VanguardParser(BaseSingleFileParser):
         expected = [c.value for c in CashColumn]
         if len(header) != len(expected):
             raise UnexpectedColumnCountError(header, len(expected), file)
-        for index, (exp, act) in enumerate(
-            zip(expected, header, strict=True), start=1
-        ):
+        for index, (exp, act) in enumerate(zip(expected, header, strict=True), start=1):
             if exp != act:
                 raise ParsingError(
                     file,
@@ -349,25 +394,25 @@ class VanguardParser(BaseSingleFileParser):
         if not lines:
             raise ParsingError(file_path, "Vanguard CSV file is empty")
 
-        cash_lines, inv_lines = _split_tables(lines)
+        cash_lines, investment_lines = _split_tables(lines)
 
-        if cash_lines is None and inv_lines is None:
+        if cash_lines is None and investment_lines is None:
             # Fallback: treat entire file as a plain cash table (old format)
             cls._validate_cash_header(lines[0], file_path)
             cash_lines = lines
 
         # If "Investment Transaction" table exists, build investment lookup keyed by TransactionDetails
         # This will be merged with "Cash Transaction" table
-        inv_lookup: dict[str, dict[str, str]] = {}
-        if inv_lines is not None:
-            inv_header = inv_lines[0]
-            for row in inv_lines[1:]:
-                if len(row) != len(inv_header):
+        investment_lookup: dict[str, list[dict[str, str]]] = {}
+        if investment_lines is not None:
+            investment_header = investment_lines[0]
+            for row in investment_lines[1:]:
+                if len(row) != len(investment_header):
                     continue
-                inv_row = dict(zip(inv_header, row, strict=False))
-                key = inv_row.get(InvestmentColumn.TRANSACTION_DETAILS, "")
+                investment_row = dict(zip(investment_header, row, strict=False))
+                key = investment_row.get(InvestmentColumn.TRANSACTION_DETAILS, "")
                 if key:
-                    inv_lookup[key] = inv_row
+                    investment_lookup.setdefault(key, []).append(investment_row)
 
         transactions: list[VanguardTransaction] = []
 
@@ -384,31 +429,28 @@ class VanguardParser(BaseSingleFileParser):
                     err.add_row_context(index)
                     raise
                 except ValueError as err:
-                    raise ParsingError(
-                        file_path, str(err), row_index=index
-                    ) from err
+                    raise ParsingError(file_path, str(err), row_index=index) from err
 
             # Resolve quantity/price/symbol: prefer investment data, fall back to regex
             for txn in transactions:
-                txn.enrich_details(inv_lookup.get(txn._details))
+                matched_inv = _find_investment_match(txn, investment_lookup)
+                txn.enrich_details(matched_inv)
 
-        elif inv_lines is not None:
+        elif investment_lines is not None:
             # Only investment table present
-            inv_header = inv_lines[0]
-            for index, row in enumerate(inv_lines[1:], start=2):
-                if len(row) != len(inv_header):
+            investment_header = investment_lines[0]
+            for index, row in enumerate(investment_lines[1:], start=2):
+                if len(row) != len(investment_header):
                     continue
-                inv_row = dict(zip(inv_header, row, strict=False))
+                investment_row = dict(zip(investment_header, row, strict=False))
                 try:
-                    txn = _make_transaction_from_investment(inv_row, file_path)
+                    txn = _make_transaction_from_investment(investment_row, file_path)
                     transactions.append(txn)
                 except ParsingError as err:
                     err.add_row_context(index)
                     raise
                 except ValueError as err:
-                    raise ParsingError(
-                        file_path, str(err), row_index=index
-                    ) from err
+                    raise ParsingError(file_path, str(err), row_index=index) from err
 
         transactions.sort(key=by_date_and_action)
         return cast("list[BrokerTransaction]", transactions)

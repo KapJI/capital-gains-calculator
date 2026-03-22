@@ -1,0 +1,35 @@
+Bob's General investment
+
+Cash Transactions
+
+Date,Details,Amount,Balance
+08/03/2022,Deposit for investment purchases,15000,15000
+09/03/2022,"Bought 1,550 Foo ETF Distributing (FOO)",-14982.06,17.94
+01/04/2022,Cash Account Interest,0.41,18.35
+01/04/2022,Regular Deposit,150,168.35
+07/04/2022,Account Fee for the period 08-Jan-2022 to 07-Apr-2022,-14.05,154.3
+09/04/2022,DIV: FOO.XLON.GB @ GBP 0.4106,225.83,380.13
+25/05/2022,Deposit for Investment Purchases,30000,30380.13
+28/05/2022,Bought 294 Bar ETF – Accumulating (BAR),-29947.28,432.85
+17/07/2022,Sold 1 Bar ETF - Accumulating (BAR),104.06,536.91
+19/07/2022,Account Fee for the period 08-Apr-2022 to 07-Jul-2022,-13.91,523
+29/07/2022,DIV: FOO.XLON.GB @ GBP 0.3106,170.83,693.83
+29/07/2022,Reversal of DIV: FOO.XLON.GB @ GBP 0.3106,-170.83,523
+29/07/2022,DIV: FOO.XLON.GB @ GBP 0.3106,170.83,693.83
+23/08/2022,Payment by Faster - One-off withdrawal Faster,-270.24,423.59
+26/09/2022,Deposit via direct credit,1000,1423.59
+01/10/2022,Bought 6.7700 Emerging Markets Stock Index Fund - Accumulation,-1000,423.59
+02/10/2022,Bought .9232 U.S. Equity Index Fund - Accumulation,-400,23.59
+Balance,23.59
+
+
+
+Investment Transactions
+
+Date,InvestmentName,TransactionDetails,Quantity,Price,Cost
+10/03/2022,Foo ETF Distributing (FOO),"Bought 1,550 Foo ETF Distributing (FOO)",1550,9.665845,14982.06
+29/05/2022,Bar ETF – Accumulating (BAR),Bought 294 Bar ETF – Accumulating (BAR),294,101.8614965,29947.28
+15/07/2022,Bar ETF - Accumulating (BAR),Sold 1 Bar ETF - Accumulating (BAR),1,104.06,104.06
+03/10/2022,Emerging Markets Stock Index Fund - Accumulation,Bought 6.7700 Emerging Markets Stock Index Fund - Accumulation,6.7700,147.72,1000.0644
+04/10/2022,U.S. Equity Index Fund - Accumulation,Bought .9232 U.S. Equity Index Fund - Accumulation,.9232,433.27556, 399.9999
+Cost,12545
