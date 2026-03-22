@@ -45,24 +45,26 @@ We use:
 - [markdown-link-check](https://github.com/tcort/markdown-link-check) - for checking links in
   Markdown
 
-`pre-commit` can be used to run all checks with one command (see below).
+`prek` can be used to run all checks with one command (see below).
 
 The project uses **Python 3.12** as the minimum supported version
 
-## 🚸 Pre-commit
+## 🚸 Prek
 
-Install [`pre-commit`](https://pre-commit.com/#install) first, e.g. using `uv` or `pipx`:
+`prek` is fully compatible with `pre-commit`, so `pre-commit` can be used as well.
+
+Install [`prek`](https://prek.j178.dev/) first, e.g. using `uv` or `pipx`:
 
 ```shell
-uv tool install pre-commit
+uv tool install prek
 ```
 
-Installing it globally avoids issues when `pre-commit` invokes `uv` inside hooks.
+Installing it globally avoids issues when `prek` invokes `uv` inside hooks.
 
-Activate the `pre-commit` hook:
+Activate the `prek` hook:
 
 ```shell
-pre-commit install
+prek install
 ```
 
 This will automatically check code style, linting, and types before each commit.
@@ -70,15 +72,15 @@ This will automatically check code style, linting, and types before each commit.
 You can also run all checks on the repository manually:
 
 ```shell
-pre-commit run --all-files
+prek run --all-files
 ```
 
 Or you can run single hook:
 
 ```shell
-pre-commit run mypy --all-files
-pre-commit run pytest
-pre-commit run --hook-stage manual python-typing-update --all-files
+prek run mypy --all-files
+prek run pytest
+prek run --hook-stage manual python-typing-update --all-files
 ```
 
 ## 🧹 Running linters and tests manually
