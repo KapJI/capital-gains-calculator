@@ -35,8 +35,8 @@ jobs:
         run: |
           uvx pre-commit run --hook-stage manual python-typing-update --all-files --show-diff-on-failure --color=always
 
-  markdown-lint-check:
-    name: Markdown lint check
+  markdown-link-check:
+    name: Markdown link check
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
