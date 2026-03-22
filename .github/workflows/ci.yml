@@ -22,18 +22,10 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - uses: actions/cache@v5
-        name: Cache pre-commit hooks
+      - name: Setup pre-commit cache
+        uses: ./.github/actions/pre-commit-cache
         with:
-          path: ~/.cache/pre-commit/
-          key: >
-            ${{ format('pre-commit-{0}-{1}',
-            env.PYTHON_VERSION,
-            hashFiles('.pre-commit-config.yaml')
-            ) }}
-          restore-keys: |
-            pre-commit-${{ env.PYTHON_VERSION }}-
-            pre-commit-
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Run pre-commit on all files
         run: |
@@ -42,6 +34,27 @@ jobs:
       - name: Run python-typing-update
         run: |
           uvx pre-commit run --hook-stage manual python-typing-update --all-files --show-diff-on-failure --color=always
+
+  markdown-link-check:
+    name: Markdown link check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - name: Prepare and install deps
+        uses: ./.github/actions/install-deps
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup pre-commit cache
+        uses: ./.github/actions/pre-commit-cache
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run markdown-link-check
+        run: |
+          uvx pre-commit run --hook-stage manual markdown-link-check --all-files --show-diff-on-failure --color=always
 
   docker-build:
     name: Docker build
