@@ -22,18 +22,10 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - uses: actions/cache@v5
-        name: Cache pre-commit hooks
+      - name: Setup pre-commit cache
+        uses: ./.github/actions/pre-commit-cache
         with:
-          path: ~/.cache/pre-commit/
-          key: >
-            ${{ format('pre-commit-{0}-{1}',
-            env.PYTHON_VERSION,
-            hashFiles('.pre-commit-config.yaml')
-            ) }}
-          restore-keys: |
-            pre-commit-${{ env.PYTHON_VERSION }}-
-            pre-commit-
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Run pre-commit on all files
         run: |
@@ -55,18 +47,10 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - uses: actions/cache@v5
-        name: Cache pre-commit hooks
+      - name: Setup pre-commit cache
+        uses: ./.github/actions/pre-commit-cache
         with:
-          path: ~/.cache/pre-commit/
-          key: >
-            ${{ format('pre-commit-{0}-{1}',
-            env.PYTHON_VERSION,
-            hashFiles('.pre-commit-config.yaml')
-            ) }}
-          restore-keys: |
-            pre-commit-${{ env.PYTHON_VERSION }}-
-            pre-commit-
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Run markdown-link-check
         run: |
