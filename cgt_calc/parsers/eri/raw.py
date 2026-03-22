@@ -21,7 +21,7 @@ from cgt_calc.parsers.base_parsers import BaseSingleFileParser
 from cgt_calc.resources import RESOURCES_PACKAGE
 from cgt_calc.util import is_isin
 
-from .model import EriTransaction
+from .model import ERITransaction
 
 COLUMNS: Final[list[str]] = [
     "ISIN",
@@ -31,8 +31,10 @@ COLUMNS: Final[list[str]] = [
 ]
 LOGGER = logging.getLogger(__name__)
 
+RAW_DATE_FORMAT = "%d/%m/%Y"
 
-class EriRaw(EriTransaction):
+
+class ERIRaw(ERITransaction):
     """Represents a single raw ERI transaction."""
 
     def __init__(self, header: list[str], row_raw: list[str], file: Path) -> None:
@@ -47,7 +49,7 @@ class EriRaw(EriTransaction):
             raise ParsingError(file, f"Invalid ISIN value '{isin}' in ERI data")
         date_str = row["Fund Reporting Period End Date"]
         try:
-            date = datetime.datetime.strptime(date_str, "%d/%m/%Y").date()
+            date = datetime.datetime.strptime(date_str, RAW_DATE_FORMAT).date()
         except ValueError as err:
             raise ParsingError(file, f"Invalid date '{date_str}' in ERI data") from err
         currency = row["Currency"]
@@ -111,4 +113,4 @@ class ERIRawParser(BaseSingleFileParser):
         ERIRawParser._validate_header(header, file_path, COLUMNS)
 
         lines = lines[1:]
-        return [EriRaw(header, row, file_path) for row in lines]
+        return [ERIRaw(header, row, file_path) for row in lines]
