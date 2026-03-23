@@ -90,6 +90,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Limit buy",
         "Stop buy",
         "Stop limit buy",
+        "Custom stock distribution",
     ]:
         return ActionType.BUY
 
@@ -114,7 +115,6 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Dividend (Dividend)",
         "Dividend (Dividends paid by us corporations)",
         "Dividend (Dividend manufactured payment)",
-        "Custom stock distribution",
     ]:
         return ActionType.DIVIDEND
 
