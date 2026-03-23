@@ -29,7 +29,7 @@ keywords = [
   "broker export",
   "financial reporting",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.12,<4.0"
 dependencies = [
   "colorama>=0.4.6",
   "defusedxml>=0.7.1,<1.0.0",
