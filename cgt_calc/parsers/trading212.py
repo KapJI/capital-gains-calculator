@@ -161,6 +161,16 @@ class Trading212Transaction(BrokerTransaction):
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
         description = row[Trading212Column.NAME]
+        
+        # Warning as "Custom stock distribution" transactions will usually be a zero cost purchase, but not always
+        if self.raw_action == "Custom stock distribution":
+            LOGGER.warning(
+                "Custom stock distribution detected - currently processed as a BUY "
+                "This treatment should be reviewed to ensure it reflects the relevant tax rules. "
+                "%s %s",
+                symbol,
+                self.datetime
+            )
 
         quantity = decimal_or_none(row, Trading212Column.NO_OF_SHARES)
         self.price_foreign = decimal_or_none(row, Trading212Column.PRICE_PER_SHARE)
