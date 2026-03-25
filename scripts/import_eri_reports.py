@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 from decimal import Decimal
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -12,6 +13,7 @@ from cgt_calc import resources
 from cgt_calc.const import DEFAULT_ISIN_TRANSLATION_FILE
 from cgt_calc.exceptions import InvalidTransactionError
 from cgt_calc.parsers.eri.importer.blackrock import BlackrockImporter
+from cgt_calc.parsers.eri.importer.invesco import InvescoImporter
 from cgt_calc.parsers.eri.importer.vanguard import VanguardImporter
 from cgt_calc.parsers.eri.raw import COLUMNS, RAW_DATE_FORMAT, ERIRawParser
 from cgt_calc.util import approx_equal
@@ -21,7 +23,13 @@ if TYPE_CHECKING:
 
     from cgt_calc.parsers.eri.model import ERIImporter, ERITransaction
 
-ERI_IMPORTERS: list[ERIImporter] = [BlackrockImporter(), VanguardImporter()]
+ERI_IMPORTERS: list[ERIImporter] = [
+    BlackrockImporter(),
+    InvescoImporter(),
+    VanguardImporter(),
+]
+
+logging.basicConfig(level=logging.INFO)
 
 
 def validate_and_remove_duplicates(
