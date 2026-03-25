@@ -1,5 +1,5 @@
 Parsing tests/vanguard/data/report.csv...
-Found 17 broker transactions
+Found 19 broker transactions
 First pass completed
 Final portfolio:
   FOO: 1550.00
