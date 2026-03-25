@@ -19,6 +19,7 @@ from cgt_calc.parsers.vanguard import VanguardParser
 if TYPE_CHECKING:
     import argparse
 
+    from cgt_calc.isin_converter import IsinConverter
     from cgt_calc.model import BrokerTransaction
 
     from .base_parsers import BaseParser
@@ -52,7 +53,9 @@ class BrokerRegistry:
         ERIRawParser.register_arguments(broker_group)
 
     @staticmethod
-    def load_all_transactions(args: argparse.Namespace) -> list[BrokerTransaction]:
+    def load_all_transactions(
+        args: argparse.Namespace, isin_converter: IsinConverter
+    ) -> list[BrokerTransaction]:
         """Load transactions from all brokers."""
         all_transactions: list[BrokerTransaction] = []
         for broker_class in BrokerRegistry._BROKERS:
@@ -71,7 +74,12 @@ class BrokerRegistry:
             print(f"Found {len(all_transactions)} broker transactions")
 
         # ERI Raw is not a broker but is close enough to one to be here
-        all_transactions += ERIRawParser.load_from_args(args)
+        # Only add ERI for funds that show up in the portfolio
+        isin_map = isin_converter.get_symbol_to_isin_map()
+        isins = {trx.isin or isin_map.get(trx.symbol or "") for trx in all_transactions}
+        all_transactions += [
+            trx for trx in ERIRawParser.load_from_args(args) if trx.isin in isins
+        ]
 
         all_transactions.sort(key=lambda k: k.date)
         return all_transactions
