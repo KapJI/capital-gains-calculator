@@ -146,12 +146,16 @@ class VanguardTransaction(BrokerTransaction):
 
 def by_date_and_action(
     transaction: VanguardTransaction,
-) -> tuple[datetime.date, bool, bool]:
+) -> tuple[datetime.date, bool, bool, bool]:
     """Sort by date and action type."""
     # Deprioritize BUY and reversal transaction to prevent balance errors
+    # Deprioritize debits (e.g. fee charged) so credits (e.g. fee cleared)
+    # are processed first, preventing temporary negative balances.
+    is_debit = transaction.amount is not None and transaction.amount < 0
     return (
         transaction.date,
         transaction.action == ActionType.BUY,
+        is_debit,
         transaction.is_reversal,
     )
 
