@@ -122,3 +122,34 @@ Columns mapping to ERI_RAW:
 
 </details>
  <br />
+ <br />
+<details>
+    <summary>🏦 Instructions for Invesco funds</summary>
+
+Invesco publishes the Reportable Income yearly report in the documents section of any fund with UK
+reporting status:
+https://www.invesco.com/uk/en/financial-products/etfs/invesco-uk-gilts-ucits-etf-acc.html#Documents
+
+Note this tool **already includes** Invesco Funds ERI data from 2018 to 2024.
+
+To contribute new data to the tool please run the `import_eri_reports.py` script pointing to either
+the file or the folder containing the ERI reports for Invesco. The tool will recognize the funds
+provider from the filename and import the data in the resource CSV for
+[invesco](../cgt_calc/resources/eri/invesco_eri.csv).
+
+Columns mapping to ERI_RAW:
+
+- **ISIN:** ISIN / Identifier column
+- **Fund Reporting Period End Date:** Stated in the report header before the main table
+- **Currency:** Currency of Share Class column
+- **Excess of reporting income over distribution:** Per unit excess reportable income over
+  distributions in respect of the reporting period column
+
+To contribute new data to the tool please add it at the bottom of the
+[ERI RAW file](../cgt_calc/resources/eri/invesco_eri.csv) for Invesco. Then run the tool once to
+generate any new ISIN translations (if needed) and copy them from your own isin translation file
+(default `isin_translation.csv`) into the
+[tool one](../cgt_calc/resources/initial_isin_translation.csv). Create a pull request with both
+files in GitHub adjusting the README and this file with the updated bundled data.
+
+</details>

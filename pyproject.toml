@@ -58,6 +58,7 @@ dev = [
   "dprint-py>=0.50.2.0",
   "mypy>=1.18.2",
   "pandas-stubs>=2.2",
+  "pdfplumber>=0.11.9",
   "pylint>=3.3.8",
   "pytest>=8.4.2,<10.0.0",
   "pytest-clarity>=1.0.1",
