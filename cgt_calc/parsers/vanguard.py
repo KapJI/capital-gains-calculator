@@ -63,6 +63,10 @@ DIV_RE = re.compile(r"^DIV: ([^\.]+)\.[^ ]+ @ ([A-Z]+) (\d*[,\.]?\d*)")
 TRANSFER_RE = re.compile(
     r".*(Regular Deposit|Cash transfer|Deposit via|Deposit for|Payment by|Account [Ff]ee).*"
 )
+NAMECHANGE_RE = re.compile(
+    r"^NameChange:\s*([A-Z0-9]+)(?:\.\S+)?"
+    r"(?:\s+replaced with\s+([A-Z0-9]+)(?:\.\S+)?)?\s*$"
+)
 
 INTEREST_STR = "Cash Account Interest"
 REVERSAL_STR = "Reversal of "
@@ -239,10 +243,16 @@ class VanguardTransaction(BrokerTransaction):
 def _make_transaction_from_investment(
     row: dict[str, str],
     file: Path,
-) -> VanguardTransaction:
-    """Create a VanguardTransaction from an Investment Transactions row."""
-    date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
+) -> VanguardTransaction | None:
+    """Create a VanguardTransaction from an Investment Transactions row.
+
+    Returns None for NameChange annotation rows — these mark a ticker rename,
+    not a real trade, and are handled via a rename map applied post-parsing.
+    """
     details, is_reversal = _strip_reversal(row[InvestmentColumn.TRANSACTION_DETAILS])
+    if NAMECHANGE_RE.match(details):
+        return None
+    date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
     action = action_from_str(details, file)
     symbol = _symbol_from_details(details)
 
@@ -397,6 +407,10 @@ class VanguardParser(BaseSingleFileParser):
         # If "Investment Transaction" table exists, build investment lookup keyed by TransactionDetails
         # This will be merged with "Cash Transaction" table
         investment_lookup: dict[str, list[dict[str, str]]] = {}
+        # Ticker renames sourced from "NameChange: OLD replaced with NEW" annotation
+        # rows in the investment table. Applied to all parsed transactions below so
+        # pre-rename holdings carry through as a single continuous position.
+        rename_map: dict[str, str] = {}
         if investment_lines is not None:
             investment_header = investment_lines[0]
             for row in investment_lines[1:]:
@@ -404,8 +418,15 @@ class VanguardParser(BaseSingleFileParser):
                     continue
                 investment_row = dict(zip(investment_header, row, strict=False))
                 key = investment_row.get(InvestmentColumn.TRANSACTION_DETAILS, "")
-                if key:
-                    investment_lookup.setdefault(key, []).append(investment_row)
+                if not key:
+                    continue
+                namechange = NAMECHANGE_RE.match(key)
+                if namechange:
+                    new_ticker = namechange.group(2)
+                    if new_ticker:
+                        rename_map[namechange.group(1)] = new_ticker
+                    continue
+                investment_lookup.setdefault(key, []).append(investment_row)
 
         transactions: list[VanguardTransaction] = []
 
@@ -438,13 +459,21 @@ class VanguardParser(BaseSingleFileParser):
                     continue
                 investment_row = dict(zip(investment_header, row, strict=False))
                 try:
-                    txn = _make_transaction_from_investment(investment_row, file_path)
-                    transactions.append(txn)
+                    inv_txn = _make_transaction_from_investment(
+                        investment_row, file_path
+                    )
                 except ParsingError as err:
                     err.add_row_context(index)
                     raise
                 except ValueError as err:
                     raise ParsingError(file_path, str(err), row_index=index) from err
+                if inv_txn is not None:
+                    transactions.append(inv_txn)
+
+        if rename_map:
+            for txn in transactions:
+                if txn.symbol in rename_map:
+                    txn.symbol = rename_map[txn.symbol]
 
         transactions.sort(key=by_date_and_action)
         return cast("list[BrokerTransaction]", transactions)

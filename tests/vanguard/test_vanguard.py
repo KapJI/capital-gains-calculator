@@ -305,3 +305,63 @@ def test_investment_only_table(tmp_path: Path) -> None:
     assert transactions[0].quantity == Decimal(10)
     assert transactions[0].price == Decimal("9.5")
     assert transactions[1].action == ActionType.SELL
+
+
+def test_namechange_rewrites_old_ticker_to_new(tmp_path: Path) -> None:
+    """Pre-rename buys of the old ticker are rewritten to the new ticker."""
+    content = (
+        "Cash Transactions\n"
+        "\n"
+        "Date,Details,Amount,Balance\n"
+        "22/06/2020,Bought 100 DAX UCITS ETF Distributing (VDXX),-1000.00,0\n"
+        "28/09/2020,"
+        "Bought 50 Vanguard Germany All Cap UCITS ETF (EUR) Distributing (VGER),"
+        "-600.00,0\n"
+        "\n"
+        "Investment Transactions\n"
+        "\n"
+        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        "18/09/2020,Vanguard Germany All Cap UCITS ETF (EUR) Distributing (VGER),"
+        "NameChange: VDXX.XLON.GB replaced with VGER.XLON.GB,"
+        "100,11.00,1100.00\n"
+        "18/09/2020,DAX UCITS ETF Distributing (VDXX),NameChange: VDXX.XLON.GB,"
+        "-100,11.00,-1100.00\n"
+    )
+    vanguard_file = tmp_path / "namechange.csv"
+    vanguard_file.write_text(content, encoding="utf-8")
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 2
+    # Both buys should now sit under the new ticker VGER — the pre-rename VDXX
+    # buy has been rewritten, and no synthetic trade is emitted for 18/09/2020.
+    symbols = {t.symbol for t in transactions}
+    assert symbols == {"VGER"}
+    dates = {t.date.isoformat() for t in transactions}
+    assert "2020-09-18" not in dates
+
+
+def test_namechange_in_investment_only_table_is_skipped(tmp_path: Path) -> None:
+    """NameChange rows in an investment-only CSV parse without error and emit no txn."""
+    content = (
+        "Investment Transactions\n"
+        "\n"
+        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        "18/09/2020,Vanguard Germany All Cap UCITS ETF (EUR) Distributing (VGER),"
+        "NameChange: VDXX.XLON.GB replaced with VGER.XLON.GB,"
+        "100,11.00,1100.00\n"
+        "18/09/2020,DAX UCITS ETF Distributing (VDXX),NameChange: VDXX.XLON.GB,"
+        "-100,11.00,-1100.00\n"
+        "25/09/2020,Vanguard Germany All Cap UCITS ETF (EUR) Distributing (VGER),"
+        "Bought 50 Vanguard Germany All Cap UCITS ETF (EUR) Distributing (VGER),"
+        "50,12.00,600.00\n"
+    )
+    vanguard_file = tmp_path / "inv_namechange.csv"
+    vanguard_file.write_text(content, encoding="utf-8")
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 1
+    assert transactions[0].action == ActionType.BUY
+    assert transactions[0].symbol == "VGER"
+    assert transactions[0].quantity == Decimal(50)
