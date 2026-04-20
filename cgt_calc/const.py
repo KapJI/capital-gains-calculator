@@ -76,6 +76,11 @@ TICKER_RENAMES: Final[dict[str, str]] = {
     "FB": "META",
 }
 
+# Encodes the old ticker in the RENAME transaction's description field;
+# parsed back out by main.apply_ticker_renames. Keep parser + preprocessor
+# in sync.
+RENAME_DESCRIPTION_PREFIX: Final = "renamed from "
+
 
 # =============================================================================
 # Resource files

@@ -20,6 +20,7 @@ from .const import (
     DIVIDEND_DOUBLE_TAXATION_RULES,
     ERI_TAX_DATE_DELTA,
     INTERNAL_START_DATE,
+    RENAME_DESCRIPTION_PREFIX,
     UK_CURRENCY,
 )
 from .currency_converter import CurrencyConverter
@@ -139,6 +140,45 @@ def _approx_equal_price_rounding(
         "acceptable range" if accptable_amount else "error",
     )
     return accptable_amount
+
+
+def apply_ticker_renames(transactions: list[BrokerTransaction]) -> None:
+    """Rewrite old-ticker symbols to the new ticker from RENAME events.
+
+    Transitive chains (A->B->C) are collapsed to A->C before rewrite.
+    """
+    rename_map: dict[str, str] = {}
+    for txn in transactions:
+        if txn.action is not ActionType.RENAME:
+            continue
+        if txn.symbol is None or not txn.description.startswith(
+            RENAME_DESCRIPTION_PREFIX
+        ):
+            continue
+        old_ticker = txn.description[len(RENAME_DESCRIPTION_PREFIX) :].strip()
+        if old_ticker:
+            rename_map[old_ticker] = txn.symbol
+
+    if not rename_map:
+        return
+
+    # Collapse transitive chains: if A->B and B->C, map A directly to C.
+    for key in list(rename_map):
+        seen = {key}
+        value = rename_map[key]
+        while value in rename_map and value not in seen:
+            seen.add(value)
+            value = rename_map[value]
+        rename_map[key] = value
+
+    for old, new in rename_map.items():
+        LOGGER.info("Applied ticker rename: %s -> %s", old, new)
+
+    for txn in transactions:
+        if txn.action is ActionType.RENAME:
+            continue
+        if txn.symbol in rename_map:
+            txn.symbol = rename_map[txn.symbol]
 
 
 class CapitalGainsCalculator:
@@ -490,6 +530,10 @@ class CapitalGainsCalculator:
         transactions: list[BrokerTransaction],
     ) -> None:
         """Convert broker transactions to HMRC transactions."""
+        # Unify tickers up-front so the per-symbol matcher (incl. B&B across
+        # a rename) sees pre- and post-rename holdings as one security.
+        apply_ticker_renames(transactions)
+
         # We keep a balance per broker,currency pair
         balance: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal(0))
         dividends: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
@@ -595,6 +639,9 @@ class CapitalGainsCalculator:
                 new_balance += amount
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
+            elif transaction.action is ActionType.RENAME:
+                # Consumed upfront by apply_ticker_renames; kept for audit.
+                pass
             else:
                 raise InvalidTransactionError(
                     transaction, f"Action not processed({transaction.action})"

@@ -307,8 +307,13 @@ def test_investment_only_table(tmp_path: Path) -> None:
     assert transactions[1].action == ActionType.SELL
 
 
-def test_namechange_rewrites_old_ticker_to_new(tmp_path: Path) -> None:
-    """Pre-rename buys of the old ticker are rewritten to the new ticker."""
+def test_namechange_emits_rename_transaction(tmp_path: Path) -> None:
+    """Parser emits a RENAME transaction; pre-rename buys keep the old ticker.
+
+    Symbol unification happens later in the calculator preprocessor. Leaving
+    the pre-rename buys under OLD at the parser layer keeps the rename event
+    visible end-to-end for audit.
+    """
     content = (
         "Cash Transactions\n"
         "\n"
@@ -332,17 +337,26 @@ def test_namechange_rewrites_old_ticker_to_new(tmp_path: Path) -> None:
 
     transactions = VanguardParser().load_from_file(vanguard_file)
 
-    assert len(transactions) == 2
-    # Both buys should now sit under the new ticker VGER — the pre-rename VDXX
-    # buy has been rewritten, and no synthetic trade is emitted for 18/09/2020.
-    symbols = {t.symbol for t in transactions}
-    assert symbols == {"VGER"}
-    dates = {t.date.isoformat() for t in transactions}
-    assert "2020-09-18" not in dates
+    assert len(transactions) == 3
+
+    renames = [t for t in transactions if t.action is ActionType.RENAME]
+    assert len(renames) == 1
+    rename = renames[0]
+    assert rename.symbol == "VGER"
+    assert rename.date.isoformat() == "2020-09-18"
+    assert "VDXX" in rename.description
+    assert rename.amount == Decimal(0)
+
+    # Pre-rename buy of VDXX remains under VDXX at the parser layer.
+    buys = [t for t in transactions if t.action is ActionType.BUY]
+    assert len(buys) == 2
+    buy_by_date = {t.date.isoformat(): t for t in buys}
+    assert buy_by_date["2020-06-22"].symbol == "VDXX"
+    assert buy_by_date["2020-09-28"].symbol == "VGER"
 
 
-def test_namechange_in_investment_only_table_is_skipped(tmp_path: Path) -> None:
-    """NameChange rows in an investment-only CSV parse without error and emit no txn."""
+def test_namechange_in_investment_only_table_emits_rename(tmp_path: Path) -> None:
+    """NameChange rows in an investment-only CSV emit a RENAME transaction."""
     content = (
         "Investment Transactions\n"
         "\n"
@@ -361,7 +375,14 @@ def test_namechange_in_investment_only_table_is_skipped(tmp_path: Path) -> None:
 
     transactions = VanguardParser().load_from_file(vanguard_file)
 
-    assert len(transactions) == 1
-    assert transactions[0].action == ActionType.BUY
-    assert transactions[0].symbol == "VGER"
-    assert transactions[0].quantity == Decimal(50)
+    assert len(transactions) == 2
+
+    renames = [t for t in transactions if t.action is ActionType.RENAME]
+    assert len(renames) == 1
+    assert renames[0].symbol == "VGER"
+    assert "VDXX" in renames[0].description
+
+    buys = [t for t in transactions if t.action is ActionType.BUY]
+    assert len(buys) == 1
+    assert buys[0].symbol == "VGER"
+    assert buys[0].quantity == Decimal(50)

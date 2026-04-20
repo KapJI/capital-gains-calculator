@@ -11,12 +11,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, RuleType
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
 from tests.utils import build_cmd
@@ -482,6 +483,197 @@ def test_same_day_rule_all_shares_disposed_no_rounding_error() -> None:
         f"Pool amount should be exactly zero after disposing all shares on same day, "
         f"got {calculator.portfolio[symbol].amount}"
     )
+
+
+def _rename_transaction(
+    date: datetime.date, old_ticker: str, new_ticker: str
+) -> BrokerTransaction:
+    """Build a minimal RENAME broker transaction for tests."""
+    return BrokerTransaction(
+        date=date,
+        action=ActionType.RENAME,
+        symbol=new_ticker,
+        description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}",
+        quantity=Decimal(0),
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(0),
+        currency="GBP",
+        broker="Test",
+    )
+
+
+def test_rename_preprocessor_unifies_old_and_new_tickers() -> None:
+    """BUY(OLD) + RENAME(OLD->NEW) + BUY(NEW) collapse into a single holding."""
+    calculator = create_calculator()
+
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=datetime.date(2024, 6, 1),
+            action=ActionType.BUY,
+            symbol="OLD",
+            description="pre-rename buy",
+            quantity=Decimal(10),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-100),
+            currency="GBP",
+            broker="Test",
+        ),
+        _rename_transaction(datetime.date(2024, 6, 15), "OLD", "NEW"),
+        BrokerTransaction(
+            date=datetime.date(2024, 7, 1),
+            action=ActionType.BUY,
+            symbol="NEW",
+            description="post-rename buy",
+            quantity=Decimal(5),
+            price=Decimal(12),
+            fees=Decimal(0),
+            amount=Decimal(-60),
+            currency="GBP",
+            broker="Test",
+        ),
+    ]
+
+    calculator.convert_to_hmrc_transactions(transactions)
+
+    # Acquisitions for both dates are filed under NEW after preprocessing.
+    assert "OLD" not in calculator.acquisition_list[datetime.date(2024, 6, 1)]
+    assert "NEW" in calculator.acquisition_list[datetime.date(2024, 6, 1)]
+    assert "NEW" in calculator.acquisition_list[datetime.date(2024, 7, 1)]
+
+    # Portfolio consolidated under NEW, no OLD left behind.
+    assert "OLD" not in calculator.portfolio
+    assert calculator.portfolio["NEW"].quantity == Decimal(15)
+
+
+def test_rename_preprocessor_collapses_transitive_chains() -> None:
+    """A->B->C renames map all historic tickers onto the latest one."""
+    calculator = create_calculator()
+
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=datetime.date(2024, 1, 10),
+            action=ActionType.BUY,
+            symbol="A",
+            description="buy A",
+            quantity=Decimal(10),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-100),
+            currency="GBP",
+            broker="Test",
+        ),
+        _rename_transaction(datetime.date(2024, 2, 1), "A", "B"),
+        BrokerTransaction(
+            date=datetime.date(2024, 3, 1),
+            action=ActionType.BUY,
+            symbol="B",
+            description="buy B",
+            quantity=Decimal(5),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-50),
+            currency="GBP",
+            broker="Test",
+        ),
+        _rename_transaction(datetime.date(2024, 4, 1), "B", "C"),
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),
+            action=ActionType.BUY,
+            symbol="C",
+            description="buy C",
+            quantity=Decimal(3),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-30),
+            currency="GBP",
+            broker="Test",
+        ),
+    ]
+
+    calculator.convert_to_hmrc_transactions(transactions)
+
+    # Every acquisition — including the original buy of A — sits under C.
+    for date in (
+        datetime.date(2024, 1, 10),
+        datetime.date(2024, 3, 1),
+        datetime.date(2024, 5, 1),
+    ):
+        assert "C" in calculator.acquisition_list[date]
+    assert "A" not in calculator.portfolio
+    assert "B" not in calculator.portfolio
+    assert calculator.portfolio["C"].quantity == Decimal(18)
+
+
+def test_bed_and_breakfast_across_rename() -> None:
+    """A sell->rename->buy sequence within 30 days is matched under B&B.
+
+    HMRC treats a pure ticker rename as a continuation of the same holding,
+    so a sell of OLD followed by a buy of NEW within 30 days is the same
+    security post-rename and must B&B-match.
+    """
+    calculator = create_calculator()
+
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=datetime.date(2024, 6, 1),
+            action=ActionType.BUY,
+            symbol="OLD",
+            description="initial buy",
+            quantity=Decimal(100),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-1000),
+            currency="GBP",
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 6, 11),
+            action=ActionType.SELL,
+            symbol="OLD",
+            description="disposal of OLD",
+            quantity=Decimal(100),
+            price=Decimal(8),
+            fees=Decimal(0),
+            amount=Decimal(800),
+            currency="GBP",
+            broker="Test",
+        ),
+        _rename_transaction(datetime.date(2024, 6, 16), "OLD", "NEW"),
+        BrokerTransaction(
+            date=datetime.date(2024, 6, 21),
+            action=ActionType.BUY,
+            symbol="NEW",
+            description="rebuy post-rename (within 30 days)",
+            quantity=Decimal(100),
+            price=Decimal(9),
+            fees=Decimal(0),
+            amount=Decimal(-900),
+            currency="GBP",
+            broker="Test",
+        ),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    sell_date = datetime.date(2024, 6, 11)
+    sell_entries = report.calculation_log[sell_date]["sell$NEW"]
+    rule_types = {entry.rule_type for entry in sell_entries}
+    assert RuleType.BED_AND_BREAKFAST in rule_types
+
+    bnb_entry = next(
+        entry for entry in sell_entries if entry.rule_type == RuleType.BED_AND_BREAKFAST
+    )
+    assert bnb_entry.quantity == Decimal(100)
+    # 100 sold @ £8 = £800 proceeds; B&B allowable cost is the £900 rebuy.
+    assert bnb_entry.amount == Decimal(800)
+    assert bnb_entry.allowable_cost == Decimal(900)
+    assert bnb_entry.gain == Decimal(-100)
+    assert bnb_entry.bed_and_breakfast_date_index == datetime.date(2024, 6, 21)
+
+    # Confirmed a capital loss of £100 overall.
+    assert report.total_gain() == Decimal(-100)
 
 
 def test_run_with_example_files() -> None:

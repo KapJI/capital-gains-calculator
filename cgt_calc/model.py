@@ -155,6 +155,7 @@ class ActionType(Enum):
     CASH_MERGER = 16
     EXCESS_REPORTED_INCOME = 17
     FULL_REDEMPTION = 18
+    RENAME = 19
 
 
 class CalculationType(Enum):
