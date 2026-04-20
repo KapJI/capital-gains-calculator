@@ -61,7 +61,8 @@ BOUGHT_RE = re.compile(r"^Bought ([\d,]*\.?\d+) (.+?)(?:\s*\(([^()]+)\))?$")
 SOLD_RE = re.compile(r"^Sold ([\d,]*\.?\d+) (.+?)(?:\s*\(([^()]+)\))?$")
 DIV_RE = re.compile(r"^DIV: ([^\.]+)\.[^ ]+ @ ([A-Z]+) (\d*[,\.]?\d*)")
 TRANSFER_RE = re.compile(
-    r".*(Regular Deposit|Cash transfer|Deposit via|Deposit for|Payment by|Account [Ff]ee).*"
+    r".*(Regular Deposit|Cash transfer|Deposit via|Deposit for|Payment by|"
+    r"Account [Ff]ee|ETF dealing fee).*"
 )
 
 INTEREST_STR = "Cash Account Interest"

@@ -128,6 +128,32 @@ def test_read_vanguard_fractional_share(tmp_path: Path) -> None:
     assert transaction.currency == "GBP"
 
 
+def test_read_vanguard_etf_dealing_fee_is_transfer(tmp_path: Path) -> None:
+    """ETF dealing fees parse as TRANSFER and affect cash without a position."""
+
+    vanguard_file = tmp_path / "etf_dealing_fee.csv"
+    rows = [
+        COLUMNS,
+        [
+            "09/03/2022",
+            "ETF dealing fee (sell) FTSE 100 UCITS ETF - Distributing (VUKE)",
+            "-7.50",
+            "0",
+        ],
+    ]
+    _write_csv(vanguard_file, rows)
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action is ActionType.TRANSFER
+    assert transaction.symbol is None
+    assert transaction.quantity is None
+    assert transaction.price is None
+    assert transaction.amount == Decimal("-7.50")
+
+
 def test_read_vanguard_transactions_invalid_decimal(tmp_path: Path) -> None:
     """Raise ParsingError when amount cannot be parsed as Decimal."""
 
