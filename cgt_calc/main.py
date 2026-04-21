@@ -178,9 +178,9 @@ class CapitalGainsCalculator:
         self.disposal_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
         self.split_list: dict[tuple[str, datetime.date], Decimal] = {}
-        # Ticker renames: date -> list of (old_symbol, new_symbol).
+        # Ticker renames: date -> {old_symbol: new_symbol}.
         # Processed during the second pass to move the pool from old to new.
-        self.rename_list: dict[datetime.date, list[tuple[str, str]]] = defaultdict(list)
+        self.rename_list: dict[datetime.date, dict[str, str]] = defaultdict(dict)
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
@@ -603,7 +603,7 @@ class CapitalGainsCalculator:
                 old_symbol = transaction.description[
                     len(RENAME_DESCRIPTION_PREFIX) :
                 ].strip()
-                self.rename_list[transaction.date].append((old_symbol, new_symbol))
+                self.rename_list[transaction.date][old_symbol] = new_symbol
                 pos = self.portfolio.pop(old_symbol, None)
                 if pos is not None:
                     self.portfolio[new_symbol] += pos
@@ -853,13 +853,16 @@ class CapitalGainsCalculator:
                 eris.append(eri)
 
             split_multiplier = Decimal(1)
+            effective = symbol
 
             for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = date_index + datetime.timedelta(days=i + 1)
-                # Follow rename chain so a rename between disposal and rebuy
-                # doesn't break B&B matching (HMRC treats renames as the same
-                # security).
-                effective = self._resolve_rename(symbol, search_index)
+                # Advance effective symbol by one rename step per day so a rename
+                # between disposal and rebuy doesn't break B&B matching (HMRC
+                # treats renames as the same security).
+                effective = self.rename_list.get(search_index, {}).get(
+                    effective, effective
+                )
 
                 # Check if there was any stock split, in which case we need to adjust the B&D quantity
                 split_multiplier *= self.split_list.get(
@@ -1074,17 +1077,6 @@ class CapitalGainsCalculator:
             calculation_entries,
             spin_off_entry,
         )
-
-    def _resolve_rename(self, symbol: str, as_of: datetime.date) -> str:
-        """Follow rename chain from symbol through renames on or before as_of."""
-        current = symbol
-        for date in sorted(self.rename_list):
-            if date > as_of:
-                break
-            for old, new in self.rename_list[date]:
-                if old == current:
-                    current = new
-        return current
 
     def _process_rename(self, old: str, new: str) -> CalculationEntry:
         """Transfer pool from old ticker to new ticker (no disposal)."""
@@ -1376,7 +1368,7 @@ class CapitalGainsCalculator:
 
             # Ticker renames transfer the pool from old to new with no disposal.
             if date_index in self.rename_list:
-                for old, new in self.rename_list[date_index]:
+                for old, new in self.rename_list[date_index].items():
                     entry = self._process_rename(old, new)
                     if date_index >= tax_year_start_index:
                         calculation_log[date_index][f"rename${old}"] = [entry]
