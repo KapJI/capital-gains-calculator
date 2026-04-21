@@ -20,6 +20,7 @@ from .const import (
     DIVIDEND_DOUBLE_TAXATION_RULES,
     ERI_TAX_DATE_DELTA,
     INTERNAL_START_DATE,
+    RENAME_DESCRIPTION_PREFIX,
     UK_CURRENCY,
 )
 from .currency_converter import CurrencyConverter
@@ -177,6 +178,9 @@ class CapitalGainsCalculator:
         self.disposal_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
         self.split_list: dict[tuple[str, datetime.date], Decimal] = {}
+        # Ticker renames: date -> list of (old_symbol, new_symbol).
+        # Processed during the second pass to move the pool from old to new.
+        self.rename_list: dict[datetime.date, list[tuple[str, str]]] = defaultdict(list)
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
@@ -593,6 +597,16 @@ class CapitalGainsCalculator:
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
+            elif transaction.action is ActionType.RENAME:
+                new_symbol = get_symbol_or_fail(transaction)
+                assert transaction.description.startswith(RENAME_DESCRIPTION_PREFIX)
+                old_symbol = transaction.description[
+                    len(RENAME_DESCRIPTION_PREFIX) :
+                ].strip()
+                self.rename_list[transaction.date].append((old_symbol, new_symbol))
+                pos = self.portfolio.pop(old_symbol, None)
+                if pos is not None:
+                    self.portfolio[new_symbol] += pos
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
             else:
@@ -842,30 +856,34 @@ class CapitalGainsCalculator:
 
             for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = date_index + datetime.timedelta(days=i + 1)
+                # Follow rename chain so a rename between disposal and rebuy
+                # doesn't break B&B matching (HMRC treats renames as the same
+                # security).
+                effective = self._resolve_rename(symbol, search_index)
 
                 # Check if there was any stock split, in which case we need to adjust the B&D quantity
                 split_multiplier *= self.split_list.get(
-                    (symbol, search_index), Decimal(1)
+                    (effective, search_index), Decimal(1)
                 )
 
                 # ERI are distributed annually but when a fund close we might have
                 # multiple ERI distribution in close succession
-                eri = self.get_eri(symbol, search_index)
+                eri = self.get_eri(effective, search_index)
                 if eri:
                     eris.append(eri)
-                if has_key(self.acquisition_list, search_index, symbol):
-                    acquisition = self.acquisition_list[search_index][symbol]
+                if has_key(self.acquisition_list, search_index, effective):
+                    acquisition = self.acquisition_list[search_index][effective]
 
                     bnb_acquisition = (
-                        self.bnb_list[search_index][symbol]
-                        if has_key(self.bnb_list, search_index, symbol)
+                        self.bnb_list[search_index][effective]
+                        if has_key(self.bnb_list, search_index, effective)
                         else HmrcTransactionData()
                     )
                     assert bnb_acquisition.quantity <= acquisition.quantity
 
                     same_day_disposal = (
-                        self.disposal_list[search_index][symbol]
-                        if has_key(self.disposal_list, search_index, symbol)
+                        self.disposal_list[search_index][effective]
+                        if has_key(self.disposal_list, search_index, effective)
                         else HmrcTransactionData()
                     )
                     if same_day_disposal.quantity > acquisition.quantity:
@@ -977,7 +995,7 @@ class CapitalGainsCalculator:
                     add_to_list(
                         self.bnb_list,
                         search_index,
-                        symbol,
+                        effective,
                         available_quantity * split_multiplier,
                         amount_delta + total_dist_amount,
                         Decimal(0),
@@ -1055,6 +1073,32 @@ class CapitalGainsCalculator:
             chargeable_gain,
             calculation_entries,
             spin_off_entry,
+        )
+
+    def _resolve_rename(self, symbol: str, as_of: datetime.date) -> str:
+        """Follow rename chain from symbol through renames on or before as_of."""
+        current = symbol
+        for date in sorted(self.rename_list):
+            if date > as_of:
+                break
+            for old, new in self.rename_list[date]:
+                if old == current:
+                    current = new
+        return current
+
+    def _process_rename(self, old: str, new: str) -> CalculationEntry:
+        """Transfer pool from old ticker to new ticker (no disposal)."""
+        pos = self.portfolio.pop(old, Position())
+        self.portfolio[new] += pos
+        return CalculationEntry(
+            rule_type=RuleType.RENAME,
+            quantity=pos.quantity,
+            amount=Decimal(0),
+            fees=Decimal(0),
+            new_quantity=self.portfolio[new].quantity,
+            new_pool_cost=self.portfolio[new].amount,
+            allowable_cost=pos.amount,
+            renamed_to=new,
         )
 
     def process_eri(
@@ -1329,6 +1373,13 @@ class CapitalGainsCalculator:
                             calculation_log[spin_off.date][
                                 f"spin-off${spin_off.source}"
                             ] = [spin_off_entry]
+
+            # Ticker renames transfer the pool from old to new with no disposal.
+            if date_index in self.rename_list:
+                for old, new in self.rename_list[date_index]:
+                    entry = self._process_rename(old, new)
+                    if date_index >= tax_year_start_index:
+                        calculation_log[date_index][f"rename${old}"] = [entry]
 
             # Excess Reported incomes should be reported at the end of the day
             if date_index in self.eris:
