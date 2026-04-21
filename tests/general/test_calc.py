@@ -539,6 +539,69 @@ def test_rename_transfers_pool_to_new_ticker() -> None:
     assert entry.new_pool_cost == Decimal(1000)
 
 
+def test_section_104_disposal_uses_renamed_pool_cost() -> None:
+    """After a rename, S104 disposal under NEW uses the pool cost carried from OLD."""
+    calculator = create_calculator()
+    sell_date = datetime.date(2024, 6, 1)
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),
+            action=ActionType.BUY,
+            symbol="OLD",
+            description="buy OLD tranche 1",
+            quantity=Decimal(100),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-1000),
+            currency="GBP",
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 2),
+            action=ActionType.BUY,
+            symbol="OLD",
+            description="buy OLD tranche 2",
+            quantity=Decimal(50),
+            price=Decimal(20),
+            fees=Decimal(0),
+            amount=Decimal(-1000),
+            currency="GBP",
+            broker="Test",
+        ),
+        _rename_transaction(datetime.date(2024, 5, 15), "OLD", "NEW"),
+        BrokerTransaction(
+            date=sell_date,
+            action=ActionType.SELL,
+            symbol="NEW",
+            description="partial sell NEW",
+            quantity=Decimal(75),
+            price=Decimal(20),
+            fees=Decimal(0),
+            amount=Decimal(1500),
+            currency="GBP",
+            broker="Test",
+        ),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    # Pool before sale: 150 units, £2,000 cost → £13.333.../unit.
+    # Sell 75 units: cost £1,000, proceeds £1,500, gain £500.
+    assert report.total_gain() == Decimal("500.00")
+    sell_entries = report.calculation_log[sell_date]["sell$NEW"]
+    assert len(sell_entries) == 1
+    entry = sell_entries[0]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.quantity == Decimal(75)
+    assert entry.allowable_cost == Decimal(1000)
+    assert entry.gain == Decimal(500)
+    # Remaining pool: 75 units at the same £13.333.../unit = £1,000.
+    assert entry.new_quantity == Decimal(75)
+    assert round_decimal(entry.new_pool_cost, 4) == Decimal(1000)
+    assert calculator.portfolio["NEW"].quantity == Decimal(75)
+    assert round_decimal(calculator.portfolio["NEW"].amount, 4) == Decimal(1000)
+
+
 def test_bed_and_breakfast_matches_across_rename() -> None:
     """Sell of OLD is B&B-matched against a buy of NEW after a rename within 30 days."""
     calculator = create_calculator()
