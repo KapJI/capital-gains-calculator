@@ -247,11 +247,31 @@ def _make_transaction_from_investment(
     row: dict[str, str],
     file: Path,
 ) -> VanguardTransaction | None:
-    """Create a VanguardTransaction from an Investment row, or None for NameChange."""
+    """Create a VanguardTransaction from an Investment row.
+
+    Returns a RENAME transaction for NameChange rows, None for the zero-out
+    half of a NameChange pair, or a normal BUY/SELL/DIVIDEND transaction.
+    """
     details, is_reversal = _strip_reversal(row[InvestmentColumn.TRANSACTION_DETAILS])
-    # NameChange rows are emitted as RENAME transactions by read_transactions.
-    if NAMECHANGE_RE.match(details):
-        return None
+    match = NAMECHANGE_RE.match(details)
+    if match:
+        old_ticker, new_ticker = match.group(1), match.group(2)
+        # NameChange rows come in a zero-out/add-new pair; only the "replaced
+        # with" half carries both tickers. Skip the other half.
+        if not new_ticker:
+            return None
+        date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
+        return VanguardTransaction.from_fields(
+            date=date,
+            action=ActionType.RENAME,
+            symbol=new_ticker,
+            quantity=Decimal(0),
+            price=None,
+            amount=Decimal(0),
+            currency="GBP",
+            is_reversal=False,
+            description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}",
+        )
     date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
     action = action_from_str(details, file)
     symbol = _symbol_from_details(details)
@@ -269,33 +289,6 @@ def _make_transaction_from_investment(
         amount=_parse_decimal(row[InvestmentColumn.COST], InvestmentColumn.COST.value),
         currency="GBP",
         is_reversal=is_reversal,
-    )
-
-
-def _rename_from_investment_row(
-    row: dict[str, str],
-) -> VanguardTransaction | None:
-    """Emit a RENAME transaction for a NameChange investment row, or None to skip."""
-    details = _strip_reversal(row[InvestmentColumn.TRANSACTION_DETAILS])[0]
-    match = NAMECHANGE_RE.match(details)
-    if not match:
-        return None
-    old_ticker, new_ticker = match.group(1), match.group(2)
-    # NameChange rows come in a zero-out/add-new pair; only the "replaced with"
-    # half carries both tickers. Skip the other half.
-    if not new_ticker:
-        return None
-    date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
-    return VanguardTransaction.from_fields(
-        date=date,
-        action=ActionType.RENAME,
-        symbol=new_ticker,
-        quantity=Decimal(0),
-        price=None,
-        amount=Decimal(0),
-        currency="GBP",
-        is_reversal=False,
-        description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}",
     )
 
 
@@ -443,9 +436,9 @@ class VanguardParser(BaseSingleFileParser):
                 if len(row) != len(investment_header):
                     continue
                 investment_row = dict(zip(investment_header, row, strict=False))
-                rename = _rename_from_investment_row(investment_row)
-                if rename is not None:
-                    transactions.append(rename)
+                txn = _make_transaction_from_investment(investment_row, file_path)
+                if txn is not None and txn.action is ActionType.RENAME:
+                    transactions.append(txn)
                     continue
                 key = investment_row.get(InvestmentColumn.TRANSACTION_DETAILS, "")
                 if key:
@@ -488,7 +481,8 @@ class VanguardParser(BaseSingleFileParser):
                     raise
                 except ValueError as err:
                     raise ParsingError(file_path, str(err), row_index=index) from err
-                if inv_txn is not None:
+                # RENAME transactions are already emitted by the lookup pass above.
+                if inv_txn is not None and inv_txn.action is not ActionType.RENAME:
                     transactions.append(inv_txn)
 
         transactions.sort(key=by_date_and_action)
