@@ -599,13 +599,9 @@ class CapitalGainsCalculator:
             elif transaction.action is ActionType.RENAME:
                 new_symbol = get_symbol_or_fail(transaction)
                 assert transaction.description.startswith(RENAME_DESCRIPTION_PREFIX)
-                old_symbol = transaction.description[
-                    len(RENAME_DESCRIPTION_PREFIX) :
-                ].strip()
+                old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
                 self.rename_list[transaction.date][old_symbol] = new_symbol
-                pos = self.portfolio.pop(old_symbol, None)
-                if pos is not None:
-                    self.portfolio[new_symbol] += pos
+                self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
             else:
@@ -856,9 +852,7 @@ class CapitalGainsCalculator:
 
             for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = date_index + datetime.timedelta(days=i + 1)
-                # Advance effective symbol by one rename step per day so a rename
-                # between disposal and rebuy doesn't break B&B matching (HMRC
-                # treats renames as the same security).
+                # HMRC treats renames as the same security for B&B purposes.
                 effective_symbol = self.rename_list.get(search_index, {}).get(
                     effective_symbol, effective_symbol
                 )
@@ -1365,7 +1359,6 @@ class CapitalGainsCalculator:
                                 f"spin-off${spin_off.source}"
                             ] = [spin_off_entry]
 
-            # Ticker renames transfer the pool from old to new with no disposal.
             if date_index in self.rename_list:
                 for old, new in self.rename_list[date_index].items():
                     entry = self.process_rename(old, new)

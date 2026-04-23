@@ -76,9 +76,7 @@ TICKER_RENAMES: Final[dict[str, str]] = {
     "FB": "META",
 }
 
-# Prefix used in BrokerTransaction.description for ActionType.RENAME
-# transactions. The old ticker follows the prefix; the new ticker is the
-# transaction's symbol.
+# For ActionType.RENAME: set symbol=new_ticker, description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}"
 RENAME_DESCRIPTION_PREFIX: Final = "renamed from "
 
 
