@@ -247,12 +247,9 @@ def _make_transaction_from_investment(
     row: dict[str, str],
     file: Path,
 ) -> VanguardTransaction | None:
-    """Create a VanguardTransaction from an Investment row.
-
-    Returns a RENAME transaction for NameChange rows, None for the zero-out
-    half of a NameChange pair, or a normal BUY/SELL/DIVIDEND transaction.
-    """
+    """Create a VanguardTransaction from an Investment row, or None for the NameChange zero-out half."""
     details, is_reversal = _strip_reversal(row[InvestmentColumn.TRANSACTION_DETAILS])
+    date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
     match = NAMECHANGE_RE.match(details)
     if match:
         old_ticker, new_ticker = match.group(1), match.group(2)
@@ -260,7 +257,6 @@ def _make_transaction_from_investment(
         # with" half carries both tickers. Skip the other half.
         if not new_ticker:
             return None
-        date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
         return VanguardTransaction.from_fields(
             date=date,
             action=ActionType.RENAME,
@@ -272,7 +268,6 @@ def _make_transaction_from_investment(
             is_reversal=False,
             description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}",
         )
-    date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
     action = action_from_str(details, file)
     symbol = _symbol_from_details(details)
 
@@ -424,25 +419,33 @@ class VanguardParser(BaseSingleFileParser):
             cls._validate_cash_header(lines[0], file_path)
             cash_lines = lines
 
-        # If "Investment Transaction" table exists, build investment lookup keyed by TransactionDetails
-        # This will be merged with "Cash Transaction" table.
-        # RENAME transactions are emitted here so cash-only and investment-only
-        # modes share one emission path.
+        # RENAMEs emit immediately; other rows go to lookup (cash mode) or directly (investment-only).
         investment_lookup: dict[str, list[dict[str, str]]] = {}
         transactions: list[VanguardTransaction] = []
         if investment_lines is not None:
             investment_header = investment_lines[0]
-            for row in investment_lines[1:]:
+            for index, row in enumerate(investment_lines[1:], start=2):
                 if len(row) != len(investment_header):
                     continue
                 investment_row = dict(zip(investment_header, row, strict=False))
-                txn = _make_transaction_from_investment(investment_row, file_path)
-                if txn is not None and txn.action is ActionType.RENAME:
+                try:
+                    txn = _make_transaction_from_investment(investment_row, file_path)
+                except ParsingError as err:
+                    err.add_row_context(index)
+                    raise
+                except ValueError as err:
+                    raise ParsingError(file_path, str(err), row_index=index) from err
+                if txn is None:
+                    continue  # zero-out half of a NameChange pair
+                if txn.action is ActionType.RENAME:
                     transactions.append(txn)
                     continue
-                key = investment_row.get(InvestmentColumn.TRANSACTION_DETAILS, "")
-                if key:
-                    investment_lookup.setdefault(key, []).append(investment_row)
+                if cash_lines is not None:
+                    key = investment_row[InvestmentColumn.TRANSACTION_DETAILS]
+                    if key:
+                        investment_lookup.setdefault(key, []).append(investment_row)
+                else:
+                    transactions.append(txn)
 
         if cash_lines is not None:
             cash_header = cash_lines[0]
@@ -464,26 +467,6 @@ class VanguardParser(BaseSingleFileParser):
             for txn in transactions:
                 matched_inv = _find_investment_match(txn, investment_lookup)
                 txn.enrich_details(matched_inv)
-
-        elif investment_lines is not None:
-            # Only investment table present
-            investment_header = investment_lines[0]
-            for index, row in enumerate(investment_lines[1:], start=2):
-                if len(row) != len(investment_header):
-                    continue
-                investment_row = dict(zip(investment_header, row, strict=False))
-                try:
-                    inv_txn = _make_transaction_from_investment(
-                        investment_row, file_path
-                    )
-                except ParsingError as err:
-                    err.add_row_context(index)
-                    raise
-                except ValueError as err:
-                    raise ParsingError(file_path, str(err), row_index=index) from err
-                # RENAME transactions are already emitted by the lookup pass above.
-                if inv_txn is not None and inv_txn.action is not ActionType.RENAME:
-                    transactions.append(inv_txn)
 
         transactions.sort(key=by_date_and_action)
         return cast("list[BrokerTransaction]", transactions)
