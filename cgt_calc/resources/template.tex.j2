@@ -31,6 +31,9 @@
 \BLOCK{ elif symbol.startswith("excess-reported-income$") }
     \BLOCK{ set symbol = symbol[23:] }
     \BLOCK{ set is_eri = True }
+\BLOCK{ elif symbol.startswith("rename$") }
+    \BLOCK{ set symbol = symbol[7:] }
+    \BLOCK{ set is_rename = True }
 \BLOCK{ endif }
 \BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
 \BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
@@ -86,8 +89,16 @@
             (£\VAR{ "{:,}".format(round_decimal(entries[0].eris[0].price, 4)) }/unit)%
         }
     \BLOCK{ endif }
+\BLOCK{ elif is_rename } % if is_rename
+    \subsubsection*{
+        \VAR{ symbol } was renamed to \VAR{ entries[0].renamed_to }%
+        \BLOCK{ if entries[0].quantity > 0 }
+            : \VAR{ strip_zeros(entries[0].quantity) } units with pool cost £\VAR{ "{:,}".format(round_decimal(entries[0].allowable_cost, 2)) } transferred
+        \BLOCK{ endif }
+    }
 \BLOCK{ endif }
 
+\BLOCK{ if not is_rename }
 \begin{enumerate}
 \BLOCK{ for entry in entries }
 \item \textbf{\VAR{ entry.rule_type.name.replace("_", " ") }}. Quantity: \VAR{ strip_zeros(entry.quantity) },
@@ -142,6 +153,7 @@
 
 \BLOCK{ endfor}
 \end{enumerate}
+\BLOCK{ endif }
 
 \BLOCK{ endfor }
 

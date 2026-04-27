@@ -76,6 +76,9 @@ TICKER_RENAMES: Final[dict[str, str]] = {
     "FB": "META",
 }
 
+# For ActionType.RENAME: set symbol=new_ticker, description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}"
+RENAME_DESCRIPTION_PREFIX: Final = "renamed from "
+
 
 # =============================================================================
 # Resource files
