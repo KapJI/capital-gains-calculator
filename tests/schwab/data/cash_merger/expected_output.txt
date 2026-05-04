@@ -21,6 +21,7 @@ Total amount of dividends tax yearly allowance: £2000.00
 Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00
+Total foreign interest tax paid: £0.00
 
 Generating PDF report...
 All done!
