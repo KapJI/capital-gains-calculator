@@ -33,6 +33,20 @@ def test_decimal_from_number_or_str_float_null() -> None:
     ) == Decimal("67.89")
 
 
+def test_decimal_from_number_or_str_none() -> None:
+    """Test _decimal_from_number_or_str() with a value of None."""
+    assert schwab_equity_award_json._decimal_from_number_or_str(
+        {"key": None}, "key"
+    ) == Decimal(0)
+
+
+def test_decimal_from_number_or_str_empty_string() -> None:
+    """Test _decimal_from_number_or_str() with an empty string value."""
+    assert schwab_equity_award_json._decimal_from_number_or_str(
+        {"key": ""}, "key"
+    ) == Decimal(0)
+
+
 def test_decimal_from_number_or_str_float_custom_suffix() -> None:
     """Test _decimal_from_number_or_str_default_suffix() on float.
 
