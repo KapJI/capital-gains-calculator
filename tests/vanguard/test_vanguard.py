@@ -8,6 +8,7 @@ import subprocess
 
 import pytest
 
+from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.vanguard import COLUMNS, VanguardParser
@@ -331,3 +332,58 @@ def test_investment_only_table(tmp_path: Path) -> None:
     assert transactions[0].quantity == Decimal(10)
     assert transactions[0].price == Decimal("9.5")
     assert transactions[1].action == ActionType.SELL
+
+
+def test_namechange_emits_rename_transaction(tmp_path: Path) -> None:
+    """NameChange in dual-table CSV emits one RENAME; pre-rename BUY stays under OLD."""
+    content = (
+        "Date,Details,Amount,Balance\n"
+        "01/03/2022,Bought 10 Old Fund (VDXX),-100.00,0\n"
+        "\n"
+        "Investment Transactions\n"
+        "\n"
+        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        "01/03/2022,Old Fund (VDXX),Bought 10 Old Fund (VDXX),10,10,100\n"
+        "15/03/2022,Old Fund (VDXX),NameChange: VDXX,0,0,0\n"
+        "15/03/2022,New Fund (VGER),NameChange: VDXX replaced with VGER,0,0,0\n"
+    )
+    vanguard_file = tmp_path / "namechange.csv"
+    vanguard_file.write_text(content, encoding="utf-8")
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    renames = [t for t in transactions if t.action is ActionType.RENAME]
+    assert len(renames) == 1
+    rename = renames[0]
+    assert rename.symbol == "VGER"
+    assert rename.description == f"{RENAME_DESCRIPTION_PREFIX}VDXX"
+    assert rename.amount == Decimal(0)
+
+    buys = [t for t in transactions if t.action is ActionType.BUY]
+    assert len(buys) == 1
+    assert buys[0].symbol == "VDXX"
+
+
+def test_namechange_in_investment_only_table(tmp_path: Path) -> None:
+    """NameChange in investment-only CSV emits one RENAME, not a BUY/SELL."""
+    content = (
+        "Investment Transactions\n"
+        "\n"
+        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        "01/03/2022,Old Fund (VDXX),Bought 10 Old Fund (VDXX),10,10,100\n"
+        "15/03/2022,Old Fund (VDXX),NameChange: VDXX,0,0,0\n"
+        "15/03/2022,New Fund (VGER),NameChange: VDXX replaced with VGER,0,0,0\n"
+    )
+    vanguard_file = tmp_path / "namechange_inv.csv"
+    vanguard_file.write_text(content, encoding="utf-8")
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    renames = [t for t in transactions if t.action is ActionType.RENAME]
+    assert len(renames) == 1
+    assert renames[0].symbol == "VGER"
+    assert renames[0].description == f"{RENAME_DESCRIPTION_PREFIX}VDXX"
+
+    buys = [t for t in transactions if t.action is ActionType.BUY]
+    assert len(buys) == 1
+    assert buys[0].symbol == "VDXX"
