@@ -42,6 +42,7 @@ DIVIDEND_ALLOWANCES: Final[dict[int, int]] = {
     2022: 2000,
     2023: 1000,
     2024: 500,
+    2025: 500,
 }
 
 
