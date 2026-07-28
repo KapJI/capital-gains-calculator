@@ -143,6 +143,50 @@ _Note: For historic reasons, it is possible to provide the Equity Awards history
 [parser file](cgt_calc/parsers/schwab_equity_award_json.py). Please use the CSV method above if
 possible._
 
+#### NVIDIA equity awards
+
+The JSON parser handles NVDA as well as GOOG/GOOGL. Schwab reports NVDA history
+in mixed units, and which fields are restated for the 4:1 split of 20 July 2021
+and the 10:1 of 10 June 2024 varies by record type.
+
+| Record | Read as |
+|---|---|
+| `Deposit` / `RS` — vest | `Quantity` and `VestFairMarketValue` as recorded; both are already restated and agree |
+| `Deposit` / `ESPP` | `NetSharesDeposited` when present, else `Quantity`, priced at `PurchaseFairMarketValue` |
+| `Lapse` | skipped |
+| `Sale` | multiplied by the split factor for the trade date, priced from `(Amount + fees) / Quantity` |
+
+Three of these are worth spelling out.
+
+**ESPP cost basis is the market value, not the price paid.** The discount is
+taxed as employment income through payroll, so the shares enter the pool at
+what they were worth on the purchase date. Using `PurchasePrice` understates
+the basis by roughly tenfold on the older purchases. Since August 2025 the tax
+on a purchase is settled by holding back shares, and only the net reaches the
+pool.
+
+**A `Lapse` is not an acquisition.** It duplicates its `Deposit`, and its
+`NetSharesDeposited` is in the units of the day while its price is restated.
+Pairing the two puts a tenth of the shares in the pool at the full price.
+
+**Disposals need the split multiplier and acquisitions do not.** Missing it
+costs 54 shares across two 2023 disposals, and the pool stays wrong by that
+much for every year afterwards. The factor comes from the split dates rather
+than from comparing the recorded price against a market price, which would need
+a network call and would stop working once the real price passed the threshold.
+
+The disposal price is derived from the money rather than the per-lot
+`SalePrice`, which is what allows a disposal to span lots sold at different
+prices.
+
+`NVIDIA_SPLITS` has to gain a row when NVDA next splits. Schwab restates
+acquisitions retroactively, so a stale export becomes a mix of old and new
+units and has to be downloaded again in full.
+
+Covered by [tests/schwab/test_schwab_equity_award_nvda.py](tests/schwab/test_schwab_equity_award_nvda.py),
+against a synthetic portfolio with real dates and prices and invented share
+counts.
+
 </details>
  <br />
 <details>
