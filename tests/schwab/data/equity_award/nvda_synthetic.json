@@ -1,0 +1,360 @@
+{
+  "_comment": [
+    "Synthetic portfolio. Not a scaled copy of anyone's holding — a portfolio",
+    "assembled to touch every branch in the parser at least once.",
+    "",
+    "Dates and prices are real, because they are what is being tested: the",
+    "split boundaries of 20 July 2021 and 10 June 2024, tax year ends, and the",
+    "30-day window. A NVDA close on a given day is public market data.",
+    "Share counts are invented.",
+    "",
+    "Cases covered:",
+    "  ESPP before the 4:1 split               2021-02-26",
+    "  vest with a paired Lapse                2021-09-15",
+    "  vest with no Lapse                      2023-12-15",
+    "  vest with sell-to-cover                 2024-09-18",
+    "  sale before 10 June 2024, needs x10     2023-01-23",
+    "  sale at a loss                          2025-05-19",
+    "  sale across several lots                2025-05-22",
+    "  acquisition inside the 30-day window    2025-06-18",
+    "  ESPP with tax withheld in shares        2026-02-27",
+    "  disposal between 2 and 5 April          2026-04-02",
+    "",
+    "Expected: 1,730 shares acquired, 690 disposed, 1,040 held."
+  ],
+  "FromDate": "01/01/2020",
+  "ToDate": "12/31/2026",
+  "Transactions": [
+    {
+      "Date": "02/26/2021",
+      "Action": "Deposit",
+      "Symbol": "NVDA",
+      "Quantity": "80",
+      "Description": "ESPP",
+      "FeesAndCommissions": null,
+      "DisbursementElection": null,
+      "Amount": null,
+      "TransactionDetails": [
+        {
+          "Details": {
+            "PurchaseDate": "02/26/2021",
+            "PurchasePrice": "$9.3588",
+            "SubscriptionDate": "08/03/2020",
+            "SubscriptionFairMarketValue": "$11.0102",
+            "PurchaseFairMarketValue": "$13.7145",
+            "TaxWithholdingMethod": null,
+            "NetSharesDeposited": "",
+            "SharesWithheld": "",
+            "SharesSold": "",
+            "CashRefund": "",
+            "CarryForward": ""
+          }
+        }
+      ]
+    },
+    {
+      "Date": "09/15/2021",
+      "Action": "Deposit",
+      "Symbol": "NVDA",
+      "Quantity": "400",
+      "Description": "RS",
+      "FeesAndCommissions": null,
+      "DisbursementElection": null,
+      "Amount": null,
+      "TransactionDetails": [
+        {
+          "Details": {
+            "AwardDate": "08/10/2020",
+            "AwardId": "000001",
+            "VestDate": "09/15/2021",
+            "VestFairMarketValue": "$22.341"
+          }
+        }
+      ]
+    },
+    {
+      "Date": "09/15/2021",
+      "Action": "Lapse",
+      "Symbol": "NVDA",
+      "Quantity": "600",
+      "Description": "Restricted Stock Lapse",
+      "FeesAndCommissions": null,
+      "DisbursementElection": null,
+      "Amount": null,
+      "TransactionDetails": [
+        {
+          "Details": {
+            "AwardDate": "08/10/2020",
+            "AwardId": "000001",
+            "FairMarketValuePrice": "$22.341",
+            "SalePrice": "",
+            "SharesSoldWithheldForTaxes": "20",
+            "NetSharesDeposited": "40",
+            "Taxes": "$4,468.20"
+          }
+        }
+      ]
+    },
+    {
+      "Date": "01/23/2023",
+      "Action": "Sale",
+      "Symbol": "NVDA",
+      "Quantity": "2",
+      "Description": "Share Sale",
+      "FeesAndCommissions": "$0.02",
+      "DisbursementElection": "Cash",
+      "Amount": "$383.84",
+      "TransactionDetails": [
+        {
+          "Details": {
+            "Type": "RS",
+            "Shares": "2",
+            "SalePrice": "$191.93",
+            "GrossProceeds": "$383.86",
+            "VestDate": "09/15/2021",
+            "VestFairMarketValue": "$223.41",
+            "TotalCostBasis": "$446.82",
+            "RealizedGainLoss": "-$62.98",
+            "DispositionType": "Long",
+            "HoldingPeriod": "Long"
+          }
+        }
+      ]
+    },
+    {
+      "Date": "12/15/2023",
+      "Action": "Deposit",
+      "Symbol": "NVDA",
+      "Quantity": "300",
+      "Description": "RS",
+      "FeesAndCommissions": null,
+      "DisbursementElection": null,
+      "Amount": null,
+      "TransactionDetails": [
+        {
+          "Details": {
+            "AwardDate": "03/12/2022",
+            "AwardId": "000002",
+            "VestDate": "12/15/2023",
+            "VestFairMarketValue": "$48.89"
+          }
+        }
+      ]
+    },
+    {
+      "Date": "09/18/2024",
+      "Action": "Deposit",
+      "Symbol": "NVDA",
+      "Quantity": "700",
+      "Description": "RS",
+      "FeesAndCommissions": null,
+      "DisbursementElection": null,
+      "Amount": null,
+      "TransactionDetails": [
+        {
+          "Details": {
+            "AwardDate": "04/08/2023",
+            "AwardId": "000003",
+            "VestDate": "09/18/2024",
+            "VestFairMarketValue": "$113.37"
+          }
+        }
+      ]
+    },
+    {
+      "Date": "09/18/2024",
+      "Action": "Lapse",
+      "Symbol": "NVDA",
+      "Quantity": "1000",
+      "Description": "Restricted Stock Lapse",
+      "FeesAndCommissions": null,
+      "DisbursementElection": null,
+      "Amount": null,
+      "TransactionDetails": [
+        {
+          "Details": {
+            "AwardDate": "04/08/2023",
+            "AwardId": "000003",
+            "FairMarketValuePrice": "$113.37",
+            "SalePrice": "",
+            "SharesSoldWithheldForTaxes": "300",
+            "NetSharesDeposited": "700",
+            "Taxes": "$34,011.00"
+          }
+        }
+      ]
+    },
+    {
+      "Date": "12/20/2024",
+      "Action": "Dividend",
+      "Symbol": "NVDA",
+      "Quantity": null,
+      "Description": "Credit",
+      "FeesAndCommissions": null,
+      "DisbursementElection": null,
+      "Amount": "$14.80",
+      "TransactionDetails": []
+    },
+    {
+      "Date": "12/20/2024",
+      "Action": "Tax Withholding",
+      "Symbol": "NVDA",
+      "Quantity": null,
+      "Description": "Debit",
+      "FeesAndCommissions": null,
+      "DisbursementElection": null,
+      "Amount": "-$2.22",
+      "TransactionDetails": []
+    },
+    {
+      "Date": "05/19/2025",
+      "Action": "Sale",
+      "Symbol": "NVDA",
+      "Quantity": "50",
+      "Description": "Share Sale",
+      "FeesAndCommissions": "$0.02",
+      "DisbursementElection": "Cash",
+      "Amount": "$6,778.48",
+      "TransactionDetails": [
+        {
+          "Details": {
+            "Type": "RS",
+            "Shares": "50",
+            "SalePrice": "$135.57",
+            "GrossProceeds": "$6,778.50",
+            "VestDate": "09/18/2024",
+            "VestFairMarketValue": "$113.37",
+            "TotalCostBasis": "$5,668.50",
+            "RealizedGainLoss": "$1,110.00",
+            "DispositionType": "Short",
+            "HoldingPeriod": "Short"
+          }
+        }
+      ]
+    },
+    {
+      "Date": "05/22/2025",
+      "Action": "Sale",
+      "Symbol": "NVDA",
+      "Quantity": "500",
+      "Description": "Share Sale",
+      "FeesAndCommissions": "$0.10",
+      "DisbursementElection": "Cash",
+      "Amount": "$66,414.90",
+      "TransactionDetails": [
+        {
+          "Details": {
+            "Type": "RS",
+            "Shares": "200",
+            "SalePrice": "$132.83",
+            "GrossProceeds": "$26,566.00",
+            "VestDate": "12/15/2023",
+            "VestFairMarketValue": "$48.89",
+            "TotalCostBasis": "$9,778.00",
+            "RealizedGainLoss": "$16,788.00",
+            "DispositionType": "Long",
+            "HoldingPeriod": "Long"
+          }
+        },
+        {
+          "Details": {
+            "Type": "RS",
+            "Shares": "300",
+            "SalePrice": "$132.83",
+            "GrossProceeds": "$39,849.00",
+            "VestDate": "09/18/2024",
+            "VestFairMarketValue": "$113.37",
+            "TotalCostBasis": "$34,011.00",
+            "RealizedGainLoss": "$5,838.00",
+            "DispositionType": "Short",
+            "HoldingPeriod": "Short"
+          }
+        }
+      ]
+    },
+    {
+      "Date": "06/18/2025",
+      "Action": "Deposit",
+      "Symbol": "NVDA",
+      "Quantity": "100",
+      "Description": "RS",
+      "FeesAndCommissions": null,
+      "DisbursementElection": null,
+      "Amount": null,
+      "TransactionDetails": [
+        {
+          "Details": {
+            "AwardDate": "04/08/2024",
+            "AwardId": "000004",
+            "VestDate": "06/18/2025",
+            "VestFairMarketValue": "$145.48"
+          }
+        }
+      ]
+    },
+    {
+      "Date": "02/27/2026",
+      "Action": "Deposit",
+      "Symbol": "NVDA",
+      "Quantity": "200",
+      "Description": "ESPP",
+      "FeesAndCommissions": null,
+      "DisbursementElection": null,
+      "Amount": null,
+      "TransactionDetails": [
+        {
+          "Details": {
+            "PurchaseDate": "02/27/2026",
+            "PurchasePrice": "$91.80",
+            "SubscriptionDate": "09/03/2024",
+            "SubscriptionFairMarketValue": "$108.00",
+            "PurchaseFairMarketValue": "$177.19",
+            "TaxWithholdingMethod": "Withhold for Taxes",
+            "NetSharesDeposited": "150",
+            "SharesWithheld": "50",
+            "SharesSold": "",
+            "CashRefund": "",
+            "CarryForward": "$12.34"
+          }
+        }
+      ]
+    },
+    {
+      "Date": "04/02/2026",
+      "Action": "Sale",
+      "Symbol": "NVDA",
+      "Quantity": "120",
+      "Description": "Share Sale",
+      "FeesAndCommissions": "$0.03",
+      "DisbursementElection": "Cash",
+      "Amount": "$21,206.97",
+      "TransactionDetails": [
+        {
+          "Details": {
+            "Type": "RS",
+            "Shares": "120",
+            "SalePrice": "$176.725",
+            "GrossProceeds": "$21,207.00",
+            "VestDate": "06/18/2025",
+            "VestFairMarketValue": "$145.48",
+            "TotalCostBasis": "$17,457.60",
+            "RealizedGainLoss": "$3,749.40",
+            "DispositionType": "Short",
+            "HoldingPeriod": "Short"
+          }
+        }
+      ]
+    },
+    {
+      "Date": "04/06/2026",
+      "Action": "Journal",
+      "Symbol": null,
+      "Quantity": null,
+      "Description": "Journal To Account ...763",
+      "FeesAndCommissions": null,
+      "DisbursementElection": null,
+      "Amount": "-$21,206.97",
+      "TransactionDetails": []
+    }
+  ]
+}

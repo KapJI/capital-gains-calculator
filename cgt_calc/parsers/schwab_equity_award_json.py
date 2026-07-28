@@ -35,6 +35,31 @@ OPTIONAL_DETAILS_NAME: Final = "Details"
 FIELD_TO_SCHEMA: Final = {"transactions": 1, "Transactions": 2}
 LOGGER = logging.getLogger(__name__)
 GOOGLE_SYMBOLS = {"GOOG", "GOOGL"}
+NVIDIA_SYMBOLS = {"NVDA"}
+
+# NVDA splits, dated to the first day the new shares traded.
+#
+# Schwab restates acquisitions for later splits but leaves sales in the units
+# of their own day, so sales need converting and acquisitions do not. Dates
+# rather than a price heuristic: a heuristic needs the market price of the day,
+# which means a network call, and it stops working as soon as the real price
+# passes the threshold it guesses with.
+NVIDIA_SPLITS: Final = (
+    (datetime.date(2021, 7, 20), 4),
+    (datetime.date(2024, 6, 10), 10),
+)
+
+
+def nvidia_split_multiplier(on: datetime.date) -> int:
+    """Factor turning a share count printed on `on` into current units.
+
+    Prices divide by the same factor, so the money is unchanged.
+    """
+    factor = 1
+    for effective, ratio in NVIDIA_SPLITS:
+        if on < effective:
+            factor *= ratio
+    return factor
 
 
 @dataclass
@@ -60,6 +85,9 @@ class FieldNames:
     award_id: str = "AwardId"
     date: str = "Date"
     sale_price: str = "SalePrice"
+    purchase_date: str = "PurchaseDate"
+    purchase_fair_market_value: str = "PurchaseFairMarketValue"
+    net_shares_deposited: str = "NetSharesDeposited"
 
     def __post_init__(self, schema_version: int) -> None:
         """Set correct field names if the schema is not the default one.
@@ -82,6 +110,9 @@ class FieldNames:
             self.award_id = "awardName"
             self.date = "eventDate"
             self.sale_price = "salePrice"
+            self.purchase_date = "purchaseDate"
+            self.purchase_fair_market_value = "purchaseFairMarketValue"
+            self.net_shares_deposited = "netSharesDeposited"
 
 
 # We want enough decimals to cover what Schwab gives us (up to 4 decimals)
@@ -181,6 +212,11 @@ def _decimal_from_number_or_str(
     if float_name in row and row[float_name] is not None:
         return Decimal(row[float_name])
 
+    # An empty string means the field is not filled in, the same as it being
+    # absent. Schwab writes one for FeesAndCommissions on a commission-free
+    # sale. Note this is deliberately not done inside _decimal_from_str: an
+    # empty *price* must raise rather than become a zero cost basis, which
+    # would be taxed in full.
     if (
         field_basename in row
         and row[field_basename] is not None
@@ -206,11 +242,12 @@ class SchwabTransaction(BrokerTransaction):
         action = action_from_str(self.raw_action, file)
         symbol = row.get(names.symbol)
         symbol = TICKER_RENAMES.get(symbol, symbol)
-        if symbol not in GOOGLE_SYMBOLS:
+        if symbol not in GOOGLE_SYMBOLS | NVIDIA_SYMBOLS:
             LOGGER.warning(
-                "The Schwab Equity Award JSON parser was only tested for Google stocks (%s), "
-                "but found symbol '%s'. Please check the parsing and output are correct!",
-                ", ".join(GOOGLE_SYMBOLS),
+                "The Schwab Equity Award JSON parser was only tested for Google "
+                "and NVIDIA stocks (%s), but found symbol '%s'. Please check "
+                "the parsing and output are correct!",
+                ", ".join(sorted(GOOGLE_SYMBOLS | NVIDIA_SYMBOLS)),
                 symbol,
             )
         quantity = _decimal_from_number_or_str(row, names.quantity)
@@ -228,25 +265,59 @@ class SchwabTransaction(BrokerTransaction):
                 details = row[names.transac_details][0]["Details"]
             else:
                 details = row[names.transac_details][0]
-            date = datetime.datetime.strptime(
-                details[names.vest_date], "%m/%d/%Y"
-            ).date()
-            # Schwab only provide this one as string:
-            price = _decimal_from_str(details[names.vest_fair_market_value])
-            if amount == Decimal(0):
+
+            if description == "ESPP":
+                # An ESPP purchase, not a vest, and it carries different
+                # fields. The cost basis is the market value on the purchase
+                # date rather than the discounted price paid, because the
+                # discount is taxed as employment income through payroll.
+                # Using the price paid understates the basis roughly tenfold
+                # on the older purchases.
+                date = datetime.datetime.strptime(
+                    details[names.purchase_date], "%m/%d/%Y"
+                ).date()
+                price = _decimal_from_str(
+                    details[names.purchase_fair_market_value]
+                )
+
+                # Since August 2025 the tax on a purchase is settled by holding
+                # back some of the shares, and only the rest reaches the pool.
+                # Before that this field is empty and Quantity is already net.
+                net_shares = details.get(names.net_shares_deposited)
+                if net_shares:
+                    quantity = _decimal_from_str(net_shares)
+
                 amount = price * quantity
-            description = (
-                f"Vest from Award Date "
-                f"{details[names.award_date]} "
-                f"(ID {details[names.award_id]})"
-            )
+                description = f"ESPP purchase on {details[names.purchase_date]}"
+            else:
+                date = datetime.datetime.strptime(
+                    details[names.vest_date], "%m/%d/%Y"
+                ).date()
+                # Schwab only provide this one as string:
+                price = _decimal_from_str(details[names.vest_fair_market_value])
+                if amount == Decimal(0):
+                    amount = price * quantity
+                description = (
+                    f"Vest from Award Date "
+                    f"{details[names.award_date]} "
+                    f"(ID {details[names.award_id]})"
+                )
         elif row[names.action] == "Sale":
             date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
 
-            # Schwab's data export sometimes lacks decimals on Sales
-            # quantities, in which case we infer it from number of shares in
-            # sub-transactions, or failing that from the amount and salePrice.
-            if not _is_integer(quantity):
+            if symbol in NVIDIA_SYMBOLS:
+                # Derive the price from the money rather than from the per-lot
+                # SalePrice. Amount is net of fees, so the gross is rebuilt
+                # first. Two reasons this is not just a shortcut:
+                #
+                # A disposal can span lots sold at different prices — the
+                # 600-share sale of 30 May 2025 has two — and the branch below
+                # refuses those outright. And the per-lot price is printed in
+                # the units of the trade date while the pool is in current
+                # ones, so it would need converting anyway. Working from the
+                # money sidesteps both, and the money is the same in any units.
+                price = (amount + fees) / quantity
+            elif not _is_integer(quantity):
                 price = (amount + fees) / quantity
             else:
                 subtransac_have_quantities = True
@@ -339,6 +410,31 @@ class SchwabTransaction(BrokerTransaction):
 
         if symbol in GOOGLE_SYMBOLS:
             self._normalize_google_split()
+        elif symbol in NVIDIA_SYMBOLS:
+            self._normalize_nvidia_split()
+
+    def _normalize_nvidia_split(self) -> None:
+        """Convert a disposal into current share units.
+
+        Schwab restates acquisitions for later splits — a vest of 3,000 at
+        $22.341 is recorded that way even though 300 at $223.41 is what
+        happened — but leaves disposals in the units of their own day. Only
+        disposals need converting.
+
+        Missing this costs 54 shares on the two 2023 disposals, and the pool
+        stays wrong by that much for every year afterwards.
+        """
+        if self.action != ActionType.SELL:
+            return
+
+        multiplier = nvidia_split_multiplier(self.date)
+        if multiplier == 1:
+            return
+
+        if self.quantity:
+            self.quantity = round_decimal(self.quantity * multiplier, ROUND_DIGITS)
+        if self.price:
+            self.price = round_decimal(self.price / multiplier, ROUND_DIGITS)
 
     def _normalize_google_split(self) -> None:
         """Ensure past transactions are normalized to split values.
@@ -408,8 +504,18 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
         transactions = [
             SchwabTransaction(transac, file_path, fields)
             for transac in data[fields.transactions]
-            # Skip as not relevant for CGT
-            if transac[fields.action] not in {"Journal", "Wire Transfer"}
+            # Journal and Wire Transfer move cash between accounts.
+            #
+            # Lapse is the payroll side of a vest and duplicates its Deposit,
+            # which already holds the net shares that reach the pool. Its own
+            # counts are in the units of the day while its price is restated,
+            # so pairing them puts a tenth of the shares in at the full price.
+            #
+            # Tax Withholding is deliberately not skipped: it is US tax at
+            # source on dividends, and it is needed for SA106 and foreign tax
+            # credit relief.
+            if transac[fields.action]
+            not in {"Journal", "Wire Transfer", "Lapse"}
         ]
         transactions.reverse()
         return list(transactions)
