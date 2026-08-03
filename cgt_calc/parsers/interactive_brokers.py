@@ -56,7 +56,10 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
     """Infer action type."""
     if action_type == "Credit Interest":
         return ActionType.INTEREST
-    if action_type == "Payment in Lieu":
+    # A payment in lieu arrives instead of a dividend when the holding is out on
+    # loan. It is the rarer of the two, so a parser that knows it and not the
+    # ordinary dividend fails for most holders on their first real statement.
+    if action_type in ["Dividend", "Payment in Lieu"]:
         return ActionType.DIVIDEND
     if action_type in ["Deposit", "Withdrawal"]:
         return ActionType.TRANSFER
@@ -68,8 +71,26 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
         return ActionType.DIVIDEND_TAX
     if action_type in ["Forex Trade Component", "Other Fee"]:
         return ActionType.FEE
+    # "FX Translations P&L": the revaluation of a foreign currency balance, not
+    # a trade. It moves the cash balance and creates no taxable event, which is
+    # what ADJUSTMENT means here and how the Schwab parser treats its own.
+    if action_type == "Adjustment":
+        return ActionType.ADJUSTMENT
 
     raise ParsingError(file_path, f"Unknown type: '{action_type}'")
+
+
+def _parse_str(row: dict[str, str], column: str) -> str | None:
+    """Read a text column, treating IBKR's "-" placeholder as absent.
+
+    IBKR writes "-" wherever a column does not apply to a row, in text columns
+    as well as numeric ones. Taking it at face value puts a currency called "-"
+    on the transaction.
+    """
+    value = row.get(column)
+    if not value or value == "-":
+        return None
+    return value
 
 
 def _parse_decimal(row: dict[str, str], column: str) -> Decimal | None:
@@ -109,7 +130,9 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         price = _parse_decimal(row, InteractiveBrokersColumn.PRICE)
         amount = _parse_decimal(row, InteractiveBrokersColumn.NET_AMOUNT)
         fees = _parse_decimal(row, InteractiveBrokersColumn.COMMISSION) or Decimal(0)
-        price_currency = row.get(InteractiveBrokersColumn.PRICE_CURRENCY) or "GBP"
+        price_currency = (
+            _parse_str(row, InteractiveBrokersColumn.PRICE_CURRENCY) or "GBP"
+        )
         exchange_rate = (
             _parse_decimal(row, InteractiveBrokersColumn.EXCHANGE_RATE)
             if InteractiveBrokersColumn.EXCHANGE_RATE in row
