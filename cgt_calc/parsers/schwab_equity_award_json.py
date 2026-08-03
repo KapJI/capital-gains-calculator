@@ -29,6 +29,7 @@ from cgt_calc.util import round_decimal
 from .base_parsers import BaseSingleFileParser
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
 
 OPTIONAL_DETAILS_NAME: Final = "Details"
@@ -88,6 +89,10 @@ class FieldNames:
     purchase_date: str = "PurchaseDate"
     purchase_fair_market_value: str = "PurchaseFairMarketValue"
     net_shares_deposited: str = "NetSharesDeposited"
+    shares_withheld: str = "SharesWithheld"
+    shares_sold: str = "SharesSold"
+    shares_sold_withheld_for_taxes: str = "SharesSoldWithheldForTaxes"
+    tax_withholding_method: str = "TaxWithholdingMethod"
 
     def __post_init__(self, schema_version: int) -> None:
         """Set correct field names if the schema is not the default one.
@@ -113,6 +118,10 @@ class FieldNames:
             self.purchase_date = "purchaseDate"
             self.purchase_fair_market_value = "purchaseFairMarketValue"
             self.net_shares_deposited = "netSharesDeposited"
+            self.shares_withheld = "sharesWithheld"
+            self.shares_sold = "sharesSold"
+            self.shares_sold_withheld_for_taxes = "sharesSoldWithheldForTaxes"
+            self.tax_withholding_method = "taxWithholdingMethod"
 
 
 # We want enough decimals to cover what Schwab gives us (up to 4 decimals)
@@ -231,6 +240,183 @@ def _is_integer(number: Decimal) -> bool:
     return number % 1 == 0
 
 
+def _optional_decimal(details: JsonRowType, field_name: str) -> Decimal | None:
+    """Read a count Schwab may leave blank.
+
+    An absent field and an empty one mean the same thing: Schwab had nothing to
+    put there. A "0" does not — it is a count, and a real one.
+    """
+    value = details.get(field_name)
+    if value is None or value == "":
+        return None
+    return _decimal_from_str(value)
+
+
+def _espp_net_shares(
+    details: JsonRowType,
+    names: FieldNames,
+    quantity: Decimal,
+    file: Path,
+) -> Decimal:
+    """How many of an ESPP purchase's shares reach the pool.
+
+    All of them, unless tax was settled out of the purchase itself, in which
+    case what was deposited, withheld and sold has to add back up to what was
+    bought. Shares taken for tax were never acquired, so they are not a
+    disposal and produce no gain; they simply never enter the pool.
+    """
+    deposited = _optional_decimal(details, names.net_shares_deposited)
+    withheld = _optional_decimal(details, names.shares_withheld)
+    sold = _optional_decimal(details, names.shares_sold)
+    method = details.get(names.tax_withholding_method)
+
+    if deposited is None and withheld is None and sold is None and not method:
+        return quantity
+
+    when = details.get(names.purchase_date, "an unknown date")
+
+    if deposited is None:
+        raise ParsingError(
+            file,
+            f"ESPP purchase on {when} settles tax in shares ({method}) but "
+            "does not say how many were deposited",
+        )
+
+    accounted = deposited + (withheld or Decimal(0)) + (sold or Decimal(0))
+    if accounted != quantity:
+        raise ParsingError(
+            file,
+            f"ESPP purchase on {when} bought {quantity} shares but accounts "
+            f"for {accounted}: {deposited} deposited, {withheld or 0} "
+            f"withheld, {sold or 0} sold. Pooling the deposited count alone "
+            "would drop the difference without saying so",
+        )
+
+    return deposited
+
+
+def _check_lapse_units(
+    rows: list[JsonRowType], file_path: Path, names: FieldNames
+) -> None:
+    """Check the split table against the record that states both units.
+
+    A Lapse is not an acquisition and is discarded, but on the way past it
+    proves something no other record can. Its Quantity is restated for later
+    splits while the counts inside it are in the units of their own day, so the
+    two are related by exactly the split multiplier and nothing else.
+
+    That makes the split table falsifiable using only the file. If a date is
+    wrong, or a split has happened that this code has not been told about, it
+    surfaces here — before any disposal has been converted on the strength of
+    it.
+    """
+    for row in rows:
+        if row.get(names.action) != "Lapse":
+            continue
+        if TICKER_RENAMES.get(row.get(names.symbol), row.get(names.symbol)) not in (
+            NVIDIA_SYMBOLS
+        ):
+            continue
+
+        detail_rows = row.get(names.transac_details) or []
+        if not detail_rows:
+            continue
+        details = detail_rows[0].get(OPTIONAL_DETAILS_NAME, detail_rows[0])
+
+        deposited = _optional_decimal(details, names.net_shares_deposited)
+        withheld = _optional_decimal(details, names.shares_sold_withheld_for_taxes)
+        if deposited is None or withheld is None:
+            continue
+
+        date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
+        multiplier = nvidia_split_multiplier(date)
+        quantity = _decimal_from_number_or_str(row, names.quantity)
+        expected = (deposited + withheld) * multiplier
+
+        if quantity != expected:
+            raise ParsingError(
+                file_path,
+                f"The lapse on {row[names.date]} reports {quantity} shares, "
+                f"but {deposited} deposited plus {withheld} withheld at a "
+                f"split multiplier of {multiplier} makes {expected}. Either "
+                "the split table in this file is wrong or a split is missing "
+                "from it; every disposal before that split would be converted "
+                "by the wrong factor",
+            )
+
+
+def _check_disposal_units(
+    transactions: Sequence[BrokerTransaction], file_path: Path
+) -> None:
+    """Check that disposals really were in the units of their own day.
+
+    Converting them rests on Schwab restating acquisitions for later splits and
+    leaving disposals alone. That is what its NVDA exports do, but it is an
+    observation about the file rather than a guarantee, and the GOOG handling
+    in this same parser exists because Schwab restated some records and not
+    others for that split.
+
+    Getting it wrong is silent: the money is unchanged, so nothing fails to
+    balance. Only the share count moves, and the error surfaces years later as
+    a pool that no longer matches the broker.
+
+    Acquisitions are the yardstick. They are restated, they sit in the same
+    file, and once a disposal has been converted the two are in the same units,
+    so a disposal should cost about what shares cost around it. Converting one
+    that Schwab had already converted leaves it cheaper by exactly the
+    multiplier — 4, 10 or 40 — and the market does not move that far between
+    neighbouring vests.
+    """
+    acquisitions = [
+        transaction
+        for transaction in transactions
+        if transaction.action == ActionType.STOCK_ACTIVITY
+        and transaction.price
+        and transaction.symbol in NVIDIA_SYMBOLS
+    ]
+    if not acquisitions:
+        return
+
+    for transaction in transactions:
+        if (
+            transaction.action != ActionType.SELL
+            or transaction.symbol not in NVIDIA_SYMBOLS
+            or not transaction.price
+        ):
+            continue
+
+        multiplier = nvidia_split_multiplier(transaction.date)
+        if multiplier == 1:
+            continue
+
+        nearest = min(
+            acquisitions,
+            key=lambda acquisition: abs((acquisition.date - transaction.date).days),
+        )
+        if not nearest.price:
+            continue
+
+        ratio = transaction.price / nearest.price
+
+        # Between "these agree" and "this one is a multiplier too cheap", take
+        # whichever is nearer on a log scale: ratio < 1/sqrt(multiplier), or
+        # ratio^2 * multiplier < 1 without a square root. The two hypotheses
+        # are a factor of 4 apart at the very least, so the midpoint is not a
+        # threshold that needs tuning.
+        if ratio * ratio * multiplier < 1:
+            raise ParsingError(
+                file_path,
+                f"The disposal on {transaction.date} works out at "
+                f"{transaction.price:.4f} a share once converted for the "
+                f"{multiplier}:1 split, against {nearest.price:.4f} for the "
+                f"acquisition on {nearest.date}. Being cheaper by about the "
+                "split multiplier is what it looks like when Schwab had "
+                "already restated a disposal and it was converted a second "
+                "time, which would take the wrong number of shares out of the "
+                "pool while leaving the proceeds right",
+            )
+
+
 class SchwabTransaction(BrokerTransaction):
     """Represent single Schwab transaction."""
 
@@ -244,10 +430,15 @@ class SchwabTransaction(BrokerTransaction):
         symbol = TICKER_RENAMES.get(symbol, symbol)
         if symbol not in GOOGLE_SYMBOLS | NVIDIA_SYMBOLS:
             LOGGER.warning(
-                "The Schwab Equity Award JSON parser was only tested for Google "
-                "and NVIDIA stocks (%s), but found symbol '%s'. Please check "
-                "the parsing and output are correct!",
+                "The Schwab Equity Award JSON parser was only tested for "
+                "Google and NVIDIA stocks (%s), but found symbol '%s'. "
+                "Everything else is parsed as usual; what is not applied is "
+                "stock split normalization, which this parser only knows for "
+                "the symbols above. If '%s' has split since the earliest "
+                "transaction here, check the share counts against a broker "
+                "statement before filing.",
                 ", ".join(sorted(GOOGLE_SYMBOLS | NVIDIA_SYMBOLS)),
+                symbol,
                 symbol,
             )
         quantity = _decimal_from_number_or_str(row, names.quantity)
@@ -276,16 +467,22 @@ class SchwabTransaction(BrokerTransaction):
                 date = datetime.datetime.strptime(
                     details[names.purchase_date], "%m/%d/%Y"
                 ).date()
-                price = _decimal_from_str(
-                    details[names.purchase_fair_market_value]
-                )
+                price = _decimal_from_str(details[names.purchase_fair_market_value])
 
-                # Since August 2025 the tax on a purchase is settled by holding
-                # back some of the shares, and only the rest reaches the pool.
-                # Before that this field is empty and Quantity is already net.
-                net_shares = details.get(names.net_shares_deposited)
-                if net_shares:
-                    quantity = _decimal_from_str(net_shares)
+                # Since August 2025 the tax on a purchase is settled out of the
+                # shares themselves, and only the rest reaches the pool. Before
+                # that these fields are empty and Quantity is already net.
+                #
+                # Whether the field holds anything is not the signal. An empty
+                # string and a "0" both do, and they mean opposite things:
+                # nothing was withheld, and everything was. Reading either as
+                # "use this count" loses the whole purchase from the pool
+                # without saying so.
+                #
+                # So the counts have to account for every share bought. That
+                # settles it either way, and it is the same identity a Lapse
+                # has to satisfy.
+                quantity = _espp_net_shares(details, names, quantity, file)
 
                 amount = price * quantity
                 description = f"ESPP purchase on {details[names.purchase_date]}"
@@ -501,6 +698,10 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
                 "in the expected format",
             )
 
+        # Before anything is converted: the split table has to survive the one
+        # record that can contradict it.
+        _check_lapse_units(data[fields.transactions], file_path, fields)
+
         transactions = [
             SchwabTransaction(transac, file_path, fields)
             for transac in data[fields.transactions]
@@ -514,8 +715,11 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
             # Tax Withholding is deliberately not skipped: it is US tax at
             # source on dividends, and it is needed for SA106 and foreign tax
             # credit relief.
-            if transac[fields.action]
-            not in {"Journal", "Wire Transfer", "Lapse"}
+            if transac[fields.action] not in {"Journal", "Wire Transfer", "Lapse"}
         ]
+
+        # And after: each converted disposal against the acquisitions around it.
+        _check_disposal_units(transactions, file_path)
+
         transactions.reverse()
         return list(transactions)

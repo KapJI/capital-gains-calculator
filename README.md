@@ -152,8 +152,8 @@ and the 10:1 of 10 June 2024 varies by record type.
 | Record | Read as |
 |---|---|
 | `Deposit` / `RS` — vest | `Quantity` and `VestFairMarketValue` as recorded; both are already restated and agree |
-| `Deposit` / `ESPP` | `NetSharesDeposited` when present, else `Quantity`, priced at `PurchaseFairMarketValue` |
-| `Lapse` | skipped |
+| `Deposit` / `ESPP` | `NetSharesDeposited` when tax was settled in shares, else `Quantity`, priced at `PurchaseFairMarketValue` |
+| `Lapse` | checked for consistency, then skipped |
 | `Sale` | multiplied by the split factor for the trade date, priced from `(Amount + fees) / Quantity` |
 
 Three of these are worth spelling out.
@@ -182,6 +182,33 @@ prices.
 `NVIDIA_SPLITS` has to gain a row when NVDA next splits. Schwab restates
 acquisitions retroactively, so a stale export becomes a mix of old and new
 units and has to be downloaded again in full.
+
+##### What the parser refuses to guess about
+
+Getting the units wrong does not change any amount of money, so nothing fails
+to balance and the run finishes on a different answer. Only the share count
+moves, and it surfaces years later as a pool that no longer matches the broker.
+Three things are therefore checked rather than assumed, and each raises:
+
+- **The split table, against a `Lapse`.** A `Lapse` states both units at once —
+  its `Quantity` is restated while the counts inside it are in the units of
+  their own day — so `Quantity == (NetSharesDeposited +
+  SharesSoldWithheldForTaxes) × multiplier` has to hold. A missing or misdated
+  split breaks it, from the file alone, before any disposal is converted.
+- **That a disposal really was in the units of its day**, against the
+  acquisitions around it. Acquisitions are restated and sit in the same file,
+  so once a disposal is converted the two are comparable. Converting one Schwab
+  had already converted leaves it cheaper by the whole multiplier — 4, 10 or 40
+  — which the market does not manage between neighbouring vests. Upstream's
+  GOOG handling exists because Schwab restated some records and not others for
+  that split; whether NVDA is uniform is an observation, not a guarantee.
+- **That an ESPP purchase adds up.** Where tax is settled out of the shares,
+  deposited plus withheld plus sold has to equal what was bought. An empty
+  `NetSharesDeposited` and a `"0"` mean opposite things and both look like a
+  value, so the counts decide it rather than the field's emptiness.
+
+None of these has fired on a real export. They exist because the failure they
+describe is silent, and a silent wrong answer is worse than a loud refusal.
 
 Covered by [tests/schwab/test_schwab_equity_award_nvda.py](tests/schwab/test_schwab_equity_award_nvda.py),
 against a synthetic portfolio with real dates and prices and invented share
