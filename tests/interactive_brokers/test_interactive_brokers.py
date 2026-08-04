@@ -84,6 +84,35 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert txn.currency == expected.currency
         assert txn.broker == expected.broker
 
+    def test_isin_is_read_from_the_description(self, tmp_path: Path) -> None:
+        """Dividend rows name the security as TICKER(ISIN); trades do not."""
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-10-01,U***08040,"
+            "VT(US9220427424) Cash Dividend USD 0.3272 per Share (Ordinary Dividend),"
+            "Payment in Lieu,VT,-,-,1.0,-,1.0\n"
+            + "Transaction History,Data,2025-10-13,U***08040,"
+            "ISHARES NASDAQ 100 USD ACC,Buy,CNX1,1.0,1060.3,-1060.3,-3.0,-1063.3\n"
+        )
+
+        dividend, trade = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert dividend.isin == "US9220427424"
+        assert trade.isin is None
+
+    def test_invalid_isin_in_the_description_is_ignored(self, tmp_path: Path) -> None:
+        """A malformed code must not be passed off as an ISIN."""
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-10-01,U***08040,"
+            "VT(US9220427429) Cash Dividend USD 0.3272 per Share (Ordinary Dividend),"
+            "Payment in Lieu,VT,-,-,1.0,-,1.0\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert transactions[0].isin is None
+
     def test_buy_foreign_currency_price(self, tmp_path: Path) -> None:
         """Test that a buy with a foreign-currency price is converted to GBP correctly.
 
