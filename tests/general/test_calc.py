@@ -504,13 +504,7 @@ def test_run_with_example_files() -> None:
             f"stderr:\n{result.stderr}"
         )
 
-    stderr_lines = result.stderr.strip().split("\n")
-    expected_lines = 2
-    assert len(stderr_lines) == expected_lines
-    assert stderr_lines[0] == "WARNING: No Schwab Award file provided"
-    assert stderr_lines[1].startswith("WARNING: Bed and breakfasting for VUAG"), (
-        "Unexpected stderr message"
-    )
+    assert result.stderr.strip() == "", "Unexpected stderr message"
     expected_file = (
         Path("tests") / "general" / "data" / "test_run_with_example_files_output.txt"
     )
