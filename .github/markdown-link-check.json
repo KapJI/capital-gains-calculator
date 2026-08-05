@@ -4,5 +4,8 @@
             "pattern": "^#%EF%B8%8F-",
             "replacement": "#-"
         }
+    ],
+    "ignorePatterns": [
+        "^https://www\\.trade-tariff\\.service\\.gov\\.uk/exchange_rates$"
     ]
 }
