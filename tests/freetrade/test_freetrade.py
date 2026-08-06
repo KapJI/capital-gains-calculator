@@ -82,6 +82,8 @@ def test_run_with_freetrade_file() -> None:
         "2023",
         "--freetrade-file",
         "tests/freetrade/data/transactions.csv",
+        "--output",
+        "out/test-freetrade/",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

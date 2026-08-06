@@ -132,6 +132,14 @@ class IsinConverter:
                 self._write_isin_translation_file()
         return result
 
+    def get_symbol_to_isin_map(self) -> dict[str, str]:
+        """Return a map from symbols to isin's."""
+        symbol_to_isin = {}
+        for isin, symbols in self.data.items():
+            for symbol in symbols:
+                symbol_to_isin[symbol] = isin
+        return symbol_to_isin
+
     def _read_isin_translation_data(self) -> None:
         """Read ISIN translation data from bundled and user-provided sources."""
 

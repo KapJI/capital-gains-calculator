@@ -1430,12 +1430,12 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     isin_translation_file = args.isin_translation_file
 
     # Read data from input files
-    broker_transactions = BrokerRegistry.load_all_transactions(args)
+    isin_converter = IsinConverter(isin_translation_file)
+    broker_transactions = BrokerRegistry.load_all_transactions(args, isin_converter)
     currency_converter = CurrencyConverter(args.exchange_rates_file)
     price_fetcher = CurrentPriceFetcher(currency_converter)
     initial_prices = InitialPrices(args.initial_prices_file)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
-    isin_converter = IsinConverter(isin_translation_file)
 
     calculator = CapitalGainsCalculator(
         args.year,

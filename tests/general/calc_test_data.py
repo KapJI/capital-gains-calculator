@@ -168,6 +168,62 @@ def split_transaction(
     )
 
 
+# HMRC's Example 3 spans a tax year end: the disposal of 31 March is matched
+# against acquisitions made in April, which fall in the next year. The same
+# transactions are therefore checked twice, once per year.
+CRYPTO22253_TRANSACTIONS = [
+    transfer_transaction(datetime.date(day=1, month=1, year=2021), 2000),
+    # Opening pool: 2,000 tokens for £1,000.
+    buy_transaction(
+        date=datetime.date(day=1, month=1, year=2021),
+        symbol="TOK",
+        quantity=2000,
+        price=0.5,
+        fees=0,
+        amount=-1000,
+    ),
+    sell_transaction(
+        date=datetime.date(day=31, month=3, year=2021),
+        symbol="TOK",
+        quantity=1000,
+        price=0.4,
+        fees=0,
+        amount=400,
+    ),
+    sell_transaction(
+        date=datetime.date(day=20, month=4, year=2021),
+        symbol="TOK",
+        quantity=500,
+        price=0.3,
+        fees=0,
+        amount=150,
+    ),
+    buy_transaction(
+        date=datetime.date(day=21, month=4, year=2021),
+        symbol="TOK",
+        quantity=700,
+        price=0.25,
+        fees=0,
+        amount=-175,
+    ),
+    buy_transaction(
+        date=datetime.date(day=28, month=4, year=2021),
+        symbol="TOK",
+        quantity=500,
+        price=0.2,
+        fees=0,
+        amount=-100,
+    ),
+    buy_transaction(
+        date=datetime.date(day=1, month=5, year=2021),
+        symbol="TOK",
+        quantity=500,
+        price=0.3,
+        fees=0,
+        amount=-150,
+    ),
+]
+
 calc_basic_data = [
     pytest.param(
         2020,  # tax year
@@ -1325,5 +1381,343 @@ calc_basic_data = [
         },
         {},  # Calculation Log Other
         id="split_then_bnb",
+    ),
+    pytest.param(
+        2019,  # tax year
+        [
+            transfer_transaction(datetime.date(day=1, month=1, year=2019), 1000),
+            # The pool as HMRC's example starts it: 8,000 tokens costing £1,000.
+            buy_transaction(
+                date=datetime.date(day=1, month=1, year=2019),
+                symbol="TOK",
+                quantity=8000,
+                price=0.125,
+                fees=0,
+                amount=-1000,
+            ),
+            # Everything below happens on one day, so the same day rule applies
+            # to all of it before the pool is touched at all.
+            sell_transaction(
+                date=datetime.date(day=31, month=1, year=2020),
+                symbol="TOK",
+                quantity=5000,
+                price=0.1,
+                fees=0,
+                amount=500,
+            ),
+            buy_transaction(
+                date=datetime.date(day=31, month=1, year=2020),
+                symbol="TOK",
+                quantity=4000,
+                price=0.08,
+                fees=0,
+                amount=-320,
+            ),
+            buy_transaction(
+                date=datetime.date(day=31, month=1, year=2020),
+                symbol="TOK",
+                quantity=1000,
+                price=0.075,
+                fees=0,
+                amount=-75,
+            ),
+            buy_transaction(
+                date=datetime.date(day=31, month=1, year=2020),
+                symbol="TOK",
+                quantity=1000,
+                price=0.07,
+                fees=0,
+                amount=-70,
+            ),
+            sell_transaction(
+                date=datetime.date(day=31, month=1, year=2020),
+                symbol="TOK",
+                quantity=2000,
+                price=0.071,
+                fees=0,
+                amount=142,
+            ),
+            buy_transaction(
+                date=datetime.date(day=31, month=1, year=2020),
+                symbol="TOK",
+                quantity=500,
+                price=0.07,
+                fees=0,
+                amount=-35,
+            ),
+        ],
+        # Consideration £642 less same-day costs £500 less the pool's share of
+        # the remaining 500 tokens, £1,000 x 500/8,000 = £62.50.
+        # HMRC rounds that to £63 and publishes the gain as £79.
+        79.50,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
+        None,  # Calculation Log
+        {},  # Calculation Log Other
+        # https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22254
+        id="CRYPTO22254_Example_4",
+    ),
+    pytest.param(
+        2020,  # tax year
+        [
+            transfer_transaction(datetime.date(day=1, month=1, year=2020), 345000),
+            # Opening pool: 100,000 tokens for £300,000.
+            buy_transaction(
+                date=datetime.date(day=1, month=1, year=2020),
+                symbol="TOK",
+                quantity=100000,
+                price=3.0,
+                fees=0,
+                amount=-300000,
+            ),
+            buy_transaction(
+                date=datetime.date(day=31, month=7, year=2020),
+                symbol="TOK",
+                quantity=10000,
+                price=4.5,
+                fees=0,
+                amount=-45000,
+            ),
+            sell_transaction(
+                date=datetime.date(day=31, month=7, year=2020),
+                symbol="TOK",
+                quantity=30000,
+                price=5.0,
+                fees=0,
+                amount=150000,
+            ),
+            sell_transaction(
+                date=datetime.date(day=5, month=8, year=2020),
+                symbol="TOK",
+                quantity=20000,
+                price=5.0,
+                fees=0,
+                amount=100000,
+            ),
+            # One acquisition feeding the 30 day rule for two earlier
+            # disposals, with what is left over going to the pool.
+            buy_transaction(
+                date=datetime.date(day=6, month=8, year=2020),
+                symbol="TOK",
+                quantity=50000,
+                price=4.5,
+                fees=0,
+                amount=-225000,
+            ),
+            sell_transaction(
+                date=datetime.date(day=7, month=8, year=2020),
+                symbol="TOK",
+                quantity=100000,
+                price=1.5,
+                fees=0,
+                amount=150000,
+            ),
+        ],
+        # 31 July: £150,000 less £45,000 same day less £90,000 under the 30 day
+        #          rule = £15,000
+        # 5 August: £100,000 less £90,000 under the 30 day rule = £10,000
+        # 7 August: £150,000 less the pool's £313,636 = a loss of £163,636
+        # HMRC rounds the pool cost to £313,637 and states the loss as £163,637.
+        -138636.36,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
+        None,  # Calculation Log
+        {},  # Calculation Log Other
+        # https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22256
+        id="CRYPTO22256_Example_6",
+    ),
+    pytest.param(
+        2020,  # tax year
+        [
+            transfer_transaction(datetime.date(day=1, month=1, year=2020), 126000),
+            # Opening pool: 100 tokens for £1,000.
+            buy_transaction(
+                date=datetime.date(day=1, month=1, year=2020),
+                symbol="TOK",
+                quantity=100,
+                price=10.0,
+                fees=0,
+                amount=-1000,
+            ),
+            buy_transaction(
+                date=datetime.date(day=18, month=9, year=2020),
+                symbol="TOK",
+                quantity=50,
+                price=2500.0,
+                fees=0,
+                amount=-125000,
+            ),
+            sell_transaction(
+                date=datetime.date(day=1, month=12, year=2020),
+                symbol="TOK",
+                quantity=50,
+                price=6000.0,
+                fees=0,
+                amount=300000,
+            ),
+        ],
+        # £300,000 less the pool's share, £126,000 x 50/150 = £42,000.
+        258000.00,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
+        None,  # Calculation Log
+        {},  # Calculation Log Other
+        # https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22251
+        id="CRYPTO22251_Example_1",
+    ),
+    pytest.param(
+        2020,  # tax year
+        [
+            transfer_transaction(datetime.date(day=1, month=1, year=2020), 1500),
+            # Opening pool: 5,000 tokens for £500.
+            buy_transaction(
+                date=datetime.date(day=1, month=1, year=2020),
+                symbol="TOK",
+                quantity=5000,
+                price=0.1,
+                fees=0,
+                amount=-500,
+            ),
+            # Two disposals and an acquisition on one day. The disposals are
+            # treated as one, and the acquisition is matched against it.
+            sell_transaction(
+                date=datetime.date(day=23, month=6, year=2020),
+                symbol="TOK",
+                quantity=1000,
+                price=0.8,
+                fees=0,
+                amount=800,
+            ),
+            buy_transaction(
+                date=datetime.date(day=23, month=6, year=2020),
+                symbol="TOK",
+                quantity=1600,
+                price=0.625,
+                fees=0,
+                amount=-1000,
+            ),
+            sell_transaction(
+                date=datetime.date(day=23, month=6, year=2020),
+                symbol="TOK",
+                quantity=500,
+                price=1.2,
+                fees=0,
+                amount=600,
+            ),
+        ],
+        # £1,400 less £1,000 x 1,500/1,600 = £937.50. The 100 tokens left
+        # over join the pool at £62.50.
+        # HMRC rounds the cost to £938 and publishes the gain as £462.
+        462.50,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
+        None,  # Calculation Log
+        {},  # Calculation Log Other
+        # https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22252
+        id="CRYPTO22252_Example_2",
+    ),
+    pytest.param(
+        2020,  # tax year
+        CRYPTO22253_TRANSACTIONS,
+        # The 31 March disposal falls in this year: £400 less 700 tokens at
+        # £175 and 300 at £60, both acquired inside the next 30 days but in
+        # the *following* tax year. The rule reaches across the year end.
+        165.00,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
+        None,  # Calculation Log
+        {},  # Calculation Log Other
+        # https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22253
+        id="CRYPTO22253_Example_3_first_year",
+    ),
+    pytest.param(
+        2021,  # tax year
+        CRYPTO22253_TRANSACTIONS,
+        # The 20 April disposal falls in the next year: £150 less 200 tokens
+        # at £40 and 300 at £90.
+        20.00,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
+        None,  # Calculation Log
+        {},  # Calculation Log Other
+        # https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22253
+        id="CRYPTO22253_Example_3_second_year",
+    ),
+    pytest.param(
+        2020,  # tax year
+        [
+            transfer_transaction(datetime.date(day=1, month=1, year=2020), 200000),
+            # Opening pool: 14,000 tokens for £200,000.
+            buy_transaction(
+                date=datetime.date(day=1, month=1, year=2020),
+                symbol="TOK",
+                quantity=14000,
+                price=14.285714,
+                fees=0,
+                amount=-200000,
+            ),
+            sell_transaction(
+                date=datetime.date(day=30, month=8, year=2020),
+                symbol="TOK",
+                quantity=4000,
+                price=40.0,
+                fees=0,
+                amount=160000,
+            ),
+            # Bought inside 30 days, so 500 of the 4,000 sold match here rather
+            # than against the pool.
+            buy_transaction(
+                date=datetime.date(day=11, month=9, year=2020),
+                symbol="TOK",
+                quantity=500,
+                price=35.0,
+                fees=0,
+                amount=-17500,
+            ),
+        ],
+        # £160,000 less £17,500 for the 500 matched under the 30 day rule,
+        # less £50,000 for the 3,500 taken from the pool.
+        92500.00,  # Expected capital gain/loss
+        None,  # Expected unrealized gains
+        None,  # GBP/USD prices
+        None,  # Current prices
+        0.00,  # Expected UK interest
+        0.00,  # Expected foreign interest
+        0.00,  # Expected dividend
+        0.00,  # Expected dividend gain
+        None,  # Calculation Log
+        {},  # Calculation Log Other
+        # https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22255
+        id="CRYPTO22255_Example_5",
     ),
 ]
