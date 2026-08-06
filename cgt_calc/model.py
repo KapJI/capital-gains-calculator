@@ -155,6 +155,7 @@ class ActionType(Enum):
     CASH_MERGER = 16
     EXCESS_REPORTED_INCOME = 17
     FULL_REDEMPTION = 18
+    RENAME = 19
 
 
 class CalculationType(Enum):
@@ -198,6 +199,7 @@ class RuleType(Enum):
     INTEREST = 6
     EXCESS_REPORTED_INCOME = 7
     EXCESS_REPORTED_INCOME_DISTRIBUTION = 8
+    RENAME = 9
 
 
 @dataclass
@@ -236,6 +238,7 @@ class CalculationEntry:
         spin_off: SpinOff | None = None,
         dividend: Dividend | None = None,
         eris: list[ExcessReportedIncome] | None = None,
+        renamed_to: str | None = None,
     ):
         """Create calculation entry."""
         self.rule_type = rule_type
@@ -252,6 +255,7 @@ class CalculationEntry:
         self.spin_off = spin_off
         self.dividend = dividend
         self.eris = eris or []
+        self.renamed_to = renamed_to
         if self.rule_type == RuleType.EXCESS_REPORTED_INCOME:
             assert self.allowable_cost > 0, str(self)
             assert approx_equal(
@@ -263,6 +267,7 @@ class CalculationEntry:
             RuleType.DIVIDEND,
             RuleType.INTEREST,
             RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
+            RuleType.RENAME,
         ):
             assert self.gain == self.amount + self.fees - self.allowable_cost, (
                 f"Mismatch: {self.gain} != "

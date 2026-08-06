@@ -11,12 +11,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, RuleType
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
 from tests.utils import build_cmd
@@ -482,6 +483,181 @@ def test_same_day_rule_all_shares_disposed_no_rounding_error() -> None:
         f"Pool amount should be exactly zero after disposing all shares on same day, "
         f"got {calculator.portfolio[symbol].amount}"
     )
+
+
+def _rename_transaction(date: datetime.date, old: str, new: str) -> BrokerTransaction:
+    """Build a RENAME BrokerTransaction that moves the pool from old to new."""
+    return BrokerTransaction(
+        date=date,
+        action=ActionType.RENAME,
+        symbol=new,
+        description=f"{RENAME_DESCRIPTION_PREFIX}{old}",
+        quantity=Decimal(0),
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(0),
+        currency="GBP",
+        broker="Test",
+    )
+
+
+def test_rename_transfers_pool_to_new_ticker() -> None:
+    """RENAME moves pool cost and quantity from old to new ticker; logs a RENAME entry."""
+    calculator = create_calculator()
+    rename_date = datetime.date(2024, 5, 10)
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),
+            action=ActionType.BUY,
+            symbol="OLD",
+            description="buy OLD",
+            quantity=Decimal(100),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-1000),
+            currency="GBP",
+            broker="Test",
+        ),
+        _rename_transaction(rename_date, "OLD", "NEW"),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert "OLD" not in calculator.portfolio
+    assert calculator.portfolio["NEW"].quantity == Decimal(100)
+    assert calculator.portfolio["NEW"].amount == Decimal(1000)
+    assert report.total_gain() == Decimal(0)
+
+    entries = report.calculation_log[rename_date]["rename$OLD"]
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.rule_type is RuleType.RENAME
+    assert entry.renamed_to == "NEW"
+    assert entry.quantity == Decimal(100)
+    assert entry.allowable_cost == Decimal(1000)
+    assert entry.new_quantity == Decimal(100)
+    assert entry.new_pool_cost == Decimal(1000)
+
+
+def test_section_104_disposal_uses_renamed_pool_cost() -> None:
+    """After a rename, S104 disposal under NEW uses the pool cost carried from OLD."""
+    calculator = create_calculator()
+    sell_date = datetime.date(2024, 6, 1)
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),
+            action=ActionType.BUY,
+            symbol="OLD",
+            description="buy OLD tranche 1",
+            quantity=Decimal(100),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-1000),
+            currency="GBP",
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 2),
+            action=ActionType.BUY,
+            symbol="OLD",
+            description="buy OLD tranche 2",
+            quantity=Decimal(50),
+            price=Decimal(20),
+            fees=Decimal(0),
+            amount=Decimal(-1000),
+            currency="GBP",
+            broker="Test",
+        ),
+        _rename_transaction(datetime.date(2024, 5, 15), "OLD", "NEW"),
+        BrokerTransaction(
+            date=sell_date,
+            action=ActionType.SELL,
+            symbol="NEW",
+            description="partial sell NEW",
+            quantity=Decimal(75),
+            price=Decimal(20),
+            fees=Decimal(0),
+            amount=Decimal(1500),
+            currency="GBP",
+            broker="Test",
+        ),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    # Pool before sale: 150 units, £2,000 cost → £13.333.../unit.
+    # Sell 75 units: cost £1,000, proceeds £1,500, gain £500.
+    assert report.total_gain() == Decimal("500.00")
+    sell_entries = report.calculation_log[sell_date]["sell$NEW"]
+    assert len(sell_entries) == 1
+    entry = sell_entries[0]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.quantity == Decimal(75)
+    assert entry.allowable_cost == Decimal(1000)
+    assert entry.gain == Decimal(500)
+    # Remaining pool: 75 units at the same £13.333.../unit = £1,000.
+    assert entry.new_quantity == Decimal(75)
+    assert round_decimal(entry.new_pool_cost, 4) == Decimal(1000)
+    assert calculator.portfolio["NEW"].quantity == Decimal(75)
+    assert round_decimal(calculator.portfolio["NEW"].amount, 4) == Decimal(1000)
+
+
+def test_bed_and_breakfast_matches_across_rename() -> None:
+    """Sell of OLD is B&B-matched against a buy of NEW after a rename within 30 days."""
+    calculator = create_calculator()
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),
+            action=ActionType.BUY,
+            symbol="OLD",
+            description="buy OLD",
+            quantity=Decimal(100),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-1000),
+            currency="GBP",
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 10),
+            action=ActionType.SELL,
+            symbol="OLD",
+            description="sell OLD",
+            quantity=Decimal(100),
+            price=Decimal(8),
+            fees=Decimal(0),
+            amount=Decimal(800),
+            currency="GBP",
+            broker="Test",
+        ),
+        _rename_transaction(datetime.date(2024, 5, 15), "OLD", "NEW"),
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 20),
+            action=ActionType.BUY,
+            symbol="NEW",
+            description="rebuy under NEW",
+            quantity=Decimal(100),
+            price=Decimal(9),
+            fees=Decimal(0),
+            amount=Decimal(-900),
+            currency="GBP",
+            broker="Test",
+        ),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    sell_date = datetime.date(2024, 5, 10)
+    rebuy_date = datetime.date(2024, 5, 20)
+    sell_entries = report.calculation_log[sell_date]["sell$OLD"]
+    assert len(sell_entries) == 1
+    sell_entry = sell_entries[0]
+    assert sell_entry.rule_type is RuleType.BED_AND_BREAKFAST
+    assert sell_entry.bed_and_breakfast_date_index == rebuy_date
+    assert sell_entry.allowable_cost == Decimal(900)
+
+    # 100 sold at £8 = £800 proceeds against £900 B&B cost → £100 loss.
+    assert report.total_gain() == Decimal(-100)
 
 
 def test_run_with_example_files() -> None:
