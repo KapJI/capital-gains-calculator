@@ -124,6 +124,8 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "2025",
             "--interactive-brokers-file",
             "tests/interactive_brokers/data/test_basic.csv",
+            "--output",
+            "out/test-interactive_brokers/",
         )
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode:
@@ -143,3 +145,52 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "if you added new features update the test with:\n"
             f"{cmd_str} > {expected_file}"
         )
+
+    def test_ordinary_dividend_and_its_withholding(self, tmp_path: Path) -> None:
+        """An ordinary dividend is income, and the US tax on it is withheld.
+
+        The parser knew "Payment in Lieu", which arrives instead of a dividend
+        when the holding is out on loan, but not the ordinary dividend that
+        every holder of a paying security receives. Anyone with one hit
+        "Unknown type: 'Dividend'" on their first real statement.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header
+            + "Transaction History,Data,2025-11-03,U***00000,VT(US9220427424) Cash Dividend USD 0.50 per Share,Dividend,VT,-,-,20.0,-,20.0\n"
+            + "Transaction History,Data,2025-11-03,U***00000,VT(US9220427424) Cash Dividend - US Tax,Foreign Tax Withholding,VT,-,-,-3.0,-,-3.0\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert [t.action for t in transactions] == [
+            ActionType.DIVIDEND,
+            ActionType.DIVIDEND_TAX,
+        ]
+        assert transactions[0].amount == Decimal("20.0")
+        assert transactions[0].symbol == "VT"
+        assert transactions[1].amount == Decimal("-3.0")
+
+    def test_fx_translation_adjusts_the_balance_only(self, tmp_path: Path) -> None:
+        """Revaluing a currency balance is not a disposal.
+
+        IBKR reports "FX Translations P&L" as an Adjustment. It moves the cash
+        balance and creates no taxable event: exchange movement on a personal
+        currency balance is outside CGT. The Schwab parser treats its own
+        Adjustment the same way.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header
+            + "Transaction History,Data,2025-11-30,U***00000,FX Translations P&L,Adjustment,-,-,-,0.55,-,0.55\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert len(transactions) == 1
+        assert transactions[0].action == ActionType.ADJUSTMENT
+        assert transactions[0].amount == Decimal("0.55")
+        # No quantity and no price, so it cannot become an acquisition or a
+        # disposal however it is grouped downstream.
+        assert transactions[0].quantity is None
+        assert transactions[0].price is None
