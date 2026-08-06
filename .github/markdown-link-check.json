@@ -4,5 +4,15 @@
             "pattern": "^#%EF%B8%8F-",
             "replacement": "#-"
         }
+    ],
+    "httpHeaders": [
+        {
+            "urls": [
+                "https://www.trade-tariff.service.gov.uk"
+            ],
+            "headers": {
+                "User-Agent": "Mozilla/5.0 (compatible; markdown-link-check)"
+            }
+        }
     ]
 }
