@@ -7,11 +7,13 @@ from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from itertools import chain
 import logging
+import re
 from typing import TYPE_CHECKING, ClassVar, Final
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.util import is_isin
 
 from .base_parsers import StandardCSVParser
 
@@ -23,6 +25,19 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 EXPECTED_COLS_IN_SUMMARY_SECTION: Final[int] = 4
+
+# Dividend and withholding rows name the security as "VT(US9220427424) Cash
+# Dividend ...". Trade rows carry a plain description, so this is best effort.
+_ISIN_IN_DESCRIPTION_RE: Final = re.compile(r"^[^\s(]+\((?P<isin>[A-Z0-9]{12})\)")
+
+
+def _isin_from_description(description: str) -> str | None:
+    """Return the ISIN the description is prefixed with, if it has one."""
+    match = _ISIN_IN_DESCRIPTION_RE.match(description)
+    if match is None:
+        return None
+    isin = match.group("isin")
+    return isin if is_isin(isin) else None
 
 
 class InteractiveBrokersColumn(StrEnum):
@@ -157,6 +172,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
             amount=amount,
             currency=price_currency,
             broker="Interactive Brokers",
+            isin=_isin_from_description(row[InteractiveBrokersColumn.DESCRIPTION]),
         )
 
 

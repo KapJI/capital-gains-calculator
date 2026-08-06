@@ -50,12 +50,25 @@ DIVIDEND_ALLOWANCES: Final[dict[int, int]] = {
 # Double taxation
 # =============================================================================
 
-# Country and treaty rates per country
+# Country and treaty rates per country of the income's source, keyed by the
+# ISO 3166-1 alpha-2 code that an ISIN is prefixed with.
 # https://www.gov.uk/hmrc-internal-manuals/double-taxation-relief
 DIVIDEND_DOUBLE_TAXATION_RULES: Final[dict[str, TaxTreaty]] = {
-    "USD": TaxTreaty("USA", Decimal("0.15"), Decimal("0.15")),
-    "PLN": TaxTreaty("Poland", Decimal("0.19"), Decimal("0.1")),
+    "US": TaxTreaty("USA", Decimal("0.15"), Decimal("0.15")),
+    "PL": TaxTreaty("Poland", Decimal("0.19"), Decimal("0.1")),
 }
+
+# Fallback for transactions with no ISIN: guess the source country from the
+# currency the dividend was paid in. This is only a guess — a broker reporting
+# in the account's base currency breaks it — so it is used only as a last
+# resort, and it keeps the behaviour brokers relied on before ISINs were used.
+DIVIDEND_CURRENCY_TO_COUNTRY: Final[dict[str, str]] = {
+    "USD": "US",
+    "PLN": "PL",
+}
+
+# ISIN is prefixed with the ISO 3166-1 alpha-2 code of the issuing country.
+ISIN_COUNTRY_CODE_LENGTH: Final = 2
 
 
 # =============================================================================
