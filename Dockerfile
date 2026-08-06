@@ -30,7 +30,7 @@ RUN --mount=type=cache,target=/root/.cache \
     uv sync --frozen
 
 # Simple CLI shim
-RUN printf '%s\n' 'cd /build && uv run cgt-calc "$@"' > /bin/cgt-calc \
+RUN printf '%s\n' 'uv run --project /build cgt-calc "$@"' > /bin/cgt-calc \
  && chmod +x /bin/cgt-calc
 
 WORKDIR /data

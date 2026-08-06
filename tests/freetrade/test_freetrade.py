@@ -16,8 +16,8 @@ from cgt_calc.model import ActionType
 from cgt_calc.parsers.freetrade import (
     COLUMNS,
     FreetradeColumn,
+    FreetradeParser,
     FreetradeTransaction,
-    read_freetrade_transactions,
 )
 from tests.utils import build_cmd
 
@@ -82,6 +82,8 @@ def test_run_with_freetrade_file() -> None:
         "2023",
         "--freetrade-file",
         "tests/freetrade/data/transactions.csv",
+        "--output",
+        "out/test-freetrade/",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -93,7 +95,7 @@ def test_run_with_freetrade_file() -> None:
     assert result.stderr == "", "Run with example files generated errors"
     expected_file = Path("tests") / "freetrade" / "data" / "expected_output.txt"
     expected = expected_file.read_text()
-    cmd_str = " ".join([param if param else "''" for param in cmd])
+    cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"
@@ -107,7 +109,7 @@ def test_read_freetrade_transactions_empty_file(tmp_path: Path) -> None:
     empty_file.write_text("")
 
     with pytest.raises(ParsingError):
-        read_freetrade_transactions(empty_file)
+        FreetradeParser().load_from_file(empty_file)
 
 
 def test_read_freetrade_transactions_missing_column(tmp_path: Path) -> None:
@@ -116,7 +118,7 @@ def test_read_freetrade_transactions_missing_column(tmp_path: Path) -> None:
     path = _write_csv(tmp_path, header)
 
     with pytest.raises(ParsingError, match="Missing columns"):
-        read_freetrade_transactions(path)
+        FreetradeParser().load_from_file(path)
 
 
 def test_read_freetrade_transactions_unknown_column(tmp_path: Path) -> None:
@@ -125,7 +127,7 @@ def test_read_freetrade_transactions_unknown_column(tmp_path: Path) -> None:
     path = _write_csv(tmp_path, header)
 
     with pytest.raises(ParsingError, match="Unknown columns: Unexpected"):
-        read_freetrade_transactions(path)
+        FreetradeParser().load_from_file(path)
 
 
 def test_read_freetrade_transactions_invalid_decimal(tmp_path: Path) -> None:
@@ -137,7 +139,7 @@ def test_read_freetrade_transactions_invalid_decimal(tmp_path: Path) -> None:
         ParsingError,
         match=", row 2: Invalid decimal in column 'Quantity'",
     ):
-        read_freetrade_transactions(path)
+        FreetradeParser().load_from_file(path)
 
 
 def test_read_freetrade_transactions_unsupported_currency(tmp_path: Path) -> None:
@@ -149,14 +151,14 @@ def test_read_freetrade_transactions_unsupported_currency(tmp_path: Path) -> Non
         UnsupportedBrokerCurrencyError,
         match="parser does not support the provided account currency",
     ):
-        read_freetrade_transactions(path)
+        FreetradeParser().load_from_file(path)
 
 
 def test_read_freetrade_transactions_success(tmp_path: Path) -> None:
     """Default row parses into a valid BUY transaction."""
     path = _write_csv(tmp_path, COLUMNS, [_default_row()])
 
-    transactions = read_freetrade_transactions(path)
+    transactions = FreetradeParser().load_from_file(path)
 
     assert len(transactions) == 1
     transaction = transactions[0]
@@ -177,7 +179,7 @@ def test_freetrade_transaction_unsupported_action(
         return ActionType.ADJUSTMENT
 
     monkeypatch.setattr(
-        "cgt_calc.parsers.freetrade.action_from_str", fake_action_from_str
+        "cgt_calc.parsers.freetrade._action_from_str", fake_action_from_str
     )
     dummy_file = tmp_path / "dummy.csv"
     dummy_file.write_text("")

@@ -20,6 +20,7 @@ from .const import (
     DIVIDEND_DOUBLE_TAXATION_RULES,
     ERI_TAX_DATE_DELTA,
     INTERNAL_START_DATE,
+    RENAME_DESCRIPTION_PREFIX,
     UK_CURRENCY,
 )
 from .currency_converter import CurrencyConverter
@@ -32,6 +33,7 @@ from .exceptions import (
     CgtError,
     InvalidTransactionError,
     PriceMissingError,
+    QuantityMissingError,
     QuantityNotPositiveError,
     SymbolMissingError,
 )
@@ -58,11 +60,11 @@ from .model import (
     RuleType,
     SpinOff,
 )
-from .parsers import read_broker_transactions
+from .parsers.broker_registry import BrokerRegistry
 from .setup_logging import setup_logging
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
-from .util import approx_equal, round_decimal
+from .util import approx_equal, normalize_amount, round_decimal
 
 if TYPE_CHECKING:
     import argparse
@@ -84,6 +86,14 @@ def get_symbol_or_fail(transaction: BrokerTransaction) -> str:
     if symbol is None:
         raise SymbolMissingError(transaction)
     return symbol
+
+
+def get_quantity_or_fail(transaction: BrokerTransaction) -> Decimal:
+    """Return the transaction quantity or throw an error."""
+    quantity = transaction.quantity
+    if quantity is None:
+        raise QuantityMissingError(transaction)
+    return quantity
 
 
 # Amount difference can be caused by rounding errors in the price.
@@ -167,10 +177,15 @@ class CapitalGainsCalculator:
         self.acquisition_list: HmrcTransactionLog = {}
         self.disposal_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
+        self.split_list: dict[tuple[str, datetime.date], Decimal] = {}
+        # Stores old->new mapping when a symbol changes its name.
+        self.rename_list: dict[datetime.date, dict[str, str]] = defaultdict(dict)
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
-        self.interest_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        self.interest_list: dict[
+            tuple[str, str, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
 
         # Log for the report section related only to interests and dividends
         self.calculation_log_yields: CalculationLog = defaultdict(dict)
@@ -446,10 +461,14 @@ class CapitalGainsCalculator:
 
         symbols = self.isin_converter.get_symbols(transaction.isin)
         for symbol in symbols:
+            # For some funds we don't have symbol translation
+            if not symbol:
+                continue
+
             for report_date, report_by_symbol in self.eris.items():
                 if symbol in report_by_symbol and report_date == transaction.date:
                     previous_price = report_by_symbol[symbol].price
-                    if approx_equal(previous_price, price):
+                    if approx_equal(previous_price, price, Decimal("0.0001")):
                         LOGGER.warning(
                             "Skipping duplicated ERI transaction: %s", transaction
                         )
@@ -488,8 +507,10 @@ class CapitalGainsCalculator:
         for i, transaction in enumerate(transactions):
             if transaction.action == ActionType.EXCESS_REPORTED_INCOME:
                 self.add_eri(transaction)
+                balance_history.append(
+                    Decimal(0)
+                )  # dummy value, this will get filtered out
                 continue
-
             new_balance = balance[(transaction.broker, transaction.currency)]
             if transaction.action is ActionType.TRANSFER:
                 new_balance += get_amount_or_fail(transaction)
@@ -499,7 +520,11 @@ class CapitalGainsCalculator:
             ]:
                 new_balance += get_amount_or_fail(transaction)
                 self.add_acquisition(transaction)
-            elif transaction.action in [ActionType.SELL, ActionType.CASH_MERGER]:
+            elif transaction.action in [
+                ActionType.SELL,
+                ActionType.CASH_MERGER,
+                ActionType.FULL_REDEMPTION,
+            ]:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 self.add_disposal(transaction)
@@ -527,8 +552,15 @@ class CapitalGainsCalculator:
             elif transaction.action in [
                 ActionType.STOCK_ACTIVITY,
                 ActionType.SPIN_OFF,
-                ActionType.STOCK_SPLIT,
             ]:
+                self.add_acquisition(transaction)
+            elif transaction.action == ActionType.STOCK_SPLIT:
+                # Calculate the multiplier based on portfolio and received shares
+                acquired_quantity = get_quantity_or_fail(transaction)
+                symbol = get_symbol_or_fail(transaction)
+                holding_quantity = self.portfolio[symbol].quantity
+                multiplier = (acquired_quantity + holding_quantity) / holding_quantity
+                self.split_list[(symbol, transaction.date)] = multiplier
                 self.add_acquisition(transaction)
             elif transaction.action in [ActionType.DIVIDEND, ActionType.CAPITAL_GAIN]:
                 amount = get_amount_or_fail(transaction)
@@ -556,14 +588,20 @@ class CapitalGainsCalculator:
             elif transaction.action is ActionType.INTEREST:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
-                self.interest_list[(transaction.broker, transaction.date)] += (
-                    ForeignCurrencyAmount(amount, transaction.currency)
-                )
+                self.interest_list[
+                    (transaction.broker, transaction.currency, transaction.date)
+                ] += ForeignCurrencyAmount(amount, transaction.currency)
                 if self.date_in_tax_year(transaction.date):
                     interests[(transaction.broker, transaction.currency)] += amount
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
+            elif transaction.action is ActionType.RENAME:
+                new_symbol = get_symbol_or_fail(transaction)
+                assert transaction.description.startswith(RENAME_DESCRIPTION_PREFIX)
+                old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
+                self.rename_list[transaction.date][old_symbol] = new_symbol
+                self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
             else:
@@ -575,14 +613,20 @@ class CapitalGainsCalculator:
                 msg = f"Reached a negative balance({new_balance})"
                 msg += f" for broker {transaction.broker} ({transaction.currency})"
                 msg += " after processing the following transactions:\n"
-                msg += "\n".join(
-                    [
-                        f"{trx}\nBalance after transaction={balance_after}"
-                        for trx, balance_after in zip(
-                            transactions[: i + 1], balance_history, strict=True
-                        )
-                    ]
+                msg += (
+                    "\n".join(
+                        [
+                            f"{trx}\nBalance after transaction={balance_after}"
+                            for trx, balance_after in zip(
+                                transactions[: i + 1], balance_history, strict=True
+                            )
+                            # filter out ERI transactions, they don't affect the balance
+                            if trx.action != ActionType.EXCESS_REPORTED_INCOME
+                        ]
+                    )
+                    + "\n"
                 )
+                msg += "Tip: If your input file is missing deposits/withdrawals use --no-balance-check."
                 raise CalculationError(msg)
             balance[(transaction.broker, transaction.currency)] = new_balance
 
@@ -638,10 +682,13 @@ class CapitalGainsCalculator:
         bed_and_breakfast_fees = Decimal(0)
 
         if acquisition.quantity > 0 and has_key(self.bnb_list, date_index, symbol):
-            acquisition_price = acquisition.amount / acquisition.quantity
             bnb_acquisition = self.bnb_list[date_index][symbol]
             assert bnb_acquisition.quantity <= acquisition.quantity
-            modified_amount -= bnb_acquisition.quantity * acquisition_price
+            # Multiply by available_quantity before divide to avoid rounding errors from division
+            bnb_cost_basis = normalize_amount(
+                (bnb_acquisition.quantity * acquisition.amount) / acquisition.quantity
+            )
+            modified_amount -= bnb_cost_basis
             modified_amount += bnb_acquisition.amount
             assert modified_amount > 0
             bed_and_breakfast_fees = (
@@ -750,12 +797,17 @@ class CapitalGainsCalculator:
             available_quantity = min(disposal_quantity, same_day_acquisition.quantity)
             if available_quantity > 0:
                 fees = disposal.fees * available_quantity / original_disposal_quantity
-                acquisition_price = (
-                    same_day_acquisition.amount / same_day_acquisition.quantity
+
+                # Multiply by available_quantity before divide to avoid rounding errors from division
+                acquisition_cost = normalize_amount(
+                    (available_quantity * same_day_acquisition.amount)
+                    / same_day_acquisition.quantity
                 )
+
+                acquisition_price = acquisition_cost / available_quantity
                 same_day_amount = available_quantity * disposal_price
                 same_day_proceeds = same_day_amount + fees
-                same_day_allowable_cost = available_quantity * acquisition_price + fees
+                same_day_allowable_cost = acquisition_cost + fees
                 same_day_gain = same_day_proceeds - same_day_allowable_cost
                 chargeable_gain += same_day_gain
                 LOGGER.debug(
@@ -770,7 +822,7 @@ class CapitalGainsCalculator:
                 proceeds_amount -= available_quantity * disposal_price
                 current_quantity -= available_quantity
                 # These shares shouldn't be added to Section 104 holding
-                current_amount -= available_quantity * acquisition_price
+                current_amount -= acquisition_cost
                 if current_quantity == 0:
                     assert round_decimal(current_amount, 23) == 0, (
                         f"current amount {current_amount}"
@@ -795,27 +847,39 @@ class CapitalGainsCalculator:
             if eri:
                 eris.append(eri)
 
+            split_multiplier = Decimal(1)
+            effective_symbol = symbol
+
             for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = date_index + datetime.timedelta(days=i + 1)
+                # HMRC treats renames as the same security for B&B purposes.
+                effective_symbol = self.rename_list.get(search_index, {}).get(
+                    effective_symbol, effective_symbol
+                )
+
+                # Check if there was any stock split, in which case we need to adjust the B&D quantity
+                split_multiplier *= self.split_list.get(
+                    (effective_symbol, search_index), Decimal(1)
+                )
 
                 # ERI are distributed annually but when a fund close we might have
                 # multiple ERI distribution in close succession
-                eri = self.get_eri(symbol, search_index)
+                eri = self.get_eri(effective_symbol, search_index)
                 if eri:
                     eris.append(eri)
-                if has_key(self.acquisition_list, search_index, symbol):
-                    acquisition = self.acquisition_list[search_index][symbol]
+                if has_key(self.acquisition_list, search_index, effective_symbol):
+                    acquisition = self.acquisition_list[search_index][effective_symbol]
 
                     bnb_acquisition = (
-                        self.bnb_list[search_index][symbol]
-                        if has_key(self.bnb_list, search_index, symbol)
+                        self.bnb_list[search_index][effective_symbol]
+                        if has_key(self.bnb_list, search_index, effective_symbol)
                         else HmrcTransactionData()
                     )
                     assert bnb_acquisition.quantity <= acquisition.quantity
 
                     same_day_disposal = (
-                        self.disposal_list[search_index][symbol]
-                        if has_key(self.disposal_list, search_index, symbol)
+                        self.disposal_list[search_index][effective_symbol]
+                        if has_key(self.disposal_list, search_index, effective_symbol)
                         else HmrcTransactionData()
                     )
                     if same_day_disposal.quantity > acquisition.quantity:
@@ -833,6 +897,17 @@ class CapitalGainsCalculator:
                         == 0
                     ):
                         continue
+                    # Splits are the only transaction that receive shares for free
+                    # they can't be part of a B&B
+                    if acquisition.amount == 0:
+                        LOGGER.warning(
+                            "A split happened shortly after a disposal of %s, double check these transactions."
+                            "Disposed on %s and split happened on %s",
+                            symbol,
+                            date_index,
+                            search_index,
+                        )
+                        continue
                     LOGGER.warning(
                         "Bed and breakfasting for %s. "
                         "Disposed on %s and acquired again on %s",
@@ -840,21 +915,34 @@ class CapitalGainsCalculator:
                         date_index,
                         search_index,
                     )
+                    if split_multiplier != Decimal(1):
+                        LOGGER.warning(
+                            "Bed & breakfast for %s is taking into account a {%.2f}x split "
+                            "that happened shortly before the repurchase of shares",
+                            symbol,
+                            split_multiplier,
+                        )
                     available_quantity = min(
                         disposal_quantity,
-                        acquisition.quantity
+                        acquisition.quantity / split_multiplier
                         - same_day_disposal.quantity
                         - bnb_acquisition.quantity,
                     )
                     fees = (
                         disposal.fees * available_quantity / original_disposal_quantity
                     )
-                    acquisition_price = acquisition.amount / acquisition.quantity
+                    adjusted_acquisition_quantity = (
+                        acquisition.quantity / split_multiplier
+                    )
+                    # Multiply by available_quantity before divide to avoid rounding errors from division
+                    bnb_acquisition_cost = normalize_amount(
+                        (available_quantity * acquisition.amount)
+                        / adjusted_acquisition_quantity
+                    )
+                    acquisition_price = bnb_acquisition_cost / available_quantity
                     bed_and_breakfast_amount = available_quantity * disposal_price
                     bed_and_breakfast_proceeds = bed_and_breakfast_amount + fees
-                    bed_and_breakfast_allowable_cost = (
-                        available_quantity * acquisition_price
-                    ) + fees
+                    bed_and_breakfast_allowable_cost = bnb_acquisition_cost + fees
                     # ERI needs to be reported when doing bed and breakfast as if you
                     # held the stocks at the reporting end date.
                     # https://www.rawknowledge.ltd/eri-explained-four-tricky-questions-answered/
@@ -888,8 +976,12 @@ class CapitalGainsCalculator:
                     )
                     disposal_quantity -= available_quantity
                     proceeds_amount -= available_quantity * disposal_price
-                    current_price = current_amount / current_quantity
-                    amount_delta = available_quantity * current_price
+
+                    # Multiply by available_quantity before divide to avoid rounding errors from division
+                    amount_delta = normalize_amount(
+                        (available_quantity * current_amount) / current_quantity
+                    )
+
                     current_quantity -= available_quantity
                     current_amount -= amount_delta
                     if current_quantity == 0:
@@ -899,8 +991,8 @@ class CapitalGainsCalculator:
                     add_to_list(
                         self.bnb_list,
                         search_index,
-                        symbol,
-                        available_quantity,
+                        effective_symbol,
+                        available_quantity * split_multiplier,
                         amount_delta + total_dist_amount,
                         Decimal(0),
                         eris,
@@ -918,13 +1010,22 @@ class CapitalGainsCalculator:
                             new_pool_cost=current_amount,
                         )
                     )
+                    # If we completely matched the current disposal,
+                    # there's no need to keep looking for more B&D days
+                    if disposal_quantity <= 0:
+                        break
         if disposal_quantity > 0:
             available_quantity = disposal_quantity
             fees = disposal.fees * available_quantity / original_disposal_quantity
-            acquisition_price = current_amount / current_quantity
+
+            # Multiply by available_quantity before divide to avoid rounding errors from division
+            amount_delta = normalize_amount(
+                (available_quantity * current_amount) / current_quantity
+            )
+
             r104_amount = available_quantity * disposal_price
             r104_proceeds = r104_amount + fees
-            r104_allowable_cost = available_quantity * acquisition_price + fees
+            r104_allowable_cost = amount_delta + fees
             r104_gain = r104_proceeds - r104_allowable_cost
             chargeable_gain += r104_gain
             LOGGER.debug(
@@ -937,8 +1038,6 @@ class CapitalGainsCalculator:
             )
             disposal_quantity -= available_quantity
             proceeds_amount -= available_quantity * disposal_price
-            current_price = current_amount / current_quantity
-            amount_delta = available_quantity * current_price
             current_quantity -= available_quantity
             current_amount -= amount_delta
             if current_quantity == 0:
@@ -962,12 +1061,29 @@ class CapitalGainsCalculator:
         assert round_decimal(disposal_quantity, 23) == 0, (
             f"disposal quantity {disposal_quantity}"
         )
-        self.portfolio[symbol] = Position(current_quantity, current_amount)
+        self.portfolio[symbol] = Position(
+            current_quantity, normalize_amount(current_amount)
+        )
         chargeable_gain = round_decimal(chargeable_gain, 2)
         return (
             chargeable_gain,
             calculation_entries,
             spin_off_entry,
+        )
+
+    def process_rename(self, old: str, new: str) -> CalculationEntry:
+        """Transfer pool from old ticker to new ticker (no disposal)."""
+        pos = self.portfolio.pop(old, Position())
+        self.portfolio[new] += pos
+        return CalculationEntry(
+            rule_type=RuleType.RENAME,
+            quantity=pos.quantity,
+            amount=Decimal(0),
+            fees=Decimal(0),
+            new_quantity=self.portfolio[new].quantity,
+            new_pool_cost=self.portfolio[new].amount,
+            allowable_cost=pos.amount,
+            renamed_to=new,
         )
 
     def process_eri(
@@ -1027,25 +1143,31 @@ class CapitalGainsCalculator:
         It groups them by month, using the last date on each month for the report
         and updates the interest totals for the year.
         """
-        monthly_interests: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        monthly_interests: dict[
+            tuple[str, str, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
         last_date: datetime.date = datetime.date.min
         last_broker: str | None = None
-        # sort by broker and date
-        for (broker, date), foreign_amount in sorted(self.interest_list.items()):
+        last_currency: str | None = None
+
+        for (broker, currency, date), foreign_amount in sorted(
+            self.interest_list.items()
+        ):
             if self.date_in_tax_year(date):
-                # If it's still the same month bring forward the value to the current
-                # date
-                if broker == last_broker and date.replace(day=1) == last_date.replace(
-                    day=1
+                if (
+                    broker == last_broker
+                    and date.month == last_date.month
+                    and currency == last_currency
                 ):
-                    monthly_interests[(broker, date)] = monthly_interests.pop(
-                        (broker, last_date)
+                    monthly_interests[(broker, currency, date)] = monthly_interests.pop(
+                        (broker, currency, last_date)
                     )
-                monthly_interests[(broker, date)] += foreign_amount
+                monthly_interests[(broker, currency, date)] += foreign_amount
                 last_date = date
                 last_broker = broker
+                last_currency = currency
 
-        for (broker, date), foreign_amount in monthly_interests.items():
+        for (broker, currency, date), foreign_amount in monthly_interests.items():
             gbp_amount = self.currency_converter.to_gbp(
                 foreign_amount.amount, foreign_amount.currency, date
             )
@@ -1054,7 +1176,7 @@ class CapitalGainsCalculator:
                 rule_prefix = "interestUK"
             else:
                 self.total_foreign_interest += gbp_amount
-                rule_prefix = "interestForeign"
+                rule_prefix = f"interest{currency.upper()}"
 
             self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
                 CalculationEntry(
@@ -1077,7 +1199,6 @@ class CapitalGainsCalculator:
 
             treaty = None
             is_interest_fund = symbol in self.interest_fund_tickers
-
             if tax.amount < 0:
                 if is_interest_fund:
                     LOGGER.warning(
@@ -1238,6 +1359,12 @@ class CapitalGainsCalculator:
                                 f"spin-off${spin_off.source}"
                             ] = [spin_off_entry]
 
+            if date_index in self.rename_list:
+                for old, new in self.rename_list[date_index].items():
+                    entry = self.process_rename(old, new)
+                    if date_index >= tax_year_start_index:
+                        calculation_log[date_index][f"rename${old}"] = [entry]
+
             # Excess Reported incomes should be reported at the end of the day
             if date_index in self.eris:
                 for symbol in self.eris[date_index]:
@@ -1335,24 +1462,15 @@ class CapitalGainsCalculator:
 def calculate_cgt(args: argparse.Namespace) -> None:
     """Perform all the computations."""
 
+    isin_translation_file = args.isin_translation_file
+
     # Read data from input files
-    broker_transactions = read_broker_transactions(
-        freetrade_transactions_file=args.freetrade_file,
-        schwab_transactions_file=args.schwab_file,
-        schwab_awards_transactions_file=args.schwab_award_file,
-        schwab_equity_award_json_transactions_file=args.schwab_equity_award_json,
-        trading212_transactions_folder=args.trading212_dir,
-        mssb_transactions_folder=args.mssb_dir,
-        sharesight_transactions_folder=args.sharesight_dir,
-        raw_transactions_file=args.raw_file,
-        vanguard_transactions_file=args.vanguard_file,
-        eri_raw_file=args.eri_raw_file,
-    )
+    isin_converter = IsinConverter(isin_translation_file)
+    broker_transactions = BrokerRegistry.load_all_transactions(args, isin_converter)
     currency_converter = CurrencyConverter(args.exchange_rates_file)
     price_fetcher = CurrentPriceFetcher(currency_converter)
     initial_prices = InitialPrices(args.initial_prices_file)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
-    isin_converter = IsinConverter(args.isin_translation_file)
 
     calculator = CapitalGainsCalculator(
         args.year,

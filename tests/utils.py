@@ -9,4 +9,5 @@ def build_cmd(*args: str) -> list[str]:
     cmd = [sys.executable, "-m", "cgt_calc.main", *args]
     if not os.getenv("ENABLE_PDFLATEX"):
         cmd.append("--no-pdflatex")
+    cmd += ["--exchange-rates-file", "tests/exchange_rates_data.csv"]
     return cmd

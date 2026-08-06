@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.parsers.eri.raw import read_eri_raw
+from cgt_calc.parsers.eri.raw import ERIRawParser
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -30,7 +30,7 @@ def test_read_eri_raw_raises_on_invalid_date(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ParsingError, match="Invalid date '32/13/2024'"):
-        read_eri_raw(file_path)
+        ERIRawParser.load_from_file(file_path)
 
 
 def test_read_eri_raw_raises_on_invalid_decimal(tmp_path: Path) -> None:
@@ -42,7 +42,7 @@ def test_read_eri_raw_raises_on_invalid_decimal(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ParsingError, match="Invalid decimal 'not-a-number'"):
-        read_eri_raw(file_path)
+        ERIRawParser.load_from_file(file_path)
 
 
 def test_read_eri_raw_raises_on_empty_file(tmp_path: Path) -> None:
@@ -51,7 +51,7 @@ def test_read_eri_raw_raises_on_empty_file(tmp_path: Path) -> None:
     file_path.touch()
 
     with pytest.raises(ParsingError, match="ERI data file is empty"):
-        read_eri_raw(file_path)
+        ERIRawParser.load_from_file(file_path)
 
 
 def test_read_eri_raw_parses_valid_row(tmp_path: Path) -> None:
@@ -62,7 +62,7 @@ def test_read_eri_raw_parses_valid_row(tmp_path: Path) -> None:
         encoding="utf8",
     )
 
-    transactions = read_eri_raw(file_path)
+    transactions = ERIRawParser.load_from_file(file_path)
 
     assert len(transactions) == 1
     entry = transactions[0]
@@ -81,4 +81,4 @@ def test_read_eri_raw_raises_on_invalid_isin(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ParsingError, match=f"Invalid ISIN value '{INVALID_ISIN}'"):
-        read_eri_raw(file_path)
+        ERIRawParser.load_from_file(file_path)

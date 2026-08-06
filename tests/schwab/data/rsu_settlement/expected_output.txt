@@ -1,0 +1,29 @@
+Parsing tests/schwab/data/rsu_settlement/awards.csv...
+Parsing tests/schwab/data/rsu_settlement/transactions.csv...
+Found 4 broker transactions
+First pass completed
+Final portfolio:
+  BAR: 300.00
+Final balance:
+  Charles Schwab: 28068.66 (USD)
+Disposal proceeds: £21783.33
+
+Second pass completed
+Portfolio at the end of 2023/2024 tax year:
+  BAR: 300.00, £32533.02
+For tax year 2023/2024:
+Number of disposals: 1
+Disposal proceeds: £21783.33
+Allowable costs: £21784.37
+Capital gain: £0.00
+Capital loss: £1.04
+Total capital gain: £-1.04
+Taxable capital gain: £0
+Total dividends proceeds: £0.00
+Total amount of dividends tax yearly allowance: £1000.00
+Total taxable dividends proceeds: £0.00
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £0.00
+
+Generating PDF report...
+All done!

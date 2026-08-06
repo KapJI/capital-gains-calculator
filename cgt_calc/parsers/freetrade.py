@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO
 
 from cgt_calc.exceptions import (
     ParsingError,
@@ -15,6 +15,8 @@ from cgt_calc.exceptions import (
     UnsupportedBrokerCurrencyError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction
+
+from .base_parsers import BaseSingleFileParser
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -61,13 +63,43 @@ COLUMNS: Final[list[str]] = [column.value for column in FreetradeColumn]
 REQUIRED_COLUMNS: Final[set[str]] = set(COLUMNS)
 
 
+def _parse_decimal(row: dict[str, str], column: FreetradeColumn) -> Decimal:
+    """Parse Decimal value for column, raising ValueError with context on failure."""
+    value = row[column]
+    try:
+        return Decimal(value)
+    except InvalidOperation as err:
+        raise ValueError(
+            f"Invalid decimal in column '{column.value}': {value!r}"
+        ) from err
+
+
+def _action_from_str(action_type: str, buy_sell: str, file: Path) -> ActionType:
+    """Infer action type."""
+    if action_type == "INTEREST_FROM_CASH":
+        return ActionType.INTEREST
+    if action_type == "DIVIDEND":
+        return ActionType.DIVIDEND
+    if action_type in ["TOP_UP", "WITHDRAWAL"]:
+        return ActionType.TRANSFER
+    if action_type in ["ORDER", "FREESHARE_ORDER"]:
+        if buy_sell == "BUY":
+            return ActionType.BUY
+        if buy_sell == "SELL":
+            return ActionType.SELL
+
+        raise ParsingError(file, f"Unknown buy_sell: '{buy_sell}'")
+
+    raise ParsingError(file, f"Unknown type: '{action_type}'")
+
+
 class FreetradeTransaction(BrokerTransaction):
     """Represents a single Freetrade transaction."""
 
     def __init__(self, header: list[str], row_raw: list[str], file: Path) -> None:
         """Create transaction from CSV row."""
         row = dict(zip(header, row_raw, strict=False))
-        action = action_from_str(
+        action = _action_from_str(
             row[FreetradeColumn.TYPE], row[FreetradeColumn.BUY_SELL], file
         )
 
@@ -137,60 +169,24 @@ class FreetradeTransaction(BrokerTransaction):
         )
 
 
-def action_from_str(action_type: str, buy_sell: str, file: Path) -> ActionType:
-    """Infer action type."""
-    if action_type == "INTEREST_FROM_CASH":
-        return ActionType.INTEREST
-    if action_type == "DIVIDEND":
-        return ActionType.DIVIDEND
-    if action_type in ["TOP_UP", "WITHDRAWAL"]:
-        return ActionType.TRANSFER
-    if action_type in ["ORDER", "FREESHARE_ORDER"]:
-        if buy_sell == "BUY":
-            return ActionType.BUY
-        if buy_sell == "SELL":
-            return ActionType.SELL
+class FreetradeParser(BaseSingleFileParser):
+    """Parser for Freetrade transaction files."""
 
-        raise ParsingError(file, f"Unknown buy_sell: '{buy_sell}'")
+    arg_name = "freetrade"
+    pretty_name = "Freetrade"
+    format_name = "CSV"
+    deprecated_flags: ClassVar[list[str]] = ["--freetrade"]
 
-    raise ParsingError(file, f"Unknown type: '{action_type}'")
-
-
-def validate_header(header: list[str], file: Path) -> None:
-    """Check if header is valid."""
-    provided = set(header)
-    missing = REQUIRED_COLUMNS - provided
-    if missing:
-        missing_columns = ", ".join(sorted(missing))
-        raise ParsingError(file, f"Missing columns: {missing_columns}")
-
-    unknown = provided - REQUIRED_COLUMNS
-    if unknown:
-        unknown_columns = ", ".join(sorted(unknown))
-        raise ParsingError(file, f"Unknown columns: {unknown_columns}")
-
-
-def _parse_decimal(row: dict[str, str], column: FreetradeColumn) -> Decimal:
-    """Parse Decimal value for column, raising ValueError with context on failure."""
-
-    value = row[column]
-    try:
-        return Decimal(value)
-    except InvalidOperation as err:
-        raise ValueError(
-            f"Invalid decimal in column '{column.value}': {value!r}"
-        ) from err
-
-
-def read_freetrade_transactions(transactions_file: Path) -> list[BrokerTransaction]:
-    """Parse Freetrade transactions from a CSV file."""
-    with transactions_file.open(encoding="utf-8") as file:
-        LOGGER.info("Parsing %s...", transactions_file)
+    @classmethod
+    def read_transactions(
+        cls, file: TextIO, file_path: Path
+    ) -> list[BrokerTransaction]:
+        """Parse Freetrade transactions from a CSV file."""
         lines = list(csv.reader(file))
         if not lines:
-            raise ParsingError(transactions_file, "Freetrade CSV file is empty")
+            raise ParsingError(file_path, "Freetrade CSV file is empty")
         header = lines[0]
-        validate_header(header, transactions_file)
+        cls._validate_header(header, file_path)
         lines = lines[1:]
         indexed_rows = list(enumerate(lines, start=2))
         # HACK: reverse transactions to avoid negative balance issues
@@ -199,16 +195,24 @@ def read_freetrade_transactions(transactions_file: Path) -> list[BrokerTransacti
         transactions: list[BrokerTransaction] = []
         for index, row in indexed_rows:
             try:
-                transactions.append(
-                    FreetradeTransaction(header, row, transactions_file)
-                )
+                transactions.append(FreetradeTransaction(header, row, file_path))
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
             except ValueError as err:
-                raise ParsingError(
-                    transactions_file, str(err), row_index=index
-                ) from err
-        if len(transactions) == 0:
-            LOGGER.warning("No transactions detected in file %s", transactions_file)
+                raise ParsingError(file_path, str(err), row_index=index) from err
         return transactions
+
+    @staticmethod
+    def _validate_header(header: list[str], file: Path) -> None:
+        """Check if header is valid."""
+        provided = set(header)
+        missing = REQUIRED_COLUMNS - provided
+        if missing:
+            missing_columns = ", ".join(sorted(missing))
+            raise ParsingError(file, f"Missing columns: {missing_columns}")
+
+        unknown = provided - REQUIRED_COLUMNS
+        if unknown:
+            unknown_columns = ", ".join(sorted(unknown))
+            raise ParsingError(file, f"Unknown columns: {unknown_columns}")

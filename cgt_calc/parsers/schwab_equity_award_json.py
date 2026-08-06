@@ -19,12 +19,14 @@ import datetime
 from decimal import Decimal
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.util import round_decimal
+
+from .base_parsers import BaseSingleFileParser
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -32,6 +34,7 @@ if TYPE_CHECKING:
 OPTIONAL_DETAILS_NAME: Final = "Details"
 FIELD_TO_SCHEMA: Final = {"transactions": 1, "Transactions": 2}
 LOGGER = logging.getLogger(__name__)
+GOOGLE_SYMBOLS = {"GOOG", "GOOGL"}
 
 
 @dataclass
@@ -94,7 +97,7 @@ JsonRowType = Any  # type: ignore[explicit-any]
 
 def action_from_str(label: str, file: Path) -> ActionType:
     """Convert string label to ActionType."""
-    if label in {"Buy"}:
+    if label == "Buy":
         return ActionType.BUY
 
     if label in {"Sell", "Sale"}:
@@ -203,11 +206,12 @@ class SchwabTransaction(BrokerTransaction):
         action = action_from_str(self.raw_action, file)
         symbol = row.get(names.symbol)
         symbol = TICKER_RENAMES.get(symbol, symbol)
-        if symbol != "GOOG":
-            # Stock split hardcoded for GOOG
-            raise ParsingError(
-                file,
-                f"Schwab Equity Award JSON only supports GOOG stock but found {symbol}",
+        if symbol not in GOOGLE_SYMBOLS:
+            LOGGER.warning(
+                "The Schwab Equity Award JSON parser was only tested for Google stocks (%s), "
+                "but found symbol '%s'. Please check the parsing and output are correct!",
+                ", ".join(GOOGLE_SYMBOLS),
+                symbol,
             )
         quantity = _decimal_from_number_or_str(row, names.quantity)
         initially_parsed_amount = _decimal_from_number_or_str(row, names.amount)
@@ -333,9 +337,10 @@ class SchwabTransaction(BrokerTransaction):
             broker,
         )
 
-        self._normalize_split()
+        if symbol in GOOGLE_SYMBOLS:
+            self._normalize_google_split()
 
-    def _normalize_split(self) -> None:
+    def _normalize_google_split(self) -> None:
         """Ensure past transactions are normalized to split values.
 
         This is in the context of the 20:1 GOOG stock split which happened at
@@ -359,18 +364,24 @@ class SchwabTransaction(BrokerTransaction):
             self.quantity = round_decimal(self.quantity * split_factor, ROUND_DIGITS)
 
 
-def read_schwab_equity_award_json_transactions(
-    transactions_file: Path,
-) -> list[BrokerTransaction]:
-    """Read Schwab transactions from file."""
+class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
+    """Parser for RAW format transaction files."""
 
-    with transactions_file.open(encoding="utf-8") as json_file:
-        print(f"Parsing {transactions_file}...")
+    arg_name = "schwab-equity-award"
+    pretty_name = "Charles Schwab Equity Awards"
+    format_name = "JSON"
+    deprecated_flags: ClassVar[list[str]] = ["--schwab_equity_award_json"]
+
+    @classmethod
+    def read_transactions(
+        cls, file: TextIO, file_path: Path
+    ) -> list[BrokerTransaction]:
+        """Schwab Equity Awards transactions from JSON."""
         try:
-            data = json.load(json_file, parse_float=Decimal, parse_int=Decimal)
+            data = json.load(file, parse_float=Decimal, parse_int=Decimal)
         except json.decoder.JSONDecodeError as exception:
             raise ParsingError(
-                transactions_file,
+                file_path,
                 "Cloud not parse content as JSON",
             ) from exception
 
@@ -380,20 +391,20 @@ def read_schwab_equity_award_json_transactions(
                 break
         if not fields:
             raise ParsingError(
-                transactions_file,
+                file_path,
                 f"Expected top level field ({', '.join(FIELD_TO_SCHEMA.keys())}) "
                 "not found: the JSON data is not in the expected format",
             )
 
         if not isinstance(data[fields.transactions], list):
             raise ParsingError(
-                transactions_file,
+                file_path,
                 f"'{fields.transactions}' is not a list: the JSON data is not "
                 "in the expected format",
             )
 
         transactions = [
-            SchwabTransaction(transac, transactions_file, fields)
+            SchwabTransaction(transac, file_path, fields)
             for transac in data[fields.transactions]
             # Skip as not relevant for CGT
             if transac[fields.action] not in {"Journal", "Wire Transfer"}

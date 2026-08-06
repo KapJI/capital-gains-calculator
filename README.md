@@ -94,7 +94,7 @@ apt install texlive-latex-base
   tax year 2020/21:
 
 ```shell
-cgt-calc --year 2020 --schwab-file schwab_transactions.csv --trading212-dir trading212/ --mssb-dir mmsb_report/
+cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212-dir trading212/ --mssb-dir mmsb_report/
 ```
 
 - Run `cgt-calc --help` for all available options.
@@ -120,7 +120,7 @@ You will need:
 Example usage for the tax year 2020/21:
 
 ```shell
-cgt-calc --year 2020 --schwab-file schwab_transactions.csv --schwab-award-file schwab_awards.csv
+cgt-calc --year 2020 --schwab schwab_transactions.csv --schwab-award schwab_awards.csv
 ```
 
 _Note: For historic reasons, it is possible to provide the Equity Awards history in JSON format with
@@ -198,10 +198,19 @@ cgt-calc --year 2024 --no-balance-check --sharesight-dir sharesight_trxs_dir/
 
 You will need:
 
-- **Exported transaction history from Vanguard.** Vanguard can generate a report in Excel format
-  with all transactions across all periods of time and all accounts (ISA, GA, etc). Grab the ones
-  you're interested into (normally GA account) and put them in a single CSV file.
-  [See example](tests/vanguard/data/report.csv).
+- **Exported transaction history from Vanguard.** Vanguard can generate a report in Excel format by
+  going to "Documents → Report generator → Client Transaction Listing Excel". Vanguard will generate
+  an Excel file with all transactions across all periods of time and all accounts (ISA, GA, etc).
+  Export the tab you need (normally GIA account) as a CSV file.
+  [See example](tests/vanguard/data/cash_investment_report.csv).
+
+_Note_: In the exported CSV there will be two separate tables: a "Cash Transactions" table and
+"Investment Transactions" table. The parser will automatically detect which is which by the header
+names and join both. While you can manually save only the "Cash Transactions" and calculate capital
+gain, some investment transactions are not shown in the "Cash Transactions" table. (For example, if
+you setup selling of some assets to cover fees, the name of the asset and the amount of disposal are
+not shown in the cash table). **Therefore, for accurate reporting it is recommended to use the full
+CSV exported from the Excel file tab.**
 
 Example usage for the tax year 2024/25:
 
@@ -228,6 +237,23 @@ cgt-calc --year 2024 --freetrade-file freetrade_GIA.csv
 
 </details>
  <br />
+ <details>
+    <summary>🏦 Instructions for Interactive Brokers (IBKR)</summary>
+
+You will need:
+
+- **Exported transaction history from Interactive Brokers.** From web, go to **Performance & Reports
+  → Transaction History**. Select a period since creation of the account and click the export CSV
+  icon. [See example](tests/interactive_brokers/data/test_basic.csv).
+
+Example usage for the tax year 2025/26:
+
+```shell
+cgt-calc --year 2025 --interactive-brokers-file U000000-TRANSACTIONS.csv
+```
+
+</details>
+ <br />
 <details>
     <summary>🏦 Instructions for RAW format</summary>
 
@@ -235,9 +261,9 @@ You will need:
 
 - **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert
   whatever report you can produce into this basic format.
-  [See example](tests/raw/data/test_data.csv). Include the header row shown below (lower-case column
-  names in this order). The parser can infer the column order when the header is missing, but it
-  will emit a warning so you can update your export the next time.
+  [See example](tests/raw/data/test_data_2.csv). Include the header row shown below (lower-case
+  column names in this order). The parser can infer the column order when the header is missing, but
+  it will emit a warning so you can update your export the next time.
 
   - `date` – transaction date in `YYYY-MM-DD` format.
   - `action` – one of the supported broker actions (see [`ActionType`](cgt_calc/model.py)).
@@ -272,6 +298,9 @@ the same fund.
 Currently bundled data:
 
 - [Vanguard Funds Plc 2018-2024](cgt_calc/resources/eri/vanguard_eri.csv)
+- [Blackrock Funds 2019-2024](cgt_calc/resources/eri/blackrock_eri.csv)
+- [iShares Funds 2018-2024](cgt_calc/resources/eri/ishares_eri.csv)
+- [Invesco Funds 2018-2024](cgt_calc/resources/eri/invesco_eri.csv)
 
 The ERI funds are indexed by ISIN and the tool provides automatic translation from ISIN to tickers,
 in case your broker doesn't supply the ISIN in their transaction history. For instructions on how to

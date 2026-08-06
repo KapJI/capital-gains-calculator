@@ -7,11 +7,13 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction
+
+from .base_parsers import BaseDirParser
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -43,13 +45,23 @@ class Trading212Column(StrEnum):
     FINRA_FEE_GBP = "Finra fee (GBP)"
     FINRA_FEE = "Finra fee"
     STAMP_DUTY_GBP = "Stamp duty (GBP)"
+    STAMP_DUTY_RESERVE_TAX = "Stamp duty reserve tax"
+    CURRENCY_STAMP_DUTY_RESERVE_TAX = "Currency (Stamp duty reserve tax)"
     NOTES = "Notes"
     TRANSACTION_ID = "ID"
     CURRENCY_CONVERSION_FEE_GBP = "Currency conversion fee (GBP)"
     CURRENCY_CONVERSION_FEE = "Currency conversion fee"
     CURRENCY_CURRENCY_CONVERSION_FEE = "Currency (Currency conversion fee)"
+    CURRENCY_CONVERSION_FROM_AMOUNT = "Currency conversion from amount"
+    CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT = (
+        "Currency (Currency conversion from amount)"
+    )
+    CURRENCY_CONVERSION_TO_AMOUNT = "Currency conversion to amount"
+    CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT = "Currency (Currency conversion to amount)"
     CURRENCY_TRANSACTION_FEE = "Currency (Transaction fee)"
     CURRENCY_FINRA_FEE = "Currency (Finra fee)"
+    MERCHANT_CATEGORY = "Merchant category"
+    MERCHANT_NAME = "Merchant name"
 
 
 COLUMNS: Final[list[str]] = [column.value for column in Trading212Column]
@@ -77,6 +89,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Market buy",
         "Limit buy",
         "Stop buy",
+        "Stop limit buy",
     ]:
         return ActionType.BUY
 
@@ -84,10 +97,13 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Market sell",
         "Limit sell",
         "Stop sell",
+        "Stop limit sell",
     ]:
         return ActionType.SELL
 
     if label in [
+        "Card debit",
+        "Card refund",
         "Deposit",
         "Withdrawal",
     ]:
@@ -97,6 +113,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Dividend (Ordinary)",
         "Dividend (Dividend)",
         "Dividend (Dividends paid by us corporations)",
+        "Dividend (Dividend manufactured payment)",
     ]:
         return ActionType.DIVIDEND
 
@@ -109,7 +126,11 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label == "Stock Split":
         return ActionType.STOCK_SPLIT
 
-    if label in ["Result adjustment"]:
+    if label in [
+        "Currency conversion",
+        "Result adjustment",
+        "Spending cashback",
+    ]:
         return ActionType.ADJUSTMENT
 
     raise ParsingError(file, f"Unknown action: {label}")
@@ -179,6 +200,20 @@ class Trading212Transaction(BrokerTransaction):
             row, Trading212Column.STAMP_DUTY_GBP
         ) or Decimal(0)
 
+        stamp_duty_reserve_tax = decimal_or_none(
+            row, Trading212Column.STAMP_DUTY_RESERVE_TAX
+        ) or Decimal(0)
+        if stamp_duty_reserve_tax > 0:
+            stamp_duty_currency = row.get(
+                Trading212Column.CURRENCY_STAMP_DUTY_RESERVE_TAX
+            )
+            if stamp_duty_currency not in ("GBP", None, ""):
+                raise ParsingError(
+                    file,
+                    "Stamp duty reserve tax is not in GBP which is not supported yet",
+                )
+            self.stamp_duty += stamp_duty_reserve_tax
+
         self.conversion_fee = decimal_or_none(
             row, Trading212Column.CURRENCY_CONVERSION_FEE_GBP
         ) or Decimal(0)
@@ -194,7 +229,12 @@ class Trading212Transaction(BrokerTransaction):
                 )
             self.conversion_fee += conversion_fee_foreign
 
-        fees = self.transaction_fee + self.finra_fee + self.conversion_fee
+        fees = (
+            self.transaction_fee
+            + self.finra_fee
+            + self.conversion_fee
+            + self.stamp_duty
+        )
 
         if Trading212Column.TOTAL in row:
             amount = decimal_or_none(row, Trading212Column.TOTAL)
@@ -256,48 +296,61 @@ class Trading212Transaction(BrokerTransaction):
         return hash(self.transaction_id)
 
 
-def validate_header(header: list[str], file: Path) -> None:
-    """Check if header is valid. Not all columns exist in every export."""
-    unknown = set(header) - COLUMN_SET
-    if unknown:
-        msg = f"Unknown column(s) {', '.join(sorted(unknown))}"
-        raise ParsingError(file, msg)
+class Trading212Parser(BaseDirParser):
+    """Morgan Stanley parser."""
 
+    arg_name = "trading212"
+    pretty_name = "Trading 212"
+    format_name = "CSV"
+    glob_dir = "*.csv"
+    deprecated_flags: ClassVar[list[str]] = ["--trading212"]
 
-def by_date_and_action(transaction: Trading212Transaction) -> tuple[datetime, bool]:
-    """Sort by date and action type."""
-
-    # If there's a deposit in the same second as a buy
-    # (happens with the referral award at least)
-    # we want to put the buy last to avoid negative balance errors
-    return (transaction.datetime, transaction.action == ActionType.BUY)
-
-
-def read_trading212_transactions(transactions_folder: Path) -> list[BrokerTransaction]:
-    """Parse Trading 212 transactions from CSV file."""
-    transactions = []
-    for file in sorted(transactions_folder.glob("*.csv")):
-        with file.open(encoding="utf-8") as csv_file:
-            print(f"Parsing {file}...")
-            lines = list(csv.reader(csv_file))
+    @classmethod
+    def read_transactions(
+        cls, file: TextIO, file_path: Path
+    ) -> list[BrokerTransaction]:
+        """Parse Trading 212 transactions from CSV file."""
+        lines = list(csv.reader(file))
         if not lines:
-            raise ParsingError(file, "Trading 212 CSV file is empty")
+            raise ParsingError(file_path, "Trading 212 CSV file is empty")
         header = lines[0]
-        validate_header(header, file)
+        cls._validate_header(header, file_path)
         lines = lines[1:]
-        cur_transactions: list[Trading212Transaction] = []
+        transactions: list[BrokerTransaction] = []
         for index, row in enumerate(lines, start=2):
             try:
-                cur_transactions.append(Trading212Transaction(header, row, file))
+                transactions.append(Trading212Transaction(header, row, file_path))
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
             except ValueError as err:
-                raise ParsingError(file, str(err), row_index=index) from err
-        if len(cur_transactions) == 0:
-            LOGGER.warning("No transactions detected in file: %s", file)
-        transactions += cur_transactions
-    # Remove duplicates
-    transactions = list(set(transactions))
-    transactions.sort(key=by_date_and_action)
-    return list(transactions)
+                raise ParsingError(file_path, str(err), row_index=index) from err
+        return transactions
+
+    @staticmethod
+    def _validate_header(header: list[str], file: Path) -> None:
+        """Check if header is valid. Not all columns exist in every export."""
+        unknown = set(header) - COLUMN_SET
+        if unknown:
+            msg = f"Unknown column(s) {', '.join(sorted(unknown))}"
+            raise ParsingError(file, msg)
+
+    @staticmethod
+    def _by_date_and_action(
+        transaction: Trading212Transaction,
+    ) -> tuple[datetime, bool]:
+        """Sort by date and action type."""
+
+        # If there's a deposit in the same second as a buy
+        # (happens with the referral award at least)
+        # we want to put the buy last to avoid negative balance errors
+        return (transaction.datetime, transaction.action == ActionType.BUY)
+
+    @classmethod
+    def post_process_transactions(
+        cls, transactions: list[BrokerTransaction]
+    ) -> list[BrokerTransaction]:
+        """Remove duplicates and sort."""
+        transactions = list(set(transactions))
+        transactions.sort(key=cls._by_date_and_action)  # type: ignore[arg-type]
+        return transactions

@@ -1,3 +1,4 @@
+Parsing tests/freetrade/data/transactions.csv...
 Found 17 broker transactions
 First pass completed
 Final portfolio:

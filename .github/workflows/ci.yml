@@ -15,46 +15,59 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Prepare and install deps
         uses: ./.github/actions/install-deps
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - uses: actions/cache@v4
-        name: Cache pre-commit hooks
+      - name: Setup prek cache
+        uses: ./.github/actions/prek-cache
         with:
-          path: ~/.cache/pre-commit/
-          key: >
-            ${{ format('pre-commit-{0}-{1}',
-            env.PYTHON_VERSION,
-            hashFiles('.pre-commit-config.yaml')
-            ) }}
-          restore-keys: |
-            pre-commit-${{ env.PYTHON_VERSION }}-
-            pre-commit-
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Run pre-commit on all files
+      - name: Run prek on all files
         run: |
-          uvx pre-commit run --all-files --show-diff-on-failure --color=always
+          uvx prek run --all-files --show-diff-on-failure --color=always
 
       - name: Run python-typing-update
         run: |
-          uvx pre-commit run --hook-stage manual python-typing-update --all-files --show-diff-on-failure --color=always
+          uvx prek run --hook-stage manual python-typing-update --all-files --show-diff-on-failure --color=always
+
+  markdown-link-check:
+    name: Markdown link check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Prepare and install deps
+        uses: ./.github/actions/install-deps
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup prek cache
+        uses: ./.github/actions/prek-cache
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run markdown-link-check
+        run: |
+          uvx prek run --hook-stage manual markdown-link-check --all-files --show-diff-on-failure --color=always
 
   docker-build:
     name: Docker build
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           tags: local/cgt-calc:test
@@ -64,4 +77,15 @@ jobs:
 
       - name: Run pytest inside container
         run: |
-          docker run --rm -e ENABLE_PDFLATEX=1 local/cgt-calc:test -lc "cd /build && uv run pytest -q"
+          docker run --rm \
+            -e ENABLE_PDFLATEX=1 \
+            -v "${{ github.workspace }}:/build" \
+            local/cgt-calc:test \
+            -lc "cd /build && uv run pytest -q"
+
+      - name: Upload e2e tests outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-outputs
+          path: out/test-*

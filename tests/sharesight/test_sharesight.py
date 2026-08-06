@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.parsers.sharesight import parse_income_report, parse_trade_report
+from cgt_calc.parsers.sharesight import SharesightParser
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -32,6 +32,8 @@ def test_run_with_sharesight_files_no_balance_check() -> None:
         "--sharesight-dir",
         "tests/sharesight/data/inputs/",
         "--no-balance-check",
+        "--output",
+        "out/test-sharesight/",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -48,7 +50,7 @@ def test_run_with_sharesight_files_no_balance_check() -> None:
         / "test_run_with_sharesight_files_no_balance_check_output.txt"
     )
     expected = expected_file.read_text()
-    cmd_str = " ".join([param if param else "''" for param in cmd])
+    cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"
@@ -85,7 +87,7 @@ def test_parse_income_report_missing_local_column(tmp_path: Path) -> None:
         ParsingError,
         match="Missing expected columns in Sharesight local dividend header: Gross Dividend",
     ) as excinfo:
-        list(parse_income_report(file_path))
+        list(SharesightParser().load_from_dir(tmp_path))
 
     assert excinfo.value.row_index == 6
 
@@ -118,7 +120,7 @@ def test_parse_income_report_missing_foreign_column(tmp_path: Path) -> None:
         ParsingError,
         match="Missing expected columns in Sharesight foreign dividend header: Foreign Tax Deducted",
     ) as excinfo:
-        list(parse_income_report(file_path))
+        list(SharesightParser().load_from_dir(tmp_path))
 
     assert excinfo.value.row_index == 4
 
@@ -162,7 +164,7 @@ def test_parse_trade_report_missing_column(tmp_path: Path) -> None:
         ParsingError,
         match="Missing expected columns in Sharesight trades header: Value",
     ) as excinfo:
-        list(parse_trade_report(file_path))
+        list(SharesightParser().load_from_dir(tmp_path))
 
     assert excinfo.value.row_index == 1
 
@@ -207,6 +209,6 @@ def test_parse_trade_report_invalid_decimal(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ParsingError, match=r"Invalid decimal.*Quantity") as excinfo:
-        list(parse_trade_report(file_path))
+        list(SharesightParser().load_from_dir(tmp_path))
 
     assert excinfo.value.row_index == 2

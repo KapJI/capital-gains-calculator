@@ -9,7 +9,9 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from requests_ratelimiter import LimiterSession
+from pyrate_limiter import limiter_factory
+from pyrate_limiter.abstracts.rate import Duration
+from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 
 from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_RESOURCE
 from .exceptions import (
@@ -62,7 +64,10 @@ class IsinConverter:
     ):
         """Create the IsinConverter."""
         # https://www.openfigi.com/api/documentation#rate-limits
-        self.session = LimiterSession(per_minute=24)
+        limiter = limiter_factory.create_inmemory_limiter(
+            rate_per_duration=24, duration=Duration.MINUTE
+        )
+        self.session = RateLimitedRequestsSession(limiter)
         self.isin_translation_file = isin_translation_file
         self.data: dict[str, set[str]] = {}
         self.write_data: dict[str, set[str]] = {}
@@ -78,6 +83,8 @@ class IsinConverter:
                 raise IsinTranslationError(
                     f"Invalid ISIN found in translation data: {isin}"
                 )
+            if symbols == {""}:
+                continue
             for symbol in symbols:
                 if not symbol:
                     raise IsinTranslationError(
@@ -125,6 +132,14 @@ class IsinConverter:
                 self._write_isin_translation_file()
         return result
 
+    def get_symbol_to_isin_map(self) -> dict[str, str]:
+        """Return a map from symbols to isin's."""
+        symbol_to_isin = {}
+        for isin, symbols in self.data.items():
+            for symbol in symbols:
+                symbol_to_isin[symbol] = isin
+        return symbol_to_isin
+
     def _read_isin_translation_data(self) -> None:
         """Read ISIN translation data from bundled and user-provided sources."""
 
@@ -167,7 +182,9 @@ class IsinConverter:
         if self.isin_translation_file is None or CGT_TEST_MODE:
             return
         with open_with_parents(self.isin_translation_file) as fout:
-            data_rows = [[isin, *symbols] for isin, symbols in self.write_data.items()]
+            data_rows = [
+                [isin, *sorted(symbols)] for isin, symbols in self.write_data.items()
+            ]
             writer = csv.writer(fout)
             writer.writerows([ISIN_TRANSLATION_HEADER, *data_rows])
 
