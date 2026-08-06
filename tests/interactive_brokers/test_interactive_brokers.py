@@ -124,6 +124,8 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "2025",
             "--interactive-brokers-file",
             "tests/interactive_brokers/data/test_basic.csv",
+            "--output",
+            "out/test-interactive_brokers/",
         )
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode:
