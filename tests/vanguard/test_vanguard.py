@@ -24,9 +24,11 @@ def test_run_with_vanguard_files() -> None:
         "--year",
         "2022",
         "--vanguard-file",
-        "tests/vanguard/data/report.csv",
+        "tests/vanguard/data/cash_investment_report.csv",
         "--interest-fund-tickers",
         "FOO",
+        "--output",
+        "out/test-vanguard/",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -128,6 +130,32 @@ def test_read_vanguard_fractional_share(tmp_path: Path) -> None:
     assert transaction.currency == "GBP"
 
 
+def test_read_vanguard_etf_dealing_fee_is_transfer(tmp_path: Path) -> None:
+    """ETF dealing fees parse as TRANSFER and affect cash without a position."""
+
+    vanguard_file = tmp_path / "etf_dealing_fee.csv"
+    rows = [
+        COLUMNS,
+        [
+            "09/03/2022",
+            "ETF dealing fee (sell) FTSE 100 UCITS ETF - Distributing (VUKE)",
+            "-7.50",
+            "0",
+        ],
+    ]
+    _write_csv(vanguard_file, rows)
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action is ActionType.TRANSFER
+    assert transaction.symbol is None
+    assert transaction.quantity is None
+    assert transaction.price is None
+    assert transaction.amount == Decimal("-7.50")
+
+
 def test_read_vanguard_transactions_invalid_decimal(tmp_path: Path) -> None:
     """Raise ParsingError when amount cannot be parsed as Decimal."""
 
@@ -181,3 +209,127 @@ def test_read_vanguard_transactions_empty_file(tmp_path: Path) -> None:
         VanguardParser().load_from_file(vanguard_file)
 
     assert "Vanguard CSV file is empty" in str(exc.value)
+
+
+# --- Tests for investment transaction enrichment ---
+
+INVESTMENT_DATA_DIR = Path("tests/vanguard/data")
+
+
+def test_dual_table_enriches_buy_with_investment_data() -> None:
+    """Cash BUY transactions are enriched with precise quantity/price from investment table."""
+    transactions = VanguardParser().load_from_file(
+        INVESTMENT_DATA_DIR / "cash_investment_report.csv"
+    )
+
+    foo_buys = [
+        t for t in transactions if t.symbol == "FOO" and t.action == ActionType.BUY
+    ]
+    assert len(foo_buys) == 1
+    assert foo_buys[0].quantity == Decimal(1550)
+    assert foo_buys[0].price == Decimal("14982.06") / Decimal(1550)
+
+
+def test_dual_table_enriches_sell_with_investment_data() -> None:
+    """Cash SELL transactions are enriched with precise price from investment table."""
+    transactions = VanguardParser().load_from_file(
+        INVESTMENT_DATA_DIR / "cash_investment_report.csv"
+    )
+
+    bar_sells = [
+        t for t in transactions if t.symbol == "BAR" and t.action == ActionType.SELL
+    ]
+    assert len(bar_sells) == 1
+    assert bar_sells[0].quantity == Decimal(1)
+    assert bar_sells[0].price == Decimal("104.06")
+
+
+def test_dual_table_enriches_amount_from_investment_cost() -> None:
+    """Enriched amount equals quantity * price from investment table."""
+    transactions = VanguardParser().load_from_file(
+        INVESTMENT_DATA_DIR / "cash_investment_report.csv"
+    )
+
+    bar_buys = [
+        t for t in transactions if t.symbol == "BAR" and t.action == ActionType.BUY
+    ]
+    assert len(bar_buys) == 1
+    # amount stays as the cash table value
+    assert bar_buys[0].amount == Decimal("-29947.28")
+
+
+def test_dual_table_fractional_shares_from_investment() -> None:
+    """Fractional shares from investment table are used over cash regex parsing."""
+    transactions = VanguardParser().load_from_file(
+        INVESTMENT_DATA_DIR / "cash_investment_report.csv"
+    )
+
+    em_buys = [
+        t
+        for t in transactions
+        if t.symbol == "Emerging Markets Stock Index Fund - Accumulation"
+        and t.action == ActionType.BUY
+    ]
+    assert len(em_buys) == 1
+    assert em_buys[0].quantity == Decimal("6.7700")
+    assert em_buys[0].price == Decimal(1000) / Decimal("6.7700")
+
+
+def test_dual_table_preserves_non_investment_transactions() -> None:
+    """Transfers, interest, and dividends from cash table are preserved."""
+    transactions = VanguardParser().load_from_file(
+        INVESTMENT_DATA_DIR / "cash_investment_report.csv"
+    )
+
+    transfers = [t for t in transactions if t.action == ActionType.TRANSFER]
+    assert len(transfers) > 0
+
+    interests = [t for t in transactions if t.action == ActionType.INTEREST]
+    assert len(interests) == 1
+    assert interests[0].amount == Decimal("0.41")
+
+    dividends = [t for t in transactions if t.action == ActionType.DIVIDEND]
+    assert len(dividends) == 4
+
+
+def test_dual_table_reversal_handling() -> None:
+    """Reversal transactions are correctly flagged."""
+    transactions = VanguardParser().load_from_file(
+        INVESTMENT_DATA_DIR / "cash_investment_report.csv"
+    )
+
+    reversals = [t for t in transactions if hasattr(t, "is_reversal") and t.is_reversal]
+    assert len(reversals) == 1
+    assert reversals[0].action == ActionType.DIVIDEND
+    assert reversals[0].amount == Decimal("-170.83")
+
+
+def test_dual_table_sorted_by_date() -> None:
+    """Transactions are sorted by date."""
+    transactions = VanguardParser().load_from_file(
+        INVESTMENT_DATA_DIR / "cash_investment_report.csv"
+    )
+
+    dates = [t.date for t in transactions]
+    assert dates == sorted(dates)
+
+
+def test_investment_only_table(tmp_path: Path) -> None:
+    """File with only an Investment Transactions table is parsed correctly."""
+    content = (
+        "Investment Transactions\n"
+        "\n"
+        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        "10/03/2022,Foo ETF (FOO),Bought 10 Foo ETF (FOO),10,9.5,95\n"
+        "15/03/2022,Foo ETF (FOO),Sold 5 Foo ETF (FOO),5,10.0,50\n"
+    )
+    vanguard_file = tmp_path / "inv_only.csv"
+    vanguard_file.write_text(content, encoding="utf-8")
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 2
+    assert transactions[0].action == ActionType.BUY
+    assert transactions[0].quantity == Decimal(10)
+    assert transactions[0].price == Decimal("9.5")
+    assert transactions[1].action == ActionType.SELL
