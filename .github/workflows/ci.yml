@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Prepare and install deps
         uses: ./.github/actions/install-deps
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Prepare and install deps
         uses: ./.github/actions/install-deps
@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -77,4 +77,15 @@ jobs:
 
       - name: Run pytest inside container
         run: |
-          docker run --rm -e ENABLE_PDFLATEX=1 local/cgt-calc:test -lc "cd /build && uv run pytest -q"
+          docker run --rm \
+            -e ENABLE_PDFLATEX=1 \
+            -v "${{ github.workspace }}:/build" \
+            local/cgt-calc:test \
+            -lc "cd /build && uv run pytest -q"
+
+      - name: Upload e2e tests outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-outputs
+          path: out/test-*

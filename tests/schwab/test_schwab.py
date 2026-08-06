@@ -38,6 +38,8 @@ def test_run_with_schwab_example_2023_files() -> None:
         "2023",
         "--schwab-file",
         "tests/schwab/data/2023/transactions.csv",
+        "--output",
+        "out/test-schwab-2023/",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -64,6 +66,8 @@ def test_run_with_schwab_cash_merger_files() -> None:
         "2020",
         "--schwab-file",
         "tests/schwab/data/cash_merger/transactions.csv",
+        "--output",
+        "out/test-schwab-cash-merger/",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -96,6 +100,8 @@ def test_run_with_schwab_rsu_settlement_files() -> None:
         "tests/schwab/data/rsu_settlement/transactions.csv",
         "--schwab-award-file",
         "tests/schwab/data/rsu_settlement/awards.csv",
+        "--output",
+        "out/test-schwab-rsu_settlement/",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -125,6 +131,8 @@ def test_run_with_schwab_bond_interest_files() -> None:
         "2023",
         "--schwab-file",
         "tests/schwab/data/bond_interest/transactions.csv",
+        "--output",
+        "out/test-schwab-bond_interest/",
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

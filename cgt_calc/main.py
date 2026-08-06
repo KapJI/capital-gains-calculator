@@ -17,9 +17,12 @@ from .const import (
     BED_AND_BREAKFAST_DAYS,
     CAPITAL_GAIN_ALLOWANCES,
     DIVIDEND_ALLOWANCES,
+    DIVIDEND_CURRENCY_TO_COUNTRY,
     DIVIDEND_DOUBLE_TAXATION_RULES,
     ERI_TAX_DATE_DELTA,
     INTERNAL_START_DATE,
+    ISIN_COUNTRY_CODE_LENGTH,
+    RENAME_DESCRIPTION_PREFIX,
     UK_CURRENCY,
 )
 from .currency_converter import CurrencyConverter
@@ -177,6 +180,8 @@ class CapitalGainsCalculator:
         self.disposal_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
         self.split_list: dict[tuple[str, datetime.date], Decimal] = {}
+        # Stores old->new mapping when a symbol changes its name.
+        self.rename_list: dict[datetime.date, dict[str, str]] = defaultdict(dict)
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
@@ -593,6 +598,12 @@ class CapitalGainsCalculator:
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
+            elif transaction.action is ActionType.RENAME:
+                new_symbol = get_symbol_or_fail(transaction)
+                assert transaction.description.startswith(RENAME_DESCRIPTION_PREFIX)
+                old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
+                self.rename_list[transaction.date][old_symbol] = new_symbol
+                self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
             else:
@@ -839,33 +850,38 @@ class CapitalGainsCalculator:
                 eris.append(eri)
 
             split_multiplier = Decimal(1)
+            effective_symbol = symbol
 
             for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = date_index + datetime.timedelta(days=i + 1)
+                # HMRC treats renames as the same security for B&B purposes.
+                effective_symbol = self.rename_list.get(search_index, {}).get(
+                    effective_symbol, effective_symbol
+                )
 
                 # Check if there was any stock split, in which case we need to adjust the B&D quantity
                 split_multiplier *= self.split_list.get(
-                    (symbol, search_index), Decimal(1)
+                    (effective_symbol, search_index), Decimal(1)
                 )
 
                 # ERI are distributed annually but when a fund close we might have
                 # multiple ERI distribution in close succession
-                eri = self.get_eri(symbol, search_index)
+                eri = self.get_eri(effective_symbol, search_index)
                 if eri:
                     eris.append(eri)
-                if has_key(self.acquisition_list, search_index, symbol):
-                    acquisition = self.acquisition_list[search_index][symbol]
+                if has_key(self.acquisition_list, search_index, effective_symbol):
+                    acquisition = self.acquisition_list[search_index][effective_symbol]
 
                     bnb_acquisition = (
-                        self.bnb_list[search_index][symbol]
-                        if has_key(self.bnb_list, search_index, symbol)
+                        self.bnb_list[search_index][effective_symbol]
+                        if has_key(self.bnb_list, search_index, effective_symbol)
                         else HmrcTransactionData()
                     )
                     assert bnb_acquisition.quantity <= acquisition.quantity
 
                     same_day_disposal = (
-                        self.disposal_list[search_index][symbol]
-                        if has_key(self.disposal_list, search_index, symbol)
+                        self.disposal_list[search_index][effective_symbol]
+                        if has_key(self.disposal_list, search_index, effective_symbol)
                         else HmrcTransactionData()
                     )
                     if same_day_disposal.quantity > acquisition.quantity:
@@ -979,7 +995,7 @@ class CapitalGainsCalculator:
                     add_to_list(
                         self.bnb_list,
                         search_index,
-                        symbol,
+                        effective_symbol,
                         available_quantity * split_multiplier,
                         amount_delta + total_dist_amount,
                         Decimal(0),
@@ -1057,6 +1073,21 @@ class CapitalGainsCalculator:
             chargeable_gain,
             calculation_entries,
             spin_off_entry,
+        )
+
+    def process_rename(self, old: str, new: str) -> CalculationEntry:
+        """Transfer pool from old ticker to new ticker (no disposal)."""
+        pos = self.portfolio.pop(old, Position())
+        self.portfolio[new] += pos
+        return CalculationEntry(
+            rule_type=RuleType.RENAME,
+            quantity=pos.quantity,
+            amount=Decimal(0),
+            fees=Decimal(0),
+            new_quantity=self.portfolio[new].quantity,
+            new_pool_cost=self.portfolio[new].amount,
+            allowable_cost=pos.amount,
+            renamed_to=new,
         )
 
     def process_eri(
@@ -1162,6 +1193,18 @@ class CapitalGainsCalculator:
                 )
             ]
 
+    def dividend_source_country(self, symbol: str, currency: str) -> str | None:
+        """Return the country a dividend was paid from, or None if unknown.
+
+        The ISIN a security is registered under is the authority. Where no
+        parser supplied one, fall back to guessing from the currency, which is
+        what the calculator did before ISINs were consulted.
+        """
+        isin = self.isin_converter.get_symbol_to_isin_map().get(symbol)
+        if isin is not None:
+            return isin[:ISIN_COUNTRY_CODE_LENGTH]
+        return DIVIDEND_CURRENCY_TO_COUNTRY.get(currency)
+
     def process_dividends(self) -> None:
         """Process all dividends events and taxes.
 
@@ -1182,23 +1225,30 @@ class CapitalGainsCalculator:
                     LOGGER.warning(
                         "Cannot apply taxation treaty for bond fund %s", symbol
                     )
-                elif foreign_amount.currency != UK_CURRENCY:
+                else:
                     assert tax.currency == foreign_amount.currency, (
                         f"Not matching currency for dividend {foreign_amount.currency} "
                         f"and its tax {tax.currency}"
                     )
-                    try:
-                        treaty = DIVIDEND_DOUBLE_TAXATION_RULES[foreign_amount.currency]
-                    except KeyError:
+                    country = self.dividend_source_country(
+                        symbol, foreign_amount.currency
+                    )
+                    if country is None:
                         LOGGER.warning(
-                            "Taxation treaty for %s country is missing (ticker: %s), "
+                            "Source country of the %s dividend is unknown (ticker: %s), "
                             "double taxation rules cannot be determined!",
                             foreign_amount.currency,
                             symbol,
                         )
-                        treaty = None
+                    elif country not in DIVIDEND_DOUBLE_TAXATION_RULES:
+                        LOGGER.warning(
+                            "Taxation treaty for %s country is missing (ticker: %s), "
+                            "double taxation rules cannot be determined!",
+                            country,
+                            symbol,
+                        )
                     else:
-                        assert treaty is not None
+                        treaty = DIVIDEND_DOUBLE_TAXATION_RULES[country]
                         expected_tax = treaty.country_rate * -foreign_amount.amount
                         if not approx_equal(expected_tax, tax.amount):
                             LOGGER.warning(
@@ -1335,6 +1385,12 @@ class CapitalGainsCalculator:
                             calculation_log[spin_off.date][
                                 f"spin-off${spin_off.source}"
                             ] = [spin_off_entry]
+
+            if date_index in self.rename_list:
+                for old, new in self.rename_list[date_index].items():
+                    entry = self.process_rename(old, new)
+                    if date_index >= tax_year_start_index:
+                        calculation_log[date_index][f"rename${old}"] = [entry]
 
             # Excess Reported incomes should be reported at the end of the day
             if date_index in self.eris:

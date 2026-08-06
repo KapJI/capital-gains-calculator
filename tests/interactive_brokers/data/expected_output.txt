@@ -1,12 +1,13 @@
 Parsing tests/interactive_brokers/data/test_basic.csv...
-Found 9 broker transactions
+Found 12 broker transactions
 First pass completed
 Final portfolio:
   CNX1: 2.00
 Final balance:
-  Interactive Brokers: 3009.80 (GBP)
+  Interactive Brokers: 3027.40 (GBP)
 Dividends:
-  IBKR: 1.00, excluding 0.2 taxed at source (GBP)
+  IBKR: 1.00, excluding 0.15 taxed at source (GBP)
+  VT: 20.00, excluding 3.0 taxed at source (GBP)
 Disposal proceeds: £2002.00
 
 Second pass completed
@@ -20,7 +21,7 @@ Capital gain: £0.00
 Capital loss: £2.50
 Total capital gain: £-2.50
 Taxable capital gain: £0
-Total dividends proceeds: £1.00
+Total dividends proceeds: £21.00
 Total amount of dividends tax yearly allowance: £500.00
 Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00

@@ -8,8 +8,11 @@ Summary,Data,Starting Cash,0.0
 Summary,Data,Change,200.00
 Summary,Data,Ending Cash,200.00
 Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Gross Amount ,Commission,Net Amount
+Transaction History,Data,2025-11-03,U***00000,VT(US9220427424) Cash Dividend USD 0.50 per Share,Dividend,VT,-,-,20.0,-,20.0
+Transaction History,Data,2025-11-03,U***00000,VT(US9220427424) Cash Dividend - US Tax,Foreign Tax Withholding,VT,-,-,-3.0,-,-3.0
+Transaction History,Data,2025-11-30,U***00000,FX Translations P&L,Adjustment,-,-,-,0.55,-,0.55
 Transaction History,Data,2025-10-01,U***00000,IBKR(US45841N1072) Payment in Lieu of Dividend (Ordinary Dividend),Payment in Lieu,IBKR,-,-,1.0,-,1.0
-Transaction History,Data,2025-10-01,U***00000,IBKR(US45841N1072) Payment in Lieu of Dividend - US Tax,Foreign Tax Withholding,IBKR,-,-,-0.2,-,-0.2
+Transaction History,Data,2025-10-01,U***00000,IBKR(US45841N1072) Payment in Lieu of Dividend - US Tax,Foreign Tax Withholding,IBKR,-,-,-0.15,-,-0.15
 Transaction History,Data,2025-10-01,U***00000,Net Amount in Base from Forex Trade: 0.8 GBP.USD,Forex Trade Component,GBP.USD,0.8,1.32,-2.637591265E-4,-,-2.637591265E-4
 Transaction History,Data,2025-08-15,U***00000,ISHARES NASDAQ 100 USD ACC,Sell,CNX1,-2.0,1001.00,2002.0,-3.0,1999.0
 Transaction History,Data,2025-03-15,U***00000,ISHARES NASDAQ 100 USD ACC,Buy,CNX1,4.0,1000.0,-4000.0,-3.0,-4003.0
