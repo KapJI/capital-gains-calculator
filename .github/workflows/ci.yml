@@ -77,4 +77,15 @@ jobs:
 
       - name: Run pytest inside container
         run: |
-          docker run --rm -e ENABLE_PDFLATEX=1 local/cgt-calc:test -lc "cd /build && uv run pytest -q"
+          docker run --rm \
+            -e ENABLE_PDFLATEX=1 \
+            -v "${{ github.workspace }}:/build" \
+            local/cgt-calc:test \
+            -lc "cd /build && uv run pytest -q"
+
+      - name: Upload e2e tests outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-outputs
+          path: out/test-*
