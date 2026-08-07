@@ -256,6 +256,16 @@ class SchwabTransaction(BrokerTransaction):
             symbol = transaction.symbol
             if symbol is None:
                 raise SymbolMissingError(transaction)
+            if not awards_prices:
+                # Only rows priced from the awards file need it, and this is the
+                # first of them: an account without equity awards never gets here.
+                LOGGER.warning(
+                    "No Schwab Award file provided, needed to price the %s "
+                    "stock activity of %s on %s",
+                    symbol,
+                    transaction.quantity,
+                    transaction.date,
+                )
             # Schwab transaction list contains sometimes incorrect date
             # for awards which don't match the PDF statements.
             # We want to make sure to match date and price form the awards
@@ -653,8 +663,6 @@ class SchwabParser(BaseSingleFileParser):
             raise ParsingError(
                 file_path, "Charles Schwab transactions CSV file is empty"
             )
-        if not cls.awards_prices:
-            LOGGER.warning("No Schwab Award file provided")
         headers = lines[0]
 
         required_headers = set(

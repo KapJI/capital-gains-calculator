@@ -1,11 +1,37 @@
 """Test Schwab parser."""
 
+import logging
 from pathlib import Path
 import subprocess
 
 import pytest
 
+from cgt_calc.parsers.schwab import AwardPrices, SchwabParser
 from tests.utils import build_cmd
+
+
+def test_missing_award_file_warns_on_the_first_row_that_needs_a_price(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A vest without a price is the only thing the award file is needed for.
+
+    The runs above parse files that never need it and stay silent; this one
+    reaches a Stock Plan Activity row, so the warning is still raised.
+    """
+    path = Path("tests") / "schwab" / "data" / "rsu_settlement" / "transactions.csv"
+    SchwabParser.awards_prices = AwardPrices(award_prices={})
+
+    with (
+        caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.schwab"),
+        path.open(encoding="utf-8") as csv_file,
+        pytest.raises(KeyError),
+    ):
+        SchwabParser.read_transactions(csv_file, path)
+
+    assert "No Schwab Award file provided" in caplog.text
+    # The row that needs the file is named, so it can be found in the statement.
+    assert "BAR" in caplog.text
+    assert "2023-08-18" in caplog.text
 
 
 def test_run_with_schwab_example_2023_files() -> None:
@@ -25,9 +51,7 @@ def test_run_with_schwab_example_2023_files() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    stderr_lines = result.stderr.strip().split("\n")
-    assert len(stderr_lines) == 1
-    assert stderr_lines[0] == "WARNING: No Schwab Award file provided"
+    assert result.stderr.strip() == "", "Unexpected stderr message"
     expected_file = Path("tests") / "schwab" / "data" / "2023" / "expected_output.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param or "''" for param in cmd])
@@ -56,10 +80,8 @@ def test_run_with_schwab_cash_merger_files() -> None:
             f"stderr:\n{result.stderr}"
         )
     stderr_lines = result.stderr.strip().split("\n")
-    expected_lines = 2
-    assert len(stderr_lines) == expected_lines
-    assert stderr_lines[0] == "WARNING: No Schwab Award file provided"
-    assert stderr_lines[1].startswith("WARNING: Cash Merger support is not complete")
+    assert len(stderr_lines) == 1
+    assert stderr_lines[0].startswith("WARNING: Cash Merger support is not complete")
     expected_file = (
         Path("tests") / "schwab" / "data" / "cash_merger" / "expected_output.txt"
     )
@@ -122,9 +144,7 @@ def test_run_with_schwab_bond_interest_files() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    stderr_lines = result.stderr.strip().split("\n")
-    assert len(stderr_lines) == 1
-    assert stderr_lines[0] == "WARNING: No Schwab Award file provided"
+    assert result.stderr.strip() == "", "Unexpected stderr message"
     expected_file = (
         Path("tests") / "schwab" / "data" / "bond_interest" / "expected_output.txt"
     )

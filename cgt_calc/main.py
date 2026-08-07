@@ -910,7 +910,9 @@ class CapitalGainsCalculator:
                             search_index,
                         )
                         continue
-                    LOGGER.warning(
+                    # Bed and breakfasting is a record of how the disposal was
+                    # matched rather than a problem, so it is logged at INFO.
+                    LOGGER.info(
                         "Bed and breakfasting for %s. "
                         "Disposed on %s and acquired again on %s",
                         symbol,
@@ -1209,6 +1211,11 @@ class CapitalGainsCalculator:
         It updates the interest total for the year if needed.
         """
         for (symbol, date), foreign_amount in self.dividend_list.items():
+            # Dividends outside the computed tax year are not reported, so
+            # neither are the warnings raised while resolving their treaty.
+            if not self.date_in_tax_year(date):
+                continue
+
             tax = self.dividend_tax_list[(symbol, date)]
 
             treaty = None
@@ -1262,30 +1269,29 @@ class CapitalGainsCalculator:
                 tax.amount, foreign_amount.currency, date
             )
 
-            if self.date_in_tax_year(date):
-                dividend = Dividend(
-                    date=date,
-                    symbol=symbol,
+            dividend = Dividend(
+                date=date,
+                symbol=symbol,
+                amount=amount,
+                tax_at_source=tax_amount,
+                is_interest=is_interest_fund,
+                tax_treaty=treaty,
+            )
+
+            self.calculation_log_yields[date][f"dividend${symbol}"] = [
+                CalculationEntry(
+                    rule_type=RuleType.DIVIDEND,
+                    quantity=Decimal(1),
                     amount=amount,
-                    tax_at_source=tax_amount,
-                    is_interest=is_interest_fund,
-                    tax_treaty=treaty,
+                    new_quantity=Decimal(1),
+                    new_pool_cost=Decimal(0),
+                    fees=Decimal(0),
+                    dividend=dividend,
                 )
+            ]
 
-                self.calculation_log_yields[date][f"dividend${symbol}"] = [
-                    CalculationEntry(
-                        rule_type=RuleType.DIVIDEND,
-                        quantity=Decimal(1),
-                        amount=amount,
-                        new_quantity=Decimal(1),
-                        new_pool_cost=Decimal(0),
-                        fees=Decimal(0),
-                        dividend=dividend,
-                    )
-                ]
-
-                if is_interest_fund:
-                    self.total_foreign_interest += amount
+            if is_interest_fund:
+                self.total_foreign_interest += amount
 
     def calculate_capital_gain(
         self,

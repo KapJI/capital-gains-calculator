@@ -42,11 +42,7 @@ def test_run_with_raw_files_no_balance_check() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    stderr_lines = result.stderr.strip().split("\n")
-    assert len(stderr_lines) == 1
-    assert stderr_lines[0].startswith("WARNING: Bed and breakfasting for META"), (
-        "Unexpected stderr message"
-    )
+    assert result.stderr.strip() == "", "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param or "''" for param in cmd])
@@ -74,11 +70,7 @@ def test_run_with_raw_files() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    stderr_lines = result.stderr.strip().split("\n")
-    assert len(stderr_lines) == 1
-    assert stderr_lines[0].startswith("WARNING: Bed and breakfasting for META"), (
-        "Unexpected stderr message"
-    )
+    assert result.stderr.strip() == "", "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output_2.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param or "''" for param in cmd])
