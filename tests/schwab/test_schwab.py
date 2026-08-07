@@ -29,6 +29,9 @@ def test_missing_award_file_warns_on_the_first_row_that_needs_a_price(
         SchwabParser.read_transactions(csv_file, path)
 
     assert "No Schwab Award file provided" in caplog.text
+    # The row that needs the file is named, so it can be found in the statement.
+    assert "BAR" in caplog.text
+    assert "2023-08-18" in caplog.text
 
 
 def test_run_with_schwab_example_2023_files() -> None:
