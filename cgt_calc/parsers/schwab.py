@@ -256,21 +256,30 @@ class SchwabTransaction(BrokerTransaction):
             symbol = transaction.symbol
             if symbol is None:
                 raise SymbolMissingError(transaction)
-            if not awards_prices:
-                # Only rows priced from the awards file need it, and this is the
-                # first of them: an account without equity awards never gets here.
-                LOGGER.warning(
-                    "No Schwab Award file provided, needed to price the %s "
-                    "stock activity of %s on %s",
-                    symbol,
-                    transaction.quantity,
-                    transaction.date,
-                )
             # Schwab transaction list contains sometimes incorrect date
             # for awards which don't match the PDF statements.
             # We want to make sure to match date and price form the awards
             # spreadsheet.
-            _vest_date, transaction.price = awards_prices.get(transaction.date, symbol)
+            try:
+                _vest_date, transaction.price = awards_prices.get(
+                    transaction.date, symbol
+                )
+            except KeyError as err:
+                context = (
+                    f"the {symbol} stock activity of {transaction.quantity} "
+                    f"on {transaction.date} has no price of its own"
+                )
+                reason = (
+                    "no Schwab Award file was provided"
+                    if not awards_prices
+                    else "the Schwab Award file has no award price for it"
+                )
+                raise ParsingError(
+                    file,
+                    f"Cannot price a vest: {context}, and {reason}. "
+                    "Pass the Equity Awards transaction history with "
+                    "--schwab-award-file.",
+                ) from err
         return transaction
 
 
