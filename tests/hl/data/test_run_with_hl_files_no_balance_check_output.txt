@@ -1,0 +1,27 @@
+Parsing tests/hl/data/inputs/hl-transaction-summary.csv...
+Found 5 broker transactions
+First pass completed
+Final portfolio:
+  VHVG: 3563.00
+Final balance:
+  Hargreaves Lansdown: -75018.97 (GBP)
+Disposal proceeds: £0.00
+
+Second pass completed
+Portfolio at the end of 2020/2021 tax year:
+For tax year 2020/2021:
+Number of disposals: 0
+Disposal proceeds: £0.00
+Allowable costs: £0.00
+Capital gain: £0.00
+Capital loss: £0.00
+Total capital gain: £0.00
+Taxable capital gain: £0
+Total dividends proceeds: £0.00
+Total amount of dividends tax yearly allowance: £2000.00
+Total taxable dividends proceeds: £0.00
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £0.00
+
+Generating PDF report...
+All done!
