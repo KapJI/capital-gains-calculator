@@ -95,7 +95,6 @@ CGT_MODE: Final = (
     if os.environ.get("CGT_TEST_MODE", "0") == "1"
     else RuntimeMode.PROD
 )
-CGT_TEST_MODE: Final = CGT_MODE
 INTERNAL_START_DATE: Final = datetime.date(2010, 1, 1)
 
 # Bed and Breakfast rule: HMRC requires matching disposals with acquisitions
