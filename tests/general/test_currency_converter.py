@@ -25,7 +25,7 @@ def test_read_exchange_rates_successfully(tmp_path: Path) -> None:
     )
 
     converter = CurrencyConverter(exchange_rates_file=rates_file)
-    cache = converter.cache or converter.test_cache
+    cache = converter.cache
 
     january_rates = cache[datetime.date(2024, 1, 1)]
     february_rates = cache[datetime.date(2024, 2, 1)]
@@ -40,7 +40,7 @@ def test_read_exchange_rates_handles_empty_file(tmp_path: Path) -> None:
     rates_file.touch()
 
     converter = CurrencyConverter(exchange_rates_file=rates_file)
-    cache = converter.cache or converter.test_cache
+    cache = converter.cache
     assert cache == {}
 
 
@@ -53,7 +53,7 @@ def test_read_exchange_rates_skips_blank_rows(tmp_path: Path) -> None:
     )
 
     converter = CurrencyConverter(exchange_rates_file=rates_file)
-    cache = converter.cache or converter.test_cache
+    cache = converter.cache
 
     january = datetime.date(2024, 1, 1)
     february = datetime.date(2024, 2, 1)
@@ -112,7 +112,7 @@ def test_read_exchange_rates_skips_comment_lines(tmp_path: Path) -> None:
     )
 
     converter = CurrencyConverter(exchange_rates_file=rates_file)
-    cache = converter.cache or converter.test_cache
+    cache = converter.cache
 
     january = datetime.date(2024, 1, 1)
     february = datetime.date(2024, 2, 1)

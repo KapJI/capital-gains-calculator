@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from copy import deepcopy
 import csv
 import datetime
 from decimal import Decimal, InvalidOperation
@@ -40,18 +41,10 @@ class CurrencyConverter:
         """Load data from exchange_rates_file and optionally from initial_data."""
         self.exchange_rates_file = exchange_rates_file
         read_data = self._read_exchange_rates_file(exchange_rates_file)
-        self.cache: dict[datetime.date, dict[str, Decimal]] = {}
-        self.test_cache: dict[datetime.date, dict[str, Decimal]] = {}
-        if CGT_MODE == RuntimeMode.TEST and self.exchange_rates_file is not None:
-            self.test_cache = {
-                **read_data,
-                **(initial_data or {}),
-            }
-        else:
-            self.cache = {
-                **read_data,
-                **(initial_data or {}),
-            }
+        self.cache = {
+            **read_data,
+            **(initial_data or {}),
+        }
 
         # https://developer-specs.company-information.service.gov.uk/guides/rateLimiting
         limiter = limiter_factory.create_inmemory_limiter(
@@ -60,6 +53,23 @@ class CurrencyConverter:
         self.session = RateLimitedRequestsSession(limiter)
         retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
         self.session.mount("https://", HTTPAdapter(max_retries=retries))
+
+    @staticmethod
+    def create(
+        exchange_rates_file: Path | None = None,
+        initial_data: dict[datetime.date, dict[str, Decimal]] | None = None,
+    ) -> CurrencyConverter:
+        """Create the appropriate CurrencyConverter for the current runtime mode."""
+        match CGT_MODE:
+            case RuntimeMode.PROD:
+                return CurrencyConverter(exchange_rates_file, initial_data)
+            case RuntimeMode.TEST_STRICT:
+                return StrictTestCurrencyConverter(exchange_rates_file, initial_data)
+            case RuntimeMode.TEST:
+                return TestCurrencyConverter(exchange_rates_file, initial_data)
+        raise NotImplementedError(
+            f"Missing CurrencyConverter implementation for {CGT_MODE}"
+        )
 
     @staticmethod
     def _read_exchange_rates_data(
@@ -157,26 +167,7 @@ class CurrencyConverter:
             writer = csv.writer(fout)
             writer.writerows([EXCHANGE_RATES_HEADER, *data_rows])
 
-    @staticmethod
-    def _append_exchange_rates_file(
-        exchange_rates_file: Path, date: datetime.date, currency: str, value: Decimal
-    ) -> None:
-        with open_with_parents(exchange_rates_file, clear_content=False) as fout:
-            fcntl.flock(fout.fileno(), fcntl.LOCK_EX)
-            fout.seek(0)
-            data = CurrencyConverter._read_exchange_rates_data(
-                exchange_rates_file, fout
-            )
-            if date not in data or currency not in data[date]:
-                writer = csv.writer(fout)
-                writer.writerow([date, currency, str(value)])
-            fcntl.flock(fout.fileno(), fcntl.LOCK_UN)
-
     def _query_hmrc_api(self, date: datetime.date) -> None:
-        if CGT_MODE == RuntimeMode.TEST_STRICT:
-            raise RuntimeError(
-                "HMRC values should be provided for tests to avoid flakiness!"
-            )
         # Pre 2021 we need to use the old HMRC endpoint
         if date.year < NEW_ENDPOINT_FROM_YEAR:
             month_str = date.strftime("%m%y")
@@ -244,17 +235,6 @@ class CurrencyConverter:
         if currency not in self.cache[date]:
             raise ExchangeRateMissingError(currency, date)
 
-        if CGT_MODE == RuntimeMode.TEST and self.exchange_rates_file is not None:
-            if date not in self.test_cache:
-                self.test_cache[date] = {}
-            if currency not in self.test_cache:
-                self.test_cache[date][currency] = self.cache[date][currency]
-                self._append_exchange_rates_file(
-                    self.exchange_rates_file,
-                    date,
-                    currency,
-                    self.test_cache[date][currency],
-                )
         return self.cache[date][currency]
 
     def to_gbp(self, amount: Decimal, currency: str, date: datetime.date) -> Decimal:
@@ -266,3 +246,66 @@ class CurrencyConverter:
     def to_gbp_for(self, amount: Decimal, transaction: BrokerTransaction) -> Decimal:
         """Convert amount from transaction currency to GBP."""
         return self.to_gbp(amount, transaction.currency, transaction.date)
+
+
+class TestCurrencyConverter(CurrencyConverter):
+    """Variant of CurrencyConverter that append single currency entry on the input exchange rate files based on usage.
+
+    Created when RuntimeMode is TEST, this is meant to be used to populated test fixture data when adding new ones.
+    """
+
+    def __init__(
+        self,
+        exchange_rates_file: Path | None = None,
+        initial_data: dict[datetime.date, dict[str, Decimal]] | None = None,
+    ):
+        """Load data from exchange_rates_file and optionally from initial_data.
+
+        Store the initial view of exchange rates to compare against later on.
+        """
+        super().__init__(exchange_rates_file, initial_data)
+        self._test_file_cache = deepcopy(self.cache)
+
+    def currency_to_gbp_rate(self, currency: str, date: datetime.date) -> Decimal:
+        """Get GBP/currency rate at given date.
+
+        When the value is missing from the view of the test_file_cache append that value to the exchange rate CSV file.
+        This allow us to record the rates that are being used in tests.
+        """
+        result = super().currency_to_gbp_rate(currency, date)
+        if date not in self._test_file_cache:
+            self._test_file_cache[date] = {}
+        if currency not in self._test_file_cache[date] and self.exchange_rates_file:
+            self._test_file_cache[date][currency] = result
+            self._append_exchange_rates_file(
+                self.exchange_rates_file,
+                date,
+                currency,
+                result,
+            )
+        return result
+
+    @staticmethod
+    def _append_exchange_rates_file(
+        exchange_rates_file: Path, date: datetime.date, currency: str, value: Decimal
+    ) -> None:
+        with open_with_parents(exchange_rates_file, clear_content=False) as fout:
+            fcntl.flock(fout.fileno(), fcntl.LOCK_EX)
+            fout.seek(0)
+            data = TestCurrencyConverter._read_exchange_rates_data(
+                exchange_rates_file, fout
+            )
+            if date not in data or currency not in data[date]:
+                writer = csv.writer(fout)
+                writer.writerow([date, currency, str(value)])
+            fcntl.flock(fout.fileno(), fcntl.LOCK_UN)
+
+
+class StrictTestCurrencyConverter(CurrencyConverter):
+    """Sandboxed variant of CurrencyConverter that is used to run tests in CI."""
+
+    def _query_hmrc_api(self, _: datetime.date) -> None:
+        raise RuntimeError(
+            "HMRC values should be provided for tests to avoid flakiness! "
+            "Run `pytest` (once) to populate them from HMRC data"
+        )
