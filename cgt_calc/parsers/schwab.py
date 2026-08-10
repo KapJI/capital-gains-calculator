@@ -219,6 +219,13 @@ class SchwabTransaction(BrokerTransaction):
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
         description = row_dict[RequiredTransactionsColumn.DESCRIPTION.value]
+        if (
+            action == ActionType.DIVIDEND_TAX
+            and symbol is None
+            and "SCHWAB1 INT" in description
+        ):
+            # Withholding on account-level cash interest, not tied to a security.
+            action = ActionType.INTEREST_TAX
         price = parse_decimal(row_dict, RequiredTransactionsColumn.PRICE)
         quantity = parse_decimal(row_dict, RequiredTransactionsColumn.QUANTITY)
         fees = parse_decimal(

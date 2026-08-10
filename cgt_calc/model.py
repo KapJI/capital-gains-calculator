@@ -156,6 +156,7 @@ class ActionType(Enum):
     EXCESS_REPORTED_INCOME = 17
     FULL_REDEMPTION = 18
     RENAME = 19
+    INTEREST_TAX = 20
 
 
 class CalculationType(Enum):
@@ -200,6 +201,7 @@ class RuleType(Enum):
     EXCESS_REPORTED_INCOME = 7
     EXCESS_REPORTED_INCOME_DISTRIBUTION = 8
     RENAME = 9
+    INTEREST_TAX = 10
 
 
 @dataclass
@@ -266,6 +268,7 @@ class CalculationEntry:
             RuleType.SPIN_OFF,
             RuleType.DIVIDEND,
             RuleType.INTEREST,
+            RuleType.INTEREST_TAX,
             RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
             RuleType.RENAME,
         ):
@@ -374,6 +377,7 @@ class CapitalGainsReport:
     calculation_log_yields: CalculationLog
     total_uk_interest: Decimal
     total_foreign_interest: Decimal
+    total_foreign_interest_tax: Decimal
     show_unrealized_gains: bool
 
     def _filter_calculation_log(
@@ -521,5 +525,6 @@ class CapitalGainsReport:
             )
         out += f"Total UK interest proceeds: £{self.total_uk_interest}\n"
         out += f"Total foreign interest proceeds: £{self.total_foreign_interest}\n"
+        out += f"Total foreign interest tax paid: £{self.total_foreign_interest_tax}\n"
 
         return out
