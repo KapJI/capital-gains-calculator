@@ -684,7 +684,7 @@ class CapitalGainsCalculator:
         if interest_taxes:
             print("Interest taxes:")
             for (broker, currency), amount in interest_taxes.items():
-                print(f"  {broker}: {round_decimal(abs(amount), 2)} ({currency})")
+                print(f"  {broker}: {round_decimal(-amount, 2)} ({currency})")
         print(f"Disposal proceeds: £{round_decimal(total_disposal_proceeds, 2)}")
         print()
 
@@ -1229,7 +1229,9 @@ class CapitalGainsCalculator:
             gbp_amount = self.currency_converter.to_gbp(
                 foreign_amount.amount, foreign_amount.currency, date
             )
-            tax_amount = abs(gbp_amount)
+            # Withholding rows are negative, so negate rather than abs():
+            # positive reversal rows then cancel out across months.
+            tax_amount = -gbp_amount
             rule_prefix = f"interestTax{currency.upper()}"
             self.total_interest_tax += tax_amount
 

@@ -172,3 +172,33 @@ def test_run_with_schwab_bond_interest_files() -> None:
         "if you added new features update the test with:\n"
         f"{cmd_str} > {expected_file}"
     )
+
+
+def test_run_with_schwab_interest_tax_files() -> None:
+    """Runs the script on interest withholding data and checks the output."""
+    cmd = build_cmd(
+        "--year",
+        "2024",
+        "--schwab-file",
+        "tests/schwab/data/interest_tax/transactions.csv",
+        "--output",
+        "out/test-schwab-interest-tax/",
+    )
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode:
+        pytest.fail(
+            "Integration test failed\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    assert result.stderr == ""
+    expected_file = (
+        Path("tests") / "schwab" / "data" / "interest_tax" / "expected_output.txt"
+    )
+    expected = expected_file.read_text()
+    cmd_str = " ".join([param or "''" for param in cmd])
+    assert result.stdout == expected, (
+        "Run with example files generated unexpected outputs, "
+        "if you added new features update the test with:\n"
+        f"{cmd_str} > {expected_file}"
+    )
