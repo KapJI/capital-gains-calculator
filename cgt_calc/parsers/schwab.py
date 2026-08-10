@@ -595,20 +595,30 @@ def _read_schwab_awards(
         lower_row = lines[offset + 1]
         row_index = offset + 2
 
+        if len(upper_row) != len(header):
+            raise UnexpectedColumnCountError(
+                upper_row,
+                len(header),
+                schwab_award_transactions_file,
+                row_index=row_index,
+            )
+        # Some exports append an extra empty column to the lower row.
+        if len(lower_row) == len(header) + 1 and lower_row[-1] == "":
+            lower_row.pop()
+        if len(lower_row) != len(header):
+            raise UnexpectedColumnCountError(
+                lower_row,
+                len(header),
+                schwab_award_transactions_file,
+                row_index=row_index + 1,
+            )
+
         # in this format each logical row is split into two rows,
         # so we combine them safely below
         row = []
         for upper_col, lower_col in zip(upper_row, lower_row, strict=True):
             assert upper_col == "" or lower_col == ""
             row.append(upper_col + lower_col)
-
-        if len(row) != len(header):
-            raise UnexpectedColumnCountError(
-                row,
-                len(header),
-                schwab_award_transactions_file,
-                row_index=row_index,
-            )
 
         row_dict = OrderedDict(zip(header, row, strict=True))
         date_str = row_dict[RequiredAwardColumn.DATE.value]
