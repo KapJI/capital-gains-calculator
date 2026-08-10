@@ -4,13 +4,36 @@ on:
   push:
     branches:
       - main
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
 
 jobs:
   draft_release:
     name: Release Drafter
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Run release-drafter
         uses: release-drafter/release-drafter@v7.7.0
+        with:
+          disable-autolabeler: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  autolabel:
+    name: Autolabeler
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run release-drafter autolabeler
+        uses: release-drafter/release-drafter@v7.7.0
+        with:
+          disable-releaser: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
