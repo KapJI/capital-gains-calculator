@@ -105,7 +105,7 @@ def test_interest_tax_totals_are_positive() -> None:
         )
     ]
     report = get_report(calculator, broker_transactions)
-    assert report.total_foreign_interest_tax == Decimal("20.31")
+    assert report.total_interest_tax == Decimal("20.31")
 
 
 @pytest.mark.parametrize(

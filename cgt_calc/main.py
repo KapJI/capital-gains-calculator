@@ -175,7 +175,7 @@ class CapitalGainsCalculator:
         self.interest_fund_tickers = interest_fund_tickers
         self.total_uk_interest = Decimal(0)
         self.total_foreign_interest = Decimal(0)
-        self.total_foreign_interest_tax = Decimal(0)
+        self.total_interest_tax = Decimal(0)
 
         self.acquisition_list: HmrcTransactionLog = {}
         self.disposal_list: HmrcTransactionLog = {}
@@ -1164,35 +1164,42 @@ class CapitalGainsCalculator:
             eris=[eri],
         )
 
+    def _group_by_month(
+        self,
+        entries: dict[tuple[str, str, datetime.date], ForeignCurrencyAmount],
+    ) -> dict[tuple[str, str, datetime.date], ForeignCurrencyAmount]:
+        """Group in-tax-year amounts by month, keyed by the month's last date."""
+        monthly: dict[tuple[str, str, datetime.date], ForeignCurrencyAmount] = (
+            defaultdict(ForeignCurrencyAmount)
+        )
+        last_date: datetime.date = datetime.date.min
+        last_broker: str | None = None
+        last_currency: str | None = None
+
+        for (broker, currency, date), foreign_amount in sorted(entries.items()):
+            if not self.date_in_tax_year(date):
+                continue
+            if (
+                broker == last_broker
+                and currency == last_currency
+                and (date.year, date.month) == (last_date.year, last_date.month)
+            ):
+                monthly[(broker, currency, date)] = monthly.pop(
+                    (broker, currency, last_date)
+                )
+            monthly[(broker, currency, date)] += foreign_amount
+            last_date = date
+            last_broker = broker
+            last_currency = currency
+        return monthly
+
     def process_interests(self) -> None:
         """Process all interest events.
 
         It groups them by month, using the last date on each month for the report
         and updates the interest totals for the year.
         """
-        monthly_interests: dict[
-            tuple[str, str, datetime.date], ForeignCurrencyAmount
-        ] = defaultdict(ForeignCurrencyAmount)
-        last_date: datetime.date = datetime.date.min
-        last_broker: str | None = None
-        last_currency: str | None = None
-
-        for (broker, currency, date), foreign_amount in sorted(
-            self.interest_list.items()
-        ):
-            if self.date_in_tax_year(date):
-                if (
-                    broker == last_broker
-                    and date.month == last_date.month
-                    and currency == last_currency
-                ):
-                    monthly_interests[(broker, currency, date)] = monthly_interests.pop(
-                        (broker, currency, last_date)
-                    )
-                monthly_interests[(broker, currency, date)] += foreign_amount
-                last_date = date
-                last_broker = broker
-                last_currency = currency
+        monthly_interests = self._group_by_month(self.interest_list)
 
         for (broker, currency, date), foreign_amount in monthly_interests.items():
             gbp_amount = self.currency_converter.to_gbp(
@@ -1216,29 +1223,7 @@ class CapitalGainsCalculator:
                 )
             ]
 
-        monthly_interest_taxes: dict[
-            tuple[str, str, datetime.date], ForeignCurrencyAmount
-        ] = defaultdict(ForeignCurrencyAmount)
-        last_tax_date: datetime.date = datetime.date.min
-        last_tax_broker: str | None = None
-        last_tax_currency: str | None = None
-
-        for (broker, currency, date), foreign_amount in sorted(
-            self.interest_tax_list.items()
-        ):
-            if self.date_in_tax_year(date):
-                if (
-                    broker == last_tax_broker
-                    and date.month == last_tax_date.month
-                    and currency == last_tax_currency
-                ):
-                    monthly_interest_taxes[(broker, currency, date)] = (
-                        monthly_interest_taxes.pop((broker, currency, last_tax_date))
-                    )
-                monthly_interest_taxes[(broker, currency, date)] += foreign_amount
-                last_tax_date = date
-                last_tax_broker = broker
-                last_tax_currency = currency
+        monthly_interest_taxes = self._group_by_month(self.interest_tax_list)
 
         for (broker, currency, date), foreign_amount in monthly_interest_taxes.items():
             gbp_amount = self.currency_converter.to_gbp(
@@ -1246,7 +1231,7 @@ class CapitalGainsCalculator:
             )
             tax_amount = abs(gbp_amount)
             rule_prefix = f"interestTax{currency.upper()}"
-            self.total_foreign_interest_tax += tax_amount
+            self.total_interest_tax += tax_amount
 
             self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
                 CalculationEntry(
@@ -1527,7 +1512,7 @@ class CapitalGainsCalculator:
             dict(sorted(self.calculation_log_yields.items())),
             round_decimal(self.total_uk_interest, 2),
             round_decimal(self.total_foreign_interest, 2),
-            round_decimal(self.total_foreign_interest_tax, 2),
+            round_decimal(self.total_interest_tax, 2),
             show_unrealized_gains=self.calc_unrealized_gains,
         )
 

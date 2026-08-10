@@ -40,4 +40,19 @@ def test_schwab_interest_tax_without_symbol_is_account_level() -> None:
     report = calculator.calculate_capital_gain()
 
     assert report.total_foreign_interest == Decimal("2.94")
-    assert report.total_foreign_interest_tax == Decimal("0.88")
+    assert report.total_interest_tax == Decimal("0.88")
+
+
+def test_schwab_nra_tax_with_symbol_stays_dividend_tax(tmp_path: Path) -> None:
+    """NRA Tax Adj rows tied to a security are still treated as dividend tax."""
+    csv_path = tmp_path / "transactions.csv"
+    csv_path.write_text(
+        "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
+        "06/27/2024,NRA Tax Adj,FOO,FOO INC,,,,$-1.50\n",
+        encoding="utf-8",
+    )
+
+    transactions = SchwabParser.load_from_file(csv_path)
+
+    assert len(transactions) == 1
+    assert transactions[0].action is ActionType.DIVIDEND_TAX
