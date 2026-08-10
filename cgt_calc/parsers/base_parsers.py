@@ -145,7 +145,8 @@ class StandardCSVParser(BaseSingleFileParser):
             )
 
         transactions: list[BrokerTransaction] = []
-        for index, row in enumerate(reader):
+        # Row numbers are 1-based file lines; the header is line 1.
+        for index, row in enumerate(reader, start=2):
             try:
                 if len(row) != expected_col_count:
                     raise UnexpectedColumnCountError(
