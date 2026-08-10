@@ -392,12 +392,13 @@ class VanguardParser(BaseSingleFileParser):
         """Check if header matches the cash transactions columns."""
         expected = [c.value for c in CashColumn]
         if len(header) != len(expected):
-            raise UnexpectedColumnCountError(header, len(expected), file)
+            raise UnexpectedColumnCountError(header, len(expected), file, row_index=1)
         for index, (exp, act) in enumerate(zip(expected, header, strict=True), start=1):
             if exp != act:
                 raise ParsingError(
                     file,
                     f"Expected column {index} to be '{exp}' but found '{act}'",
+                    row_index=1,
                 )
 
     @classmethod

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Final
 from pyrate_limiter import limiter_factory
 from pyrate_limiter.abstracts.rate import Duration
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
+from requests import exceptions as requests_exceptions
 
 from .const import CGT_TEST_MODE, INITIAL_ISIN_TRANSLATION_RESOURCE
 from .exceptions import (
@@ -158,10 +159,15 @@ class IsinConverter:
                     file_label,
                     "Unexpected header in ISIN translation data: "
                     f"expected {ISIN_TRANSLATION_HEADER}, found {header}",
+                    row_index=1,
                 )
             entries: dict[str, set[str]] = {}
-            for row in lines[1:]:
-                entry = IsinTranslationEntry(row, file_label)
+            for index, row in enumerate(lines[1:], start=2):
+                try:
+                    entry = IsinTranslationEntry(row, file_label)
+                except ParsingError as err:
+                    err.add_row_context(index)
+                    raise
                 entries[entry.isin] = entry.symbols
             return entries
 
@@ -197,7 +203,7 @@ class IsinConverter:
             response = self.session.post(url, json=data, headers=headers, timeout=10)
             response_text = response.text
             json_response = response.json()
-        except Exception as err:
+        except (requests_exceptions.RequestException, ValueError) as err:
             msg = f"Failed to fetch ISIN information for {isin}. "
             if response_text:
                 msg += f"Server response: {response_text}. "

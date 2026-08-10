@@ -12,7 +12,11 @@ from typing import Final
 
 from .const import INITIAL_PRICES_RESOURCE
 from .dates import is_date
-from .exceptions import ExchangeRateMissingError, UnexpectedColumnCountError
+from .exceptions import (
+    ExchangeRateMissingError,
+    ParsingError,
+    UnexpectedColumnCountError,
+)
 from .resources import RESOURCES_PACKAGE
 
 INITIAL_PRICES_COLUMNS_NUM: Final = 3
@@ -74,11 +78,16 @@ class InitialPrices:
             with self.initial_prices_file.open(encoding="utf-8") as csv_file:
                 lines = list(csv.reader(csv_file))
         lines = lines[1:]
-        for row in lines:
-            entry = InitialPricesEntry(
-                row,
-                self.initial_prices_file or Path("resources") / INITIAL_PRICES_RESOURCE,
-            )
+        for index, row in enumerate(lines, start=2):
+            try:
+                entry = InitialPricesEntry(
+                    row,
+                    self.initial_prices_file
+                    or Path("resources") / INITIAL_PRICES_RESOURCE,
+                )
+            except ParsingError as err:
+                err.add_row_context(index)
+                raise
             date_index = entry.date
             if date_index not in initial_prices:
                 initial_prices[date_index] = {}

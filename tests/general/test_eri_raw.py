@@ -82,3 +82,19 @@ def test_read_eri_raw_raises_on_invalid_isin(tmp_path: Path) -> None:
 
     with pytest.raises(ParsingError, match=f"Invalid ISIN value '{INVALID_ISIN}'"):
         ERIRawParser.load_from_file(file_path)
+
+
+def test_read_eri_raw_reports_sorted_unknown_columns(tmp_path: Path) -> None:
+    """Raise ParsingError listing unknown header columns alphabetically."""
+    file_path = tmp_path / "eri.csv"
+    file_path.write_text(
+        (
+            "Foo,ISIN,Bar,Fund Reporting Period End Date,Currency,"
+            "Excess of reporting income over distribution\n"
+            "foo-value,US5949181045,bar-value,01/02/2024,USD,1.23\n"
+        ),
+        encoding="utf8",
+    )
+
+    with pytest.raises(ParsingError, match=r"Unknown columns: Bar, Foo"):
+        ERIRawParser.load_from_file(file_path)
