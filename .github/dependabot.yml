@@ -7,7 +7,11 @@ updates:
     labels:
       - "dependencies"
   - package-ecosystem: github-actions
-    directory: "/"
+    directories:
+      # Workflows in .github/workflows
+      - "/"
+      # Composite actions are not covered by "/" and must be listed explicitly
+      - "/.github/actions/*"
     schedule:
       interval: weekly
     labels:
