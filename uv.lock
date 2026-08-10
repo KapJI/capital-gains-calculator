@@ -252,11 +252,11 @@ wheels = [
 
 [[package]]
 name = "codespell"
-version = "2.4.2"
+version = "2.4.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/2d/9d/1d0903dff693160f893ca6abcabad545088e7a2ee0a6deae7c24e958be69/codespell-2.4.2.tar.gz", hash = "sha256:3c33be9ae34543807f088aeb4832dfad8cb2dae38da61cac0a7045dd376cfdf3", size = 352058, upload-time = "2026-03-05T18:10:42.936Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/80/19/45e941380f69c042b43423513d201e6592346f992394347f5e7174c31407/codespell-2.4.3.tar.gz", hash = "sha256:cbe085e331227b37bb86ef8bddd08dc768c704ee9a07ca869852c093fa2793e2", size = 352773, upload-time = "2026-07-15T11:51:54.159Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/42/a1/52fa05533e95fe45bcc09bcf8a503874b1c08f221a4e35608017e0938f55/codespell-2.4.2-py3-none-any.whl", hash = "sha256:97e0c1060cf46bd1d5db89a936c98db8c2b804e1fdd4b5c645e82a1ec6b1f886", size = 353715, upload-time = "2026-03-05T18:10:41.398Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/bf/bdb951d34eb169140b546f44be9ec4525d1acefb9eb5572071f5492b19fc/codespell-2.4.3-py3-none-any.whl", hash = "sha256:af2505b335e8573dbd2d384d1c4ef498f4006f4ba2d6fceca01e55b91f52628a", size = 340736, upload-time = "2026-07-15T11:51:52.925Z" },
 ]
 
 [[package]]
@@ -374,14 +374,16 @@ wheels = [
 
 [[package]]
 name = "dprint-py"
-version = "0.53.1.0"
+version = "0.55.2.0"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/07/a2df258d1975991c3477a400dca823cfe29b09301b88f68e252b301ce3f9/dprint_py-0.53.1.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:71a7bbcfe9b60da89ab31a5fef2837278da960b946d32cdee76befb66186168c", size = 23955394, upload-time = "2026-03-26T14:54:28.499Z" },
-    { url = "https://files.pythonhosted.org/packages/f8/2c/cb8544379f19c8aada1e3468f1a1ce733ff26ee62e2bbba8c42fb27aaf92/dprint_py-0.53.1.0-py3-none-macosx_11_0_x86_64.whl", hash = "sha256:dabe8cd97a43faa81a5b4db35fe17af27c5c2bae07bcdb56d2fd336fdea33b49", size = 24746959, upload-time = "2026-03-26T14:54:31.276Z" },
-    { url = "https://files.pythonhosted.org/packages/9e/6d/ccb1fd83183eb85094578733d67a717f245591e4b0d648d0f140f5e35fbd/dprint_py-0.53.1.0-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:37a5baeb84685e3af69ca4145fe7ff95f84bb1fb6badb1edeaec81d078a33391", size = 27103759, upload-time = "2026-03-26T14:54:33.898Z" },
-    { url = "https://files.pythonhosted.org/packages/98/26/53b51c1d8cc92f12162f74778b54a2ee2445683873ae43530ae671c5ca8c/dprint_py-0.53.1.0-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:6327a5f5a9bc34b121070e8c1728915a32d2af365491d165fb9ba59beebbf82d", size = 28159374, upload-time = "2026-03-26T14:54:36.434Z" },
-    { url = "https://files.pythonhosted.org/packages/63/65/569126899044c8b4cdde08cf15c2f03b7ff3e3ca830f60c9f8a7c1758fa8/dprint_py-0.53.1.0-py3-none-win_amd64.whl", hash = "sha256:a0eface52c1d0eb8830b72d7b7673da7fca8da209f5fd80e6247fb3ec30b9138", size = 23155349, upload-time = "2026-03-26T14:54:39.053Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/1a/3db08a80376738e37769e65cd9bed0ceb793dd627968c9f9e1d20112b79e/dprint_py-0.55.2.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:77cab9f7d69e7a3913aefef1868d7356e4946de0f82a91225c1206942331b6fb", size = 24982402, upload-time = "2026-07-15T03:42:49.671Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/27/9cb9452170d5383e611a4ef172fb1b9c10ccd5feb9c98530a7f145e57cf3/dprint_py-0.55.2.0-py3-none-macosx_11_0_x86_64.whl", hash = "sha256:0d40c5ded08358e823354cfeae7ed9ce7c79eed7bd60c60c294e87f70ba5dc08", size = 28668411, upload-time = "2026-07-15T03:42:53.468Z" },
+    { url = "https://files.pythonhosted.org/packages/46/aa/3198a278fedfbe408382c7b3a694d7f5726c7fb4049a62474173ae1ad14d/dprint_py-0.55.2.0-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:df28718ee7af383fe30ba8cebeeb499b1d06b287295d1668a0bb807cd4c78cbc", size = 19835839, upload-time = "2026-07-15T03:42:56.897Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/da/536911f62ac6e0ac0a8f0d30341f2a260c6789823e8597473c4ee942cac7/dprint_py-0.55.2.0-py3-none-manylinux_2_17_x86_64.musllinux_1_1_x86_64.whl", hash = "sha256:fc25ca1d7d68c70f64117f30a1d49a8251d671260c6ec9831d34615261307b3a", size = 31225065, upload-time = "2026-07-15T03:43:00.868Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/3f/e1e5b375a4dfe8f9f6182c58723b9dfb0ce60bae8bc3404cf3dd2e19ccb5/dprint_py-0.55.2.0-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:d05b032220e561bfc94d176f5ce909a1111af74132fb4576a66dda634c00cb04", size = 24692190, upload-time = "2026-07-15T03:43:04.526Z" },
+    { url = "https://files.pythonhosted.org/packages/32/c4/fed475e36ba21b02eab5ee64ec38f56ae2526acb29abdddef5d15f76de44/dprint_py-0.55.2.0-py3-none-win_amd64.whl", hash = "sha256:3697c8445ea1641ff9f8c285537c697b81df0f54fc34cbaf127420f7b3d9d24b", size = 26881685, upload-time = "2026-07-15T03:43:08.222Z" },
+    { url = "https://files.pythonhosted.org/packages/85/ec/192536dc8bee17dc25e4dec7f3e9c4365db9d5391a4e60edd9f30eea26a2/dprint_py-0.55.2.0-py3-none-win_arm64.whl", hash = "sha256:e7d8bfe3ecd7d521b157e8ced62dfa3be357be511bd6574c82922ad0252f452c", size = 20681877, upload-time = "2026-07-15T03:43:11.665Z" },
 ]
 
 [[package]]
@@ -400,17 +402,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/bb/ff/b4c0dc78fbe20c3e59c0c7334de0c27eb4001a2b2017999af398bf730817/execnet-2.1.1.tar.gz", hash = "sha256:5189b52c6121c24feae288166ab41b32549c7e2348652736540b9e6e7d4e72e3", size = 166524, upload-time = "2024-04-08T09:04:19.245Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/43/09/2aea36ff60d16dd8879bdb2f5b3ee0ba8d08cbbdcdfe870e695ce3784385/execnet-2.1.1-py3-none-any.whl", hash = "sha256:26dee51f1b80cebd6d0ca8e74dd8745419761d3bef34163928cbebbdc4749fdc", size = 40612, upload-time = "2024-04-08T09:04:17.414Z" },
-]
-
-[[package]]
-name = "frozendict"
-version = "2.4.6"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/bb/59/19eb300ba28e7547538bdf603f1c6c34793240a90e1a7b61b65d8517e35e/frozendict-2.4.6.tar.gz", hash = "sha256:df7cd16470fbd26fc4969a208efadc46319334eb97def1ddf48919b351192b8e", size = 316416, upload-time = "2024-10-13T12:15:32.449Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/13/d9839089b900fa7b479cce495d62110cddc4bd5630a04d8469916c0e79c5/frozendict-2.4.6-py311-none-any.whl", hash = "sha256:d065db6a44db2e2375c23eac816f1a022feb2fa98cbb50df44a9e83700accbea", size = 16148, upload-time = "2024-10-13T12:15:26.839Z" },
-    { url = "https://files.pythonhosted.org/packages/ba/d0/d482c39cee2ab2978a892558cf130681d4574ea208e162da8958b31e9250/frozendict-2.4.6-py312-none-any.whl", hash = "sha256:49344abe90fb75f0f9fdefe6d4ef6d4894e640fadab71f11009d52ad97f370b9", size = 16146, upload-time = "2024-10-13T12:15:28.16Z" },
-    { url = "https://files.pythonhosted.org/packages/a5/8e/b6bf6a0de482d7d7d7a2aaac8fdc4a4d0bb24a809f5ddd422aa7060eb3d2/frozendict-2.4.6-py313-none-any.whl", hash = "sha256:7134a2bb95d4a16556bb5f2b9736dceb6ea848fa5b6f3f6c2d6dba93b44b4757", size = 16146, upload-time = "2024-10-13T12:15:29.495Z" },
 ]
 
 [[package]]
@@ -1315,12 +1306,11 @@ wheels = [
 
 [[package]]
 name = "yfinance"
-version = "1.3.0"
+version = "1.5.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "curl-cffi" },
-    { name = "frozendict" },
     { name = "multitasking" },
     { name = "numpy" },
     { name = "pandas" },
@@ -1331,7 +1321,7 @@ dependencies = [
     { name = "requests" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9b/fd/943a7d71ce98a40b9006daccba96a83837acadb8e55361f41c7a81873013/yfinance-1.3.0.tar.gz", hash = "sha256:42c4e64a889dab8eeaffd3a66d4ccf1baffd566910ca63fb6332283f8f9b8a40", size = 145297, upload-time = "2026-04-16T19:51:05.785Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/88/25/66da4c0063e7ca96f145861b6194b2b5244b488b997112869929422dc178/yfinance-1.5.2.tar.gz", hash = "sha256:5935d457fc62cf2f7e9bf1b2d019a8fec8fb0072f58a095eb53740b70a6a06ed", size = 167938, upload-time = "2026-07-23T19:16:31.584Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/bc/e46ed5dfb88c6f7af0f641ffb6227d32f484ea989a2987a52a9c35d17aa9/yfinance-1.3.0-py2.py3-none-any.whl", hash = "sha256:c89539f0cf6af026d570131189bd659a962e8fb942376ef8ff8913e77c9fca75", size = 133706, upload-time = "2026-04-16T19:51:04.298Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/77/9549bf914e0de5b5ca15086cd3f31bf35d5a1e6bfb793196eb9c4c41baff/yfinance-1.5.2-py2.py3-none-any.whl", hash = "sha256:197fc03485c246547a5a9184956c60150ea33b6f740d877e02a97f123d5cd2b9", size = 144062, upload-time = "2026-07-23T19:16:30.201Z" },
 ]
