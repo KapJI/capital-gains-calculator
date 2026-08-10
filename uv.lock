@@ -1037,11 +1037,11 @@ wheels = [
 
 [[package]]
 name = "pyrate-limiter"
-version = "4.1.0"
+version = "4.4.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/33/0c/6e78218e6ef726be35a4c0a5e2e281e36ddd940566800219e96d13de99ad/pyrate_limiter-4.1.0.tar.gz", hash = "sha256:be1ac413a263aa410b98757d1b01a880650948a1fc3a959512f15865eb58dbf3", size = 306136, upload-time = "2026-03-22T14:43:03.739Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/27/e564f33ea085c63d5540f707b31aeb50a4992eac2da655dc02435a760a07/pyrate_limiter-4.4.0.tar.gz", hash = "sha256:2c0c720c4fa16c5d8199e4821bf34507fb49c007a25b786cec6fb94ffd0844aa", size = 90955, upload-time = "2026-06-14T10:52:03.021Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/fd/57181fafae08385d00ea2702be246ab8035352a0a8e1f63391c2bcad74d4/pyrate_limiter-4.1.0-py3-none-any.whl", hash = "sha256:2696b4e4a6cffb3d40fc76662baccb766697893f0979e12bebbfc7d3b6b19603", size = 38197, upload-time = "2026-03-22T14:43:01.975Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/77/2b5ea2e5e343fd7f74ba9c50a282d7cb66d1be3d12bd647510338d78fcf1/pyrate_limiter-4.4.0-py3-none-any.whl", hash = "sha256:f738dfa3c7ac1222a5ea3d31e00cfd31b5592b13ade4077afe9e8ac6293381f5", size = 43102, upload-time = "2026-06-14T10:52:01.334Z" },
 ]
 
 [[package]]
