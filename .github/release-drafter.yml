@@ -24,6 +24,9 @@ categories:
     labels:
       - "github structure"
       - "removal"
+# PRs with this label are left out of the release notes entirely.
+exclude-labels:
+  - "skip-release"
 change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
 change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
 # major/minor/patch labels are intentionally not used here: Dependabot applies
