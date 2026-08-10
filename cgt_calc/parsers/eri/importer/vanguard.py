@@ -131,7 +131,7 @@ class VanguardImporter(ERIImporter):
                 amount = (
                     Decimal(0)
                     if isinstance(amount_raw, str) and amount_raw.lower() == "nil"
-                    else round_decimal(Decimal.from_float(amount_raw), 5)
+                    else round_decimal(Decimal(amount_raw), 5)
                 )
             except Exception as e:
                 raise ParsingError(file, f"Not valid ERI amount {amount_raw}") from e

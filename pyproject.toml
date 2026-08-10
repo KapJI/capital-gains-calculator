@@ -422,6 +422,7 @@ ignore = [
   "PLR0911", # Too many return statements ({returns} > {max_returns})
   "PLR0912", # Too many branches ({branches} > {max_branches})
   "PLR0913", # Too many arguments to function call ({c_args} > {max_args})
+  "PLR0917", # Too many positional arguments ({c_pos} > {max_pos})
   "PLR0915", # Too many statements ({statements} > {max_statements})
   "PLW2901", # Outer {outer_kind} variable {name} overwritten by inner {inner_kind} target
   "TRY003", # Avoid specifying long messages outside the exception class
