@@ -33,10 +33,18 @@ class CurrentPriceFetcher:
             return self.current_prices_data[symbol]
 
         ticker = yf.Ticker(symbol).info
-        if not ticker or "currentPrice" not in ticker:
+        if not ticker:
             return None
-        market_price_str = ticker["currentPrice"]
-        market_price_usd = Decimal(format(market_price_str, ".15g"))
+        # ETFs often lack currentPrice, e.g. VTI only has regularMarketPrice
+        # and navPrice.
+        market_price = (
+            ticker.get("currentPrice")
+            or ticker.get("regularMarketPrice")
+            or ticker.get("navPrice")
+        )
+        if market_price is None:
+            return None
+        market_price_usd = Decimal(format(market_price, ".15g"))
         return self.converter.to_gbp(
             market_price_usd, "USD", datetime.datetime.now().date()
         )
