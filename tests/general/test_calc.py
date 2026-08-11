@@ -14,10 +14,12 @@ import pytest
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
+from cgt_calc.exceptions import InvalidTransactionError
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import ActionType, BrokerTransaction, RuleType
+from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
 from tests.utils import build_cmd
@@ -153,6 +155,68 @@ def test_interest_tax_reversals_cancel_across_months() -> None:
     ]
     report = get_report(calculator, broker_transactions)
     assert report.total_interest_tax == Decimal(0)
+
+
+ERI_ISIN = "US5949181045"
+
+
+def test_eri_duplicate_report_within_tolerance_is_skipped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A second ERI report within the 0.0001 tolerance is a harmless duplicate.
+
+    ``add_eri`` compares consecutive reports for the same symbol/date with
+    ``approx_equal(previous_price, price, Decimal("0.0001"))``. Prices this
+    close should be treated as the same report arriving twice (e.g. from
+    overlapping input files) and simply skipped with a warning.
+    """
+    date = datetime.date(2024, 6, 30)
+    calculator = create_calculator()
+    calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
+
+    transactions: list[BrokerTransaction] = [
+        ERITransaction(
+            date=date, isin=ERI_ISIN, price=Decimal("1.00000"), currency="GBP"
+        ),
+        ERITransaction(
+            date=date, isin=ERI_ISIN, price=Decimal("1.00005"), currency="GBP"
+        ),
+    ]
+
+    calculator.convert_to_hmrc_transactions(transactions)
+
+    assert "Skipping duplicated ERI transaction" in caplog.text
+    assert calculator.eris[date]["VWRL"].price == Decimal("1.00000")
+
+
+def test_eri_conflicting_report_raises_invalid_transaction_error() -> None:
+    """A second ERI report that materially differs must raise, not be accepted.
+
+    Regression test: ``approx_equal`` used to ignore its ``approx_quantity``
+    argument and always compare against a hardcoded ``Decimal("0.01")``. Since
+    ``add_eri`` calls it with a much tighter ``Decimal("0.0001")`` tolerance to
+    tell apart a duplicate report from a genuinely conflicting one, that bug
+    made any two ERI prices within 0.01 GBP of each other silently accepted as
+    duplicates (first-seen price wins), even though they should have raised
+    ``InvalidTransactionError``. Here the prices differ by 0.005, which is
+    more than the intended 0.0001 tolerance but less than the old, buggy 0.01
+    one.
+    """
+    date = datetime.date(2024, 6, 30)
+    calculator = create_calculator()
+    calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
+
+    transactions: list[BrokerTransaction] = [
+        ERITransaction(
+            date=date, isin=ERI_ISIN, price=Decimal("1.0000"), currency="GBP"
+        ),
+        ERITransaction(
+            date=date, isin=ERI_ISIN, price=Decimal("1.0050"), currency="GBP"
+        ),
+    ]
+
+    with pytest.raises(InvalidTransactionError, match="conflicting ERI report"):
+        calculator.convert_to_hmrc_transactions(transactions)
 
 
 @pytest.mark.parametrize(
