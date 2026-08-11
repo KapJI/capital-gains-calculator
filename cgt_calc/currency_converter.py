@@ -155,7 +155,7 @@ class CurrencyConverter:
     def _write_exchange_rates_file(
         exchange_rates_file: Path | None, data: dict[datetime.date, dict[str, Decimal]]
     ) -> None:
-        if not exchange_rates_file or CGT_MODE != RuntimeMode.PROD:
+        if not exchange_rates_file:
             return
         with open_with_parents(exchange_rates_file) as fout:
             data_rows = [
@@ -300,6 +300,12 @@ class TestCurrencyConverter(CurrencyConverter):
                 writer.writerow([date, currency, str(value)])
             fcntl.flock(fout.fileno(), fcntl.LOCK_UN)
 
+    @staticmethod
+    def _write_exchange_rates_file(
+        _: Path | None, __: dict[datetime.date, dict[str, Decimal]]
+    ) -> None:
+        return
+
 
 class StrictTestCurrencyConverter(CurrencyConverter):
     """Sandboxed variant of CurrencyConverter that is used to run tests in CI."""
@@ -309,3 +315,9 @@ class StrictTestCurrencyConverter(CurrencyConverter):
             "HMRC values should be provided for tests to avoid flakiness! "
             "Run `pytest` (once) to populate them from HMRC data"
         )
+
+    @staticmethod
+    def _write_exchange_rates_file(
+        _: Path | None, __: dict[datetime.date, dict[str, Decimal]]
+    ) -> None:
+        return
