@@ -5,7 +5,7 @@ build-backend = "uv_build"
 [project]
 name = "cgt-calc"
 version = "0.0.0"
-description = "Calculate UK capital gains tax from broker exports — supports Charles Schwab, Trading 212, Morgan Stanley, Sharesight, and Vanguard."
+description = "Calculate UK capital gains tax from broker exports — supports Charles Schwab, Trading 212, Morgan Stanley, Sharesight, Hargreaves Lansdown and Vanguard."
 authors = [{ name = "Ruslan Sayfutdinov", email = "ruslan@sayfutdinov.com" }]
 readme = "README.md"
 license = { text = "MIT" }
@@ -25,6 +25,7 @@ keywords = [
   "Trading 212",
   "Morgan Stanley",
   "Sharesight",
+  "Hargreaves Lansdown",
   "Vanguard",
   "broker export",
   "financial reporting",
@@ -64,10 +65,12 @@ dev = [
   "pytest-clarity>=1.0.1",
   "pytest-env>=1.1.5",
   "pytest-xdist>=3.8.0",
+  "reportlab>=5.0.0",
   "ruff>=0.15.6",
   "types-colorama>=0.4.15.20250801",
   "types-defusedxml>=0.7.0.20250822",
   "types-python-dateutil>=2.9.0.20250822",
+  "types-reportlab>=4.5.1.20260807",
   "types-requests>=2.32.4.20250913",
 ]
 
