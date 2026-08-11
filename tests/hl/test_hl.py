@@ -1,16 +1,11 @@
 """Tests for Hargreaves Lansdown parser."""
 
-from typing import TYPE_CHECKING
-
-import pytest
-
-if TYPE_CHECKING:
-    from pathlib import Path
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 
+import pytest
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
