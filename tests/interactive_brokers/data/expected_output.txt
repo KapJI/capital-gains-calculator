@@ -12,16 +12,18 @@ Disposal proceeds: £2002.00
 
 Second pass completed
 Portfolio at the end of 2025/2026 tax year:
-  CNX1: 2.00, £2001.50
+  CNX1: 2.00, £2007.77
 For tax year 2025/2026:
+Excess Reported Income:
+  CNX1: £12.54 (included as dividend)
 Number of disposals: 1
 Disposal proceeds: £2002.00
-Allowable costs: £2004.50
+Allowable costs: £2010.77
 Capital gain: £0.00
-Capital loss: £2.50
-Total capital gain: £-2.50
+Capital loss: £8.77
+Total capital gain: £-8.77
 Taxable capital gain: £0
-Total dividends proceeds: £21.00
+Total dividends proceeds: £33.54
 Total amount of dividends tax yearly allowance: £500.00
 Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
