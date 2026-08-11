@@ -172,7 +172,7 @@ def test_hl_unknown_reference_raises(tmp_path: Path) -> None:
         HargreavesLansdownParser().load_from_file(csv_file)
 
     message = str(exc.value)
-    assert "Unknown reference" in message
+    assert "Unknown transaction type" in message
     assert "D302087099" in message
 
 
