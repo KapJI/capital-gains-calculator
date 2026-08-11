@@ -637,6 +637,7 @@ class CapitalGainsCalculator:
                             )
                             # filter out ERI transactions, they don't affect the balance
                             if trx.action != ActionType.EXCESS_REPORTED_INCOME
+                            and trx.broker == transaction.broker
                         ]
                     )
                     + "\n"
