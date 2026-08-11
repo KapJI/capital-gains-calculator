@@ -219,7 +219,7 @@ class InteractiveBrokersParser(StandardCSVParser):
     @staticmethod
     def _by_date_and_action(
         transaction: BrokerTransaction,
-    ) -> tuple[datetime, bool]:
+    ) -> tuple[datetime.date, bool]:
         """Sort by date and action type."""
 
         # If there's a deposit in the same second as a buy
@@ -231,6 +231,6 @@ class InteractiveBrokersParser(StandardCSVParser):
     def post_process_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:
-        """Remove duplicates and sort."""
+        """Sort transactions by date, buys last."""
         transactions.sort(key=cls._by_date_and_action)
         return transactions
