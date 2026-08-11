@@ -108,6 +108,79 @@ def test_read_mssb_withdrawal_skips_notice(tmp_path: Path) -> None:
     assert transaction.fees == Decimal(0)
 
 
+def test_read_mssb_withdrawal_goog_sale_before_split_window(tmp_path: Path) -> None:
+    """Ensure a GOOG sale shortly before the July 15, 2022 split is adjusted.
+
+    Morgan Stanley's own notice states that sales occurring "on or prior to
+    the July 15, 2022 stock split are reflected in pre-split" values. This
+    covers the previously mishandled window (2022-06-15 to 2022-07-14) where
+    a bug in STOCK_SPLIT_INFO used June 15 instead of July 15, causing these
+    sales to be skipped for the 20x split adjustment.
+    """
+
+    withdrawal_file = tmp_path / WITHDRAWALS_REPORT_FILENAME
+    rows = [
+        COLUMNS_WITHDRAWAL,
+        [
+            "01-Jul-2022",
+            "ORDER-4",
+            "GSU Class C",
+            "Sale",
+            "Complete",
+            "$2,240.00",
+            "-2.00",
+            "$4,479.90",
+            "0",
+            "N/A",
+        ],
+    ]
+    _write_csv(withdrawal_file, rows)
+
+    transactions = MSSBParser().load_from_dir(tmp_path)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action == ActionType.SELL
+    expected_symbol = TICKER_RENAMES.get("GOOG", "GOOG")
+    assert transaction.symbol == expected_symbol
+    # Pre-split values reported by Morgan Stanley get multiplied by the
+    # split factor (20) for quantity and divided by it for price.
+    assert transaction.quantity == Decimal("40.00")
+    assert transaction.price == Decimal("112.00")
+
+
+def test_read_mssb_withdrawal_goog_sale_after_split_not_adjusted(
+    tmp_path: Path,
+) -> None:
+    """Ensure a GOOG sale on the split date itself is treated as post-split."""
+
+    withdrawal_file = tmp_path / WITHDRAWALS_REPORT_FILENAME
+    rows = [
+        COLUMNS_WITHDRAWAL,
+        [
+            "15-Jul-2022",
+            "ORDER-5",
+            "GSU Class C",
+            "Sale",
+            "Complete",
+            "$112.00",
+            "-40.00",
+            "$4,479.90",
+            "0",
+            "N/A",
+        ],
+    ]
+    _write_csv(withdrawal_file, rows)
+
+    transactions = MSSBParser().load_from_dir(tmp_path)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    # No adjustment should be applied on/after the split date.
+    assert transaction.quantity == Decimal("40.00")
+    assert transaction.price == Decimal("112.00")
+
+
 def test_read_mssb_withdrawal_invalid_decimal(tmp_path: Path) -> None:
     """Raise parsing error when numeric values cannot be parsed."""
 

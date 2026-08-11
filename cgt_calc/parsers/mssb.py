@@ -77,7 +77,7 @@ class StockSplit:
 
 
 STOCK_SPLIT_INFO = [
-    StockSplit(symbol="GOOG", date=datetime.datetime(2022, 6, 15).date(), factor=20),
+    StockSplit(symbol="GOOG", date=datetime.datetime(2022, 7, 15).date(), factor=20),
 ]
 
 
