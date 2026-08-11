@@ -145,6 +145,7 @@ def test_broker_file_arguments_reject_missing_path(
 @pytest.mark.parametrize(
     ("option", "attr", "dirname"),
     [
+        ("--hl-dir", "hl_dir", "hl"),
         ("--mssb-dir", "mssb_dir", "mssb"),
         ("--sharesight-dir", "sharesight_dir", "sharesight"),
         ("--trading212-dir", "trading212_dir", "trading212"),

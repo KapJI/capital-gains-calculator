@@ -215,3 +215,22 @@ class InteractiveBrokersParser(StandardCSVParser):
             file_path,
             "Couldn't find Transaction History header, is this the right file?",
         )
+
+    @staticmethod
+    def _by_date_and_action(
+        transaction: BrokerTransaction,
+    ) -> tuple[datetime.date, bool]:
+        """Sort by date and action type."""
+
+        # If there's a deposit in the same second as a buy
+        # (happens with the referral award at least)
+        # we want to put the buy last to avoid negative balance errors
+        return (transaction.date, transaction.action == ActionType.BUY)
+
+    @classmethod
+    def post_process_transactions(
+        cls, transactions: list[BrokerTransaction]
+    ) -> list[BrokerTransaction]:
+        """Sort transactions by date, buys last."""
+        transactions.sort(key=cls._by_date_and_action)
+        return transactions

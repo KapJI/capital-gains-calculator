@@ -41,6 +41,7 @@ class BaseSingleFileParser(BaseParser):
     format_name: str
     full_arg: str
     deprecated_flags: ClassVar[list[str]] = []
+    encoding: str = "utf-8"
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Compute full arg."""
@@ -81,13 +82,13 @@ class BaseSingleFileParser(BaseParser):
         cls, file_path: Path, warn_on_empty: bool = True, show_parsing_msg: bool = True
     ) -> list[BrokerTransaction]:
         """Load broker data from file path."""
-        with file_path.open(encoding="utf-8") as file:
+        with file_path.open(encoding=cls.encoding) as file:
             if show_parsing_msg:
                 print(f"Parsing {file_path}...")
             transactions = cls.read_transactions(file, file_path)
             if not transactions and warn_on_empty:
                 LOGGER.warning("No transactions detected in file %s", file_path)
-            return transactions
+            return cls.post_process_transactions(transactions)
 
     @classmethod
     @abstractmethod
@@ -95,6 +96,13 @@ class BaseSingleFileParser(BaseParser):
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
         """Parse broker transactions from open file."""
+
+    @classmethod
+    def post_process_transactions(
+        cls, transactions: list[BrokerTransaction]
+    ) -> list[BrokerTransaction]:
+        """Do any required post processing after loading all the transactions in the dir."""
+        return transactions
 
 
 class StandardCSVParser(BaseSingleFileParser):

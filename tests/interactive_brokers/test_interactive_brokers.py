@@ -223,3 +223,44 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         # disposal however it is grouped downstream.
         assert transactions[0].quantity is None
         assert transactions[0].price is None
+
+    def test_buy_before_same_day_sell_does_not_go_negative(
+        self, tmp_path: Path
+    ) -> None:
+        """A same-day buy listed before the sell funding it must not go negative.
+
+        The file lists the buy of AAA before the sell of BBB on the same day,
+        even though the cash to pay for the buy only exists once the sell is
+        accounted for. If the transactions were processed in file order the
+        cash balance would briefly go negative and trip the balance check.
+        Sorting sells before buys on the same day (post_process_transactions)
+        avoids that, and the amounts are chosen so the buy exactly consumes
+        the sell's proceeds, leaving a final cash balance of zero.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header
+            + "Transaction History,Data,2025-01-01,U***00000,Electronic Fund Transfer,Deposit,-,-,-,1000.0,-,1000.0\n"
+            + "Transaction History,Data,2025-01-01,U***00000,BBB STOCK,Buy,BBB,10.0,100.0,-1000.0,-,-1000.0\n"
+            # Same day, buy listed before the sell that funds it.
+            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,10.0,100.0,-1000.0,-,-1000.0\n"
+            + "Transaction History,Data,2025-06-02,U***00000,BBB STOCK,Sell,BBB,-10.0,100.0,1000.0,-,1000.0\n"
+        )
+
+        cmd = build_cmd(
+            "--year",
+            "2025",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--output",
+            str(tmp_path / "out"),
+        )
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode:
+            pytest.fail(
+                "Integration test failed\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+        assert result.stderr == ""
+        assert "Final balance:\n  Interactive Brokers: 0.00 (GBP)" in result.stdout

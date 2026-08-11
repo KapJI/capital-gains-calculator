@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from cgt_calc.parsers.eri.raw import ERIRawParser
 from cgt_calc.parsers.freetrade import FreetradeParser
+from cgt_calc.parsers.hl import HargreavesLansdownParser
 from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
 from cgt_calc.parsers.mssb import MSSBParser
 from cgt_calc.parsers.raw import RawParser
@@ -40,6 +41,7 @@ class BrokerRegistry:
         MSSBParser,
         VanguardParser,
         InteractiveBrokersParser,
+        HargreavesLansdownParser,
         # Add new brokers here
     ]
 

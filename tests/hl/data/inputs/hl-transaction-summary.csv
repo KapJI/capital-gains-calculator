@@ -1,0 +1,11 @@
+Transaction Summary, , , ,
+Client Name:,Anonymous User, , ,
+Client Number:,1234567, , ,
+Valuation as at,09-08-2026 16:40, , ,
+
+Trade date,Settle date,Reference,Description,Unit cost (p),Quantity,Value (£),
+"04/04/2026","04/04/2026","MANAGE FEE","HL Fund & Share Account To A/C 01C0450818220","n/a","n/a","-4.05"
+"09/03/2026","09/03/2026","INTEREST","Interest From 10/02/2026 TO 09/03/2026","n/a","n/a","3.87"
+"25/02/2026","27/02/2026","S302087055","Vanguard FTSE Developed World UCITS ETF 1000 @  4500.00","4,500.000","1,000","44,988.05"
+"24/01/2026","26/01/2026","B302087054","Vanguard FTSE Developed World UCITS ETF 4563 @  3287.199","3,287.199","4,563","-150,006.84"
+"24/01/2026","24/01/2026","FPC","HL Fund & Share Account Receipt Pay By Bank","n/a","n/a","50,000.00"
