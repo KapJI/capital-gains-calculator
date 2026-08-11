@@ -14,6 +14,9 @@ categories:
   - title: "🏅 Code Quality Improvements"
     labels:
       - "code quality"
+  - title: "🧪 Testing"
+    labels:
+      - "testing"
   - title: "🧱 Dependency Updates"
     labels:
       - "dependencies"
@@ -21,20 +24,41 @@ categories:
     labels:
       - "github structure"
       - "removal"
+# PRs with this label are left out of the release notes entirely.
+exclude-labels:
+  - "skip-release"
 change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
 change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
+# major/minor/patch labels are intentionally not used here: Dependabot applies
+# them to describe the dependency's own version jump, which says nothing about
+# this project's API.
 version-resolver:
   major:
     labels:
-      - "major"
+      - "breaking"
   minor:
     labels:
-      - "minor"
       - "feature"
-  patch:
-    labels:
-      - "patch"
   default: patch
+autolabeler:
+  - label: "bug"
+    title:
+      - "/^fix[:(]/i"
+  - label: "feature"
+    title:
+      - "/^feat[:(]/i"
+  - label: "documentation"
+    title:
+      - "/^docs[:(]/i"
+  - label: "testing"
+    title:
+      - "/^test[:(]/i"
+  - label: "github structure"
+    title:
+      - "/^ci[:(]/i"
+  - label: "code quality"
+    title:
+      - "/^refactor[:(]/i"
 template: |
   ## Changes
 

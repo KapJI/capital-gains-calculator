@@ -7,8 +7,15 @@ updates:
     labels:
       - "dependencies"
   - package-ecosystem: github-actions
-    directory: "/"
+    directories:
+      # Workflows in .github/workflows
+      - "/"
+      # Composite actions are not covered by "/" and must be listed explicitly
+      - "/.github/actions/*"
     schedule:
       interval: weekly
     labels:
       - "dependencies"
+      # Kodiak automerges any PR with this label. GitHub Actions major bumps
+      # are safe to automerge; uv (Python) majors stay manual.
+      - "automerge"

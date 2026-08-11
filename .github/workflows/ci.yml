@@ -79,13 +79,14 @@ jobs:
         run: |
           docker run --rm \
             -e ENABLE_PDFLATEX=1 \
+            -e CGT_TEST_MODE_STRICT=1 \
             -v "${{ github.workspace }}:/build" \
             local/cgt-calc:test \
             -lc "cd /build && uv run pytest -q"
 
       - name: Upload e2e tests outputs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-outputs
           path: out/test-*

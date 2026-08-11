@@ -79,10 +79,13 @@ class ERIRawParser(BaseSingleFileParser):
     @staticmethod
     def _validate_header(header: list[str], file: Path, columns: list[str]) -> None:
         """Check if header is valid."""
-        for actual in header:
-            if actual not in columns:
-                msg = f"Unknown column {actual}"
-                raise ParsingError(file, msg)
+        unknown_columns = sorted(set(header) - set(columns))
+        if unknown_columns:
+            raise ParsingError(
+                file,
+                f"Unknown columns: {', '.join(unknown_columns)}",
+                row_index=1,
+            )
 
     @classmethod
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
@@ -112,5 +115,11 @@ class ERIRawParser(BaseSingleFileParser):
 
         ERIRawParser._validate_header(header, file_path, COLUMNS)
 
-        lines = lines[1:]
-        return [ERIRaw(header, row, file_path) for row in lines]
+        transactions: list[BrokerTransaction] = []
+        for index, row in enumerate(lines[1:], start=2):
+            try:
+                transactions.append(ERIRaw(header, row, file_path))
+            except ParsingError as err:
+                err.add_row_context(index)
+                raise
+        return transactions

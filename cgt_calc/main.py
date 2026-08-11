@@ -17,9 +17,12 @@ from .const import (
     BED_AND_BREAKFAST_DAYS,
     CAPITAL_GAIN_ALLOWANCES,
     DIVIDEND_ALLOWANCES,
+    DIVIDEND_CURRENCY_TO_COUNTRY,
     DIVIDEND_DOUBLE_TAXATION_RULES,
     ERI_TAX_DATE_DELTA,
     INTERNAL_START_DATE,
+    ISIN_COUNTRY_CODE_LENGTH,
+    RENAME_DESCRIPTION_PREFIX,
     UK_CURRENCY,
 )
 from .currency_converter import CurrencyConverter
@@ -172,15 +175,21 @@ class CapitalGainsCalculator:
         self.interest_fund_tickers = interest_fund_tickers
         self.total_uk_interest = Decimal(0)
         self.total_foreign_interest = Decimal(0)
+        self.total_interest_tax = Decimal(0)
 
         self.acquisition_list: HmrcTransactionLog = {}
         self.disposal_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
         self.split_list: dict[tuple[str, datetime.date], Decimal] = {}
+        # Stores old->new mapping when a symbol changes its name.
+        self.rename_list: dict[datetime.date, dict[str, str]] = defaultdict(dict)
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.interest_list: dict[
+            tuple[str, str, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
+        self.interest_tax_list: dict[
             tuple[str, str, datetime.date], ForeignCurrencyAmount
         ] = defaultdict(ForeignCurrencyAmount)
 
@@ -495,6 +504,7 @@ class CapitalGainsCalculator:
         dividends: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         dividends_tax: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         interests: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+        interest_taxes: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         total_disposal_proceeds = Decimal(0)
         balance_history: list[Decimal] = []
 
@@ -590,9 +600,23 @@ class CapitalGainsCalculator:
                 ] += ForeignCurrencyAmount(amount, transaction.currency)
                 if self.date_in_tax_year(transaction.date):
                     interests[(transaction.broker, transaction.currency)] += amount
+            elif transaction.action is ActionType.INTEREST_TAX:
+                amount = get_amount_or_fail(transaction)
+                new_balance += amount
+                self.interest_tax_list[
+                    (transaction.broker, transaction.currency, transaction.date)
+                ] += ForeignCurrencyAmount(amount, transaction.currency)
+                if self.date_in_tax_year(transaction.date):
+                    interest_taxes[(transaction.broker, transaction.currency)] += amount
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
+            elif transaction.action is ActionType.RENAME:
+                new_symbol = get_symbol_or_fail(transaction)
+                assert transaction.description.startswith(RENAME_DESCRIPTION_PREFIX)
+                old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
+                self.rename_list[transaction.date][old_symbol] = new_symbol
+                self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
             else:
@@ -622,7 +646,12 @@ class CapitalGainsCalculator:
             balance[(transaction.broker, transaction.currency)] = new_balance
 
         self.first_pass_report(
-            balance, dividends, dividends_tax, interests, total_disposal_proceeds
+            balance,
+            dividends,
+            dividends_tax,
+            interests,
+            interest_taxes,
+            total_disposal_proceeds,
         )
 
     def first_pass_report(
@@ -631,6 +660,7 @@ class CapitalGainsCalculator:
         dividends: dict[tuple[str, str], Decimal],
         dividends_tax: dict[tuple[str, str], Decimal],
         interests: dict[tuple[str, str], Decimal],
+        interest_taxes: dict[tuple[str, str], Decimal],
         total_disposal_proceeds: Decimal,
     ) -> None:
         """Print the results of the first pass."""
@@ -651,6 +681,10 @@ class CapitalGainsCalculator:
             print("Interests:")
             for (broker, currency), amount in interests.items():
                 print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
+        if interest_taxes:
+            print("Interest taxes:")
+            for (broker, currency), amount in interest_taxes.items():
+                print(f"  {broker}: {round_decimal(-amount, 2)} ({currency})")
         print(f"Disposal proceeds: £{round_decimal(total_disposal_proceeds, 2)}")
         print()
 
@@ -839,33 +873,38 @@ class CapitalGainsCalculator:
                 eris.append(eri)
 
             split_multiplier = Decimal(1)
+            effective_symbol = symbol
 
             for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = date_index + datetime.timedelta(days=i + 1)
+                # HMRC treats renames as the same security for B&B purposes.
+                effective_symbol = self.rename_list.get(search_index, {}).get(
+                    effective_symbol, effective_symbol
+                )
 
                 # Check if there was any stock split, in which case we need to adjust the B&D quantity
                 split_multiplier *= self.split_list.get(
-                    (symbol, search_index), Decimal(1)
+                    (effective_symbol, search_index), Decimal(1)
                 )
 
                 # ERI are distributed annually but when a fund close we might have
                 # multiple ERI distribution in close succession
-                eri = self.get_eri(symbol, search_index)
+                eri = self.get_eri(effective_symbol, search_index)
                 if eri:
                     eris.append(eri)
-                if has_key(self.acquisition_list, search_index, symbol):
-                    acquisition = self.acquisition_list[search_index][symbol]
+                if has_key(self.acquisition_list, search_index, effective_symbol):
+                    acquisition = self.acquisition_list[search_index][effective_symbol]
 
                     bnb_acquisition = (
-                        self.bnb_list[search_index][symbol]
-                        if has_key(self.bnb_list, search_index, symbol)
+                        self.bnb_list[search_index][effective_symbol]
+                        if has_key(self.bnb_list, search_index, effective_symbol)
                         else HmrcTransactionData()
                     )
                     assert bnb_acquisition.quantity <= acquisition.quantity
 
                     same_day_disposal = (
-                        self.disposal_list[search_index][symbol]
-                        if has_key(self.disposal_list, search_index, symbol)
+                        self.disposal_list[search_index][effective_symbol]
+                        if has_key(self.disposal_list, search_index, effective_symbol)
                         else HmrcTransactionData()
                     )
                     if same_day_disposal.quantity > acquisition.quantity:
@@ -894,7 +933,9 @@ class CapitalGainsCalculator:
                             search_index,
                         )
                         continue
-                    LOGGER.warning(
+                    # Bed and breakfasting is a record of how the disposal was
+                    # matched rather than a problem, so it is logged at INFO.
+                    LOGGER.info(
                         "Bed and breakfasting for %s. "
                         "Disposed on %s and acquired again on %s",
                         symbol,
@@ -977,7 +1018,7 @@ class CapitalGainsCalculator:
                     add_to_list(
                         self.bnb_list,
                         search_index,
-                        symbol,
+                        effective_symbol,
                         available_quantity * split_multiplier,
                         amount_delta + total_dist_amount,
                         Decimal(0),
@@ -1057,6 +1098,21 @@ class CapitalGainsCalculator:
             spin_off_entry,
         )
 
+    def process_rename(self, old: str, new: str) -> CalculationEntry:
+        """Transfer pool from old ticker to new ticker (no disposal)."""
+        pos = self.portfolio.pop(old, Position())
+        self.portfolio[new] += pos
+        return CalculationEntry(
+            rule_type=RuleType.RENAME,
+            quantity=pos.quantity,
+            amount=Decimal(0),
+            fees=Decimal(0),
+            new_quantity=self.portfolio[new].quantity,
+            new_pool_cost=self.portfolio[new].amount,
+            allowable_cost=pos.amount,
+            renamed_to=new,
+        )
+
     def process_eri(
         self,
         symbol: str,
@@ -1108,35 +1164,42 @@ class CapitalGainsCalculator:
             eris=[eri],
         )
 
+    def _group_by_month(
+        self,
+        entries: dict[tuple[str, str, datetime.date], ForeignCurrencyAmount],
+    ) -> dict[tuple[str, str, datetime.date], ForeignCurrencyAmount]:
+        """Group in-tax-year amounts by month, keyed by the month's last date."""
+        monthly: dict[tuple[str, str, datetime.date], ForeignCurrencyAmount] = (
+            defaultdict(ForeignCurrencyAmount)
+        )
+        last_date: datetime.date = datetime.date.min
+        last_broker: str | None = None
+        last_currency: str | None = None
+
+        for (broker, currency, date), foreign_amount in sorted(entries.items()):
+            if not self.date_in_tax_year(date):
+                continue
+            if (
+                broker == last_broker
+                and currency == last_currency
+                and (date.year, date.month) == (last_date.year, last_date.month)
+            ):
+                monthly[(broker, currency, date)] = monthly.pop(
+                    (broker, currency, last_date)
+                )
+            monthly[(broker, currency, date)] += foreign_amount
+            last_date = date
+            last_broker = broker
+            last_currency = currency
+        return monthly
+
     def process_interests(self) -> None:
         """Process all interest events.
 
         It groups them by month, using the last date on each month for the report
         and updates the interest totals for the year.
         """
-        monthly_interests: dict[
-            tuple[str, str, datetime.date], ForeignCurrencyAmount
-        ] = defaultdict(ForeignCurrencyAmount)
-        last_date: datetime.date = datetime.date.min
-        last_broker: str | None = None
-        last_currency: str | None = None
-
-        for (broker, currency, date), foreign_amount in sorted(
-            self.interest_list.items()
-        ):
-            if self.date_in_tax_year(date):
-                if (
-                    broker == last_broker
-                    and date.month == last_date.month
-                    and currency == last_currency
-                ):
-                    monthly_interests[(broker, currency, date)] = monthly_interests.pop(
-                        (broker, currency, last_date)
-                    )
-                monthly_interests[(broker, currency, date)] += foreign_amount
-                last_date = date
-                last_broker = broker
-                last_currency = currency
+        monthly_interests = self._group_by_month(self.interest_list)
 
         for (broker, currency, date), foreign_amount in monthly_interests.items():
             gbp_amount = self.currency_converter.to_gbp(
@@ -1160,12 +1223,52 @@ class CapitalGainsCalculator:
                 )
             ]
 
+        monthly_interest_taxes = self._group_by_month(self.interest_tax_list)
+
+        for (broker, currency, date), foreign_amount in monthly_interest_taxes.items():
+            gbp_amount = self.currency_converter.to_gbp(
+                foreign_amount.amount, foreign_amount.currency, date
+            )
+            # Withholding rows are negative, so negate rather than abs():
+            # positive reversal rows then cancel out across months.
+            tax_amount = -gbp_amount
+            rule_prefix = f"interestTax{currency.upper()}"
+            self.total_interest_tax += tax_amount
+
+            self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
+                CalculationEntry(
+                    rule_type=RuleType.INTEREST_TAX,
+                    quantity=Decimal(1),
+                    amount=tax_amount,
+                    new_quantity=Decimal(1),
+                    new_pool_cost=Decimal(0),
+                    fees=Decimal(0),
+                )
+            ]
+
+    def dividend_source_country(self, symbol: str, currency: str) -> str | None:
+        """Return the country a dividend was paid from, or None if unknown.
+
+        The ISIN a security is registered under is the authority. Where no
+        parser supplied one, fall back to guessing from the currency, which is
+        what the calculator did before ISINs were consulted.
+        """
+        isin = self.isin_converter.get_symbol_to_isin_map().get(symbol)
+        if isin is not None:
+            return isin[:ISIN_COUNTRY_CODE_LENGTH]
+        return DIVIDEND_CURRENCY_TO_COUNTRY.get(currency)
+
     def process_dividends(self) -> None:
         """Process all dividends events and taxes.
 
         It updates the interest total for the year if needed.
         """
         for (symbol, date), foreign_amount in self.dividend_list.items():
+            # Dividends outside the computed tax year are not reported, so
+            # neither are the warnings raised while resolving their treaty.
+            if not self.date_in_tax_year(date):
+                continue
+
             tax = self.dividend_tax_list[(symbol, date)]
 
             treaty = None
@@ -1175,23 +1278,30 @@ class CapitalGainsCalculator:
                     LOGGER.warning(
                         "Cannot apply taxation treaty for bond fund %s", symbol
                     )
-                elif foreign_amount.currency != UK_CURRENCY:
+                else:
                     assert tax.currency == foreign_amount.currency, (
                         f"Not matching currency for dividend {foreign_amount.currency} "
                         f"and its tax {tax.currency}"
                     )
-                    try:
-                        treaty = DIVIDEND_DOUBLE_TAXATION_RULES[foreign_amount.currency]
-                    except KeyError:
+                    country = self.dividend_source_country(
+                        symbol, foreign_amount.currency
+                    )
+                    if country is None:
                         LOGGER.warning(
-                            "Taxation treaty for %s country is missing (ticker: %s), "
+                            "Source country of the %s dividend is unknown (ticker: %s), "
                             "double taxation rules cannot be determined!",
                             foreign_amount.currency,
                             symbol,
                         )
-                        treaty = None
+                    elif country not in DIVIDEND_DOUBLE_TAXATION_RULES:
+                        LOGGER.warning(
+                            "Taxation treaty for %s country is missing (ticker: %s), "
+                            "double taxation rules cannot be determined!",
+                            country,
+                            symbol,
+                        )
                     else:
-                        assert treaty is not None
+                        treaty = DIVIDEND_DOUBLE_TAXATION_RULES[country]
                         expected_tax = treaty.country_rate * -foreign_amount.amount
                         if not approx_equal(expected_tax, tax.amount):
                             LOGGER.warning(
@@ -1212,30 +1322,29 @@ class CapitalGainsCalculator:
                 tax.amount, foreign_amount.currency, date
             )
 
-            if self.date_in_tax_year(date):
-                dividend = Dividend(
-                    date=date,
-                    symbol=symbol,
+            dividend = Dividend(
+                date=date,
+                symbol=symbol,
+                amount=amount,
+                tax_at_source=tax_amount,
+                is_interest=is_interest_fund,
+                tax_treaty=treaty,
+            )
+
+            self.calculation_log_yields[date][f"dividend${symbol}"] = [
+                CalculationEntry(
+                    rule_type=RuleType.DIVIDEND,
+                    quantity=Decimal(1),
                     amount=amount,
-                    tax_at_source=tax_amount,
-                    is_interest=is_interest_fund,
-                    tax_treaty=treaty,
+                    new_quantity=Decimal(1),
+                    new_pool_cost=Decimal(0),
+                    fees=Decimal(0),
+                    dividend=dividend,
                 )
+            ]
 
-                self.calculation_log_yields[date][f"dividend${symbol}"] = [
-                    CalculationEntry(
-                        rule_type=RuleType.DIVIDEND,
-                        quantity=Decimal(1),
-                        amount=amount,
-                        new_quantity=Decimal(1),
-                        new_pool_cost=Decimal(0),
-                        fees=Decimal(0),
-                        dividend=dividend,
-                    )
-                ]
-
-                if is_interest_fund:
-                    self.total_foreign_interest += amount
+            if is_interest_fund:
+                self.total_foreign_interest += amount
 
     def calculate_capital_gain(
         self,
@@ -1330,6 +1439,12 @@ class CapitalGainsCalculator:
                                 f"spin-off${spin_off.source}"
                             ] = [spin_off_entry]
 
+            if date_index in self.rename_list:
+                for old, new in self.rename_list[date_index].items():
+                    entry = self.process_rename(old, new)
+                    if date_index >= tax_year_start_index:
+                        calculation_log[date_index][f"rename${old}"] = [entry]
+
             # Excess Reported incomes should be reported at the end of the day
             if date_index in self.eris:
                 for symbol in self.eris[date_index]:
@@ -1399,6 +1514,7 @@ class CapitalGainsCalculator:
             dict(sorted(self.calculation_log_yields.items())),
             round_decimal(self.total_uk_interest, 2),
             round_decimal(self.total_foreign_interest, 2),
+            round_decimal(self.total_interest_tax, 2),
             show_unrealized_gains=self.calc_unrealized_gains,
         )
 
@@ -1432,7 +1548,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     # Read data from input files
     isin_converter = IsinConverter(isin_translation_file)
     broker_transactions = BrokerRegistry.load_all_transactions(args, isin_converter)
-    currency_converter = CurrencyConverter(args.exchange_rates_file)
+    currency_converter = CurrencyConverter.create(args.exchange_rates_file)
     price_fetcher = CurrentPriceFetcher(currency_converter)
     initial_prices = InitialPrices(args.initial_prices_file)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)

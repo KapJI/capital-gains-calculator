@@ -332,8 +332,9 @@ class Trading212Parser(BaseDirParser):
         """Check if header is valid. Not all columns exist in every export."""
         unknown = set(header) - COLUMN_SET
         if unknown:
-            msg = f"Unknown column(s) {', '.join(sorted(unknown))}"
-            raise ParsingError(file, msg)
+            raise ParsingError(
+                file, f"Unknown column(s) {', '.join(sorted(unknown))}", row_index=1
+            )
 
     @staticmethod
     def _by_date_and_action(
