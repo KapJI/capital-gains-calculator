@@ -16,14 +16,16 @@ if TYPE_CHECKING:
 class FakeTicker:
     """Stand-in for yf.Ticker that returns a canned info dict."""
 
-    def __init__(self, info: dict[str, float]) -> None:
+    def __init__(self, info: dict[str, float | str]) -> None:
         """Store the info dict to return."""
         self.info = info
 
 
 def _fetcher() -> CurrentPriceFetcher:
     today = datetime.datetime.now().date()
-    converter = CurrencyConverter(None, {today: {"USD": Decimal("1.25")}})
+    converter = CurrencyConverter(
+        None, {today: {"USD": Decimal("1.25"), "EUR": Decimal("1.15")}}
+    )
     return CurrentPriceFetcher(converter)
 
 
@@ -80,3 +82,43 @@ def test_returns_none_when_ticker_info_is_empty(
         lambda symbol: FakeTicker({}),
     )
     assert _fetcher().get_current_market_price("UNKNOWN") is None
+
+
+def test_gbp_pence_quoted_ticker_is_divided_by_100(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LSE-listed tickers are quoted in pence ("GBp"), not pounds or USD.
+
+    yfinance's "GBp" is not a real ISO currency code, so it must be
+    converted directly to GBP rather than looked up via CurrencyConverter.
+    """
+    monkeypatch.setattr(
+        "cgt_calc.current_price_fetcher.yf.Ticker",
+        lambda symbol: FakeTicker({"currentPrice": 100.0, "currency": "GBp"}),
+    )
+    price = _fetcher().get_current_market_price("VOD.L")
+    assert price == Decimal("1.0")
+
+
+def test_eur_quoted_ticker_uses_eur_rate_not_usd(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A EUR-quoted ticker should be converted using the EUR rate, not USD."""
+    monkeypatch.setattr(
+        "cgt_calc.current_price_fetcher.yf.Ticker",
+        lambda symbol: FakeTicker({"currentPrice": 100.0, "currency": "EUR"}),
+    )
+    price = _fetcher().get_current_market_price("MC.PA")
+    assert price == Decimal("100.0") / Decimal("1.15")
+
+
+def test_defaults_to_usd_when_currency_field_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When "currency" is missing from ticker info, fall back to USD."""
+    monkeypatch.setattr(
+        "cgt_calc.current_price_fetcher.yf.Ticker",
+        lambda symbol: FakeTicker({"currentPrice": 100.0}),
+    )
+    price = _fetcher().get_current_market_price("AAPL")
+    assert price == Decimal("100.0") / Decimal("1.25")
