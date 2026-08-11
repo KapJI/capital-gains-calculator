@@ -637,6 +637,7 @@ class CapitalGainsCalculator:
                             )
                             # filter out ERI transactions, they don't affect the balance
                             if trx.action != ActionType.EXCESS_REPORTED_INCOME
+                            and trx.broker == transaction.broker
                         ]
                     )
                     + "\n"
@@ -1548,7 +1549,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     # Read data from input files
     isin_converter = IsinConverter(isin_translation_file)
     broker_transactions = BrokerRegistry.load_all_transactions(args, isin_converter)
-    currency_converter = CurrencyConverter(args.exchange_rates_file)
+    currency_converter = CurrencyConverter.create(args.exchange_rates_file)
     price_fetcher = CurrentPriceFetcher(currency_converter)
     initial_prices = InitialPrices(args.initial_prices_file)
     spin_off_handler = SpinOffHandler(args.spin_offs_file)

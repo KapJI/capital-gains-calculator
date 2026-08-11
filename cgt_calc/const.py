@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+from enum import Enum
 import os
 from pathlib import Path
 from typing import Final
@@ -75,7 +76,25 @@ ISIN_COUNTRY_CODE_LENGTH: Final = 2
 # General constants
 # =============================================================================
 
-CGT_TEST_MODE = os.environ.get("CGT_TEST_MODE", "0") == "1"
+
+class RuntimeMode(Enum):
+    """Runtime mode, used to differentiate testing behaviors."""
+
+    # Default
+    PROD = 1
+    # pytest
+    TEST = 2
+    # pytest within pre-commit hook
+    TEST_STRICT = 3
+
+
+CGT_MODE: Final = (
+    RuntimeMode.TEST_STRICT
+    if os.environ.get("CGT_TEST_MODE_STRICT", "0") == "1"
+    else RuntimeMode.TEST
+    if os.environ.get("CGT_TEST_MODE", "0") == "1"
+    else RuntimeMode.PROD
+)
 INTERNAL_START_DATE: Final = datetime.date(2010, 1, 1)
 
 # Bed and Breakfast rule: HMRC requires matching disposals with acquisitions

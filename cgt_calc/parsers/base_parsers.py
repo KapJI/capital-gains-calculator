@@ -88,7 +88,7 @@ class BaseSingleFileParser(BaseParser):
             transactions = cls.read_transactions(file, file_path)
             if not transactions and warn_on_empty:
                 LOGGER.warning("No transactions detected in file %s", file_path)
-            return transactions
+            return cls.post_process_transactions(transactions)
 
     @classmethod
     @abstractmethod
@@ -96,6 +96,13 @@ class BaseSingleFileParser(BaseParser):
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
         """Parse broker transactions from open file."""
+
+    @classmethod
+    def post_process_transactions(
+        cls, transactions: list[BrokerTransaction]
+    ) -> list[BrokerTransaction]:
+        """Do any required post processing after loading all the transactions in the dir."""
+        return transactions
 
 
 class StandardCSVParser(BaseSingleFileParser):
