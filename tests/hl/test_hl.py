@@ -16,7 +16,7 @@ def test_hl_parser() -> None:
     """Runs the tool and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
-        "2020",
+        "2025",
         "--hl-dir",
         "tests/hl/data/inputs/",
         "--no-balance-check",
@@ -43,4 +43,22 @@ def test_hl_parser() -> None:
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"
         f"{cmd_str} > {expected_file}"
+    )
+
+
+def test_hl_parser_missing_pdf() -> None:
+    """Runs the tool and verifies it doesn't fail."""
+    cmd = build_cmd(
+        "--year",
+        "2025",
+        "--hl-dir",
+        "tests/hl/data/inputs_failed/",
+        "--no-balance-check",
+        "--output",
+        "out/test-hl/",
+    )
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    assert result.returncode, "Test succeeded but expected failure"
+    assert "Cannot find contract note pdf" in result.stderr, (
+        "Test failed with unexpected error"
     )

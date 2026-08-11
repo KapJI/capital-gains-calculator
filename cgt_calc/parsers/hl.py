@@ -17,7 +17,9 @@ from cgt_calc.parsers.base_parsers import BaseDirParser, StandardCSVParser
 # PDF parser regexes
 DATE_REGEX = re.compile(r"Date[^\d]*(\d{2}/\d{2}/\d{4})", re.IGNORECASE)
 ACTION_REGEX = re.compile(r"\*\*\s*(BOUGHT|SOLD)\s*\*\*", re.IGNORECASE)
-TICKER_REGEX = re.compile(r"STOCK CODE:\s*([A-Z0-9]+)", re.IGNORECASE)
+ISIN_TICKER_REGEX = re.compile(
+    r"([A-Z]{2}[A-Z0-9]{9}\d)\s*STOCK CODE:\s*([A-Z0-9]+)", re.IGNORECASE
+)
 VALUES_REGEX = re.compile(
     r"([\d,]+\.\d{2,5})\s*(?:\|\s*)?([\d,]+\.\d{2,5})\s*(?:\|\s*)?([\d,]+\.\d{2,5})"
 )
@@ -32,13 +34,14 @@ class HLPdfData:
     date: date | None
     action: str | None
     ticker: str | None
+    isin: str | None
     quantity: Decimal
     price: Decimal
     consideration: Decimal
     fees: Decimal
 
 
-class HLParser(StandardCSVParser, BaseDirParser):
+class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
     """Parser for Hargreaves Lansdown transaction exports and contract note PDFs."""
 
     arg_name = "hl"
@@ -90,7 +93,7 @@ class HLParser(StandardCSVParser, BaseDirParser):
         # 1. Tolerate any non-digit characters between "Date" and the actual date
         date_match = DATE_REGEX.search(text)
         action_match = ACTION_REGEX.search(text)
-        ticker_match = TICKER_REGEX.search(text)
+        isin_ticker_match = ISIN_TICKER_REGEX.search(text)
 
         # 2. Look for three sequential floats (Qty, Price, Consideration)
         # separated by any whitespace or optional pipes
@@ -115,7 +118,8 @@ class HLParser(StandardCSVParser, BaseDirParser):
             file_name=pdf_path.name,
             date=datetime.strptime(date_str, "%d/%m/%Y").date() if date_str else None,
             action=action_match.group(1).lower() if action_match else None,
-            ticker=ticker_match.group(1) if ticker_match else None,
+            ticker=isin_ticker_match.group(2) if isin_ticker_match else None,
+            isin=isin_ticker_match.group(1) if isin_ticker_match else None,
             quantity=quantity,
             price=price,
             consideration=consideration,
@@ -156,6 +160,7 @@ class HLParser(StandardCSVParser, BaseDirParser):
         price = None
         fees = Decimal(0)
         symbol = None
+        isin = None
 
         amount_str = row.get("Value (£)", "0").replace(",", "")
         amount = (
@@ -168,9 +173,15 @@ class HLParser(StandardCSVParser, BaseDirParser):
             if matching_pdfs:
                 pdf = cls._parse_pdf(matching_pdfs[0])
                 symbol = pdf.ticker
+                isin = pdf.isin
                 quantity = pdf.quantity
                 price = pdf.price / Decimal(100)
                 fees = pdf.fees
+            else:
+                raise ParsingError(
+                    file_path,
+                    f"Cannot find contract note pdf for transaction {reference}",
+                )
 
         return BrokerTransaction(
             date=trade_date,
@@ -183,6 +194,7 @@ class HLParser(StandardCSVParser, BaseDirParser):
             amount=amount,
             currency="GBP",
             broker=cls.pretty_name,
+            isin=isin,
         )
 
     @classmethod
