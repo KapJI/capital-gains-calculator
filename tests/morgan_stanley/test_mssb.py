@@ -148,3 +148,49 @@ def test_read_mssb_release_invalid_header(tmp_path: Path) -> None:
         MSSBParser().load_from_dir(tmp_path)
 
     assert "CSV header mismatch" in str(exc.value)
+
+
+def test_read_mssb_release_header_only_file(tmp_path: Path) -> None:
+    """Raise a clean 'file is empty' error for a header with zero data rows.
+
+    Regression test: `csv.DictReader` has no `__bool__`/`__len__`, so
+    `bool(reader)` is always truthy even when the file has no data rows,
+    which used to make the "file is empty" check dead code.
+    """
+
+    release_file = tmp_path / RELEASES_REPORT_FILENAME
+    _write_csv(release_file, [COLUMNS_RELEASE])
+
+    with pytest.raises(ParsingError) as exc:
+        MSSBParser().load_from_dir(tmp_path)
+
+    assert "file is empty" in str(exc.value)
+
+
+def test_read_mssb_withdrawal_short_row(tmp_path: Path) -> None:
+    """Raise a clean ParsingError for a row with fewer fields than the header.
+
+    Regression test: a row with fewer fields than the header gets padded by
+    `csv.DictReader` with `None` values for the missing trailing columns
+    (rather than being rejected outright). Before the fix, this crashed deep
+    in `_parse_decimal` with an unhandled `AttributeError` ('NoneType' object
+    has no attribute 'replace') instead of raising a clean ParsingError with
+    row/file context.
+    """
+
+    withdrawal_file = tmp_path / WITHDRAWALS_REPORT_FILENAME
+    rows = [
+        COLUMNS_WITHDRAWAL,
+        # Only the first 6 columns are provided; Quantity, Net Amount,
+        # Net Share Proceeds and Tax Payment Method are missing entirely.
+        ["02-Apr-2021", "ORDER-2", "Cash", "Sale", "Complete", "$10.00"],
+    ]
+    _write_csv(withdrawal_file, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        MSSBParser().load_from_dir(tmp_path)
+
+    # It must be a *clean* ParsingError with row/file context, not an
+    # unhandled AttributeError/TypeError bubbling out of the parser.
+    assert exc.type is ParsingError
+    assert "row 2" in str(exc.value)
