@@ -12,6 +12,7 @@ import pytest
 
 from cgt_calc.args_parser import create_parser
 from cgt_calc.args_validators import (
+    STDIN_PATH,
     existing_directory_type,
     existing_file_type,
     optional_file_type,
@@ -494,3 +495,15 @@ def test_interest_fund_tickers_empty_items_filtered() -> None:
     args = parser.parse_args(["--interest-fund-tickers", "VGOV,,VBMFX,"])
 
     assert args.interest_fund_tickers == ["VGOV", "VBMFX"]
+
+
+def test_existing_file_type_stdin() -> None:
+    """Ensure existing_file_type returns STDIN_PATH when passed '-'."""
+    assert existing_file_type("-") == STDIN_PATH
+
+
+def test_raw_file_stdin() -> None:
+    """Ensure --raw-file - correctly returns STDIN_PATH."""
+    parser = create_parser()
+    args = parser.parse_args(["--raw-file", "-"])
+    assert args.raw_file == STDIN_PATH

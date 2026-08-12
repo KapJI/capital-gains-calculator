@@ -81,6 +81,56 @@ def test_run_with_raw_files() -> None:
     )
 
 
+def test_run_with_raw_files_stdin() -> None:
+    """Runs the script with stdin and verifies it works identically."""
+    csv_file = Path("tests") / "raw" / "data" / "test_data.csv"
+    csv_content = csv_file.read_text(encoding="utf-8")
+
+    cmd = build_cmd(
+        "--year",
+        "2022",
+        "--raw-file",
+        "-",
+        "--no-balance-check",
+        "--output",
+        "out/test-raw-stdin/",
+    )
+    result = subprocess.run(
+        cmd, input=csv_content, capture_output=True, text=True, check=False
+    )
+    if result.returncode:
+        pytest.fail(
+            "Integration test failed\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    assert result.stderr.strip() == "", "Unexpected stderr message"
+    expected_file = Path("tests") / "raw" / "data" / "expected_output_stdin.txt"
+    expected = expected_file.read_text()
+
+    cmd_str = " ".join([param or "''" for param in cmd])
+    assert result.stdout == expected, (
+        "Run with stdin generated unexpected outputs, "
+        "if you added new features update the test with:\n"
+        f"cat {csv_file} | {cmd_str} > {expected_file}"
+    )
+
+
+def test_run_with_nonexistent_file() -> None:
+    """Runs the script with a nonexistent file and verifies it fails with an error."""
+    missing_file = "tests/raw/data/does_not_exist.csv"
+    cmd = build_cmd(
+        "--year",
+        "2022",
+        "--raw-file",
+        missing_file,
+    )
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    assert result.returncode != 0
+    assert "path does not exist" in result.stderr
+    assert missing_file in result.stderr
+
+
 def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
     """Parse a RAW file including a header row."""
 

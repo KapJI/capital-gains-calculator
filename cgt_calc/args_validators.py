@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 
 from .const import INTERNAL_START_DATE
 
+STDIN_PATH = Path("-")
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import Any
@@ -73,9 +75,11 @@ def optional_file_type(value: str) -> Path | None:
     """Convert non-empty value to Path and ensure file semantics."""
     if value.strip() == "":
         return None
+    if value == "-":
+        return STDIN_PATH
     path = Path(value)
     if path.exists():
-        if not path.is_file():
+        if not (path.is_file() or path.is_fifo()):
             raise argparse.ArgumentTypeError(
                 f"expected file path, got directory: '{value}'"
             )
@@ -90,7 +94,7 @@ def _existing_path_type(value: str, *, require_dir: bool) -> Path:
         raise argparse.ArgumentTypeError(f"path does not exist: '{value}'")
     if require_dir and not path.is_dir():
         raise argparse.ArgumentTypeError(f"expected directory path, got: '{value}'")
-    if not require_dir and not path.is_file():
+    if not require_dir and not (path.is_file() or path.is_fifo()):
         raise argparse.ArgumentTypeError(f"expected file path, got: '{value}'")
     if require_dir:
         _ensure_readable_directory(path, value)
@@ -100,7 +104,9 @@ def _existing_path_type(value: str, *, require_dir: bool) -> Path:
 
 
 def existing_file_type(value: str) -> Path:
-    """Validate that provided value points to an existing file."""
+    """Validate that provided value points to an existing file, or '-' for stdin."""
+    if value == "-":
+        return STDIN_PATH
     return _existing_path_type(value, require_dir=False)
 
 
