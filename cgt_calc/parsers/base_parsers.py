@@ -6,9 +6,11 @@ from collections.abc import Iterable, Sequence
 import csv
 import logging
 from pathlib import Path
+import sys
 from typing import ClassVar, TextIO
 
 from cgt_calc.args_validators import (
+    STDIN_PATH,
     DeprecatedAction,
     existing_directory_type,
     existing_file_type,
@@ -82,13 +84,18 @@ class BaseSingleFileParser(BaseParser):
         cls, file_path: Path, warn_on_empty: bool = True, show_parsing_msg: bool = True
     ) -> list[BrokerTransaction]:
         """Load broker data from file path."""
-        with file_path.open(encoding=cls.encoding) as file:
+        if file_path == STDIN_PATH:
             if show_parsing_msg:
-                print(f"Parsing {file_path}...")
-            transactions = cls.read_transactions(file, file_path)
-            if not transactions and warn_on_empty:
-                LOGGER.warning("No transactions detected in file %s", file_path)
-            return cls.post_process_transactions(transactions)
+                print("Parsing stdin...")
+            transactions = cls.read_transactions(sys.stdin, STDIN_PATH)
+        else:
+            with file_path.open(encoding=cls.encoding) as file:
+                if show_parsing_msg:
+                    print(f"Parsing {file_path}...")
+                transactions = cls.read_transactions(file, file_path)
+        if not transactions and warn_on_empty:
+            LOGGER.warning("No transactions detected in file %s", file_path)
+        return cls.post_process_transactions(transactions)
 
     @classmethod
     @abstractmethod
