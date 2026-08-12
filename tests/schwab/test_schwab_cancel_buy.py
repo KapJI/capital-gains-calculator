@@ -6,6 +6,12 @@ Buy transactions within the search window.
 Cancel Buy is a Schwab-specific transaction type that indicates a purchase was
 cancelled. Both the original Buy and the Cancel Buy are mapped to ActionType.BUY,
 and both need to be filtered out to avoid incorrect capital gains calculations.
+
+Real Schwab exports are ordered newest-first (see
+tests/schwab/data/schwab_transactions.csv, where 2021 rows appear before 2020
+rows). Since a Cancel Buy is chronologically *after* the Buy it cancels, in a
+newest-first CSV the Cancel Buy row appears *above* (before) its matching Buy
+row. All CSVs below follow that realistic ordering.
 """
 
 import datetime
@@ -25,8 +31,8 @@ class TestCancelBuyFiltering:
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
             "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
+            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
         transactions = SchwabParser().load_from_file(csv_file)
@@ -39,16 +45,16 @@ class TestCancelBuyFiltering:
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            "01/01/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
             "01/10/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
+            "01/01/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
         transactions = SchwabParser().load_from_file(csv_file)
 
         # 9 days apart - Cancel Buy won't match, both should remain
         assert len(transactions) == 2
-        assert transactions[0].action.name == "BUY"  # Cancel Buy mapped to BUY
-        assert transactions[1].action.name == "BUY"
+        assert transactions[0].action.name == "BUY"
+        assert transactions[1].action.name == "BUY"  # Cancel Buy mapped to BUY
 
     def test_cancel_buy_matches_exact_symbol_quantity_price(
         self, tmp_path: Path
@@ -57,14 +63,14 @@ class TestCancelBuyFiltering:
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
-            "01/10/2024,Buy,AAPL,APPLE INC,$151.00,10,$0.00,-$1510.00\n"
             "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
+            "01/10/2024,Buy,AAPL,APPLE INC,$151.00,10,$0.00,-$1510.00\n"
+            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
         transactions = SchwabParser().load_from_file(csv_file)
 
-        # Only the first Buy should be removed (exact price match)
+        # Only the matching-price Buy should be removed (exact price match)
         assert len(transactions) == 1
         assert transactions[0].price == Decimal("151.00")
 
@@ -73,8 +79,8 @@ class TestCancelBuyFiltering:
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
             "01/12/2024,Cancel Buy,MSFT,MICROSOFT CORP,$150.00,10,$0.00,$0.00\n"
+            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
         transactions = SchwabParser().load_from_file(csv_file)
@@ -87,8 +93,8 @@ class TestCancelBuyFiltering:
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10.5,$0.00,-$1575.00\n"
             "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10.5,$0.00,$0.00\n"
+            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10.5,$0.00,-$1575.00\n"
         )
 
         transactions = SchwabParser().load_from_file(csv_file)
@@ -101,10 +107,10 @@ class TestCancelBuyFiltering:
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
-            "01/11/2024,Buy,AAPL,APPLE INC,$151.00,20,$0.00,-$3020.00\n"
-            "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
             "01/13/2024,Cancel Buy,AAPL,APPLE INC,$151.00,20,$0.00,$0.00\n"
+            "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
+            "01/11/2024,Buy,AAPL,APPLE INC,$151.00,20,$0.00,-$3020.00\n"
+            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
         transactions = SchwabParser().load_from_file(csv_file)
@@ -117,10 +123,10 @@ class TestCancelBuyFiltering:
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            "01/09/2024,Buy,MSFT,MICROSOFT CORP,$200.00,5,$0.00,-$1000.00\n"
-            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
-            "01/11/2024,Sell,MSFT,MICROSOFT CORP,$205.00,5,$0.00,$1025.00\n"
             "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
+            "01/11/2024,Sell,MSFT,MICROSOFT CORP,$205.00,5,$0.00,$1025.00\n"
+            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+            "01/09/2024,Buy,MSFT,MICROSOFT CORP,$200.00,5,$0.00,-$1000.00\n"
         )
 
         transactions = SchwabParser().load_from_file(csv_file)
@@ -141,8 +147,8 @@ class TestCancelBuyFiltering:
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             f"Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            f"{buy_date.strftime('%m/%d/%Y')},Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
             f"{cancel_date.strftime('%m/%d/%Y')},Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
+            f"{buy_date.strftime('%m/%d/%Y')},Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
         transactions = SchwabParser().load_from_file(csv_file)
@@ -158,8 +164,8 @@ class TestCancelBuyFiltering:
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             f"Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            f"{buy_date.strftime('%m/%d/%Y')},Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
             f"{cancel_date.strftime('%m/%d/%Y')},Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
+            f"{buy_date.strftime('%m/%d/%Y')},Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
         transactions = SchwabParser().load_from_file(csv_file)
@@ -172,13 +178,40 @@ class TestCancelBuyFiltering:
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
             "01/15/2024,Sell,AAPL,APPLE INC,$155.00,10,$0.00,$1550.00\n"
+            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
         transactions = SchwabParser().load_from_file(csv_file)
 
         # No Cancel Buy - both transactions remain
         assert len(transactions) == 2
-        assert transactions[0].action.name == "SELL"
-        assert transactions[1].action.name == "BUY"
+        assert transactions[0].action.name == "BUY"
+        assert transactions[1].action.name == "SELL"
+
+    def test_cancel_buy_after_original_buy_in_newest_first_order(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression test: Cancel Buy must match when list is newest-first.
+
+        This reproduces the real-world Schwab export ordering (see
+        tests/schwab/data/schwab_transactions.csv), where the Cancel Buy row
+        (more recent) appears *before* its original Buy row (older) in the raw
+        CSV, with an unrelated, older transaction below both. A backward-only
+        search (searching only at indices lower than the Cancel Buy's index)
+        can never find the Buy in this ordering, since the Buy is always at a
+        higher index than the Cancel Buy for a real, newest-first file.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
+            "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
+            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+            "01/05/2024,Buy,MSFT,MICROSOFT CORP,$200.00,5,$0.00,-$1000.00\n"
+        )
+
+        transactions = SchwabParser().load_from_file(csv_file)
+
+        # AAPL Buy and Cancel Buy should be matched and removed; MSFT remains.
+        assert len(transactions) == 1
+        assert transactions[0].symbol == "MSFT"

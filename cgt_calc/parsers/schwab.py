@@ -495,8 +495,15 @@ def _filter_cancelled_buy_transactions(
     This is a Schwab-specific quirk - other brokers may not report cancellations
     at all or may handle them differently.
 
+    Note: this runs on the raw, newest-first ordered list of transactions as
+    read from the Schwab export (before ``transactions.reverse()`` is applied
+    by the caller). A Cancel Buy row is chronologically *after* the Buy it
+    cancels, so in a newest-first list the Cancel Buy has a *lower* index than
+    its Buy. We therefore search forward (increasing index = older dates) from
+    the Cancel Buy's index.
+
     Args:
-        transactions: List of parsed Schwab transactions
+        transactions: List of parsed Schwab transactions, newest-first
 
     Returns:
         Filtered list with Cancel Buy pairs removed
@@ -513,8 +520,9 @@ def _filter_cancelled_buy_transactions(
         if cancel_idx in indices_to_remove:
             continue
 
-        # Search backward for matching Buy within search window
-        for buy_idx in range(cancel_idx - 1, -1, -1):
+        # Search forward (older transactions, since the list is newest-first)
+        # for the matching Buy within the search window
+        for buy_idx in range(cancel_idx + 1, len(transactions)):
             buy_txn = transactions[buy_idx]
 
             # Stop if beyond search window
