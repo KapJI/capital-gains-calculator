@@ -83,7 +83,7 @@ def approx_equal(
     so assume the values are equal if they are within approx_quantity input.
     Defaults to 0.01
     """
-    return abs(val_a - val_b) < Decimal("0.01")
+    return abs(val_a - val_b) < approx_quantity
 
 
 def open_with_parents(path: Path, clear_content: bool = True) -> TextIO:
