@@ -154,15 +154,24 @@ class StandardCSVParser(BaseSingleFileParser):
         cls._validate_header(reader.fieldnames, file_path)
         expected_col_count = len(reader.fieldnames)
 
-        if not reader:
-            raise ParsingError(
-                file_path, f"{cls.pretty_name} {cls.format_name} file is empty"
-            )
-
         transactions: list[BrokerTransaction] = []
+        saw_row = False
         # Row numbers are 1-based file lines; the header is line 1.
         for index, row in enumerate(reader, start=2):
+            saw_row = True
             try:
+                # A row with MORE fields than the header collects the extras
+                # under DictReader's `None` key (`restkey`), which changes
+                # `len(row)`. A row with FEWER fields is instead padded with
+                # `None` values for the missing trailing keys (`restval`), so
+                # `len(row)` alone can't detect it here. We deliberately don't
+                # reject those on `None` values alone: some parsers (e.g.
+                # Morgan Stanley's withdrawal report) legitimately rely on
+                # DictReader padding a short trailing row to recognise and
+                # skip it in `read_row`. Instead, a short/malformed row that
+                # a parser doesn't expect is caught below when it blows up
+                # trying to parse a `None` field, and reported with row
+                # context rather than as an unhandled traceback.
                 if len(row) != expected_col_count:
                     raise UnexpectedColumnCountError(
                         list(row.values()), expected_col_count, file_path
@@ -173,8 +182,13 @@ class StandardCSVParser(BaseSingleFileParser):
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
-            except ValueError as err:
+            except (ValueError, TypeError, AttributeError) as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
+
+        if not saw_row:
+            raise ParsingError(
+                file_path, f"{cls.pretty_name} {cls.format_name} file is empty"
+            )
         return transactions
 
 
