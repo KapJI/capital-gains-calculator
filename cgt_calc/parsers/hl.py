@@ -148,7 +148,11 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
         description = row.get("Description", "")
         action_type = cls._determine_action_type(reference, description)
         if not action_type:
-            return None
+            raise ParsingError(
+                file_path,
+                f"Unknown transaction type for reference '{reference}' "
+                f"(description: '{description}')",
+            )
 
         date_str = row.get("Trade date", "")
         try:

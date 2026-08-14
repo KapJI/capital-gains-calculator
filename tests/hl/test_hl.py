@@ -9,7 +9,18 @@ import pytest
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
+from cgt_calc.exceptions import ParsingError
+from cgt_calc.parsers.hl import HargreavesLansdownParser
 from tests.utils import build_cmd
+
+HL_CSV_HEADER = (
+    "Transaction Summary, , , ,\n"
+    "Client Name:,Anonymous User, , ,\n"
+    "Client Number:,1234567, , ,\n"
+    "Valuation as at,09-08-2026 16:40, , ,\n"
+    "\n"
+    "Trade date,Settle date,Reference,Description,Unit cost (p),Quantity,Value (£),\n"
+)
 
 
 def _create_buy_pdf(filename: str) -> None:
@@ -138,3 +149,43 @@ def test_hl_parser_missing_pdf() -> None:
     assert "Cannot find contract note pdf" in result.stderr, (
         "Test failed with unexpected error"
     )
+
+
+def test_hl_unknown_reference_raises(tmp_path: Path) -> None:
+    """Raise ParsingError instead of silently dropping unrecognized rows.
+
+    HL statements routinely contain rows such as dividends or corporate
+    actions whose "Reference" code isn't a Buy/Sell reference, INTEREST,
+    FPC or MANAGE FEE. Previously these rows were silently skipped, which
+    meant real dividend income could vanish from a user's report without
+    any indication anything was wrong.
+    """
+    csv_file = tmp_path / "hl-transaction-summary.csv"
+    csv_file.write_text(
+        HL_CSV_HEADER
+        + '"04/04/2026","04/04/2026","D302087099","Vanguard FTSE Developed World '
+        'UCITS ETF Dividend","n/a","n/a","12.34"\n',
+        encoding="windows-1252",
+    )
+
+    with pytest.raises(ParsingError) as exc:
+        HargreavesLansdownParser().load_from_file(csv_file)
+
+    message = str(exc.value)
+    assert "Unknown transaction type" in message
+    assert "D302087099" in message
+
+
+def test_hl_blank_reference_skipped(tmp_path: Path) -> None:
+    """Rows with a blank reference (e.g. subtotal/summary lines) are skipped."""
+    csv_file = tmp_path / "hl-transaction-summary.csv"
+    csv_file.write_text(
+        HL_CSV_HEADER + '"","","","Balance carried forward","","","0.00"\n',
+        encoding="windows-1252",
+    )
+
+    transactions = HargreavesLansdownParser().load_from_file(
+        csv_file, warn_on_empty=False
+    )
+
+    assert transactions == []
