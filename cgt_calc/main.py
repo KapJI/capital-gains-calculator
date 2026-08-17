@@ -11,6 +11,8 @@ import logging
 import sys
 from typing import TYPE_CHECKING
 
+from colorama import Fore, Style
+
 from . import render_latex
 from .args_parser import create_parser
 from .const import (
@@ -41,6 +43,7 @@ from .exceptions import (
 )
 from .initial_prices import InitialPrices
 from .isin_converter import IsinConverter
+from .logging import bullet, setup_logging, style_text
 from .model import (
     ActionType,
     BrokerTransaction,
@@ -63,7 +66,6 @@ from .model import (
     SpinOff,
 )
 from .parsers.broker_registry import BrokerRegistry
-from .setup_logging import setup_logging
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
 from .util import approx_equal, normalize_amount, round_decimal
@@ -658,33 +660,41 @@ class CapitalGainsCalculator:
         interest_taxes: dict[tuple[str, str], Decimal],
     ) -> None:
         """Print the results of the first pass."""
-        LOGGER.info("\nFirst pass complete\n")
-        print("Final portfolio")
+        LOGGER.info(
+            "\n%s\n",
+            style_text(
+                "First pass complete", colour=Fore.GREEN, emoji="✅", stream=sys.stderr
+            ),
+        )
+        bul = bullet(sys.stdout)
+        print(style_text("Final portfolio", colour=Style.BRIGHT, emoji="📊"))
         if not self.portfolio:
-            print("  (none)")
+            print(f"{bul}(none)")
         for stock, position in sorted(self.portfolio.items()):
-            print(f"  {stock}: {position}")
+            print(f"{bul}{stock}: {position}")
         print()
-        print("Final balance")
+        print(style_text("Final balance", colour=Style.BRIGHT, emoji="💰"))
         for (broker, currency), amount in balance.items():
-            print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
+            print(f"{bul}{broker}: {round_decimal(amount, 2)} ({currency})")
         if dividends:
             print()
-            print("Dividends")
+            print(style_text("Dividends", colour=Style.BRIGHT, emoji="💵"))
             for (symbol, currency), amount in dividends.items():
                 tax = dividends_tax[(symbol, currency)]
                 tax_str = f", excluding {-tax} taxed at source" if tax < 0 else ""
-                print(f"  {symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})")
+                print(
+                    f"{bul}{symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})"
+                )
         if interests:
             print()
-            print("Interest")
+            print(style_text("Interest", colour=Style.BRIGHT, emoji="🏦"))
             for (broker, currency), amount in interests.items():
-                print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
+                print(f"{bul}{broker}: {round_decimal(amount, 2)} ({currency})")
         if interest_taxes:
             print()
-            print("Interest taxes")
+            print(style_text("Interest taxes", colour=Style.BRIGHT, emoji="🧾"))
             for (broker, currency), amount in interest_taxes.items():
-                print(f"  {broker}: {round_decimal(-amount, 2)} ({currency})")
+                print(f"{bul}{broker}: {round_decimal(-amount, 2)} ({currency})")
         print()
 
     def process_acquisition(
@@ -1495,7 +1505,12 @@ class CapitalGainsCalculator:
         self.process_dividends()
         self.process_interests()
 
-        LOGGER.info("\nSecond pass complete\n")
+        LOGGER.info(
+            "\n%s\n",
+            style_text(
+                "Second pass complete", colour=Fore.GREEN, emoji="✅", stream=sys.stderr
+            ),
+        )
         allowance = CAPITAL_GAIN_ALLOWANCES.get(self.tax_year)
         dividend_allowance = DIVIDEND_ALLOWANCES.get(self.tax_year)
 
@@ -1590,7 +1605,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         if args.no_pdflatex
         else "Done! Report generated successfully."
     )
-    LOGGER.info(done_msg)
+    LOGGER.info(style_text(done_msg, colour=Fore.GREEN, emoji="🎉", stream=sys.stderr))
 
 
 def main() -> int:

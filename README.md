@@ -24,6 +24,7 @@ brokers that pay daily interest.
 - [Installation](#%EF%B8%8F-installation)
   - [Installing LaTeX](#installing-latex)
 - [Usage](#-usage)
+- [Terminal Output](#%EF%B8%8F-terminal-output)
 - [Input Data](#-input-data)
   - [Broker Instructions](#broker-instructions)
   - [Offshore Funds](#offshore-funds)
@@ -46,7 +47,8 @@ Here's what a generated PDF report looks like:
 ## 🔧 Prerequisites
 
 - **Python 3.12** or newer
-- **pdflatex** must be available in your `PATH` (required for generating PDF reports)
+- **pdflatex** must be available in your `PATH` to generate PDF reports (with `--no-pdflatex` the
+  LaTeX source is saved instead)
 
 ## ⚙️ Installation
 
@@ -100,6 +102,19 @@ cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212-dir trading21
 - Run `cgt-calc --help` for all available options.
 - If your broker is not listed, try using the **RAW** format. Contributions for new brokers are very
   welcome!
+
+## 🖥️ Terminal Output
+
+The report is written to **stdout** and all progress messages go to **stderr**, so the text report
+can be piped or saved cleanly:
+
+```shell
+cgt-calc --year 2024 --schwab-file transactions.csv > report.txt
+```
+
+Colours and emoji are used automatically when the terminal supports them. The standard
+[`NO_COLOR`](https://no-color.org/) and `FORCE_COLOR` conventions are respected, plus `NO_EMOJI` to
+keep colours but drop emoji. Use `--verbose` for debug-level detail.
 
 ## 📥 Input data
 

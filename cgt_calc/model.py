@@ -6,8 +6,12 @@ from dataclasses import dataclass, field
 import datetime
 from decimal import Decimal
 from enum import Enum
+import sys
 from typing import TYPE_CHECKING
 
+from colorama import Style
+
+from .logging import bullet, style_text
 from .util import approx_equal, is_currency, normalize_amount, round_decimal
 
 if TYPE_CHECKING:
@@ -461,15 +465,23 @@ class CapitalGainsReport:
 
     def __str__(self) -> str:
         """Return string representation."""
-        out = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year\n"
+        bul = bullet(sys.stdout)
+        out = (
+            style_text(
+                f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year",
+                colour=Style.BRIGHT,
+                emoji="📈",
+            )
+            + "\n"
+        )
         held = [entry for entry in self.portfolio if entry.quantity > 0]
         if not held:
-            out += "  (none)\n"
+            out += f"{bul}(none)\n"
         for entry in sorted(held, key=lambda entry: entry.symbol):
             unrealized_gains_str = (
                 entry.unrealized_gains_str() if self.show_unrealized_gains else ""
             )
-            out += f"  {entry!s}{unrealized_gains_str}\n"
+            out += f"{bul}{entry!s}{unrealized_gains_str}\n"
         eris = list(
             self._filter_calculation_log(
                 self.calculation_log_yields,
@@ -477,7 +489,14 @@ class CapitalGainsReport:
             )
         )
         out += "\n"
-        out += f"Tax summary for {self.tax_year}/{self.tax_year + 1}\n"
+        out += (
+            style_text(
+                f"Tax summary for {self.tax_year}/{self.tax_year + 1}",
+                colour=Style.BRIGHT,
+                emoji="🧮",
+            )
+            + "\n"
+        )
 
         capital: list[tuple[str, str]] = [
             ("Disposals", str(self.disposal_count)),
@@ -546,19 +565,27 @@ class CapitalGainsReport:
         label_width = max(len(label) for _, rows, _ in groups for label, _ in rows) + 1
         value_width = max(len(value) for _, rows, _ in groups for _, value in rows)
         for title, rows, notes in groups:
-            out += f"\n{title}\n"
+            out += f"\n{style_text(title, colour=Style.BRIGHT)}\n"
             for label, value in rows:
-                out += f"  {label + ':':<{label_width}} {value:>{value_width}}\n"
+                line = f"  {label + ':':<{label_width}} {value:>{value_width}}"
+                if label in ("Total gain", "Taxable gain"):
+                    # The headline figures of the whole report.
+                    line = style_text(line, colour=Style.BRIGHT)
+                out += f"{line}\n"
             for note in notes:
                 out += f"{note}\n"
 
         if eris:
-            out += "\nExcess Reported Income\n"
+            out += (
+                "\n" + style_text("Excess Reported Income", colour=Style.BRIGHT) + "\n"
+            )
             for item in eris:
                 assert item.eris
                 assert len(item.eris) == 1
                 dist_type = "interest" if item.eris[0].is_interest else "dividend"
-                out += f"  {item.eris[0].symbol}: £{round_decimal(item.amount, 2):,} "
+                out += (
+                    f"{bul}{item.eris[0].symbol}: £{round_decimal(item.amount, 2):,} "
+                )
                 out += f"(included as {dist_type})\n"
 
         return out
