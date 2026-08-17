@@ -446,8 +446,14 @@ def _unify_schwab_paired_transactions(
             LOGGER.warning(
                 "Cash Merger support is not complete and doesn't cover the "
                 "cases when shares are received aside from cash, "
-                "please review this transaction carefully: %s",
-                unified,
+                "please review this transaction carefully:\n"
+                "    %s: %s units on %s for %s %s (%s)",
+                unified.symbol,
+                unified.quantity,
+                unified.date,
+                unified.amount,
+                unified.currency,
+                unified.broker,
             )
 
         elif transaction.raw_action == "Full Redemption Adj":
