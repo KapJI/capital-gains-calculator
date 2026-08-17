@@ -31,7 +31,7 @@ def render_pdf(
         if skip_pdflatex
         else f"Writing PDF report to {output_path}..."
     )
-    LOGGER.info("%s\n", progress)
+    LOGGER.info("\n%s\n", progress)
     latex_template_env = jinja2.Environment(
         block_start_string="\\BLOCK{",
         block_end_string="}",

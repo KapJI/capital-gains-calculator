@@ -3,29 +3,37 @@ Final portfolio
   BABA: 30.00
   META: 119.00
   OPRA: 120.00
+
 Final balance
   Unknown: -28486.60 (USD)
+
 Dividends
   OTGLY: 9.68 (USD)
   OPRA: 3360.00 (USD)
 
 Portfolio at the end of 2022/2023 tax year
-  AMZN: 210.00, £1900.67
-  BABA: 30.00, £1942.83
-  META: 119.00, £18042.21
+  AMZN: 210.00, £1,900.67
+  BABA: 30.00, £1,942.83
+  META: 119.00, £18,042.21
   OPRA: 120.00, £492.03
 
 Tax summary for 2022/2023
-Number of disposals: 3
-Disposal proceeds: £11422.10
-Allowable costs: £13588.22
-Capital gain: £0.00
-Capital loss: £2166.12
-Total capital gain: £-2166.12
-Taxable capital gain: £0
-Total dividends proceeds: £2719.29
-Total amount of dividends tax yearly allowance: £2000.00
-Total taxable dividends proceeds: £719.29
-Total UK interest proceeds: £0.00
-Total foreign interest proceeds: £0.00
-Total interest tax paid: £0.00
+
+Capital gains
+  Disposals:                   3
+  Disposal proceeds:  £11,422.10
+  Allowable costs:    £13,588.22
+  Gain:                    £0.00
+  Loss:                £2,166.12
+  Total gain:         £-2,166.12
+  Taxable gain:            £0.00
+
+Dividends
+  Proceeds:            £2,719.29
+  Tax-free allowance:  £2,000.00
+  Taxable proceeds:      £719.29
+
+Interest
+  UK proceeds:             £0.00
+  Foreign proceeds:        £0.00
+  Tax paid:                £0.00
