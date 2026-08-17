@@ -1,13 +1,8 @@
-Parsing tests/schwab/data/rsu_settlement/awards.csv...
-Parsing tests/schwab/data/rsu_settlement/transactions.csv...
-Found 4 broker transactions
-First pass completed
 Final portfolio
   * BAR: 300.00
 Final balance
   * Charles Schwab: 28068.66 (USD)
 
-Second pass completed
 Portfolio at the end of 2023/2024 tax year
   * BAR: 300.00, £32533.02
 
@@ -25,6 +20,3 @@ Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00
 Total interest tax paid: £0.00
-
-Generating PDF report...
-All done!

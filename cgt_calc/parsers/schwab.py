@@ -22,6 +22,7 @@ from cgt_calc.exceptions import (
 )
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
+from cgt_calc.setup_logging import parsing_msg
 
 from .base_parsers import BaseSingleFileParser
 
@@ -549,7 +550,7 @@ def _filter_cancelled_buy_transactions(
                 # Found matching pair - mark both for removal
                 indices_to_remove.add(cancel_idx)
                 indices_to_remove.add(buy_idx)
-                LOGGER.info(
+                LOGGER.debug(
                     "Matched Cancel Buy with original Buy: symbol=%s, qty=%s, "
                     "price=%s, buy_date=%s, cancel_date=%s",
                     buy_txn.symbol,
@@ -586,7 +587,7 @@ def _read_schwab_awards(
     initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
 
     with schwab_award_transactions_file.open(encoding="utf-8") as csv_file:
-        print(f"Parsing {schwab_award_transactions_file}...")
+        parsing_msg(schwab_award_transactions_file)
         lines = list(csv.reader(csv_file))
     if not lines:
         raise ParsingError(

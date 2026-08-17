@@ -1,6 +1,7 @@
 """Render PDF report with LaTeX."""
 
 from decimal import Decimal
+import logging
 from pathlib import Path
 import shutil
 import subprocess
@@ -13,6 +14,8 @@ from .exceptions import LatexRenderError, MissingExternalToolError
 from .model import CapitalGainsReport
 from .util import round_decimal, strip_zeros
 
+LOGGER = logging.getLogger(__name__)
+
 
 def render_pdf(
     report: CapitalGainsReport,
@@ -23,9 +26,12 @@ def render_pdf(
     jobname = output_path.stem
     out_dir = output_path.parent
     tex_path = out_dir / f"{jobname}.tex"
-    # Keep this line identical in both modes: e2e fixtures are compared both
-    # with and without pdflatex in CI.
-    print("Generating PDF report...")
+    progress = (
+        f"Writing LaTeX report to {tex_path}..."
+        if skip_pdflatex
+        else f"Writing PDF report to {output_path}..."
+    )
+    LOGGER.info("%s\n", progress)
     latex_template_env = jinja2.Environment(
         block_start_string="\\BLOCK{",
         block_end_string="}",

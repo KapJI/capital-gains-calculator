@@ -9,7 +9,7 @@ import pytest
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.parsers.schwab import AwardPrices, SchwabParser
-from tests.utils import build_cmd
+from tests.utils import build_cmd, stderr_alerts
 
 
 def test_missing_award_file_reports_the_vest_it_cannot_price() -> None:
@@ -68,7 +68,7 @@ def test_run_with_schwab_example_2023_files() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr.strip() == "", "Unexpected stderr message"
+    assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "schwab" / "data" / "2023" / "expected_output.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param or "''" for param in cmd])
@@ -96,13 +96,10 @@ def test_run_with_schwab_cash_merger_files() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    stderr_lines = result.stderr.strip().split("\n")
-    assert len(stderr_lines) == 2
-    assert stderr_lines[0].startswith("WARNING: Cash Merger support is not complete")
-    assert (
-        stderr_lines[1].strip()
-        == "FOO: 100 units on 2021-03-02 for 1000 USD (Charles Schwab)"
-    )
+    alerts = stderr_alerts(result.stderr)
+    assert len(alerts) == 1
+    assert alerts[0].startswith("WARNING: Cash Merger support is not complete")
+    assert "FOO: 100 units on 2021-03-02 for 1000 USD (Charles Schwab)" in result.stderr
     expected_file = (
         Path("tests") / "schwab" / "data" / "cash_merger" / "expected_output.txt"
     )
@@ -134,8 +131,7 @@ def test_run_with_schwab_rsu_settlement_files() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    stderr = result.stderr.strip()
-    assert stderr == ""
+    assert stderr_alerts(result.stderr) == []
     expected_file = (
         Path("tests") / "schwab" / "data" / "rsu_settlement" / "expected_output.txt"
     )
@@ -165,7 +161,7 @@ def test_run_with_schwab_bond_interest_files() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr.strip() == "", "Unexpected stderr message"
+    assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = (
         Path("tests") / "schwab" / "data" / "bond_interest" / "expected_output.txt"
     )
@@ -195,7 +191,7 @@ def test_run_with_schwab_interest_tax_files() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr == ""
+    assert stderr_alerts(result.stderr) == []
     expected_file = (
         Path("tests") / "schwab" / "data" / "interest_tax" / "expected_output.txt"
     )

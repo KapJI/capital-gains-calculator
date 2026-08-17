@@ -22,7 +22,7 @@ from cgt_calc.model import ActionType, BrokerTransaction, RuleType
 from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
-from tests.utils import build_cmd
+from tests.utils import build_cmd, stderr_alerts
 
 from .calc_test_data import calc_basic_data
 from .calc_test_data_2 import calc_basic_data_2
@@ -825,7 +825,7 @@ def test_run_with_example_files() -> None:
             f"stderr:\n{result.stderr}"
         )
 
-    assert result.stderr.strip() == "", "Unexpected stderr message"
+    assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = (
         Path("tests") / "general" / "data" / "test_run_with_example_files_output.txt"
     )

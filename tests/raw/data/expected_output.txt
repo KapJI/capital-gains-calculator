@@ -1,6 +1,3 @@
-Parsing tests/raw/data/test_data.csv...
-Found 16 broker transactions
-First pass completed
 Final portfolio
   * AMZN: 210.00
   * BABA: 30.00
@@ -12,7 +9,6 @@ Dividends
   * OTGLY: 9.68 (USD)
   * OPRA: 3360.00 (USD)
 
-Second pass completed
 Portfolio at the end of 2022/2023 tax year
   * AMZN: 210.00, £1900.67
   * BABA: 30.00, £1942.83
@@ -33,6 +29,3 @@ Total taxable dividends proceeds: £719.29
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00
 Total interest tax paid: £0.00
-
-Generating PDF report...
-All done!

@@ -658,7 +658,7 @@ class CapitalGainsCalculator:
         interest_taxes: dict[tuple[str, str], Decimal],
     ) -> None:
         """Print the results of the first pass."""
-        print("First pass completed")
+        LOGGER.info("\nFirst pass complete\n")
         print("Final portfolio")
         if not self.portfolio:
             print("  * (none)")
@@ -929,8 +929,12 @@ class CapitalGainsCalculator:
                         )
                         continue
                     # Bed and breakfasting is a record of how the disposal was
-                    # matched rather than a problem, so it is logged at INFO.
-                    LOGGER.info(
+                    # matched rather than a problem. Surface it for the computed
+                    # tax year; the rest of the history walk logs it at DEBUG.
+                    LOGGER.log(
+                        logging.INFO
+                        if self.date_in_tax_year(date_index)
+                        else logging.DEBUG,
                         "Bed & breakfast match: %s disposed %s, re-acquired %s",
                         symbol,
                         date_index,
@@ -1487,7 +1491,7 @@ class CapitalGainsCalculator:
         self.process_dividends()
         self.process_interests()
 
-        print("Second pass completed")
+        LOGGER.info("\nSecond pass complete\n")
         allowance = CAPITAL_GAIN_ALLOWANCES.get(self.tax_year)
         dividend_allowance = DIVIDEND_ALLOWANCES.get(self.tax_year)
 
@@ -1566,7 +1570,9 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     calculator.convert_to_hmrc_transactions(broker_transactions)
     # Second pass calculates capital gain tax for the given tax year.
     report = calculator.calculate_capital_gain()
-    print(report)
+    # The report string is newline-terminated already; avoid a trailing
+    # blank line so piped output stays stable under newline normalisation.
+    print(report, end="")
 
     # Generate PDF report.
     if not args.no_report:
@@ -1575,7 +1581,12 @@ def calculate_cgt(args: argparse.Namespace) -> None:
             output_path=args.output,
             skip_pdflatex=args.no_pdflatex,
         )
-    print("All done!")
+    done_msg = (
+        "Done! Calculations complete (PDF generation skipped)."
+        if args.no_pdflatex
+        else "Done! Report generated successfully."
+    )
+    LOGGER.info(done_msg)
 
 
 def main() -> int:
@@ -1595,8 +1606,8 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    logging_level = logging.DEBUG if args.verbose else logging.WARNING
-    logging.getLogger().setLevel(logging_level)
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
 
     try:
         calculate_cgt(args)

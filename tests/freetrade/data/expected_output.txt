@@ -1,6 +1,3 @@
-Parsing tests/freetrade/data/transactions.csv...
-Found 17 broker transactions
-First pass completed
 Final portfolio
   * GOOGL: 0.14
   * NDAQ: 2.12
@@ -12,7 +9,6 @@ Dividends
 Interest
   * Freetrade: 9.02 (GBP)
 
-Second pass completed
 Portfolio at the end of 2023/2024 tax year
   * GOOGL: 0.14, £279.58
   * NDAQ: 2.12, £279.58
@@ -32,6 +28,3 @@ Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £9.02
 Total foreign interest proceeds: £0.00
 Total interest tax paid: £0.00
-
-Generating PDF report...
-All done!

@@ -89,7 +89,7 @@ def test_treaty_mismatch_warning_scoped_to_tax_year(
     assert len(warnings) == expected_warnings
 
 
-def test_bed_and_breakfast_is_logged_at_info(
+def test_bed_and_breakfast_in_tax_year_is_logged_at_info(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Matching a disposal to a repurchase is a record, not a problem."""
@@ -109,6 +109,31 @@ def test_bed_and_breakfast_is_logged_at_info(
     ]
     assert len(bed_and_breakfast) == 1
     assert bed_and_breakfast[0].levelno == logging.INFO
+    assert not [
+        record for record in caplog.records if record.levelno >= logging.WARNING
+    ]
+
+
+def test_bed_and_breakfast_outside_tax_year_is_logged_at_debug(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The history walk records old matches without user-facing output."""
+    transactions = [
+        buy_transaction(datetime.date(2023, 5, 1), "FOO", 10, 10, 0, -100),
+        sell_transaction(datetime.date(2023, 6, 3), "FOO", 10, 12, 0, 120),
+        buy_transaction(datetime.date(2023, 6, 10), "FOO", 10, 11, 0, -110),
+    ]
+    calculator = _calculator(transactions)
+
+    with caplog.at_level(logging.DEBUG, logger="cgt_calc.main"):
+        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.calculate_capital_gain()
+
+    bed_and_breakfast = [
+        record for record in caplog.records if "Bed & breakfast match" in record.message
+    ]
+    assert len(bed_and_breakfast) == 1
+    assert bed_and_breakfast[0].levelno == logging.DEBUG
     assert not [
         record for record in caplog.records if record.levelno >= logging.WARNING
     ]
