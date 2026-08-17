@@ -208,3 +208,15 @@ class InteractiveInputRequiredError(CgtError):
             f"transactions via '-'). Add a '{symbol},<source>' row to "
             f"{spin_offs_file} (header 'dst,src') and rerun."
         )
+
+
+class MarketDataMissingError(CgtError):
+    """Raised when the market data provider has no data for a symbol and date."""
+
+    def __init__(self, symbol: str, date: datetime.date):
+        """Initialise."""
+        super().__init__(
+            f"No market data found for {symbol} around {date}. The ticker may "
+            "have been renamed or delisted; consider providing the price via "
+            "--initial-prices-file."
+        )
