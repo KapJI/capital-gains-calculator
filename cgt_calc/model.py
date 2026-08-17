@@ -489,7 +489,9 @@ class CapitalGainsReport:
         ]
         capital_notes: list[str] = []
         if self.capital_gain_allowance is not None:
-            capital.append(("Taxable gain", f"£{self.taxable_gain():,}"))
+            capital.append(
+                ("Taxable gain", f"£{round_decimal(self.taxable_gain(), 2):,}")
+            )
         else:
             capital_notes.append("WARNING: Missing allowance for this tax year")
         if self.show_unrealized_gains:

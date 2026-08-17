@@ -3,12 +3,15 @@ Final portfolio
   NVDA: 1.00
   VNRG: 1.00
   VUAG: 30.50
+
 Final balance
   Charles Schwab: 9479.30 (USD)
   Trading212: 33391.30 (GBP)
   Morgan Stanley: 1.00 (USD)
+
 Dividends
   NVDA: 0.10 (GBP)
+
 Interest
   Charles Schwab: 1.40 (USD)
 

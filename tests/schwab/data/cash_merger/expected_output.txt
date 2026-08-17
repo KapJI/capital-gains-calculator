@@ -1,5 +1,6 @@
 Final portfolio
   (none)
+
 Final balance
   Charles Schwab: 1000.00 (USD)
 
@@ -15,7 +16,7 @@ Capital gains
   Gain:                    £0.00
   Loss:                £1,071.81
   Total gain:         £-1,071.81
-  Taxable gain:               £0
+  Taxable gain:            £0.00
 
 Dividends
   Proceeds:                £0.00

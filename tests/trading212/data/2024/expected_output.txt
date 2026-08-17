@@ -1,5 +1,6 @@
 Final portfolio
   (none)
+
 Final balance
   Trading212: 1758.05 (GBP)
 
@@ -15,7 +16,7 @@ Capital gains
   Gain:                 £757.15
   Loss:                   £0.00
   Total gain:           £757.15
-  Taxable gain:              £0
+  Taxable gain:           £0.00
 
 Dividends
   Proceeds:               £0.00

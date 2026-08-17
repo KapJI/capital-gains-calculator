@@ -3,8 +3,10 @@ Final portfolio
   BABA: 30.00
   META: 119.00
   OPRA: 120.00
+
 Final balance
   Unknown: -28486.60 (USD)
+
 Dividends
   OTGLY: 9.68 (USD)
   OPRA: 3360.00 (USD)
@@ -24,7 +26,7 @@ Capital gains
   Gain:                    £0.00
   Loss:                £2,166.12
   Total gain:         £-2,166.12
-  Taxable gain:               £0
+  Taxable gain:            £0.00
 
 Dividends
   Proceeds:            £2,719.29

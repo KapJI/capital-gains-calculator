@@ -1,8 +1,10 @@
 Final portfolio
   AMZN: 10.00
   META: 50.00
+
 Final balance
   Unknown: 0.00 (USD)
+
 Dividends
   META: 5.00 (USD)
 
@@ -19,7 +21,7 @@ Capital gains
   Gain:                    £0.00
   Loss:                £4,234.58
   Total gain:         £-4,234.58
-  Taxable gain:               £0
+  Taxable gain:            £0.00
 
 Dividends
   Proceeds:                £4.03

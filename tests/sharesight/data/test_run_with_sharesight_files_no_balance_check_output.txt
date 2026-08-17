@@ -2,9 +2,11 @@ Final portfolio
   FX:ETH: 2.59
   FundUK:FUND1: 50.00
   NASDAQ:FOO: 5.00
+
 Final balance
   Sharesight: -17854.31 (GBP)
   Sharesight: 7474.30 (USD)
+
 Dividends
   FOO.NASDAQ: 5.00, excluding 0.75 taxed at source (USD)
   FUND1.UKF: 3.00 (GBP)
@@ -23,7 +25,7 @@ Capital gains
   Gain:                £2,176.98
   Loss:                  £195.34
   Total gain:          £1,981.64
-  Taxable gain:               £0
+  Taxable gain:            £0.00
 
 Dividends
   Proceeds:                £6.92

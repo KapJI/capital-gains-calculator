@@ -74,7 +74,7 @@ class BrokerRegistry:
         if len(all_transactions) == 0:
             LOGGER.warning(msg)
         else:
-            LOGGER.info(msg)
+            LOGGER.info("\n%s", msg)
 
         # ERI Raw is not a broker but is close enough to one to be here
         # Only add ERI for funds that show up in the portfolio

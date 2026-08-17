@@ -2,10 +2,13 @@ Final portfolio
   GOOGL: 0.14
   NDAQ: 2.12
   TSLA: 1.45
+
 Final balance
   Freetrade: 8946.79 (GBP)
+
 Dividends
   NDAQ: 1.78 (GBP)
+
 Interest
   Freetrade: 9.02 (GBP)
 
@@ -23,7 +26,7 @@ Capital gains
   Gain:                 £427.86
   Loss:                   £0.00
   Total gain:           £427.86
-  Taxable gain:              £0
+  Taxable gain:           £0.00
 
 Dividends
   Proceeds:               £1.78

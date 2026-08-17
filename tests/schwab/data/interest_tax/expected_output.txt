@@ -1,9 +1,12 @@
 Final portfolio
   (none)
+
 Final balance
   Charles Schwab: 2.06 (USD)
+
 Interest
   Charles Schwab: 2.94 (USD)
+
 Interest taxes
   Charles Schwab: 0.88 (USD)
 
@@ -19,7 +22,7 @@ Capital gains
   Gain:                 £0.00
   Loss:                 £0.00
   Total gain:           £0.00
-  Taxable gain:            £0
+  Taxable gain:         £0.00
 
 Dividends
   Proceeds:             £0.00

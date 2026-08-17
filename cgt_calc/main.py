@@ -664,20 +664,24 @@ class CapitalGainsCalculator:
             print("  (none)")
         for stock, position in sorted(self.portfolio.items()):
             print(f"  {stock}: {position}")
+        print()
         print("Final balance")
         for (broker, currency), amount in balance.items():
             print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
         if dividends:
+            print()
             print("Dividends")
             for (symbol, currency), amount in dividends.items():
                 tax = dividends_tax[(symbol, currency)]
                 tax_str = f", excluding {-tax} taxed at source" if tax < 0 else ""
                 print(f"  {symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})")
         if interests:
+            print()
             print("Interest")
             for (broker, currency), amount in interests.items():
                 print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
         if interest_taxes:
+            print()
             print("Interest taxes")
             for (broker, currency), amount in interest_taxes.items():
                 print(f"  {broker}: {round_decimal(-amount, 2)} ({currency})")

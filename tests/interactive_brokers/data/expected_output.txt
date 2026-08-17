@@ -1,7 +1,9 @@
 Final portfolio
   CNX1: 2.00
+
 Final balance
   Interactive Brokers: 3027.40 (GBP)
+
 Dividends
   IBKR: 1.00, excluding 0.15 taxed at source (GBP)
   VT: 20.00, excluding 3.0 taxed at source (GBP)
@@ -18,7 +20,7 @@ Capital gains
   Gain:                   £0.00
   Loss:                   £8.77
   Total gain:            £-8.77
-  Taxable gain:              £0
+  Taxable gain:           £0.00
 
 Dividends
   Proceeds:              £33.54
