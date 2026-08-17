@@ -263,4 +263,4 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
                 f"stderr:\n{result.stderr}"
             )
         assert stderr_alerts(result.stderr) == []
-        assert "Final balance\n  * Interactive Brokers: 0.00 (GBP)" in result.stdout
+        assert "Final balance\n  Interactive Brokers: 0.00 (GBP)" in result.stdout

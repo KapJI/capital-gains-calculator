@@ -464,12 +464,12 @@ class CapitalGainsReport:
         out = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year\n"
         held = [entry for entry in self.portfolio if entry.quantity > 0]
         if not held:
-            out += "  * (none)\n"
+            out += "  (none)\n"
         for entry in sorted(held, key=lambda entry: entry.symbol):
             unrealized_gains_str = (
                 entry.unrealized_gains_str() if self.show_unrealized_gains else ""
             )
-            out += f"  * {entry!s}{unrealized_gains_str}\n"
+            out += f"  {entry!s}{unrealized_gains_str}\n"
         eris = list(
             self._filter_calculation_log(
                 self.calculation_log_yields,
@@ -487,7 +487,7 @@ class CapitalGainsReport:
                 assert item.eris
                 assert len(item.eris) == 1
                 dist_type = "interest" if item.eris[0].is_interest else "dividend"
-                out += f"  * {item.eris[0].symbol}: £{round_decimal(item.amount, 2)} "
+                out += f"  {item.eris[0].symbol}: £{round_decimal(item.amount, 2)} "
                 out += f"(included as {dist_type})\n"
 
         out += f"Number of disposals: {self.disposal_count}\n"

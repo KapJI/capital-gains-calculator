@@ -661,26 +661,26 @@ class CapitalGainsCalculator:
         LOGGER.info("\nFirst pass complete\n")
         print("Final portfolio")
         if not self.portfolio:
-            print("  * (none)")
+            print("  (none)")
         for stock, position in sorted(self.portfolio.items()):
-            print(f"  * {stock}: {position}")
+            print(f"  {stock}: {position}")
         print("Final balance")
         for (broker, currency), amount in balance.items():
-            print(f"  * {broker}: {round_decimal(amount, 2)} ({currency})")
+            print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
         if dividends:
             print("Dividends")
             for (symbol, currency), amount in dividends.items():
                 tax = dividends_tax[(symbol, currency)]
                 tax_str = f", excluding {-tax} taxed at source" if tax < 0 else ""
-                print(f"  * {symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})")
+                print(f"  {symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})")
         if interests:
             print("Interest")
             for (broker, currency), amount in interests.items():
-                print(f"  * {broker}: {round_decimal(amount, 2)} ({currency})")
+                print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
         if interest_taxes:
             print("Interest taxes")
             for (broker, currency), amount in interest_taxes.items():
-                print(f"  * {broker}: {round_decimal(-amount, 2)} ({currency})")
+                print(f"  {broker}: {round_decimal(-amount, 2)} ({currency})")
         print()
 
     def process_acquisition(

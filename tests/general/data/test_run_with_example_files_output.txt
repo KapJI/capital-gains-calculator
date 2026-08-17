@@ -1,27 +1,27 @@
 Final portfolio
-  * GOOG: 163.20
-  * NVDA: 1.00
-  * VNRG: 1.00
-  * VUAG: 30.50
+  GOOG: 163.20
+  NVDA: 1.00
+  VNRG: 1.00
+  VUAG: 30.50
 Final balance
-  * Charles Schwab: 9479.30 (USD)
-  * Trading212: 33391.30 (GBP)
-  * Morgan Stanley: 1.00 (USD)
+  Charles Schwab: 9479.30 (USD)
+  Trading212: 33391.30 (GBP)
+  Morgan Stanley: 1.00 (USD)
 Dividends
-  * NVDA: 0.10 (GBP)
+  NVDA: 0.10 (GBP)
 Interest
-  * Charles Schwab: 1.40 (USD)
+  Charles Schwab: 1.40 (USD)
 
 Portfolio at the end of 2020/2021 tax year
-  * GOOG: 172.00, £12516.55
-  * NVDA: 1.00, £401.01
-  * VNRG: 1.00, £8.98
-  * VUAG: 30.50, £645.19
+  GOOG: 172.00, £12516.55
+  NVDA: 1.00, £401.01
+  VNRG: 1.00, £8.98
+  VUAG: 30.50, £645.19
 
 Tax summary for 2020/2021
 Excess Reported Income
-  * VUAG: £22.26 (included as dividend)
-  * VNRG: £0.91 (included as dividend)
+  VUAG: £22.26 (included as dividend)
+  VNRG: £0.91 (included as dividend)
 Number of disposals: 4
 Disposal proceeds: £43836.90
 Allowable costs: £18666.33

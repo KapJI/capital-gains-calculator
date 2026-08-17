@@ -1,18 +1,18 @@
 Final portfolio
-  * FX:ETH: 2.59
-  * FundUK:FUND1: 50.00
-  * NASDAQ:FOO: 5.00
+  FX:ETH: 2.59
+  FundUK:FUND1: 50.00
+  NASDAQ:FOO: 5.00
 Final balance
-  * Sharesight: -17854.31 (GBP)
-  * Sharesight: 7474.30 (USD)
+  Sharesight: -17854.31 (GBP)
+  Sharesight: 7474.30 (USD)
 Dividends
-  * FOO.NASDAQ: 5.00, excluding 0.75 taxed at source (USD)
-  * FUND1.UKF: 3.00 (GBP)
+  FOO.NASDAQ: 5.00, excluding 0.75 taxed at source (USD)
+  FUND1.UKF: 3.00 (GBP)
 
 Portfolio at the end of 2020/2021 tax year
-  * FX:ETH: 2.59, £5352.48
-  * FundUK:FUND1: 50.00, £13775.00
-  * NASDAQ:FOO: 5.00, £968.97
+  FX:ETH: 2.59, £5352.48
+  FundUK:FUND1: 50.00, £13775.00
+  NASDAQ:FOO: 5.00, £968.97
 
 Tax summary for 2020/2021
 Number of disposals: 4

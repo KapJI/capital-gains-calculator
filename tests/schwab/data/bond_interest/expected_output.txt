@@ -1,12 +1,12 @@
 Final portfolio
-  * (none)
+  (none)
 Final balance
-  * Charles Schwab: 11055.75 (USD)
+  Charles Schwab: 11055.75 (USD)
 Interest
-  * Charles Schwab: 555.75 (USD)
+  Charles Schwab: 555.75 (USD)
 
 Portfolio at the end of 2023/2024 tax year
-  * (none)
+  (none)
 
 Tax summary for 2023/2024
 Number of disposals: 0
