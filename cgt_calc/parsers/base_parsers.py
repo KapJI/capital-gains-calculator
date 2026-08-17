@@ -24,6 +24,8 @@ LOGGER = logging.getLogger(__name__)
 class BaseParser(ABC):
     """Base parser from which all brokers are derived."""
 
+    pretty_name: str
+
     @classmethod
     @abstractmethod
     def register_arguments(cls, arg_group: argparse._ArgumentGroup) -> None:
@@ -39,7 +41,6 @@ class BaseSingleFileParser(BaseParser):
     """Parser for single transaction file."""
 
     arg_name: str
-    pretty_name: str
     format_name: str
     full_arg: str
     deprecated_flags: ClassVar[list[str]] = []
