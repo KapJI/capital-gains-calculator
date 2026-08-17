@@ -1,24 +1,24 @@
 Parsing tests/vanguard/data/cash_investment_report.csv...
 Found 17 broker transactions
 First pass completed
-Final portfolio:
-  BAR: 293.00
-  Emerging Markets Stock Index Fund - Accumulation: 6.77
-  FOO: 1550.00
-  U.S. Equity Index Fund - Accumulation: 0.92
-Final balance:
-  Vanguard: 23.59 (GBP)
-Dividends:
-  FOO: 396.66 (GBP)
-Disposal proceeds: £104.06
+Final portfolio
+  * BAR: 293.00
+  * Emerging Markets Stock Index Fund - Accumulation: 6.77
+  * FOO: 1550.00
+  * U.S. Equity Index Fund - Accumulation: 0.92
+Final balance
+  * Vanguard: 23.59 (GBP)
+Dividends
+  * FOO: 396.66 (GBP)
 
 Second pass completed
-Portfolio at the end of 2022/2023 tax year:
-  BAR: 293.00, £29845.42
-  Emerging Markets Stock Index Fund - Accumulation: 6.77, £1000.00
-  FOO: 1550.00, £14982.06
-  U.S. Equity Index Fund - Accumulation: 0.92, £400.00
-For tax year 2022/2023:
+Portfolio at the end of 2022/2023 tax year
+  * BAR: 293.00, £29845.42
+  * Emerging Markets Stock Index Fund - Accumulation: 6.77, £1000.00
+  * FOO: 1550.00, £14982.06
+  * U.S. Equity Index Fund - Accumulation: 0.92, £400.00
+
+Tax summary for 2022/2023
 Number of disposals: 1
 Disposal proceeds: £104.06
 Allowable costs: £101.86

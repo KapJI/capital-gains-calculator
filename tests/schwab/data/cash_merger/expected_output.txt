@@ -1,14 +1,16 @@
 Parsing tests/schwab/data/cash_merger/transactions.csv...
 Found 5 broker transactions
 First pass completed
-Final portfolio:
-Final balance:
-  Charles Schwab: 1000.00 (USD)
-Disposal proceeds: £711.69
+Final portfolio
+  * (none)
+Final balance
+  * Charles Schwab: 1000.00 (USD)
 
 Second pass completed
-Portfolio at the end of 2020/2021 tax year:
-For tax year 2020/2021:
+Portfolio at the end of 2020/2021 tax year
+  * (none)
+
+Tax summary for 2020/2021
 Number of disposals: 1
 Disposal proceeds: £711.69
 Allowable costs: £1783.50

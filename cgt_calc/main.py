@@ -505,7 +505,6 @@ class CapitalGainsCalculator:
         dividends_tax: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         interests: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         interest_taxes: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
-        total_disposal_proceeds = Decimal(0)
         balance_history: list[Decimal] = []
 
         for transaction in transactions:
@@ -535,10 +534,6 @@ class CapitalGainsCalculator:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 self.add_disposal(transaction)
-                if self.date_in_tax_year(transaction.date):
-                    total_disposal_proceeds += self.currency_converter.to_gbp_for(
-                        amount + transaction.fees, transaction
-                    )
             elif transaction.action is ActionType.FEE:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
@@ -652,7 +647,6 @@ class CapitalGainsCalculator:
             dividends_tax,
             interests,
             interest_taxes,
-            total_disposal_proceeds,
         )
 
     def first_pass_report(
@@ -662,31 +656,31 @@ class CapitalGainsCalculator:
         dividends_tax: dict[tuple[str, str], Decimal],
         interests: dict[tuple[str, str], Decimal],
         interest_taxes: dict[tuple[str, str], Decimal],
-        total_disposal_proceeds: Decimal,
     ) -> None:
         """Print the results of the first pass."""
         print("First pass completed")
-        print("Final portfolio:")
+        print("Final portfolio")
+        if not self.portfolio:
+            print("  * (none)")
         for stock, position in sorted(self.portfolio.items()):
-            print(f"  {stock}: {position}")
-        print("Final balance:")
+            print(f"  * {stock}: {position}")
+        print("Final balance")
         for (broker, currency), amount in balance.items():
-            print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
+            print(f"  * {broker}: {round_decimal(amount, 2)} ({currency})")
         if dividends:
-            print("Dividends:")
+            print("Dividends")
             for (symbol, currency), amount in dividends.items():
                 tax = dividends_tax[(symbol, currency)]
                 tax_str = f", excluding {-tax} taxed at source" if tax < 0 else ""
-                print(f"  {symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})")
+                print(f"  * {symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})")
         if interests:
-            print("Interests:")
+            print("Interest")
             for (broker, currency), amount in interests.items():
-                print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
+                print(f"  * {broker}: {round_decimal(amount, 2)} ({currency})")
         if interest_taxes:
-            print("Interest taxes:")
+            print("Interest taxes")
             for (broker, currency), amount in interest_taxes.items():
-                print(f"  {broker}: {round_decimal(-amount, 2)} ({currency})")
-        print(f"Disposal proceeds: £{round_decimal(total_disposal_proceeds, 2)}")
+                print(f"  * {broker}: {round_decimal(-amount, 2)} ({currency})")
         print()
 
     def process_acquisition(

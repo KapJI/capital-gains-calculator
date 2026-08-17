@@ -1,18 +1,20 @@
 Parsing tests/schwab/data/interest_tax/transactions.csv...
 Found 2 broker transactions
 First pass completed
-Final portfolio:
-Final balance:
-  Charles Schwab: 2.06 (USD)
-Interests:
-  Charles Schwab: 2.94 (USD)
-Interest taxes:
-  Charles Schwab: 0.88 (USD)
-Disposal proceeds: £0.00
+Final portfolio
+  * (none)
+Final balance
+  * Charles Schwab: 2.06 (USD)
+Interest
+  * Charles Schwab: 2.94 (USD)
+Interest taxes
+  * Charles Schwab: 0.88 (USD)
 
 Second pass completed
-Portfolio at the end of 2024/2025 tax year:
-For tax year 2024/2025:
+Portfolio at the end of 2024/2025 tax year
+  * (none)
+
+Tax summary for 2024/2025
 Number of disposals: 0
 Disposal proceeds: £0.00
 Allowable costs: £0.00

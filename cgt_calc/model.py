@@ -355,7 +355,7 @@ class PortfolioEntry:
     def __str__(self) -> str:
         """Return string representation."""
         return (
-            f"  {self.symbol}: {round_decimal(self.quantity, 2)}, "
+            f"{self.symbol}: {round_decimal(self.quantity, 2)}, "
             f"£{round_decimal(self.amount, 2)}"
         )
 
@@ -461,22 +461,25 @@ class CapitalGainsReport:
 
     def __str__(self) -> str:
         """Return string representation."""
-        out = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year:\n"
-        for entry in sorted(self.portfolio, key=lambda entry: entry.symbol):
-            if entry.quantity > 0:
-                unrealized_gains_str = (
-                    entry.unrealized_gains_str() if self.show_unrealized_gains else ""
-                )
-                out += f"{entry!s}{unrealized_gains_str}\n"
+        out = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year\n"
+        held = [entry for entry in self.portfolio if entry.quantity > 0]
+        if not held:
+            out += "  * (none)\n"
+        for entry in sorted(held, key=lambda entry: entry.symbol):
+            unrealized_gains_str = (
+                entry.unrealized_gains_str() if self.show_unrealized_gains else ""
+            )
+            out += f"  * {entry!s}{unrealized_gains_str}\n"
         eris = list(
             self._filter_calculation_log(
                 self.calculation_log_yields,
                 RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
             )
         )
-        out += f"For tax year {self.tax_year}/{self.tax_year + 1}:\n"
+        out += "\n"
+        out += f"Tax summary for {self.tax_year}/{self.tax_year + 1}\n"
         if eris:
-            out += "Excess Reported Income:\n"
+            out += "Excess Reported Income\n"
             for item in self._filter_calculation_log(
                 self.calculation_log_yields,
                 RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
@@ -484,7 +487,7 @@ class CapitalGainsReport:
                 assert item.eris
                 assert len(item.eris) == 1
                 dist_type = "interest" if item.eris[0].is_interest else "dividend"
-                out += f"  {item.eris[0].symbol}: £{round_decimal(item.amount, 2)} "
+                out += f"  * {item.eris[0].symbol}: £{round_decimal(item.amount, 2)} "
                 out += f"(included as {dist_type})\n"
 
         out += f"Number of disposals: {self.disposal_count}\n"

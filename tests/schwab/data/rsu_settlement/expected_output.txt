@@ -2,16 +2,16 @@ Parsing tests/schwab/data/rsu_settlement/awards.csv...
 Parsing tests/schwab/data/rsu_settlement/transactions.csv...
 Found 4 broker transactions
 First pass completed
-Final portfolio:
-  BAR: 300.00
-Final balance:
-  Charles Schwab: 28068.66 (USD)
-Disposal proceeds: £21783.33
+Final portfolio
+  * BAR: 300.00
+Final balance
+  * Charles Schwab: 28068.66 (USD)
 
 Second pass completed
-Portfolio at the end of 2023/2024 tax year:
-  BAR: 300.00, £32533.02
-For tax year 2023/2024:
+Portfolio at the end of 2023/2024 tax year
+  * BAR: 300.00, £32533.02
+
+Tax summary for 2023/2024
 Number of disposals: 1
 Disposal proceeds: £21783.33
 Allowable costs: £21784.37
