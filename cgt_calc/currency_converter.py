@@ -8,6 +8,7 @@ import csv
 import datetime
 from decimal import Decimal, InvalidOperation
 import fcntl
+import logging
 from typing import TYPE_CHECKING, Final, TextIO
 
 from defusedxml import ElementTree as ET
@@ -25,6 +26,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from .model import BrokerTransaction
+
+LOGGER = logging.getLogger(__name__)
 
 EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
 NEW_ENDPOINT_FROM_YEAR: Final = 2021
@@ -168,6 +171,7 @@ class CurrencyConverter:
             writer.writerows([EXCHANGE_RATES_HEADER, *data_rows])
 
     def _query_hmrc_api(self, date: datetime.date) -> None:
+        LOGGER.info("Fetching HMRC exchange rates for %s...", date.strftime("%Y-%m"))
         # Pre 2021 we need to use the old HMRC endpoint
         if date.year < NEW_ENDPOINT_FROM_YEAR:
             month_str = date.strftime("%m%y")

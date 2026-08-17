@@ -195,6 +195,7 @@ class IsinConverter:
             writer.writerows([ISIN_TRANSLATION_HEADER, *data_rows])
 
     def _fetch_live(self, isin: str) -> set[str]:
+        LOGGER.info("Looking up ISIN %s via OpenFIGI...", isin)
         url = "https://api.openfigi.com/v3/mapping"
         headers = {"Content-type": "application/json"}
         data = [{"idType": "ID_ISIN", "idValue": isin}]

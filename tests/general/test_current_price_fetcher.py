@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+
+import pandas as pd
+import pytest
 
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
-
-if TYPE_CHECKING:
-    import pytest
+from cgt_calc.exceptions import MarketDataMissingError
 
 
 class FakeTicker:
@@ -122,3 +122,23 @@ def test_defaults_to_usd_when_currency_field_absent(
     )
     price = _fetcher().get_current_market_price("AAPL")
     assert price == Decimal("100.0") / Decimal("1.25")
+
+
+class FakeEmptyHistoryTicker:
+    """Stand-in for yf.Ticker with no historical data."""
+
+    def history(self, **kwargs: str) -> pd.DataFrame:
+        """Return an empty price history."""
+        return pd.DataFrame()
+
+
+def test_raises_clear_error_when_no_market_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty price history raises an error naming the symbol and date."""
+    monkeypatch.setattr(
+        "cgt_calc.current_price_fetcher.yf.Ticker",
+        lambda symbol: FakeEmptyHistoryTicker(),
+    )
+    with pytest.raises(MarketDataMissingError, match=r"FOO.*2021-05-10"):
+        _fetcher().get_closing_price("FOO", datetime.date(2021, 5, 10))

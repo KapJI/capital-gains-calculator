@@ -17,7 +17,7 @@ from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import InvalidTransactionError
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
-from cgt_calc.main import CapitalGainsCalculator
+from cgt_calc.main import CapitalGainsCalculator, main
 from cgt_calc.model import ActionType, BrokerTransaction, RuleType
 from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.spin_off_handler import SpinOffHandler
@@ -28,6 +28,8 @@ from .calc_test_data import calc_basic_data
 from .calc_test_data_2 import calc_basic_data_2
 
 if TYPE_CHECKING:
+    import argparse
+
     from cgt_calc.model import CalculationLog, CapitalGainsReport
 
 
@@ -853,3 +855,17 @@ def test_run_with_example_files() -> None:
         "if you added new features update the test with:\n"
         f"{cmd_str} > {expected_file}"
     )
+
+
+def test_main_returns_failure_on_unexpected_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unexpected exception must produce a failure exit code."""
+
+    def explode(args: argparse.Namespace) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("cgt_calc.main.calculate_cgt", explode)
+    monkeypatch.setattr(sys, "argv", ["cgt-calc", "--year", "2021"])
+
+    assert main() == 1
