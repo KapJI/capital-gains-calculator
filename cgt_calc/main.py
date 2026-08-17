@@ -1641,6 +1641,7 @@ def main() -> int:
         # Last-resort catch for unexpected exceptions
         LOGGER.critical("Unexpected error!")
         LOGGER.exception("Details:")
+        return 1
 
     return 0
 
