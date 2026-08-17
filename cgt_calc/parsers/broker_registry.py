@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import logging
+import sys
 from typing import TYPE_CHECKING, ClassVar
 
+from colorama import Fore
+
+from cgt_calc.logging import style_text
 from cgt_calc.parsers.eri.raw import ERIRawParser
 from cgt_calc.parsers.freetrade import FreetradeParser
 from cgt_calc.parsers.hl import HargreavesLansdownParser
@@ -70,11 +74,15 @@ class BrokerRegistry:
                 )
                 all_transactions += transactions
 
+        # ERI transactions are appended after this count, so scope the wording.
         msg = f"Found {len(all_transactions)} broker transactions"
         if len(all_transactions) == 0:
             LOGGER.warning(msg)
         else:
-            LOGGER.info("\n%s", msg)
+            LOGGER.info(
+                "\n%s",
+                style_text(msg, colour=Fore.CYAN, emoji="📄", stream=sys.stderr),
+            )
 
         # ERI Raw is not a broker but is close enough to one to be here
         # Only add ERI for funds that show up in the portfolio

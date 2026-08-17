@@ -16,8 +16,8 @@ from cgt_calc.args_validators import (
     existing_file_type,
 )
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.logging import parsing_msg
 from cgt_calc.model import BrokerTransaction
-from cgt_calc.setup_logging import parsing_msg
 
 LOGGER = logging.getLogger(__name__)
 

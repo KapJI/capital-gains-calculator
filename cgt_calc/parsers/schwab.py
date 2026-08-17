@@ -20,9 +20,9 @@ from cgt_calc.exceptions import (
     UnexpectedColumnCountError,
     UnexpectedRowCountError,
 )
+from cgt_calc.logging import parsing_msg
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
-from cgt_calc.setup_logging import parsing_msg
 
 from .base_parsers import BaseSingleFileParser
 

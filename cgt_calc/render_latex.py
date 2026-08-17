@@ -5,12 +5,15 @@ import logging
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 
+from colorama import Fore
 import jinja2
 
 from .const import LATEX_TEMPLATE_RESOURCE, PACKAGE_NAME
 from .exceptions import LatexRenderError, MissingExternalToolError
+from .logging import style_text
 from .model import CapitalGainsReport
 from .util import round_decimal, strip_zeros
 
@@ -31,7 +34,10 @@ def render_pdf(
         if skip_pdflatex
         else f"Writing PDF report to {output_path}..."
     )
-    LOGGER.info("\n%s\n", progress)
+    LOGGER.info(
+        "\n%s\n",
+        style_text(progress, colour=Fore.CYAN, emoji="💾", stream=sys.stderr),
+    )
     latex_template_env = jinja2.Environment(
         block_start_string="\\BLOCK{",
         block_end_string="}",
