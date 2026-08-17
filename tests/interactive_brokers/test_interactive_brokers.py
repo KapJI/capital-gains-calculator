@@ -9,7 +9,7 @@ import pytest
 
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
-from tests.utils import build_cmd
+from tests.utils import build_cmd, stderr_alerts
 
 
 class TestInteractiveBrokers:
@@ -163,7 +163,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
                 f"stdout:\n{result.stdout}\n"
                 f"stderr:\n{result.stderr}"
             )
-        assert result.stderr == ""
+        assert stderr_alerts(result.stderr) == []
         expected_file = (
             Path("tests") / "interactive_brokers" / "data" / "expected_output.txt"
         )
@@ -262,5 +262,5 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
                 f"stdout:\n{result.stdout}\n"
                 f"stderr:\n{result.stderr}"
             )
-        assert result.stderr == ""
-        assert "Final balance:\n  Interactive Brokers: 0.00 (GBP)" in result.stdout
+        assert stderr_alerts(result.stderr) == []
+        assert "Final balance\n  Interactive Brokers: 0.00 (GBP)" in result.stdout

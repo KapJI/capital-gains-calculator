@@ -70,10 +70,11 @@ class BrokerRegistry:
                 )
                 all_transactions += transactions
 
+        msg = f"Found {len(all_transactions)} broker transactions"
         if len(all_transactions) == 0:
-            LOGGER.warning("Found 0 broker transactions")
+            LOGGER.warning(msg)
         else:
-            print(f"Found {len(all_transactions)} broker transactions")
+            LOGGER.info(msg)
 
         # ERI Raw is not a broker but is close enough to one to be here
         # Only add ERI for funds that show up in the portfolio

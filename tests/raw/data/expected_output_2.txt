@@ -1,20 +1,16 @@
-Parsing tests/raw/data/test_data_2.csv...
-Found 9 broker transactions
-First pass completed
-Final portfolio:
+Final portfolio
   AMZN: 10.00
   META: 50.00
-Final balance:
+Final balance
   Unknown: 0.00 (USD)
-Dividends:
+Dividends
   META: 5.00 (USD)
-Disposal proceeds: £8431.31
 
-Second pass completed
-Portfolio at the end of 2022/2023 tax year:
+Portfolio at the end of 2022/2023 tax year
   AMZN: 10.00, £766.40
   META: 50.00, £7664.01
-For tax year 2022/2023:
+
+Tax summary for 2022/2023
 Number of disposals: 2
 Disposal proceeds: £8431.31
 Allowable costs: £12665.89
@@ -28,6 +24,3 @@ Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00
 Total interest tax paid: £0.00
-
-Generating PDF report...
-All done!

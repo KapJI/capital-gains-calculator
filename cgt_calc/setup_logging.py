@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 import sys
 from typing import TYPE_CHECKING, TextIO
 
@@ -11,7 +12,18 @@ import colorama
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from importlib.resources.abc import Traversable
     from typing import Final
+
+LOGGER = logging.getLogger(__name__)
+
+
+def parsing_msg(file: str | Path | Traversable) -> None:
+    """Print progress message for files being parsed."""
+    # Strip package root
+    package_root = f"{Path(__file__).resolve().parent.parent}{os.path.sep}"
+    file = str(file).removeprefix(package_root)
+    LOGGER.info("Parsing %s...", file)
 
 
 class ColourMessageFormatter(logging.Formatter):
@@ -41,7 +53,10 @@ class ColourMessageFormatter(logging.Formatter):
 
         colour = self.COLOURS.get(record.levelno, "")
         if self.use_colour and colour:
-            return f"{colour}{message}{colorama.Style.RESET_ALL}"
+            message = f"{colour}{message}{colorama.Style.RESET_ALL}"
+        if record.levelno in (logging.WARNING, logging.ERROR):
+            # Blank lines both sides so alerts stand apart from the progress flow.
+            message = f"\n{message}\n"
         return message
 
 

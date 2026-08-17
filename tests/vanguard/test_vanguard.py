@@ -12,7 +12,7 @@ from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.vanguard import COLUMNS, VanguardParser
-from tests.utils import build_cmd
+from tests.utils import build_cmd, stderr_alerts
 
 
 def _write_csv(path: Path, rows: list[list[str]]) -> None:
@@ -38,7 +38,7 @@ def test_run_with_vanguard_files() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr == "", "Run with example files generated errors"
+    assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
     expected_file = Path("tests") / "vanguard" / "data" / "expected_output.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param or "''" for param in cmd])

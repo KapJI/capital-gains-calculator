@@ -10,7 +10,7 @@ from reportlab.pdfgen import canvas
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.parsers.hl import HargreavesLansdownParser
-from tests.utils import build_cmd
+from tests.utils import build_cmd, stderr_alerts
 
 HL_CSV_HEADER = (
     "Transaction Summary, , , ,\n"
@@ -118,7 +118,7 @@ def test_hl_parser() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr == "", "Run with example files generated errors"
+    assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
     expected_file = (
         Path("tests")
         / "hl"

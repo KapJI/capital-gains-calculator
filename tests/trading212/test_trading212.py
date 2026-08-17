@@ -16,7 +16,7 @@ from cgt_calc.parsers.trading212 import (
     Trading212Parser,
     Trading212Transaction,
 )
-from tests.utils import build_cmd
+from tests.utils import build_cmd, stderr_alerts
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -515,7 +515,7 @@ def test_run_with_trading212_2024_files() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr == "", "Run with example files generated errors"
+    assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
     expected_file = (
         Path("tests") / "trading212" / "data" / "2024" / "expected_output.txt"
     )

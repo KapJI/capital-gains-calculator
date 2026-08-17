@@ -1,20 +1,16 @@
-Parsing tests/interactive_brokers/data/test_basic.csv...
-Found 12 broker transactions
-First pass completed
-Final portfolio:
+Final portfolio
   CNX1: 2.00
-Final balance:
+Final balance
   Interactive Brokers: 3027.40 (GBP)
-Dividends:
+Dividends
   IBKR: 1.00, excluding 0.15 taxed at source (GBP)
   VT: 20.00, excluding 3.0 taxed at source (GBP)
-Disposal proceeds: £2002.00
 
-Second pass completed
-Portfolio at the end of 2025/2026 tax year:
+Portfolio at the end of 2025/2026 tax year
   CNX1: 2.00, £2007.77
-For tax year 2025/2026:
-Excess Reported Income:
+
+Tax summary for 2025/2026
+Excess Reported Income
   CNX1: £12.54 (included as dividend)
 Number of disposals: 1
 Disposal proceeds: £2002.00
@@ -29,6 +25,3 @@ Total taxable dividends proceeds: £0.00
 Total UK interest proceeds: £0.00
 Total foreign interest proceeds: £0.00
 Total interest tax paid: £0.00
-
-Generating PDF report...
-All done!

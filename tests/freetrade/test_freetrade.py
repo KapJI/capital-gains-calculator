@@ -19,7 +19,7 @@ from cgt_calc.parsers.freetrade import (
     FreetradeParser,
     FreetradeTransaction,
 )
-from tests.utils import build_cmd
+from tests.utils import build_cmd, stderr_alerts
 
 BASE_ROW_VALUES = {
     FreetradeColumn.TITLE.value: "Buy Apple",
@@ -92,7 +92,7 @@ def test_run_with_freetrade_file() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr == "", "Run with example files generated errors"
+    assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
     expected_file = Path("tests") / "freetrade" / "data" / "expected_output.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param or "''" for param in cmd])

@@ -825,7 +825,24 @@ def test_run_with_example_files() -> None:
             f"stderr:\n{result.stderr}"
         )
 
-    assert result.stderr.strip() == "", "Unexpected stderr message"
+    # The progress narrative is a contract: it must reach stderr, in order.
+    # The last two lines depend on whether pdflatex runs, so match by prefix.
+    stderr_lines = [line for line in result.stderr.splitlines() if line.strip()]
+    assert stderr_lines[:-2] == [
+        "Parsing tests/schwab/data/schwab_transactions.csv...",
+        "Loaded 13 transactions from Charles Schwab",
+        "Parsing tests/trading212/data/2020/from_2020-09-11_to_2021-04-02.csv...",
+        "Loaded 8 transactions from Trading 212",
+        "Parsing tests/morgan_stanley/data/Releases Report.csv...",
+        "Parsing tests/morgan_stanley/data/Withdrawals Report.csv...",
+        "Loaded 6 transactions from Morgan Stanley",
+        "Found 27 broker transactions",
+        "First pass complete",
+        "Bed & breakfast match: VUAG disposed 2020-06-03, re-acquired 2020-07-02",
+        "Second pass complete",
+    ]
+    assert stderr_lines[-2].startswith("Writing ")
+    assert stderr_lines[-1].startswith("Done!")
     expected_file = (
         Path("tests") / "general" / "data" / "test_run_with_example_files_output.txt"
     )
