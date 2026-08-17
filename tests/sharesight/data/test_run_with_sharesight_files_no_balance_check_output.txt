@@ -10,21 +10,27 @@ Dividends
   FUND1.UKF: 3.00 (GBP)
 
 Portfolio at the end of 2020/2021 tax year
-  FX:ETH: 2.59, £5352.48
-  FundUK:FUND1: 50.00, £13775.00
+  FX:ETH: 2.59, £5,352.48
+  FundUK:FUND1: 50.00, £13,775.00
   NASDAQ:FOO: 5.00, £968.97
 
 Tax summary for 2020/2021
-Number of disposals: 4
-Disposal proceeds: £12999.61
-Allowable costs: £11017.97
-Capital gain: £2176.98
-Capital loss: £195.34
-Total capital gain: £1981.64
-Taxable capital gain: £0
-Total dividends proceeds: £6.92
-Total amount of dividends tax yearly allowance: £2000.00
-Total taxable dividends proceeds: £0.00
-Total UK interest proceeds: £0.00
-Total foreign interest proceeds: £0.00
-Total interest tax paid: £0.00
+
+Capital gains
+  Disposals:                   4
+  Disposal proceeds:  £12,999.61
+  Allowable costs:    £11,017.97
+  Gain:                £2,176.98
+  Loss:                  £195.34
+  Total gain:          £1,981.64
+  Taxable gain:               £0
+
+Dividends
+  Proceeds:                £6.92
+  Tax-free allowance:  £2,000.00
+  Taxable proceeds:        £0.00
+
+Interest
+  UK proceeds:             £0.00
+  Foreign proceeds:        £0.00
+  Tax paid:                £0.00

@@ -7,16 +7,22 @@ Portfolio at the end of 2020/2021 tax year
   (none)
 
 Tax summary for 2020/2021
-Number of disposals: 1
-Disposal proceeds: £711.69
-Allowable costs: £1783.50
-Capital gain: £0.00
-Capital loss: £1071.81
-Total capital gain: £-1071.81
-Taxable capital gain: £0
-Total dividends proceeds: £0.00
-Total amount of dividends tax yearly allowance: £2000.00
-Total taxable dividends proceeds: £0.00
-Total UK interest proceeds: £0.00
-Total foreign interest proceeds: £0.00
-Total interest tax paid: £0.00
+
+Capital gains
+  Disposals:                   1
+  Disposal proceeds:     £711.69
+  Allowable costs:     £1,783.50
+  Gain:                    £0.00
+  Loss:                £1,071.81
+  Total gain:         £-1,071.81
+  Taxable gain:               £0
+
+Dividends
+  Proceeds:                £0.00
+  Tax-free allowance:  £2,000.00
+  Taxable proceeds:        £0.00
+
+Interest
+  UK proceeds:             £0.00
+  Foreign proceeds:        £0.00
+  Tax paid:                £0.00

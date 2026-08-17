@@ -344,7 +344,7 @@ class PortfolioEntry:
         if self.unrealized_gains is None:
             str_val = "unknown"
         else:
-            str_val = f"£{round_decimal(self.unrealized_gains, 2)}"
+            str_val = f"£{round_decimal(self.unrealized_gains, 2):,}"
 
         return f" (unrealized gains: {str_val})"
 
@@ -355,8 +355,8 @@ class PortfolioEntry:
     def __str__(self) -> str:
         """Return string representation."""
         return (
-            f"{self.symbol}: {round_decimal(self.quantity, 2)}, "
-            f"£{round_decimal(self.amount, 2)}"
+            f"{self.symbol}: {round_decimal(self.quantity, 2):,}, "
+            f"£{round_decimal(self.amount, 2):,}"
         )
 
 
@@ -478,56 +478,85 @@ class CapitalGainsReport:
         )
         out += "\n"
         out += f"Tax summary for {self.tax_year}/{self.tax_year + 1}\n"
-        if eris:
-            out += "Excess Reported Income\n"
-            for item in self._filter_calculation_log(
-                self.calculation_log_yields,
-                RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
-            ):
-                assert item.eris
-                assert len(item.eris) == 1
-                dist_type = "interest" if item.eris[0].is_interest else "dividend"
-                out += f"  {item.eris[0].symbol}: £{round_decimal(item.amount, 2)} "
-                out += f"(included as {dist_type})\n"
 
-        out += f"Number of disposals: {self.disposal_count}\n"
-        out += f"Disposal proceeds: £{self.disposal_proceeds}\n"
-        out += f"Allowable costs: £{self.allowable_costs}\n"
-        out += f"Capital gain: £{self.capital_gain}\n"
-        out += f"Capital loss: £{-self.capital_loss}\n"
-        out += f"Total capital gain: £{self.total_gain()}\n"
+        capital: list[tuple[str, str]] = [
+            ("Disposals", str(self.disposal_count)),
+            ("Disposal proceeds", f"£{self.disposal_proceeds:,}"),
+            ("Allowable costs", f"£{self.allowable_costs:,}"),
+            ("Gain", f"£{self.capital_gain:,}"),
+            ("Loss", f"£{-self.capital_loss:,}"),
+            ("Total gain", f"£{self.total_gain():,}"),
+        ]
+        capital_notes: list[str] = []
         if self.capital_gain_allowance is not None:
-            out += f"Taxable capital gain: £{self.taxable_gain()}\n"
+            capital.append(("Taxable gain", f"£{self.taxable_gain():,}"))
         else:
-            out += "WARNING: Missing allowance for this tax year\n"
+            capital_notes.append("WARNING: Missing allowance for this tax year")
         if self.show_unrealized_gains:
-            total_unrealized_gains = round_decimal(self.total_unrealized_gains(), 2)
-            out += f"Total unrealized gains: £{total_unrealized_gains}\n"
-            if any(h.unrealized_gains is None for h in self.portfolio):
-                out += (
-                    "WARNING: Some unrealized gains couldn't be calculated."
-                    " Take a look at the symbols with unknown unrealized gains above"
-                    " and factor in their prices.\n"
+            capital.append(
+                (
+                    "Unrealized gains",
+                    f"£{round_decimal(self.total_unrealized_gains(), 2):,}",
                 )
-        out += (
-            "Total dividends proceeds: "
-            f"£{round_decimal(self.total_dividends_amount(), 2)}\n"
-        )
+            )
+            if any(h.unrealized_gains is None for h in self.portfolio):
+                capital_notes.append(
+                    "WARNING: Some unrealized gains couldn't be calculated."
+                    " Take a look at the symbols with unknown unrealized gains"
+                    " above and factor in their prices."
+                )
+
+        dividends: list[tuple[str, str]] = [
+            ("Proceeds", f"£{round_decimal(self.total_dividends_amount(), 2):,}"),
+        ]
         if self.dividend_allowance is not None:
-            out += (
-                "Total amount of dividends tax yearly allowance: "
-                f"£{round_decimal(self.dividend_allowance, 2)}\n"
+            dividends.append(
+                (
+                    "Tax-free allowance",
+                    f"£{round_decimal(self.dividend_allowance, 2):,}",
+                )
             )
         if (
             self.dividend_allowance is not None
             or self.total_dividend_taxes_in_tax_treaties_amount() > 0
         ):
-            out += (
-                "Total taxable dividends proceeds: "
-                f"£{round_decimal(self.total_dividend_taxable_gain(), 2)}\n"
+            dividends.append(
+                (
+                    "Taxable proceeds",
+                    f"£{round_decimal(self.total_dividend_taxable_gain(), 2):,}",
+                )
             )
-        out += f"Total UK interest proceeds: £{self.total_uk_interest}\n"
-        out += f"Total foreign interest proceeds: £{self.total_foreign_interest}\n"
-        out += f"Total interest tax paid: £{self.total_interest_tax}\n"
+
+        interest: list[tuple[str, str]] = [
+            ("UK proceeds", f"£{self.total_uk_interest:,}"),
+            ("Foreign proceeds", f"£{self.total_foreign_interest:,}"),
+            ("Tax paid", f"£{self.total_interest_tax:,}"),
+        ]
+
+        groups: list[tuple[str, list[tuple[str, str]], list[str]]] = [
+            ("Capital gains", capital, capital_notes),
+            ("Dividends", dividends, []),
+            ("Interest", interest, []),
+        ]
+
+        # Right-align values on one shared column across the whole summary so
+        # the decimal points line up.
+        label_width = max(len(label) for _, rows, _ in groups for label, _ in rows) + 1
+        value_width = max(len(value) for _, rows, _ in groups for _, value in rows)
+        for title, rows, notes in groups:
+            out += f"\n{title}\n"
+            for label, value in rows:
+                out += f"  {label + ':':<{label_width}} {value:>{value_width}}\n"
+            for note in notes:
+                out += f"{note}\n"
+
+        if eris:
+            out += "\nExcess Reported Income\n"
+            for item in eris:
+                assert item.eris
+                assert len(item.eris) == 1
+                dist_type = "interest" if item.eris[0].is_interest else "dividend"
+                out += f"  {item.eris[0].symbol}: £{round_decimal(item.amount, 2):,} "
+                out += f"(included as {dist_type})\n"
 
         return out

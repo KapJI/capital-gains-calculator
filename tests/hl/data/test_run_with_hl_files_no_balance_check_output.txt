@@ -6,19 +6,25 @@ Interest
   Hargreaves Lansdown: 3.87 (GBP)
 
 Portfolio at the end of 2025/2026 tax year
-  VHVG: 3563.00, £117132.23
+  VHVG: 3,563.00, £117,132.23
 
 Tax summary for 2025/2026
-Number of disposals: 1
-Disposal proceeds: £45000.00
-Allowable costs: £32886.56
-Capital gain: £12113.44
-Capital loss: £0.00
-Total capital gain: £12113.44
-Taxable capital gain: £9113.44
-Total dividends proceeds: £0.00
-Total amount of dividends tax yearly allowance: £500.00
-Total taxable dividends proceeds: £0.00
-Total UK interest proceeds: £3.87
-Total foreign interest proceeds: £0.00
-Total interest tax paid: £0.00
+
+Capital gains
+  Disposals:                   1
+  Disposal proceeds:  £45,000.00
+  Allowable costs:    £32,886.56
+  Gain:               £12,113.44
+  Loss:                    £0.00
+  Total gain:         £12,113.44
+  Taxable gain:        £9,113.44
+
+Dividends
+  Proceeds:                £0.00
+  Tax-free allowance:    £500.00
+  Taxable proceeds:        £0.00
+
+Interest
+  UK proceeds:             £3.87
+  Foreign proceeds:        £0.00
+  Tax paid:                £0.00

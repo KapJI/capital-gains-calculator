@@ -7,21 +7,28 @@ Dividends
   VT: 20.00, excluding 3.0 taxed at source (GBP)
 
 Portfolio at the end of 2025/2026 tax year
-  CNX1: 2.00, £2007.77
+  CNX1: 2.00, £2,007.77
 
 Tax summary for 2025/2026
+
+Capital gains
+  Disposals:                  1
+  Disposal proceeds:  £2,002.00
+  Allowable costs:    £2,010.77
+  Gain:                   £0.00
+  Loss:                   £8.77
+  Total gain:            £-8.77
+  Taxable gain:              £0
+
+Dividends
+  Proceeds:              £33.54
+  Tax-free allowance:   £500.00
+  Taxable proceeds:       £0.00
+
+Interest
+  UK proceeds:            £0.00
+  Foreign proceeds:       £0.00
+  Tax paid:               £0.00
+
 Excess Reported Income
   CNX1: £12.54 (included as dividend)
-Number of disposals: 1
-Disposal proceeds: £2002.00
-Allowable costs: £2010.77
-Capital gain: £0.00
-Capital loss: £8.77
-Total capital gain: £-8.77
-Taxable capital gain: £0
-Total dividends proceeds: £33.54
-Total amount of dividends tax yearly allowance: £500.00
-Total taxable dividends proceeds: £0.00
-Total UK interest proceeds: £0.00
-Total foreign interest proceeds: £0.00
-Total interest tax paid: £0.00
