@@ -72,6 +72,7 @@ Environment variables:
     )
     data_group.add_argument(
         "--initial-prices",
+        action=DeprecatedAction,
         dest="initial_prices_file",
         type=existing_file_type,
         help=argparse.SUPPRESS,
