@@ -937,8 +937,7 @@ class CapitalGainsCalculator:
                     # Bed and breakfasting is a record of how the disposal was
                     # matched rather than a problem, so it is logged at INFO.
                     LOGGER.info(
-                        "Bed and breakfasting for %s. "
-                        "Disposed on %s and acquired again on %s",
+                        "Bed & breakfast match: %s disposed %s, re-acquired %s",
                         symbol,
                         date_index,
                         search_index,

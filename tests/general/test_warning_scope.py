@@ -105,7 +105,7 @@ def test_bed_and_breakfast_is_logged_at_info(
         calculator.calculate_capital_gain()
 
     bed_and_breakfast = [
-        record for record in caplog.records if "Bed and breakfasting" in record.message
+        record for record in caplog.records if "Bed & breakfast match" in record.message
     ]
     assert len(bed_and_breakfast) == 1
     assert bed_and_breakfast[0].levelno == logging.INFO
