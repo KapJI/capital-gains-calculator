@@ -667,7 +667,7 @@ class CapitalGainsCalculator:
         """Print the results of the first pass."""
         print("First pass completed")
         print("Final portfolio:")
-        for stock, position in self.portfolio.items():
+        for stock, position in sorted(self.portfolio.items()):
             print(f"  {stock}: {position}")
         print("Final balance:")
         for (broker, currency), amount in balance.items():

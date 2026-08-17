@@ -462,7 +462,7 @@ class CapitalGainsReport:
     def __str__(self) -> str:
         """Return string representation."""
         out = f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year:\n"
-        for entry in self.portfolio:
+        for entry in sorted(self.portfolio, key=lambda entry: entry.symbol):
             if entry.quantity > 0:
                 unrealized_gains_str = (
                     entry.unrealized_gains_str() if self.show_unrealized_gains else ""
