@@ -20,6 +20,11 @@ def render_pdf(
     skip_pdflatex: bool = False,
 ) -> None:
     """Render LaTeX to a PDF report."""
+    jobname = output_path.stem
+    out_dir = output_path.parent
+    tex_path = out_dir / f"{jobname}.tex"
+    # Keep this line identical in both modes: e2e fixtures are compared both
+    # with and without pdflatex in CI.
     print("Generating PDF report...")
     latex_template_env = jinja2.Environment(
         block_start_string="\\BLOCK{",
@@ -45,19 +50,20 @@ def render_pdf(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Without pdflatex the LaTeX source is the report: save it for the user
+    # instead of producing a PDF.
+    if skip_pdflatex:
+        tex_path.write_text(output_text, encoding="utf-8")
+        return
+
     with tempfile.NamedTemporaryFile(
         "w", encoding="utf-8", prefix="cgt_calc_", suffix=".tex", delete=False
     ) as tmp:
         tmp_path = Path(tmp.name)
         tmp.write(output_text)
 
-    jobname = output_path.stem
-    out_dir = output_path.parent
     log_path = out_dir / f"{jobname}.latex.log"
 
-    # Skip for integration tests when pdflatex is not available.
-    if skip_pdflatex:
-        return
     try:
         if shutil.which("pdflatex") is None:
             raise MissingExternalToolError("pdflatex")

@@ -66,7 +66,7 @@ class BrokerRegistry:
                 LOGGER.info(
                     "Loaded %d transactions from %s",
                     len(transactions),
-                    broker_class.__name__,
+                    broker_class.pretty_name,
                 )
                 all_transactions += transactions
 

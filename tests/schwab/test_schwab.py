@@ -97,8 +97,12 @@ def test_run_with_schwab_cash_merger_files() -> None:
             f"stderr:\n{result.stderr}"
         )
     stderr_lines = result.stderr.strip().split("\n")
-    assert len(stderr_lines) == 1
+    assert len(stderr_lines) == 2
     assert stderr_lines[0].startswith("WARNING: Cash Merger support is not complete")
+    assert (
+        stderr_lines[1].strip()
+        == "FOO: 100 units on 2021-03-02 for 1000 USD (Charles Schwab)"
+    )
     expected_file = (
         Path("tests") / "schwab" / "data" / "cash_merger" / "expected_output.txt"
     )

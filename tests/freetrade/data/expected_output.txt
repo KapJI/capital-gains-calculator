@@ -2,9 +2,9 @@ Parsing tests/freetrade/data/transactions.csv...
 Found 17 broker transactions
 First pass completed
 Final portfolio:
-  TSLA: 1.45
   GOOGL: 0.14
   NDAQ: 2.12
+  TSLA: 1.45
 Final balance:
   Freetrade: 8946.79 (GBP)
 Dividends:
@@ -15,9 +15,9 @@ Disposal proceeds: £2930.36
 
 Second pass completed
 Portfolio at the end of 2023/2024 tax year:
-  TSLA: 1.45, £944.86
   GOOGL: 0.14, £279.58
   NDAQ: 2.12, £279.58
+  TSLA: 1.45, £944.86
 For tax year 2023/2024:
 Number of disposals: 1
 Disposal proceeds: £2930.36

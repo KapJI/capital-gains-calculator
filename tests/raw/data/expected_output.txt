@@ -3,9 +3,9 @@ Found 16 broker transactions
 First pass completed
 Final portfolio:
   AMZN: 210.00
-  OPRA: 120.00
   BABA: 30.00
   META: 119.00
+  OPRA: 120.00
 Final balance:
   Unknown: -28486.60 (USD)
 Dividends:
@@ -16,9 +16,9 @@ Disposal proceeds: £11422.10
 Second pass completed
 Portfolio at the end of 2022/2023 tax year:
   AMZN: 210.00, £1900.67
-  OPRA: 120.00, £492.03
   BABA: 30.00, £1942.83
   META: 119.00, £18042.21
+  OPRA: 120.00, £492.03
 For tax year 2022/2023:
 Number of disposals: 3
 Disposal proceeds: £11422.10

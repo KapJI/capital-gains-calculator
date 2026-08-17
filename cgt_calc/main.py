@@ -667,7 +667,7 @@ class CapitalGainsCalculator:
         """Print the results of the first pass."""
         print("First pass completed")
         print("Final portfolio:")
-        for stock, position in self.portfolio.items():
+        for stock, position in sorted(self.portfolio.items()):
             print(f"  {stock}: {position}")
         print("Final balance:")
         for (broker, currency), amount in balance.items():
@@ -937,8 +937,7 @@ class CapitalGainsCalculator:
                     # Bed and breakfasting is a record of how the disposal was
                     # matched rather than a problem, so it is logged at INFO.
                     LOGGER.info(
-                        "Bed and breakfasting for %s. "
-                        "Disposed on %s and acquired again on %s",
+                        "Bed & breakfast match: %s disposed %s, re-acquired %s",
                         symbol,
                         date_index,
                         search_index,
