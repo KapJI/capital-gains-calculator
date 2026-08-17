@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 import pytest
+from requests import exceptions as requests_exceptions
 
 from cgt_calc.currency_converter import CurrencyConverter
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import ExternalApiError, ParsingError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -118,3 +120,24 @@ def test_read_exchange_rates_skips_comment_lines(tmp_path: Path) -> None:
     february = datetime.date(2024, 2, 1)
     assert cache[january] == {"USD": Decimal("1.25")}
     assert cache[february] == {"EUR": Decimal("1.10")}
+
+
+class OfflineSession:
+    """Session stub that fails every request."""
+
+    def get(self, url: str, timeout: int) -> NoReturn:
+        """Simulate a network failure."""
+        raise requests_exceptions.ConnectionError(f"offline: {url}")
+
+
+def test_hmrc_fetch_announces_itself(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fetching rates from HMRC logs a progress line before the request."""
+    converter = CurrencyConverter()
+    monkeypatch.setattr(converter, "session", OfflineSession())
+
+    with caplog.at_level(logging.INFO), pytest.raises(ExternalApiError):
+        converter.currency_to_gbp_rate("USD", datetime.date(2021, 5, 10))
+
+    assert "Fetching HMRC exchange rates for 2021-05..." in caplog.text
