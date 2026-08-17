@@ -107,6 +107,8 @@ class ColourMessageFormatter(logging.Formatter):
         super().__init__(fmt)
         self.use_colour = use_colour
         self.use_emoji = use_emoji
+        # Assumes this formatter is attached to a single handler.
+        self._last_was_alert = False
 
     def format(self, record: logging.LogRecord) -> str:
         """Return a formatted log message, colourised if enabled."""
@@ -127,9 +129,13 @@ class ColourMessageFormatter(logging.Formatter):
                 lines[1:] = [f"    {line}" for line in lines[1:]]
                 message = "\n".join(lines)
 
-        if record.levelno in (logging.WARNING, logging.ERROR):
-            # Blank lines both sides so alerts stand apart from the progress flow.
-            message = f"\n{message}\n"
+        is_alert = record.levelno in (logging.WARNING, logging.ERROR)
+        if is_alert:
+            # Blank lines both sides so alerts stand apart from the progress flow,
+            # collapsed to a single blank line within a run of consecutive alerts.
+            lead = "" if self._last_was_alert else "\n"
+            message = f"{lead}{message}\n"
+        self._last_was_alert = is_alert
         return message
 
 
