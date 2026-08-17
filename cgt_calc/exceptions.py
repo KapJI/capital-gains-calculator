@@ -195,3 +195,16 @@ class ExternalApiError(CgtError):
     def __init__(self, url: str, message: str):
         """Initialise."""
         super().__init__(f"{message} (source: {url})")
+
+
+class InteractiveInputRequiredError(CgtError):
+    """Raised when a prompt is needed but stdin is not a terminal."""
+
+    def __init__(self, symbol: str, date: datetime.date, spin_offs_file: Path):
+        """Initialise."""
+        super().__init__(
+            f"Cannot ask which stock {symbol} was spun off from on {date}: "
+            "standard input is not a terminal (this also applies when piping "
+            f"transactions via '-'). Add a '{symbol},<source>' row to "
+            f"{spin_offs_file} (header 'dst,src') and rerun."
+        )

@@ -1,0 +1,76 @@
+"""Tests for SpinOffHandler."""
+
+from __future__ import annotations
+
+import datetime
+import sys
+from typing import TYPE_CHECKING
+
+import pytest
+
+from cgt_calc.const import DEFAULT_SPIN_OFF_FILE
+from cgt_calc.exceptions import InteractiveInputRequiredError
+from cgt_calc.spin_off_handler import SpinOffHandler
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+SPIN_OFF_DATE = datetime.date(2021, 5, 10)
+
+
+def test_cached_source_needs_no_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A spin-off already recorded in the file is returned without prompting."""
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    spin_offs_file.write_text("dst,src\nNEW,OLD\n", encoding="utf8")
+    handler = SpinOffHandler(spin_offs_file)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+
+    assert handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {}) == "OLD"
+
+
+def test_non_interactive_run_raises_clear_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without a terminal the prompt is replaced by an actionable error."""
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    handler = SpinOffHandler(spin_offs_file)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+
+    with pytest.raises(InteractiveInputRequiredError) as excinfo:
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
+
+    message = str(excinfo.value)
+    assert "NEW" in message
+    assert str(spin_offs_file) in message
+    assert "dst,src" in message
+
+
+def test_error_names_default_file_when_none_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no spin-offs file configured the error points at the default path."""
+    handler = SpinOffHandler()
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+
+    with pytest.raises(InteractiveInputRequiredError) as excinfo:
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
+
+    assert str(DEFAULT_SPIN_OFF_FILE) in str(excinfo.value)
+
+
+def test_eof_during_prompt_raises_clear_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """EOF while reading the answer is reported like a missing terminal."""
+
+    def read_eof(prompt: str) -> str:
+        raise EOFError
+
+    handler = SpinOffHandler(tmp_path / "spin_offs.csv")
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", read_eof)
+
+    with pytest.raises(InteractiveInputRequiredError):
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
