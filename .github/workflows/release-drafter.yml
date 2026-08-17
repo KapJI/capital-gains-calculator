@@ -21,8 +21,6 @@ jobs:
     steps:
       - name: Run release-drafter
         uses: release-drafter/release-drafter@v7.7.0
-        with:
-          disable-autolabeler: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -33,7 +31,5 @@ jobs:
     steps:
       - name: Run release-drafter autolabeler
         uses: release-drafter/release-drafter@v7.7.0
-        with:
-          disable-releaser: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
