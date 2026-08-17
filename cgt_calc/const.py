@@ -131,6 +131,9 @@ INITIAL_ISIN_TRANSLATION_RESOURCE: Final = "initial_isin_translation.csv"
 # ERI data folder
 ERI_RESOURCE_FOLDER: Final = "eri"
 
+# Most recent transactions shown when the balance check fails
+BALANCE_CHECK_CONTEXT_ROWS: Final = 10
+
 
 # =============================================================================
 # Default output paths

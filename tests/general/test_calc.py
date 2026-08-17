@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from pathlib import Path
 import subprocess
 import sys
@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
+from cgt_calc.const import BALANCE_CHECK_CONTEXT_ROWS, RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
-from cgt_calc.exceptions import InvalidTransactionError
+from cgt_calc.exceptions import CalculationError, InvalidTransactionError
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator, main
@@ -24,7 +24,13 @@ from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
 from tests.utils import build_cmd
 
-from .calc_test_data import calc_basic_data
+from .calc_test_data import (
+    buy_transaction,
+    calc_basic_data,
+    split_transaction,
+    transaction,
+    transfer_transaction,
+)
 from .calc_test_data_2 import calc_basic_data_2
 
 if TYPE_CHECKING:
@@ -50,7 +56,9 @@ def get_report(
     return calculator.calculate_capital_gain()
 
 
-def create_calculator(tax_year: int = 2024) -> CapitalGainsCalculator:
+def create_calculator(
+    tax_year: int = 2024, balance_check: bool = False
+) -> CapitalGainsCalculator:
     """Create a calculator with standard test configuration."""
     currency_converter = CurrencyConverter(None, {})
     price_fetcher = CurrentPriceFetcher(currency_converter, {}, {})
@@ -62,7 +70,7 @@ def create_calculator(tax_year: int = 2024) -> CapitalGainsCalculator:
         SpinOffHandler(),
         InitialPrices(),
         interest_fund_tickers=[],
-        balance_check=False,
+        balance_check=balance_check,
     )
 
 
@@ -868,4 +876,73 @@ def test_main_returns_failure_on_unexpected_error(
     monkeypatch.setattr("cgt_calc.main.calculate_cgt", explode)
     monkeypatch.setattr(sys, "argv", ["cgt-calc", "--year", "2021"])
 
-    assert main() == 1
+    # main() enables the FloatOperation trap on the active decimal context;
+    # keep that from leaking into other tests in the same worker.
+    with localcontext():
+        assert main() == 1
+
+
+def test_negative_balance_error_trims_long_history() -> None:
+    """A long transaction dump is trimmed to the most recent entries."""
+    start = datetime.date(2024, 5, 1)
+    transactions = [transfer_transaction(start, 13.0)] + [
+        transfer_transaction(start + datetime.timedelta(days=day), -1.0)
+        for day in range(1, 15)
+    ]
+    calculator = create_calculator(balance_check=True)
+
+    with pytest.raises(CalculationError) as excinfo:
+        calculator.convert_to_hmrc_transactions(transactions)
+
+    message = str(excinfo.value)
+    assert "... 5 earlier transaction(s) omitted ..." in message
+    assert message.count("Balance after transaction=") == BALANCE_CHECK_CONTEXT_ROWS
+    assert "use --no-balance-check" in message
+
+
+def test_negative_balance_error_shows_short_history_in_full() -> None:
+    """A dump that fits within the limit is shown without omissions."""
+    transactions = [transfer_transaction(datetime.date(2024, 5, 1), -1.0)]
+    calculator = create_calculator(balance_check=True)
+
+    with pytest.raises(CalculationError) as excinfo:
+        calculator.convert_to_hmrc_transactions(transactions)
+
+    message = str(excinfo.value)
+    assert "Reached a negative balance(-1.000000)" in message
+    assert "omitted" not in message
+    assert message.count("Balance after transaction=") == 1
+    assert "use --no-balance-check" in message
+
+
+def test_negative_balance_error_shows_only_relevant_transactions() -> None:
+    """Other currencies and cash-neutral transactions are left out of the dump."""
+    day = datetime.date(2024, 5, 1)
+    transactions = [
+        transfer_transaction(day, 100.0),
+        buy_transaction(
+            day + datetime.timedelta(days=1),
+            "FOO",
+            quantity=1,
+            price=10.0,
+            fees=0.0,
+            amount=-10.0,
+        ),
+        split_transaction(day + datetime.timedelta(days=2), "FOO", quantity=1),
+        transaction(
+            day + datetime.timedelta(days=3),
+            ActionType.TRANSFER,
+            amount=5.0,
+            currency="EUR",
+        ),
+        transfer_transaction(day + datetime.timedelta(days=4), -91.0),
+    ]
+    calculator = create_calculator(balance_check=True)
+
+    with pytest.raises(CalculationError) as excinfo:
+        calculator.convert_to_hmrc_transactions(transactions)
+
+    message = str(excinfo.value)
+    assert message.count("Balance after transaction=") == 3
+    assert "currency='EUR'" not in message
+    assert "Split of FOO" not in message

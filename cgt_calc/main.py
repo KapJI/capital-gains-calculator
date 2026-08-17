@@ -16,6 +16,7 @@ from colorama import Fore, Style
 from . import render_latex
 from .args_parser import create_parser
 from .const import (
+    BALANCE_CHECK_CONTEXT_ROWS,
     BED_AND_BREAKFAST_DAYS,
     CAPITAL_GAIN_ALLOWANCES,
     DIVIDEND_ALLOWANCES,
@@ -622,23 +623,28 @@ class CapitalGainsCalculator:
                 )
             balance_history.append(new_balance)
             if self.balance_check and new_balance < 0:
+                entries = [
+                    f"{trx}\nBalance after transaction={balance_after}"
+                    for trx, balance_after in zip(
+                        transactions[: i + 1], balance_history, strict=True
+                    )
+                    # Only same-pool transactions that moved the cash balance
+                    # are relevant (skips other currencies, ERI entries,
+                    # renames, splits, etc.)
+                    if trx.broker == transaction.broker
+                    and trx.currency == transaction.currency
+                    and trx.amount
+                ]
+                omitted = len(entries) - BALANCE_CHECK_CONTEXT_ROWS
+                if omitted > 0:
+                    entries = [
+                        f"... {omitted} earlier transaction(s) omitted ...",
+                        *entries[-BALANCE_CHECK_CONTEXT_ROWS:],
+                    ]
                 msg = f"Reached a negative balance({new_balance})"
                 msg += f" for broker {transaction.broker} ({transaction.currency})"
                 msg += " after processing the following transactions:\n"
-                msg += (
-                    "\n".join(
-                        [
-                            f"{trx}\nBalance after transaction={balance_after}"
-                            for trx, balance_after in zip(
-                                transactions[: i + 1], balance_history, strict=True
-                            )
-                            # filter out ERI transactions, they don't affect the balance
-                            if trx.action != ActionType.EXCESS_REPORTED_INCOME
-                            and trx.broker == transaction.broker
-                        ]
-                    )
-                    + "\n"
-                )
+                msg += "\n".join(entries) + "\n"
                 msg += "Tip: If your input file is missing deposits/withdrawals use --no-balance-check."
                 raise CalculationError(msg)
             balance[(transaction.broker, transaction.currency)] = new_balance
