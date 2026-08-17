@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from pathlib import Path
 import subprocess
 import sys
@@ -876,7 +876,10 @@ def test_main_returns_failure_on_unexpected_error(
     monkeypatch.setattr("cgt_calc.main.calculate_cgt", explode)
     monkeypatch.setattr(sys, "argv", ["cgt-calc", "--year", "2021"])
 
-    assert main() == 1
+    # main() enables the FloatOperation trap on the active decimal context;
+    # keep that from leaking into other tests in the same worker.
+    with localcontext():
+        assert main() == 1
 
 
 def test_negative_balance_error_trims_long_history() -> None:
