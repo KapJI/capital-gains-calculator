@@ -315,6 +315,55 @@ def test_dual_table_sorted_by_date() -> None:
     assert dates == sorted(dates)
 
 
+def test_dual_table_blank_transaction_details_does_not_crash(tmp_path: Path) -> None:
+    """A blank TransactionDetails cell (seen in real multi-fund batch exports) must not abort parsing."""
+    content = (
+        "Date,Details,Amount,Balance\n"
+        "10/03/2022,Bought 10 Foo ETF (FOO),-95,5\n"
+        "\n"
+        "Investment Transactions\n"
+        "\n"
+        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        "10/03/2022,Foo ETF (FOO),,10,9.5,95\n"
+    )
+    vanguard_file = tmp_path / "blank_transaction_details.csv"
+    vanguard_file.write_text(content, encoding="utf-8")
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    buys = [t for t in transactions if t.action == ActionType.BUY]
+    assert len(buys) == 1
+    assert buys[0].symbol == "FOO"
+    assert buys[0].quantity == Decimal(10)
+
+
+def test_investment_only_blank_transaction_details_uses_quantity_sign(
+    tmp_path: Path,
+) -> None:
+    """With no TransactionDetails, action comes from Quantity's sign and symbol from InvestmentName."""
+    content = (
+        "Investment Transactions\n"
+        "\n"
+        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        "10/03/2022,Foo ETF (FOO),,10,9.5,95\n"
+        "15/03/2022,Foo ETF (FOO),,-5,10.0,50\n"
+    )
+    vanguard_file = tmp_path / "inv_only_blank.csv"
+    vanguard_file.write_text(content, encoding="utf-8")
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 2
+    assert transactions[0].action == ActionType.BUY
+    assert transactions[0].symbol == "FOO"
+    assert transactions[0].quantity == Decimal(10)
+    assert transactions[0].price == Decimal("9.5")
+
+    assert transactions[1].action == ActionType.SELL
+    assert transactions[1].symbol == "FOO"
+    assert transactions[1].quantity == Decimal(5)
+
+
 def test_investment_only_table(tmp_path: Path) -> None:
     """File with only an Investment Transactions table is parsed correctly."""
     content = (
