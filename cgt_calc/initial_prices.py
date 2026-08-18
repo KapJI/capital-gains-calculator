@@ -8,7 +8,7 @@ import datetime
 from decimal import Decimal
 from importlib import resources
 from pathlib import Path
-from typing import Final
+from typing import Final, override
 
 from .const import INITIAL_PRICES_RESOURCE
 from .dates import is_date
@@ -44,6 +44,7 @@ class InitialPricesEntry:
         """Parse date from string."""
         return datetime.datetime.strptime(date_str, "%b %d, %Y").date()
 
+    @override
     def __str__(self) -> str:
         """Return string representation."""
         return f"date: {self.date}, symbol: {self.symbol}, price: {self.price}"

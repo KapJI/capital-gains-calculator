@@ -19,7 +19,7 @@ import datetime
 from decimal import Decimal
 import json
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO
+from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
@@ -373,6 +373,7 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
     deprecated_flags: ClassVar[list[str]] = ["--schwab_equity_award_json"]
 
     @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
@@ -385,11 +386,12 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
                 "Cloud not parse content as JSON",
             ) from exception
 
+        fields: FieldNames | None = None
         for field_name, schema_version in FIELD_TO_SCHEMA.items():
             if field_name in data:
                 fields = FieldNames(schema_version)
                 break
-        if not fields:
+        if fields is None:
             raise ParsingError(
                 file_path,
                 f"Expected top level field ({', '.join(FIELD_TO_SCHEMA.keys())}) "

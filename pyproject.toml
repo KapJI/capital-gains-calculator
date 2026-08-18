@@ -59,7 +59,7 @@ cgt-calc = "cgt_calc.main:init"
 dev = [
   "codespell>=2.4.1",
   "dprint-py>=0.50.2.0",
-  "mypy>=1.18.2",
+  "mypy>=2.3.0",
   "pandas-stubs>=2.2",
   "pdfplumber>=0.11.9",
   "pytest>=8.4.2,<10.0.0",
@@ -196,12 +196,22 @@ max-complexity = 25
 
 [tool.mypy]
 python_version = "3.12"
+num_workers = 4
 show_error_codes = true
 strict = true
 disallow_any_explicit = true
 disallow_any_unimported = true
 warn_no_return = true
 warn_unreachable = true
+enable_error_code = [
+  "deprecated",
+  "explicit-override",
+  "ignore-without-code",
+  "possibly-undefined",
+  "redundant-expr",
+  "redundant-self",
+  "truthy-iterable",
+]
 
 [tool.codespell]
 quiet-level = 2

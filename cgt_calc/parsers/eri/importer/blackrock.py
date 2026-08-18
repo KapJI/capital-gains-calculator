@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import dateutil.parser as date_parser
 import pandas as pd
@@ -41,6 +41,7 @@ class BlackrockImporter(ERIImporter):
         """Create a new Blackrock Parser instance."""
         super().__init__(name="Blackrock/iShares")
 
+    @override
     def parse(self, file: Path) -> ERIImporterOutput | None:
         """Parse a Blackrock/iShares ERI file."""
         if BLACKROCK_NAME_REGEX.match(file.name):
@@ -118,7 +119,7 @@ class BlackrockImporter(ERIImporter):
                 raise ParsingError(file, f"Not valid Currency {currency}")
             # Bugs in the currency codes
             currency = currency.replace("JPN", "JPY")
-            if not isinstance(currency, str) or not is_currency(currency):
+            if not is_currency(currency):
                 raise ParsingError(file, f"Not valid Currency {currency}")
             currency = currency.upper()
 

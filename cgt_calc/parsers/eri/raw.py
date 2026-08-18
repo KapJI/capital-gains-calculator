@@ -7,7 +7,7 @@ import datetime
 from decimal import Decimal, InvalidOperation
 from importlib import resources
 import logging
-from typing import TYPE_CHECKING, Final, TextIO
+from typing import TYPE_CHECKING, Final, TextIO, override
 
 if TYPE_CHECKING:
     import argparse
@@ -88,6 +88,7 @@ class ERIRawParser(BaseSingleFileParser):
             )
 
     @classmethod
+    @override
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
         """Load ERI data from arguments and pre-packaged data."""
         transactions: list[BrokerTransaction] = []
@@ -101,6 +102,7 @@ class ERIRawParser(BaseSingleFileParser):
         return transactions
 
     @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:

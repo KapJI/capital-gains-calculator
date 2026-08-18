@@ -7,7 +7,7 @@ import logging
 import os
 from pathlib import Path
 import sys
-from typing import TYPE_CHECKING, ClassVar, TextIO
+from typing import TYPE_CHECKING, ClassVar, TextIO, override
 
 import colorama
 
@@ -110,6 +110,7 @@ class ColourMessageFormatter(logging.Formatter):
         # Assumes this formatter is attached to a single handler.
         self._last_was_alert = False
 
+    @override
     def format(self, record: logging.LogRecord) -> str:
         """Return a formatted log message, colourised if enabled."""
         message = super().format(record)

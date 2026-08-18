@@ -9,7 +9,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, ClassVar, Final, TextIO
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
@@ -129,12 +129,14 @@ class RowIterator(Iterator[list[str]]):
         self.rows = iter(rows)
         self.line = 0
 
+    @override
     def __next__(self) -> list[str]:
         """Produce next element and increment line number."""
         elm = next(self.rows)
         self.line += 1
         return elm
 
+    @override
     def __iter__(self) -> RowIterator:
         """Return an iterator for this object."""
         return self
@@ -152,6 +154,7 @@ class SharesightParser(BaseDirParser):
     # ===== public API =====
 
     @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
@@ -164,6 +167,7 @@ class SharesightParser(BaseDirParser):
         return []
 
     @classmethod
+    @override
     def post_process_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:

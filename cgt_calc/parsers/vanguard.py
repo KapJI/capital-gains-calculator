@@ -9,7 +9,7 @@ from enum import StrEnum
 import io
 import logging
 import re
-from typing import TYPE_CHECKING, ClassVar, Final, TextIO, cast
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO, cast, override
 
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
@@ -416,6 +416,7 @@ class VanguardParser(BaseSingleFileParser):
                 )
 
     @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:

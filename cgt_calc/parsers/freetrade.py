@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, ClassVar, Final, TextIO
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.exceptions import (
     ParsingError,
@@ -163,7 +163,7 @@ class FreetradeTransaction(BrokerTransaction):
         amount_negative = (
             action == ActionType.BUY or row[FreetradeColumn.TYPE] == "WITHDRAWAL"
         )
-        if amount is not None and amount_negative:
+        if amount_negative:
             amount *= -1
 
         super().__init__(
@@ -189,6 +189,7 @@ class FreetradeParser(BaseSingleFileParser):
     deprecated_flags: ClassVar[list[str]] = ["--freetrade"]
 
     @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:

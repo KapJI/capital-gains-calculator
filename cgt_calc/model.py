@@ -7,7 +7,7 @@ import datetime
 from decimal import Decimal
 from enum import Enum
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from colorama import Style
 
@@ -281,10 +281,12 @@ class CalculationEntry:
                 f"{self.amount} + {self.fees} - {self.allowable_cost} (for {self})"
             )
 
+    @override
     def __repr__(self) -> str:
         """Return print representation."""
         return f"<CalculationEntry {self!s}>"
 
+    @override
     def __str__(self) -> str:
         """Return string representation."""
         return (
@@ -322,6 +324,7 @@ class Position:
             normalize_amount(self.amount - other.amount),
         )
 
+    @override
     def __str__(self) -> str:
         """Return string representation."""
         return str(round_decimal(self.quantity, 2))
@@ -352,10 +355,12 @@ class PortfolioEntry:
 
         return f" (unrealized gains: {str_val})"
 
+    @override
     def __repr__(self) -> str:
         """Return print representation."""
         return f"<PortfolioEntry {self!s}>"
 
+    @override
     def __str__(self) -> str:
         """Return string representation."""
         return (
@@ -459,10 +464,12 @@ class CapitalGainsReport:
             - self.total_dividend_taxes_in_tax_treaties_amount(),
         )
 
+    @override
     def __repr__(self) -> str:
         """Return string representation."""
         return f"<CalculationEntry: {self!s}>"
 
+    @override
     def __str__(self) -> str:
         """Return string representation."""
         bul = bullet(sys.stdout)
