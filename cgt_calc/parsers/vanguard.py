@@ -69,6 +69,7 @@ NAMECHANGE_RE = re.compile(
     r"^NameChange:\s*([A-Z0-9]+)(?:\.\S+)?"
     r"(?:\s+replaced with\s+([A-Z0-9]+)(?:\.\S+)?)?\s*$"
 )
+INVESTMENT_NAME_RE = re.compile(r"^(.+?)(?:\s*\(([^()]+)\))?$")
 
 INTEREST_STR = "Cash Account Interest"
 REVERSAL_STR = "Reversal of "
@@ -152,6 +153,14 @@ def _symbol_from_details(details: str) -> str | None:
     if match:
         return match.group(1)
     return None
+
+
+def _symbol_from_investment_name(investment_name: str) -> str | None:
+    """Extract symbol from an InvestmentName column value, e.g. 'Foo ETF (FOO)'."""
+    match = INVESTMENT_NAME_RE.match(investment_name)
+    if not match:
+        return None
+    return match.group(2) or match.group(1).strip()
 
 
 class VanguardTransaction(BrokerTransaction):
@@ -250,36 +259,40 @@ def _make_transaction_from_investment(
     """Create a VanguardTransaction from an Investment row, or None for the NameChange zero-out half."""
     details, is_reversal = _strip_reversal(row[InvestmentColumn.TRANSACTION_DETAILS])
     date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
-    match = NAMECHANGE_RE.match(details)
-    if match:
-        old_ticker, new_ticker = match.group(1), match.group(2)
-        # NameChange rows come in a zero-out/add-new pair; only the "replaced
-        # with" half carries both tickers. Skip the other half.
-        if not new_ticker:
-            return None
-        return VanguardTransaction.from_fields(
-            date=date,
-            action=ActionType.RENAME,
-            symbol=new_ticker,
-            quantity=Decimal(0),
-            price=None,
-            amount=Decimal(0),
-            currency="GBP",
-            is_reversal=False,
-            description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}",
-        )
-    action = action_from_str(details, file)
-    symbol = _symbol_from_details(details)
+    quantity = _parse_decimal(
+        row[InvestmentColumn.QUANTITY], InvestmentColumn.QUANTITY.value
+    )
+    if not details and quantity != 0:
+        # Infer investment/quantity for pre ~Oct 2021 rows without TransactionDetails
+        action = ActionType.BUY if quantity > 0 else ActionType.SELL
+        symbol = _symbol_from_investment_name(row[InvestmentColumn.INVESTMENT_NAME])
+    else:
+        match = NAMECHANGE_RE.match(details)
+        if match:
+            old_ticker, new_ticker = match.group(1), match.group(2)
+            # NameChange rows come in a zero-out/add-new pair; only the
+            # "replaced with" half carries both tickers. Skip the other half.
+            if not new_ticker:
+                return None
+            return VanguardTransaction.from_fields(
+                date=date,
+                action=ActionType.RENAME,
+                symbol=new_ticker,
+                quantity=Decimal(0),
+                price=None,
+                amount=Decimal(0),
+                currency="GBP",
+                is_reversal=False,
+                description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}",
+            )
+        action = action_from_str(details, file)
+        symbol = _symbol_from_details(details)
 
     return VanguardTransaction.from_fields(
         date=date,
         action=action,
         symbol=symbol,
-        quantity=abs(
-            _parse_decimal(
-                row[InvestmentColumn.QUANTITY], InvestmentColumn.QUANTITY.value
-            )
-        ),
+        quantity=abs(quantity),
         price=_parse_decimal(row[InvestmentColumn.PRICE], InvestmentColumn.PRICE.value),
         amount=_parse_decimal(row[InvestmentColumn.COST], InvestmentColumn.COST.value),
         currency="GBP",

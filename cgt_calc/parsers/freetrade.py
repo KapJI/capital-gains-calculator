@@ -62,6 +62,17 @@ class FreetradeColumn(StrEnum):
 COLUMNS: Final[list[str]] = [column.value for column in FreetradeColumn]
 REQUIRED_COLUMNS: Final[set[str]] = set(COLUMNS)
 
+# Freetrade renamed these columns, older exports still use the names above.
+COLUMN_ALIASES: Final[dict[str, str]] = {
+    "Total Amount in Account Currency": FreetradeColumn.TOTAL_AMOUNT.value,
+    "Total Amount in Instrument Currency": FreetradeColumn.TOTAL_SHARES_AMOUNT.value,
+}
+
+# Newer exports add a block of stock split columns. They are tolerated so that
+# the header validates, their values are not read yet: a stock split row still
+# fails as an unknown type.
+STOCK_SPLIT_PREFIX: Final = "Stock Split "
+
 
 def _parse_decimal(row: dict[str, str], column: FreetradeColumn) -> Decimal:
     """Parse Decimal value for column, raising ValueError with context on failure."""
@@ -185,7 +196,7 @@ class FreetradeParser(BaseSingleFileParser):
         lines = list(csv.reader(file))
         if not lines:
             raise ParsingError(file_path, "Freetrade CSV file is empty")
-        header = lines[0]
+        header = [COLUMN_ALIASES.get(column, column) for column in lines[0]]
         cls._validate_header(header, file_path)
         lines = lines[1:]
         indexed_rows = list(enumerate(lines, start=2))
@@ -212,7 +223,11 @@ class FreetradeParser(BaseSingleFileParser):
             missing_columns = ", ".join(sorted(missing))
             raise ParsingError(file, f"Missing columns: {missing_columns}", row_index=1)
 
-        unknown = provided - REQUIRED_COLUMNS
+        unknown = {
+            column
+            for column in provided - REQUIRED_COLUMNS
+            if not column.startswith(STOCK_SPLIT_PREFIX)
+        }
         if unknown:
             unknown_columns = ", ".join(sorted(unknown))
             raise ParsingError(file, f"Unknown columns: {unknown_columns}", row_index=1)
