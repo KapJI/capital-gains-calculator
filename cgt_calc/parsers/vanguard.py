@@ -108,7 +108,7 @@ def _parse_decimal(value: str, context: str) -> Decimal:
 
 
 def _parse_details(
-    details: str, action: ActionType, amount: Decimal, file: Path
+    details: str, action: ActionType, amount: Decimal
 ) -> tuple[str | None, Decimal | None, Decimal | None, str]:
     """Extract symbol, quantity, price, currency from a Details string."""
     currency = "GBP"
@@ -188,7 +188,7 @@ class VanguardTransaction(BrokerTransaction):
         self.action = action_from_str(self.details_text, file)
         self.amount = _parse_decimal(row[CashColumn.AMOUNT], CashColumn.AMOUNT.value)
         self.symbol, self.quantity, self.price, self.currency = _parse_details(
-            self.details_text, self.action, self.amount, self.source_file
+            self.details_text, self.action, self.amount
         )
 
         super().__init__(

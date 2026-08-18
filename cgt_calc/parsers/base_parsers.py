@@ -139,7 +139,7 @@ class StandardCSVParser(BaseSingleFileParser):
         """Read a single transaction from a row in the CSV."""
 
     @classmethod
-    def pre_reading(cls, file: TextIO, file_path: Path) -> Iterable[str]:
+    def pre_reading(cls, file: TextIO, file_path: Path) -> Iterable[str]:  # noqa: ARG003
         """Do any preprocessing of the file before parsing the csv."""
         return file
 
@@ -248,7 +248,7 @@ class BaseDirParser(BaseSingleFileParser):
         return cls.post_process_transactions(transactions)
 
     @classmethod
-    def file_path_filter(cls, file_path: Path) -> bool:
+    def file_path_filter(cls, file_path: Path) -> bool:  # noqa: ARG003
         """Choose which files to parse."""
         return True
 
