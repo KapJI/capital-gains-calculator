@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Final
 
 from .const import DEFAULT_SPIN_OFF_FILE
 from .exceptions import InteractiveInputRequiredError, ParsingError
+from .util import open_with_parents
 
 if TYPE_CHECKING:
     import datetime
@@ -52,7 +53,7 @@ class SpinOffHandler:
     def _write_spin_off_file(self) -> None:
         if self.spin_offs_file is None:
             return
-        with self.spin_offs_file.open("w", encoding="utf8") as fout:
+        with open_with_parents(self.spin_offs_file) as fout:
             data_rows = [[dst, src] for dst, src in self.cache.items()]
             writer = csv.writer(fout)
             writer.writerows([SPIN_OFFS_HEADER, *data_rows])
