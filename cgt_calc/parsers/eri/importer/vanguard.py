@@ -63,23 +63,23 @@ class VanguardImporter(ERIImporter):
         header_loc = mask[mask].dropna(axis=1, how="all").dropna(how="all")
 
         # first row is the header row
-        if "ISIN" in df.columns.values:
+        if "ISIN" in df.columns:
             max_allowed_isin_columns = 1
             skiprows = 0
         else:
-            if len(header_loc.index.values) == 0:
+            if len(header_loc.index) == 0:
                 raise ParsingError(file, "No ISIN column found!")
             max_allowed_isin_columns = 2
             # skip to the header row
-            skiprows = header_loc.index.values[0] + 1
+            skiprows = header_loc.index[0] + 1
 
-        if len(header_loc.index.values) > max_allowed_isin_columns:
+        if len(header_loc.index) > max_allowed_isin_columns:
             raise ParsingError(file, "Too many ISIN columns found!")
 
         nrows = None
-        if len(header_loc.index.values) == max_allowed_isin_columns:
+        if len(header_loc.index) == max_allowed_isin_columns:
             # filter out final table
-            nrows = header_loc.index.values[max_allowed_isin_columns - 1] - skiprows
+            nrows = header_loc.index[max_allowed_isin_columns - 1] - skiprows
 
         df = pd.read_excel(file, sheet, skiprows=skiprows, nrows=nrows)
         df.columns = df.columns.str.strip()
@@ -91,16 +91,16 @@ class VanguardImporter(ERIImporter):
         if not len(cleaned_df.columns) == len(COLUMNS):
             raise ParsingError(
                 file,
-                f"Cannot process ERI columns {cleaned_df.columns.values}, "
-                f"all columns {df.columns.values}",
+                f"Cannot process ERI columns {cleaned_df.columns.tolist()}, "
+                f"all columns {df.columns.tolist()}",
             )
 
         # Clean up all the column names
-        for raw_column_name in cleaned_df.columns.values:
+        for raw_column_name in cleaned_df.columns:
             for column_name in COLUMNS:
                 if column_name in raw_column_name:
-                    cleaned_df.rename(
-                        columns={raw_column_name: column_name}, inplace=True
+                    cleaned_df = cleaned_df.rename(
+                        columns={raw_column_name: column_name}
                     )
 
         for _, row in cleaned_df.iterrows():
