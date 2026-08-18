@@ -177,7 +177,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
 
 
 class InteractiveBrokersParser(StandardCSVParser):
-    """Parser for RAW format transaction files."""
+    """Parser for Interactive Brokers format transaction files."""
 
     arg_name = "interactive-brokers"
     pretty_name = "Interactive Brokers"

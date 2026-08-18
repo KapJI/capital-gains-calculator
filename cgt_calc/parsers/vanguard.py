@@ -1,4 +1,4 @@
-"""Raw transaction parser."""
+"""Vanguard transaction parser."""
 
 from __future__ import annotations
 

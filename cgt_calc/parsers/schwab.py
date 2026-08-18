@@ -665,7 +665,7 @@ def _read_schwab_awards(
 
 
 class SchwabParser(BaseSingleFileParser):
-    """Parser for RAW format transaction files."""
+    """Parser for Charles Schwab transaction files."""
 
     arg_name = "schwab"
     pretty_name = "Charles Schwab"
