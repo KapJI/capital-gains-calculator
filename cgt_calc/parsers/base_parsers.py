@@ -7,7 +7,7 @@ import csv
 import logging
 from pathlib import Path
 import sys
-from typing import ClassVar, TextIO
+from typing import ClassVar, TextIO, override
 
 from cgt_calc.args_validators import (
     STDIN_PATH,
@@ -47,6 +47,7 @@ class BaseSingleFileParser(BaseParser):
     deprecated_flags: ClassVar[list[str]] = []
     encoding: str = "utf-8"
 
+    @override
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Compute full arg."""
         super().__init_subclass__(**kwargs)
@@ -55,6 +56,7 @@ class BaseSingleFileParser(BaseParser):
         cls.full_arg = f"{getattr(cls, 'arg_name', None)}-{suffix}"
 
     @classmethod
+    @override
     def register_arguments(cls, arg_group: argparse._ArgumentGroup) -> None:
         """Register argparse arguments for this broker."""
         arg_group.add_argument(
@@ -74,6 +76,7 @@ class BaseSingleFileParser(BaseParser):
             )
 
     @classmethod
+    @override
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
         """Load broker data from parsed arguments."""
         file_path = getattr(args, cls.full_arg.replace("-", "_"))
@@ -148,6 +151,7 @@ class StandardCSVParser(BaseSingleFileParser):
         return file
 
     @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
@@ -204,12 +208,14 @@ class BaseDirParser(BaseSingleFileParser):
     glob_dir: str
     deprecated_flags: ClassVar[list[str]] = []
 
+    @override
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Compute full arg."""
         suffix = "dir"
         cls.full_arg = f"{getattr(cls, 'arg_name', None)}-{suffix}"
 
     @classmethod
+    @override
     def register_arguments(cls, arg_group: argparse._ArgumentGroup) -> None:
         """Register argparse arguments for this broker."""
         arg_group.add_argument(
@@ -229,6 +235,7 @@ class BaseDirParser(BaseSingleFileParser):
             )
 
     @classmethod
+    @override
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
         """Load broker data from parsed arguments."""
         dir_path = getattr(args, cls.full_arg.replace("-", "_"))
@@ -257,6 +264,7 @@ class BaseDirParser(BaseSingleFileParser):
         return True
 
     @classmethod
+    @override
     def post_process_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:

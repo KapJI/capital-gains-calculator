@@ -5,7 +5,7 @@ import datetime
 
 def is_date(date: datetime.date) -> bool:
     """Check if date has only date but not time."""
-    if not isinstance(date, datetime.date) or isinstance(date, datetime.datetime):
+    if isinstance(date, datetime.datetime):
         raise TypeError(f'should be datetime.date: {type(date)} "{date}"')
     return True
 

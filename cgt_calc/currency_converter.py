@@ -9,7 +9,7 @@ import datetime
 from decimal import Decimal, InvalidOperation
 import fcntl
 import logging
-from typing import TYPE_CHECKING, Final, TextIO
+from typing import TYPE_CHECKING, Final, TextIO, override
 
 from defusedxml import ElementTree as ET
 from pyrate_limiter import limiter_factory
@@ -270,6 +270,7 @@ class TestCurrencyConverter(CurrencyConverter):
         super().__init__(exchange_rates_file, initial_data)
         self._test_file_cache = deepcopy(self.cache)
 
+    @override
     def currency_to_gbp_rate(self, currency: str, date: datetime.date) -> Decimal:
         """Get GBP/currency rate at given date.
 
@@ -305,6 +306,7 @@ class TestCurrencyConverter(CurrencyConverter):
             fcntl.flock(fout.fileno(), fcntl.LOCK_UN)
 
     @staticmethod
+    @override
     def _write_exchange_rates_file(
         _: Path | None, __: dict[datetime.date, dict[str, Decimal]]
     ) -> None:
@@ -314,6 +316,7 @@ class TestCurrencyConverter(CurrencyConverter):
 class StrictTestCurrencyConverter(CurrencyConverter):
     """Sandboxed variant of CurrencyConverter that is used to run tests in CI."""
 
+    @override
     def _query_hmrc_api(self, _: datetime.date) -> None:
         raise RuntimeError(
             "HMRC values should be provided for tests to avoid flakiness! "
@@ -321,6 +324,7 @@ class StrictTestCurrencyConverter(CurrencyConverter):
         )
 
     @staticmethod
+    @override
     def _write_exchange_rates_file(
         _: Path | None, __: dict[datetime.date, dict[str, Decimal]]
     ) -> None:

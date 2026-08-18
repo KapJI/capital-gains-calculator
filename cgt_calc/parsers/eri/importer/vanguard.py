@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import dateutil.parser as date_parser
 import pandas as pd
@@ -40,6 +40,7 @@ class VanguardImporter(ERIImporter):
         """Create a new Vanguard Parser instance."""
         super().__init__(name="Vanguard")
 
+    @override
     def parse(self, file: Path) -> ERIImporterOutput | None:
         """Parse a Vanguard ERI file."""
         if VANGUARD_NAME_REGEX.match(file.name.lower()):
@@ -112,7 +113,7 @@ class VanguardImporter(ERIImporter):
             currency = row[CURRENCY_COLUMN]
             if not isinstance(currency, str):
                 raise ParsingError(file, f"Not valid Currency {currency}")
-            if not isinstance(currency, str) or not is_currency(currency):
+            if not is_currency(currency):
                 raise ParsingError(file, f"Not valid Currency {currency}")
             currency = currency.upper()
 

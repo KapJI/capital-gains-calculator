@@ -6,7 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 import re
-from typing import ClassVar, TextIO
+from typing import ClassVar, TextIO, override
 
 import pdfplumber
 
@@ -127,6 +127,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
         )
 
     @classmethod
+    @override
     def pre_reading(cls, file: TextIO, file_path: Path) -> Iterable[str]:
         """Skip preamble lines until the 'Trade date' header is found."""
         lines = iter(file)
@@ -139,6 +140,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
         raise ParsingError(file_path, "Could not find the 'Trade date' header.")
 
     @classmethod
+    @override
     def read_row(cls, row: dict[str, str], file_path: Path) -> BrokerTransaction | None:
         """Read a single transaction from a CSV row and cross-reference with PDFs."""
         reference = row.get("Reference", "").strip()
@@ -202,6 +204,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
         )
 
     @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
@@ -211,6 +214,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
         return transactions
 
     @classmethod
+    @override
     def post_process_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:

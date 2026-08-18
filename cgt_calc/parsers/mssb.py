@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
-from typing import TYPE_CHECKING, ClassVar, Final, TextIO
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
@@ -104,6 +104,7 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
     deprecated_flags: ClassVar[list[str]] = ["--mssb"]
 
     @classmethod
+    @override
     def file_path_filter(cls, file_path: Path) -> bool:
         """Choose which files to parse."""
         return file_path.name in [
@@ -112,6 +113,7 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
         ]
 
     @classmethod
+    @override
     def pre_reading(cls, file: TextIO, file_path: Path) -> Iterable[str]:
         """Do any preprocessing of the file before parsing the csv."""
         if file_path.name == WITHDRAWALS_REPORT_FILENAME:
@@ -121,6 +123,7 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
         return file
 
     @classmethod
+    @override
     def read_row(cls, row: dict[str, str], file_path: Path) -> BrokerTransaction | None:
         """Read a single transaction from a row in the CSV."""
         if file_path.name == WITHDRAWALS_REPORT_FILENAME:

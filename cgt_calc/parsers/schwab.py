@@ -10,7 +10,7 @@ import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, ClassVar, Final, TextIO
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.args_validators import DeprecatedAction, existing_file_type
 from cgt_calc.const import TICKER_RENAMES
@@ -675,6 +675,7 @@ class SchwabParser(BaseSingleFileParser):
     awards_prices: AwardPrices = _read_schwab_awards(None)
 
     @classmethod
+    @override
     def register_arguments(cls, arg_group: argparse._ArgumentGroup) -> None:
         """Register argparse arguments for this broker."""
         arg_group.add_argument(
@@ -694,6 +695,7 @@ class SchwabParser(BaseSingleFileParser):
         super().register_arguments(arg_group)
 
     @classmethod
+    @override
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
         """Load broker data from parsed arguments."""
         award_path = args.schwab_award_file
@@ -701,6 +703,7 @@ class SchwabParser(BaseSingleFileParser):
         return super().load_from_args(args)
 
     @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:

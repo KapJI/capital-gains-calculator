@@ -6,7 +6,7 @@ import argparse
 import datetime
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from .const import INTERNAL_START_DATE
 
@@ -118,6 +118,7 @@ def existing_directory_type(value: str) -> Path:
 class DeprecatedAction(argparse.Action):
     """Print warning when deprecated argument is used."""
 
+    @override
     def __call__(  # type: ignore[explicit-any]
         self,
         _parser: argparse.ArgumentParser,

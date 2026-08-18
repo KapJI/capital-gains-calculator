@@ -7,7 +7,7 @@ import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, ClassVar, Final, Literal, TextIO, overload
+from typing import TYPE_CHECKING, ClassVar, Final, Literal, TextIO, overload, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
@@ -203,6 +203,7 @@ class RawParser(BaseSingleFileParser):
         )
 
     @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:

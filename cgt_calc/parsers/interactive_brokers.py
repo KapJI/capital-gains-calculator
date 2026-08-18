@@ -8,7 +8,7 @@ from enum import StrEnum
 from itertools import chain
 import logging
 import re
-from typing import TYPE_CHECKING, ClassVar, Final
+from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
@@ -190,11 +190,13 @@ class InteractiveBrokersParser(StandardCSVParser):
     }
 
     @classmethod
+    @override
     def read_row(cls, row: dict[str, str], file_path: Path) -> BrokerTransaction | None:
         """Read a single transaction from a row in the CSV."""
         return InteractiveBrokersTransaction(row, file_path)
 
     @classmethod
+    @override
     def pre_reading(cls, file: Iterable[str], file_path: Path) -> Iterable[str]:
         """Skip Statement and Summary sections. Transaction History is the important one."""
         for line in file:
@@ -233,6 +235,7 @@ class InteractiveBrokersParser(StandardCSVParser):
         )
 
     @classmethod
+    @override
     def post_process_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:

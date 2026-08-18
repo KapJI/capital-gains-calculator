@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, ClassVar, Final, TextIO
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
@@ -291,6 +291,7 @@ class Trading212Transaction(BrokerTransaction):
             isin,
         )
 
+    @override
     def __hash__(self) -> int:
         """Calculate hash."""
         return hash(self.transaction_id)
@@ -306,6 +307,7 @@ class Trading212Parser(BaseDirParser):
     deprecated_flags: ClassVar[list[str]] = ["--trading212"]
 
     @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
@@ -348,6 +350,7 @@ class Trading212Parser(BaseDirParser):
         return (transaction.datetime, transaction.action == ActionType.BUY)
 
     @classmethod
+    @override
     def post_process_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:

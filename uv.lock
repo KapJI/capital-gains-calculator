@@ -221,7 +221,7 @@ requires-dist = [
 dev = [
     { name = "codespell", specifier = ">=2.4.1" },
     { name = "dprint-py", specifier = ">=0.50.2.0" },
-    { name = "mypy", specifier = ">=1.18.2" },
+    { name = "mypy", specifier = ">=2.3.0" },
     { name = "pandas-stubs", specifier = ">=2.2" },
     { name = "pdfplumber", specifier = ">=0.11.9" },
     { name = "pylint", specifier = ">=4.0.7" },

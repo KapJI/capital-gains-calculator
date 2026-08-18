@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import dateutil.parser as date_parser
 import pdfplumber
@@ -209,6 +209,7 @@ class InvescoImporter(ERIImporter):
             )
         return transactions
 
+    @override
     def parse(self, file: Path) -> ERIImporterOutput | None:
         """Parse a Invesco ERI file."""
         if not REPORT_FILE_REGEX.match(file.name):
