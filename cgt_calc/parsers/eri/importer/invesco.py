@@ -97,7 +97,9 @@ class InvescoImporter(ERIImporter):
 
     @staticmethod
     def _extract_data_rows(
-        page_num: int, cropped: pdfplumber.page.CroppedPage, columns: list[float]
+        page_num: int,  # noqa: ARG004  # kept for the debug line below
+        cropped: pdfplumber.page.CroppedPage,
+        columns: list[float],
     ) -> list[list[str | None]]:
         table_settings = {
             "vertical_strategy": "explicit",

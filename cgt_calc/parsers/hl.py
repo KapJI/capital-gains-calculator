@@ -65,7 +65,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
     }
 
     @staticmethod
-    def _determine_action_type(reference: str, description: str) -> ActionType | None:
+    def _determine_action_type(reference: str) -> ActionType | None:
         """Map Hargreaves Lansdown CSV reference codes to cgt-calc ActionTypes."""
         ref = reference.strip().upper()
 
@@ -146,7 +146,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
             return None
 
         description = row.get("Description", "")
-        action_type = cls._determine_action_type(reference, description)
+        action_type = cls._determine_action_type(reference)
         if not action_type:
             raise ParsingError(
                 file_path,

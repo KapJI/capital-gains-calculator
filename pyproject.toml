@@ -356,6 +356,7 @@ target-version = "py312"
 [tool.ruff.lint]
 select = [
   "A", # flake8-builtins
+  "ARG", # flake8-unused-arguments
   "ASYNC", # flake8-async
   "B", # flake8-bugbear
   "BLE",
@@ -445,7 +446,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["PLR2004"]
+# Test doubles intentionally mirror external library signatures (requests,
+# yfinance, ...), so unused arguments there are expected, not bugs.
+"tests/**" = ["PLR2004", "ARG"]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true

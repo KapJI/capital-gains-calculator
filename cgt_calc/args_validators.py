@@ -120,7 +120,7 @@ class DeprecatedAction(argparse.Action):
 
     def __call__(  # type: ignore[explicit-any]
         self,
-        parser: argparse.ArgumentParser,
+        _parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         values: str | Sequence[Any] | None,
         option_string: str | None = None,
