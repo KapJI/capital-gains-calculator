@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import InitVar, dataclass
 import datetime
 from decimal import Decimal
+from enum import Enum, auto
 import json
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO, override
@@ -35,32 +36,97 @@ if TYPE_CHECKING:
 OPTIONAL_DETAILS_NAME: Final = "Details"
 FIELD_TO_SCHEMA: Final = {"transactions": 1, "Transactions": 2}
 LOGGER = logging.getLogger(__name__)
-GOOGLE_SYMBOLS = {"GOOG", "GOOGL"}
-NVIDIA_SYMBOLS = {"NVDA"}
 
-# NVDA splits, dated to the first day the new shares traded.
+
+class Restatement(Enum):
+    """What the export did to records that predate a split."""
+
+    ACQUISITIONS_ONLY = auto()
+    """Acquisitions restated into current units, disposals left in their own.
+
+    Only disposals need converting, and the split dates alone say by how much.
+    """
+
+    UNRELIABLE = auto()
+    """Some records restated and some not, with nothing in the file saying which.
+
+    The price has to give the units away, so this needs `presplit_price_floor`.
+    """
+
+
+@dataclass(frozen=True)
+class SplitHistory:
+    """Splits for one symbol, and what the export did to records before them."""
+
+    splits: tuple[tuple[datetime.date, int], ...]
+    """Ratios against the first day on which counts are in the new units."""
+
+    restatement: Restatement
+
+    presplit_price_floor: Decimal | None = None
+    """A price above which a row is certainly still in pre-split units.
+
+    Set it above the highest price the share reached before its earliest split
+    and below the lowest price it can plausibly reach after: everything in
+    between is indistinguishable. Only meaningful with UNRELIABLE.
+    """
+
+    def __post_init__(self) -> None:
+        """Reject a table that cannot be applied."""
+        if (self.restatement is Restatement.UNRELIABLE) != (
+            self.presplit_price_floor is not None
+        ):
+            raise ValueError(
+                "presplit_price_floor is required for UNRELIABLE and "
+                "meaningless otherwise"
+            )
+
+
+# Splits dated to the first day on which the export states counts in the new
+# units, which is the day after a split effective at the close.
 #
-# Schwab restates acquisitions for later splits but leaves sales in the units
-# of their own day, so sales need converting and acquisitions do not. Dates
-# rather than a price heuristic: a heuristic needs the market price of the day,
-# which means a network call, and it stops working as soon as the real price
-# passes the threshold it guesses with.
-NVIDIA_SPLITS: Final = (
-    (datetime.date(2021, 7, 20), 4),
-    (datetime.date(2024, 6, 10), 10),
-)
+# Dates rather than a price heuristic wherever the export allows it: a
+# heuristic needs the market price of the day, which means a network call, and
+# it stops working as soon as the real price passes the threshold it guesses
+# with. GOOG is UNRELIABLE only because its export leaves nothing better.
+SPLITS: Final = {
+    "NVDA": SplitHistory(
+        ((datetime.date(2021, 7, 20), 4), (datetime.date(2024, 6, 10), 10)),
+        Restatement.ACQUISITIONS_ONLY,
+    ),
+    "GOOG": SplitHistory(
+        ((datetime.date(2022, 7, 16), 20),),
+        Restatement.UNRELIABLE,
+        # GOOG never traded above $175 * 20 = $3500 before the split.
+        presplit_price_floor=Decimal(175),
+    ),
+    "GOOGL": SplitHistory(
+        ((datetime.date(2022, 7, 16), 20),),
+        Restatement.UNRELIABLE,
+        presplit_price_floor=Decimal(175),
+    ),
+}
 
 
-def nvidia_split_multiplier(on: datetime.date) -> int:
+def split_multiplier(symbol: str | None, on: datetime.date) -> int:
     """Factor turning a share count printed on `on` into current units.
 
     Prices divide by the same factor, so the money is unchanged.
     """
+    history = SPLITS.get(symbol or "")
+    if history is None:
+        return 1
     factor = 1
-    for effective, ratio in NVIDIA_SPLITS:
+    for effective, ratio in history.splits:
         if on < effective:
             factor *= ratio
     return factor
+
+
+def _restates_acquisitions_only(symbol: str | None) -> bool:
+    """Whether disposals of `symbol` are the only records left un-restated."""
+    history = SPLITS.get(symbol or "")
+    return history is not None and history.restatement is Restatement.ACQUISITIONS_ONLY
 
 
 @dataclass
@@ -313,9 +379,9 @@ def _check_lapse_units(
     for row in rows:
         if row.get(names.action) != "Lapse":
             continue
-        if TICKER_RENAMES.get(row.get(names.symbol), row.get(names.symbol)) not in (
-            NVIDIA_SYMBOLS
-        ):
+        symbol = row.get(names.symbol)
+        symbol = TICKER_RENAMES.get(symbol, symbol)
+        if not _restates_acquisitions_only(symbol):
             continue
 
         detail_rows = row.get(names.transac_details) or []
@@ -329,7 +395,7 @@ def _check_lapse_units(
             continue
 
         date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
-        multiplier = nvidia_split_multiplier(date)
+        multiplier = split_multiplier(symbol, date)
         quantity = _decimal_from_number_or_str(row, names.quantity)
         expected = (deposited + withheld) * multiplier
 
@@ -372,7 +438,7 @@ def _check_disposal_units(
         for transaction in transactions
         if transaction.action == ActionType.STOCK_ACTIVITY
         and transaction.price
-        and transaction.symbol in NVIDIA_SYMBOLS
+        and _restates_acquisitions_only(transaction.symbol)
     ]
     if not acquisitions:
         return
@@ -380,17 +446,25 @@ def _check_disposal_units(
     for transaction in transactions:
         if (
             transaction.action != ActionType.SELL
-            or transaction.symbol not in NVIDIA_SYMBOLS
+            or not _restates_acquisitions_only(transaction.symbol)
             or not transaction.price
         ):
             continue
 
-        multiplier = nvidia_split_multiplier(transaction.date)
+        multiplier = split_multiplier(transaction.symbol, transaction.date)
         if multiplier == 1:
             continue
 
+        same_symbol = [
+            acquisition
+            for acquisition in acquisitions
+            if acquisition.symbol == transaction.symbol
+        ]
+        if not same_symbol:
+            continue
+
         nearest = min(
-            acquisitions,
+            same_symbol,
             key=lambda acquisition: abs((acquisition.date - transaction.date).days),
         )
         if not nearest.price:
@@ -428,16 +502,16 @@ class SchwabTransaction(BrokerTransaction):
         action = action_from_str(self.raw_action, file)
         symbol = row.get(names.symbol)
         symbol = TICKER_RENAMES.get(symbol, symbol)
-        if symbol not in GOOGLE_SYMBOLS | NVIDIA_SYMBOLS:
+        if symbol not in SPLITS:
             LOGGER.warning(
-                "The Schwab Equity Award JSON parser was only tested for "
-                "Google and NVIDIA stocks (%s), but found symbol '%s'. "
+                "The Schwab Equity Award JSON parser was only tested for the "
+                "stocks whose splits it knows (%s), but found symbol '%s'. "
                 "Everything else is parsed as usual; what is not applied is "
                 "stock split normalization, which this parser only knows for "
                 "the symbols above. If '%s' has split since the earliest "
                 "transaction here, check the share counts against a broker "
                 "statement before filing.",
-                ", ".join(sorted(GOOGLE_SYMBOLS | NVIDIA_SYMBOLS)),
+                ", ".join(sorted(SPLITS)),
                 symbol,
                 symbol,
             )
@@ -502,7 +576,7 @@ class SchwabTransaction(BrokerTransaction):
         elif row[names.action] == "Sale":
             date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
 
-            if symbol in NVIDIA_SYMBOLS:
+            if _restates_acquisitions_only(symbol):
                 # Derive the price from the money rather than from the per-lot
                 # SalePrice. Amount is net of fees, so the gross is rebuilt
                 # first. Two reasons this is not just a shortcut:
@@ -605,16 +679,19 @@ class SchwabTransaction(BrokerTransaction):
             broker,
         )
 
-        if symbol in GOOGLE_SYMBOLS:
-            self._normalize_google_split()
-        elif symbol in NVIDIA_SYMBOLS:
-            self._normalize_nvidia_split()
+        history = SPLITS.get(symbol or "")
+        if history is None:
+            return
+        if history.restatement is Restatement.ACQUISITIONS_ONLY:
+            self._convert_disposal_to_current_units()
+        else:
+            self._convert_row_priced_before_a_split(history)
 
-    def _normalize_nvidia_split(self) -> None:
+    def _convert_disposal_to_current_units(self) -> None:
         """Convert a disposal into current share units.
 
-        Schwab restates acquisitions for later splits — a vest of 3,000 at
-        $22.341 is recorded that way even though 300 at $223.41 is what
+        Schwab restates acquisitions for later splits — an NVDA vest of 3,000
+        at $22.341 is recorded that way even though 300 at $223.41 is what
         happened — but leaves disposals in the units of their own day. Only
         disposals need converting.
 
@@ -624,37 +701,29 @@ class SchwabTransaction(BrokerTransaction):
         if self.action != ActionType.SELL:
             return
 
-        multiplier = nvidia_split_multiplier(self.date)
+        self._rescale(split_multiplier(self.symbol, self.date))
+
+    def _convert_row_priced_before_a_split(self, history: SplitHistory) -> None:
+        """Convert a row whose price shows it was never restated.
+
+        Where the export restates some records and not others, with nothing
+        saying which, the price is the only witness left: above the floor it
+        can only be pre-split money. GOOG is the reason this exists — as of
+        2022-08-07 its exports were restated only in part.
+        """
+        floor = history.presplit_price_floor
+        assert floor is not None  # guaranteed by SplitHistory.__post_init__
+        if self.price and self.price > floor and self.quantity:
+            self._rescale(split_multiplier(self.symbol, self.date))
+
+    def _rescale(self, multiplier: int) -> None:
+        """Restate this row in current units, leaving the money unchanged."""
         if multiplier == 1:
             return
-
         if self.quantity:
             self.quantity = round_decimal(self.quantity * multiplier, ROUND_DIGITS)
         if self.price:
             self.price = round_decimal(self.price / multiplier, ROUND_DIGITS)
-
-    def _normalize_google_split(self) -> None:
-        """Ensure past transactions are normalized to split values.
-
-        This is in the context of the 20:1 GOOG stock split which happened at
-        close on 2022-07-15 20:1.
-
-        As of 2022-08-07, Schwab's data exports have some past transactions
-        corrected for the 20:1 split on 2022-07-15, whereas others are not.
-        """
-        split_factor = 20
-        threshold_price = 175
-
-        # The share price has never been above $175*20=$3500 before 2022-07-15
-        # so this price is expressed in pre-split amounts: normalize to post-split
-        if (
-            self.date <= datetime.date(2022, 7, 15)
-            and self.price
-            and self.price > threshold_price
-            and self.quantity
-        ):
-            self.price = round_decimal(self.price / split_factor, ROUND_DIGITS)
-            self.quantity = round_decimal(self.quantity * split_factor, ROUND_DIGITS)
 
 
 class SchwabEquityAwardsJSONParser(BaseSingleFileParser):

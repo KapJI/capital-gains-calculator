@@ -22,10 +22,7 @@ import pytest
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers import schwab_equity_award_json
-from cgt_calc.parsers.schwab_equity_award_json import (
-    JsonRowType,
-    nvidia_split_multiplier,
-)
+from cgt_calc.parsers.schwab_equity_award_json import JsonRowType, split_multiplier
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -65,7 +62,7 @@ def on(
 )
 def test_split_multiplier_boundaries(day: datetime.date, expected: int) -> None:
     """The multiplier changes on the day the new shares trade."""
-    assert nvidia_split_multiplier(day) == expected
+    assert split_multiplier("NVDA", day) == expected
 
 
 def test_lapse_is_not_an_acquisition(transactions: list[BrokerTransaction]) -> None:

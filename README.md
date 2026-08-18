@@ -179,7 +179,8 @@ The disposal price is derived from the money rather than the per-lot
 `SalePrice`, which is what allows a disposal to span lots sold at different
 prices.
 
-`NVIDIA_SPLITS` has to gain a row when NVDA next splits. Schwab restates
+`SPLITS` has to gain a row when NVDA next splits, and gains an entry when a
+stock the parser has not met before turns out to have split. Schwab restates
 acquisitions retroactively, so a stale export becomes a mix of old and new
 units and has to be downloaded again in full.
 
