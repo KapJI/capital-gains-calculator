@@ -802,7 +802,7 @@ class CapitalGainsCalculator:
                 new_amount = amount * spin_off.cost_proportion
                 LOGGER.debug(
                     "Detected spin-off of %s to %s on %s, modyfing the cost amount "
-                    "from %d to %d according to cost-proportion: %.2f",
+                    "from %s to %s according to cost-proportion: %.2f",
                     spin_off.source,
                     spin_off.dest,
                     spin_off.date,
@@ -851,7 +851,7 @@ class CapitalGainsCalculator:
                 same_day_gain = same_day_proceeds - same_day_allowable_cost
                 chargeable_gain += same_day_gain
                 LOGGER.debug(
-                    "SAME DAY, quantity %d, gain %s, disposal price %s, "
+                    "SAME DAY, quantity %s, gain %s, disposal price %s, "
                     "acquisition price %s",
                     available_quantity,
                     same_day_gain,
@@ -1009,7 +1009,7 @@ class CapitalGainsCalculator:
                     )
                     chargeable_gain += bed_and_breakfast_gain
                     LOGGER.debug(
-                        "BED & BREAKFAST, quantity %d, gain %s, disposal price %s, "
+                        "BED & BREAKFAST, quantity %s, gain %s, disposal price %s, "
                         "acquisition price %s%s",
                         available_quantity,
                         bed_and_breakfast_gain,
@@ -1074,7 +1074,7 @@ class CapitalGainsCalculator:
             r104_gain = r104_proceeds - r104_allowable_cost
             chargeable_gain += r104_gain
             LOGGER.debug(
-                "SECTION 104, quantity %d, gain %s, proceeds amount %s, "
+                "SECTION 104, quantity %s, gain %s, proceeds amount %s, "
                 "allowable cost %s",
                 available_quantity,
                 r104_gain,
@@ -1153,7 +1153,7 @@ class CapitalGainsCalculator:
         new_amount = amount + allowable_cost
         LOGGER.debug(
             "Detected excess reported income of %s on %s, "
-            "modyfing the cost amount from %d to %d",
+            "modyfing the cost amount from %s to %s",
             eri.symbol,
             eri.date,
             amount,
@@ -1421,7 +1421,7 @@ class CapitalGainsCalculator:
                             symbol
                         ].quantity
                         LOGGER.debug(
-                            "DISPOSAL on %s of %s, quantity %d, capital gain $%s",
+                            "DISPOSAL on %s of %s, quantity %s, capital gain $%s",
                             date_index,
                             symbol,
                             transaction_quantity,

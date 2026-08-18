@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal, localcontext
+import logging
 from pathlib import Path
 import subprocess
 import sys
@@ -886,6 +887,50 @@ def test_same_day_sale_funding_purchase_survives_sort() -> None:
         sorted(transactions, key=_transaction_sort_key),
     )
     assert report.total_gain() == Decimal(50)  # 5 * (20 - 10)
+
+
+def test_disposal_debug_log_keeps_fractional_quantity(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Fractional share quantities must not be truncated in debug logs.
+
+    Quantities were formatted with ``%d``, which truncates a ``Decimal`` to an
+    integer (e.g. 2.5 -> 2). They must use ``%s`` so partial shares are logged
+    in full.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    sell_day = datetime.date(2024, 6, 10)
+    transactions = [
+        transaction(
+            buy_day,
+            ActionType.BUY,
+            "SYM",
+            quantity=5,
+            price=10,
+            amount=-50,
+            currency="GBP",
+        ),
+        transaction(
+            sell_day,
+            ActionType.SELL,
+            "SYM",
+            quantity=2.5,
+            price=20,
+            amount=50,
+            currency="GBP",
+        ),
+    ]
+
+    with caplog.at_level(logging.DEBUG, logger="cgt_calc.main"):
+        get_report(create_calculator(), transactions)
+
+    disposal_logs = [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("DISPOSAL on")
+    ]
+    assert disposal_logs
+    assert all("quantity 2.5" in message for message in disposal_logs)
 
 
 def test_run_with_example_files() -> None:
