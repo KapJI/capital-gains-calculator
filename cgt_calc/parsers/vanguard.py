@@ -228,6 +228,7 @@ class VanguardTransaction(BrokerTransaction):
         price: Decimal | None,
         amount: Decimal | None,
         currency: str,
+        *,
         is_reversal: bool,
         description: str = "",
     ) -> VanguardTransaction:

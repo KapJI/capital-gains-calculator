@@ -83,7 +83,11 @@ class BaseSingleFileParser(BaseParser):
 
     @classmethod
     def load_from_file(
-        cls, file_path: Path, warn_on_empty: bool = True, show_parsing_msg: bool = True
+        cls,
+        file_path: Path,
+        *,
+        warn_on_empty: bool = True,
+        show_parsing_msg: bool = True,
     ) -> list[BrokerTransaction]:
         """Load broker data from file path."""
         if file_path == STDIN_PATH:

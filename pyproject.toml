@@ -367,6 +367,7 @@ select = [
   "DTZ004", # Use datetime.fromtimestamp(ts, tz=) instead of datetime.utcfromtimestamp(ts)
   "E", # pycodestyle
   "F", # pyflakes
+  "FBT", # flake8-boolean-trap
   "FLY", # flynt
   "FURB", # refurb
   "G", # flake8-logging-format
@@ -376,6 +377,7 @@ select = [
   "ICN", # flake8-import-conventions
   "LOG", # flake8-logging
   "N", # pep8-naming
+  "PD", # pandas-vet
   "PERF", # Perflint
   "PGH", # pygrep-hooks
   "PIE", # flake8-pie
@@ -447,8 +449,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # Test doubles intentionally mirror external library signatures (requests,
-# yfinance, ...), so unused arguments there are expected, not bugs.
-"tests/**" = ["PLR2004", "ARG"]
+# yfinance, ...), so unused arguments there are expected, not bugs. Likewise,
+# pytest parametrized cases routinely take boolean `expected` values (FBT).
+"tests/**" = ["PLR2004", "ARG", "FBT"]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true

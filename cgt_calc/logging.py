@@ -102,7 +102,7 @@ class ColourMessageFormatter(logging.Formatter):
         logging.ERROR: "❌",
     }
 
-    def __init__(self, fmt: str, use_colour: bool, use_emoji: bool) -> None:
+    def __init__(self, fmt: str, *, use_colour: bool, use_emoji: bool) -> None:
         """Initialise the formatter."""
         super().__init__(fmt)
         self.use_colour = use_colour
@@ -188,7 +188,9 @@ def setup_logging() -> None:
     handler = logging.StreamHandler(stream)
     handler.setFormatter(
         ColourMessageFormatter(
-            fmt, get_ui().supports_colour(stream), get_ui().supports_emoji(stream)
+            fmt,
+            use_colour=get_ui().supports_colour(stream),
+            use_emoji=get_ui().supports_emoji(stream),
         )
     )
 
