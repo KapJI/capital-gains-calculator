@@ -259,24 +259,6 @@ def _make_transaction_from_investment(
     """Create a VanguardTransaction from an Investment row, or None for the NameChange zero-out half."""
     details, is_reversal = _strip_reversal(row[InvestmentColumn.TRANSACTION_DETAILS])
     date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
-    match = NAMECHANGE_RE.match(details)
-    if match:
-        old_ticker, new_ticker = match.group(1), match.group(2)
-        # NameChange rows come in a zero-out/add-new pair; only the "replaced
-        # with" half carries both tickers. Skip the other half.
-        if not new_ticker:
-            return None
-        return VanguardTransaction.from_fields(
-            date=date,
-            action=ActionType.RENAME,
-            symbol=new_ticker,
-            quantity=Decimal(0),
-            price=None,
-            amount=Decimal(0),
-            currency="GBP",
-            is_reversal=False,
-            description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}",
-        )
     quantity = _parse_decimal(
         row[InvestmentColumn.QUANTITY], InvestmentColumn.QUANTITY.value
     )
@@ -285,6 +267,24 @@ def _make_transaction_from_investment(
         action = ActionType.BUY if quantity > 0 else ActionType.SELL
         symbol = _symbol_from_investment_name(row[InvestmentColumn.INVESTMENT_NAME])
     else:
+        match = NAMECHANGE_RE.match(details)
+        if match:
+            old_ticker, new_ticker = match.group(1), match.group(2)
+            # NameChange rows come in a zero-out/add-new pair; only the
+            # "replaced with" half carries both tickers. Skip the other half.
+            if not new_ticker:
+                return None
+            return VanguardTransaction.from_fields(
+                date=date,
+                action=ActionType.RENAME,
+                symbol=new_ticker,
+                quantity=Decimal(0),
+                price=None,
+                amount=Decimal(0),
+                currency="GBP",
+                is_reversal=False,
+                description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}",
+            )
         action = action_from_str(details, file)
         symbol = _symbol_from_details(details)
 
