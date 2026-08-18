@@ -37,7 +37,6 @@ All checks in CI must pass before merging changes.
 We use:
 
 - [ruff](https://docs.astral.sh/ruff/) — for Python linting and formatting
-- [pylint](https://pylint.readthedocs.io/en/stable/) — for additional linting
 - [mypy](https://mypy-lang.org/) — for static type checking
 - [pytest](https://docs.pytest.org/) — for running tests
 - [dprint](https://dprint.dev/) — for formatting Markdown, YAML, TOML, JSON, and Dockerfiles
