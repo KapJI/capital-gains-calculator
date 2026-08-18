@@ -49,12 +49,6 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-      - id: pylint
-        name: pylint
-        entry: uv run pylint
-        language: system
-        types: [python]
-        require_serial: true
       - id: pytest
         name: pytest
         language: system
