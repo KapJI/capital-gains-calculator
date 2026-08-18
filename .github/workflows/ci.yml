@@ -28,12 +28,37 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Run prek on all files
+        env:
+          SKIP: pytest
         run: |
           uvx prek run --all-files --show-diff-on-failure --color=always
 
       - name: Run python-typing-update
         run: |
           uvx prek run --hook-stage manual python-typing-update --all-files --show-diff-on-failure --color=always
+
+  tests:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Prepare and install deps
+        uses: ./.github/actions/install-deps
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run pytest
+        env:
+          CGT_TEST_MODE_STRICT: "1"
+        run: uv run pytest -q
 
   markdown-link-check:
     name: Markdown link check

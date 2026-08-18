@@ -46,7 +46,7 @@ Here's what a generated PDF report looks like:
 
 ## 🔧 Prerequisites
 
-- **Python 3.12** or newer
+- **Python 3.12** or newer (tested on 3.12, 3.13, and 3.14)
 - **pdflatex** must be available in your `PATH` to generate PDF reports (with `--no-pdflatex` the
   LaTeX source is saved instead)
 
