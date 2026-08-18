@@ -127,6 +127,22 @@ def transfer_transaction(
     )
 
 
+def transfer_to_spouse_transaction(
+    date: datetime.date,
+    symbol: str,
+    quantity: float,
+    currency: str = "GBP",
+) -> BrokerTransaction:
+    """Create a no gain/no loss transfer to spouse transaction."""
+    return transaction(
+        date,
+        ActionType.TRANSFER_TO_SPOUSE,
+        symbol,
+        quantity,
+        currency=currency,
+    )
+
+
 def transaction(
     date: datetime.date,
     action_type: ActionType,

@@ -37,6 +37,7 @@ from .calc_test_data import (
     calc_basic_data,
     split_transaction,
     transaction,
+    transfer_to_spouse_transaction,
     transfer_transaction,
 )
 from .calc_test_data_2 import calc_basic_data_2
@@ -937,6 +938,243 @@ def test_disposal_debug_log_keeps_fractional_quantity(
     ]
     assert disposal_logs
     assert all("quantity 2.5" in message for message in disposal_logs)
+
+
+def test_transfer_to_spouse_from_pool_is_no_gain_no_loss() -> None:
+    """A transfer to spouse leaves the Section 104 pool at base cost with nil gain."""
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transfer_to_spouse_transaction(transfer_day, "FOO", 4),
+        ],
+    )
+
+    # Not a taxable disposal.
+    assert report.total_gain() == Decimal(0)
+    assert report.disposal_count == 0
+    assert report.disposal_proceeds == Decimal(0)
+
+    # Pool reduced by 4 units at the £10 average cost.
+    assert calculator.portfolio["FOO"].quantity == Decimal(6)
+    assert calculator.portfolio["FOO"].amount == Decimal(60)
+
+    entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
+    assert all(e.rule_type is RuleType.TRANSFER_TO_SPOUSE for e in entries)
+    assert sum((e.quantity for e in entries), Decimal(0)) == Decimal(4)
+    assert sum((e.gain for e in entries), Decimal(0)) == Decimal(0)
+    # £40 base cost passes to the recipient (4 units * £10 average).
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(40)
+
+
+def test_transfer_to_spouse_matches_repurchase_within_30_days() -> None:
+    """A purchase within 30 days after a transfer is matched first (s106A).
+
+    The base cost passing to the spouse is then the cost of the re-purchased
+    shares, not the Section 104 average - the case a plain pool reduction gets
+    wrong.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    rebuy_day = datetime.date(2024, 6, 15)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transfer_to_spouse_transaction(transfer_day, "FOO", 5),
+            transaction(rebuy_day, ActionType.BUY, "FOO", 5, 12, 0, -60, "GBP"),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(0)
+    entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
+    # Matched to the £12 re-purchase, so base cost is £60 not the £50 average.
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(60)
+    # The original 10 @ £10 pool is left untouched by the transfer.
+    assert calculator.portfolio["FOO"].quantity == Decimal(10)
+    assert calculator.portfolio["FOO"].amount == Decimal(100)
+
+
+def test_transfer_to_spouse_entire_holding_empties_pool() -> None:
+    """Transferring the whole holding removes it from the portfolio with nil gain."""
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transfer_to_spouse_transaction(transfer_day, "FOO", 10),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(0)
+    assert calculator.portfolio["FOO"].quantity == Decimal(0)
+    entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(100)
+
+
+def test_transfer_to_spouse_matches_same_day_acquisition() -> None:
+    """A purchase on the transfer day is matched first (same day rule).
+
+    The base cost passing to the spouse is then the cost of the shares bought
+    that day, not the Section 104 average.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(transfer_day, ActionType.BUY, "FOO", 3, 20, 0, -60, "GBP"),
+            transfer_to_spouse_transaction(transfer_day, "FOO", 3),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(0)
+    entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
+    # Matched to the £20 same-day purchase, so base cost is £60 not the £10 average.
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(60)
+    # The original 10 @ £10 pool is left untouched by the transfer.
+    assert calculator.portfolio["FOO"].quantity == Decimal(10)
+    assert calculator.portfolio["FOO"].amount == Decimal(100)
+
+
+@pytest.mark.parametrize(
+    "acquisition_day",
+    [
+        pytest.param(datetime.date(2024, 6, 10), id="same-day"),
+        pytest.param(datetime.date(2024, 7, 9), id="within-30-days"),
+    ],
+)
+def test_transfer_to_spouse_same_day_as_sale_is_rejected(
+    acquisition_day: datetime.date,
+) -> None:
+    """A sale and a transfer competing for the same acquisitions is unsupported."""
+    buy_day = datetime.date(2024, 6, 1)
+    event_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    with pytest.raises(CalculationError, match="same day"):
+        get_report(
+            calculator,
+            [
+                transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+                transaction(event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, "GBP"),
+                transfer_to_spouse_transaction(event_day, "FOO", 2),
+                transaction(
+                    acquisition_day, ActionType.BUY, "FOO", 4, 30, 0, -120, "GBP"
+                ),
+            ],
+        )
+
+
+def test_transfer_to_spouse_same_day_as_sale_from_pool_is_allowed() -> None:
+    """A sale and a transfer both drawing on the pool alone are unambiguous.
+
+    Neither can be identified against an acquisition, so both take the same
+    Section 104 average cost and the order between them cannot matter.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    event_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, "GBP"),
+            transfer_to_spouse_transaction(event_day, "FOO", 2),
+        ],
+    )
+
+    # Only the sale is taxable: £60 proceeds against a £30 allowable cost.
+    assert report.disposal_count == 1
+    assert report.disposal_proceeds == Decimal(60)
+    assert report.total_gain() == Decimal(30)
+
+    entries = report.calculation_log[event_day]["transfer-to-spouse$FOO"]
+    # The transfer takes the same £10 average, so £20 passes to the recipient.
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(20)
+    assert calculator.portfolio["FOO"].quantity == Decimal(5)
+    assert calculator.portfolio["FOO"].amount == Decimal(50)
+
+
+def test_transfer_to_spouse_more_than_owned_is_rejected() -> None:
+    """Transferring more units than held is refused."""
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    with pytest.raises(InvalidTransactionError, match="more than the available"):
+        get_report(
+            calculator,
+            [
+                transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+                transfer_to_spouse_transaction(transfer_day, "FOO", 11),
+            ],
+        )
+
+
+def test_transfer_to_spouse_of_not_owned_symbol_is_rejected() -> None:
+    """Transferring a symbol that was never acquired is refused."""
+    calculator = create_calculator()
+    with pytest.raises(InvalidTransactionError, match="not owned symbol"):
+        get_report(
+            calculator,
+            [transfer_to_spouse_transaction(datetime.date(2024, 6, 10), "FOO", 1)],
+        )
+
+
+def test_transfer_to_spouse_warns_about_ignored_price_and_fees(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Price and fees on a transfer row are ignored, and the user is told."""
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.main"):
+        report = get_report(
+            calculator,
+            [
+                transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+                transaction(
+                    transfer_day,
+                    ActionType.TRANSFER_TO_SPOUSE,
+                    "FOO",
+                    4,
+                    25,
+                    1,
+                    0,
+                    "GBP",
+                ),
+            ],
+        )
+
+    assert "Ignoring price and fees" in caplog.text
+    # The base cost is unaffected by the ignored price and fees.
+    entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(40)
+
+
+def test_transfer_to_spouse_shown_in_report() -> None:
+    """The text report lists each transfer with the base cost passed on."""
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 1000, 10, 0, -10000, "GBP"),
+            transfer_to_spouse_transaction(transfer_day, "FOO", 400),
+        ],
+    )
+
+    output = str(report)
+    assert "Transferred to spouse" in output
+    assert f"{transfer_day}: FOO 400.00 units, base cost £4,000.00" in output
 
 
 def test_run_with_example_files() -> None:

@@ -200,6 +200,7 @@ class ActionType(Enum):
     FULL_REDEMPTION = 18
     RENAME = 19
     INTEREST_TAX = 20
+    TRANSFER_TO_SPOUSE = 21
 
 
 class CalculationType(Enum):
@@ -252,6 +253,7 @@ class RuleType(Enum):
     EXCESS_REPORTED_INCOME_DISTRIBUTION = 8
     RENAME = 9
     INTEREST_TAX = 10
+    TRANSFER_TO_SPOUSE = 11
 
 
 @dataclass
@@ -665,5 +667,33 @@ class CapitalGainsReport:
                     f"{bul}{item.eris[0].symbol}: £{round_decimal(item.amount, 2):,} "
                 )
                 out += f"(included as {dist_type})\n"
+
+        transfer_prefix = "transfer-to-spouse$"
+        transfers = sorted(
+            (
+                (date_index, key, entry_list)
+                for date_index, symbol_dict in self.calculation_log.items()
+                for key, entry_list in symbol_dict.items()
+                if key.startswith(transfer_prefix)
+            ),
+            key=lambda transfer: (transfer[0], transfer[1]),
+        )
+        if transfers:
+            out += (
+                "\n" + style_text("Transferred to spouse", colour=Style.BRIGHT) + "\n"
+            )
+            out += (
+                "  No gain/no loss; the base cost below passes to the recipient"
+                " (TCGA 1992 s58).\n"
+            )
+            for date_index, key, entry_list in transfers:
+                symbol = key[len(transfer_prefix) :]
+                quantity = sum((e.quantity for e in entry_list), Decimal(0))
+                base_cost = sum((e.allowable_cost for e in entry_list), Decimal(0))
+                out += (
+                    f"{bul}{date_index}: {symbol} "
+                    f"{round_decimal(quantity, 2):,} units, base cost "
+                    f"£{round_decimal(base_cost, 2):,}\n"
+                )
 
         return out

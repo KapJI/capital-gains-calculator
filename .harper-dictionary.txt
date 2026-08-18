@@ -19,6 +19,8 @@ BrokerTransaction
 BSF
 calc
 Center
+CG22200
+CG51560
 cgt
 CMF5
 codepage
@@ -100,6 +102,7 @@ restval
 roundings
 RowIterator
 RuntimeMode
+s58
 SA106
 SalePrice
 Schwab
@@ -119,7 +122,11 @@ stdout
 str
 subrow
 tablefinder
+TCGA
+tranche's
 TransactionDetails
+transferor
+transferor's
 UCITS
 un
 US9220427424

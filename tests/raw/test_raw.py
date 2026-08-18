@@ -161,6 +161,33 @@ def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
     assert transaction.fees == Decimal("0.10")
 
 
+def test_read_raw_transactions_transfer_to_spouse(tmp_path: Path) -> None:
+    """Parse a RAW TRANSFER_TO_SPOUSE row (no gain/no loss share transfer)."""
+
+    raw_file = tmp_path / "raw_transfer_to_spouse.csv"
+    rows = [
+        COLUMNS,
+        [
+            "2024-03-16",
+            "TRANSFER_TO_SPOUSE",
+            "XYZ",
+            "21.5",
+            "0.00",
+            "0.00",
+            "USD",
+        ],
+    ]
+    _write_csv(raw_file, rows)
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action == ActionType.TRANSFER_TO_SPOUSE
+    assert transaction.symbol == "XYZ"
+    assert transaction.quantity == Decimal("21.5")
+
+
 def test_read_raw_transactions_without_header(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,

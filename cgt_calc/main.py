@@ -191,6 +191,9 @@ class CapitalGainsCalculator:
 
         self.acquisition_list: HmrcTransactionLog = {}
         self.disposal_list: HmrcTransactionLog = {}
+        # No gain/no loss transfers to a spouse/civil partner. Kept separate from
+        # disposal_list so they never enter the taxable disposal totals.
+        self.transfer_to_spouse_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
         self.split_list: dict[tuple[str, datetime.date], Decimal] = {}
         # Stores old->new mapping when a symbol changes its name.
@@ -406,6 +409,57 @@ class CapitalGainsCalculator:
             quantity,
             self.currency_converter.to_gbp_for(amount, transaction),
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
+        )
+
+    def add_transfer_to_spouse(
+        self,
+        transaction: BrokerTransaction,
+    ) -> None:
+        """Record a no gain/no loss transfer of shares to a spouse/civil partner.
+
+        The shares leave the holding at their base cost with a nil gain (TCGA
+        1992 s58). Identification against the transferor's own same-day/30-day
+        acquisitions and the Section 104 pool happens in the second pass, so
+        only validation and first-pass bookkeeping happen here.
+        """
+        symbol = get_symbol_or_fail(transaction)
+        quantity = transaction.quantity
+        if symbol not in self.portfolio:
+            raise InvalidTransactionError(
+                transaction, "Tried to transfer to spouse a not owned symbol"
+            )
+        if quantity is None or quantity <= 0:
+            raise QuantityNotPositiveError(transaction)
+        if self.portfolio[symbol].quantity < quantity:
+            raise InvalidTransactionError(
+                transaction,
+                "Tried to transfer to spouse more than the available "
+                f"balance({self.portfolio[symbol].quantity})",
+            )
+        # Neither the price nor any fee affects a no gain/no loss transfer, so
+        # both are ignored. Say so rather than dropping them silently.
+        if transaction.price or transaction.fees:
+            LOGGER.warning(
+                "Ignoring price and fees on the transfer of %s to spouse on %s: "
+                "a no gain/no loss transfer passes the base cost on unchanged",
+                symbol,
+                transaction.date,
+            )
+        # No cash changes hands. Reduce the first-pass holding so later
+        # same-symbol transactions validate correctly; the actual pool cost is
+        # recomputed in the second pass.
+        position = self.portfolio[symbol]
+        cost = normalize_amount(position.amount * quantity / position.quantity)
+        self.portfolio[symbol] -= Position(quantity, cost)
+        if self.portfolio[symbol].quantity == 0:
+            del self.portfolio[symbol]
+        add_to_list(
+            self.transfer_to_spouse_list,
+            transaction.date,
+            symbol,
+            quantity,
+            Decimal(0),
+            Decimal(0),
         )
 
     def add_eri(
@@ -656,6 +710,9 @@ class CapitalGainsCalculator:
                 old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
                 self.rename_list[transaction.date][old_symbol] = new_symbol
                 self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
+            elif transaction.action is ActionType.TRANSFER_TO_SPOUSE:
+                # No gain/no loss share transfer: no cash impact on the balance.
+                self.add_transfer_to_spouse(transaction)
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
             else:
@@ -821,9 +878,20 @@ class CapitalGainsCalculator:
         self,
         symbol: str,
         date_index: datetime.date,
+        *,
+        no_gain_no_loss: bool = False,
     ) -> tuple[Decimal, list[CalculationEntry], CalculationEntry | None]:
-        """Process single disposal."""
-        disposal = self.disposal_list[date_index][symbol]
+        """Process a single disposal.
+
+        With ``no_gain_no_loss`` the event is a transfer to a spouse/civil
+        partner: it uses the same same-day/30-day/Section 104 identification as a
+        disposal, but each matched tranche's deemed proceeds equal its allowable
+        cost so the gain is nil (TCGA 1992 s58), and the source rows come from
+        ``transfer_to_spouse_list`` (which carry no fees and no proceeds).
+        """
+        disposal = (
+            self.transfer_to_spouse_list if no_gain_no_loss else self.disposal_list
+        )[date_index][symbol]
         disposal_quantity = disposal.quantity
         proceeds_amount = disposal.amount
         original_disposal_quantity = disposal_quantity
@@ -886,7 +954,12 @@ class CapitalGainsCalculator:
                 )
 
                 acquisition_price = acquisition_cost / available_quantity
-                same_day_amount = available_quantity * disposal_price
+                # No gain/no loss: deemed proceeds equal the allowable cost.
+                same_day_amount = (
+                    acquisition_cost
+                    if no_gain_no_loss
+                    else available_quantity * disposal_price
+                )
                 same_day_proceeds = same_day_amount + fees
                 same_day_allowable_cost = acquisition_cost + fees
                 same_day_gain = same_day_proceeds - same_day_allowable_cost
@@ -910,7 +983,11 @@ class CapitalGainsCalculator:
                     )
                 calculation_entries.append(
                     CalculationEntry(
-                        rule_type=RuleType.SAME_DAY,
+                        rule_type=(
+                            RuleType.TRANSFER_TO_SPOUSE
+                            if no_gain_no_loss
+                            else RuleType.SAME_DAY
+                        ),
                         quantity=available_quantity,
                         amount=same_day_amount,
                         gain=same_day_gain,
@@ -963,6 +1040,17 @@ class CapitalGainsCalculator:
                         if has_key(self.disposal_list, search_index, effective_symbol)
                         else HmrcTransactionData()
                     )
+                    # A same-day transfer to spouse competes for the same-day
+                    # acquisition like a same-day sale, so reserve its share too.
+                    if has_key(
+                        self.transfer_to_spouse_list, search_index, effective_symbol
+                    ):
+                        same_day_disposal = (
+                            same_day_disposal
+                            + self.transfer_to_spouse_list[search_index][
+                                effective_symbol
+                            ]
+                        )
                     if same_day_disposal.quantity > acquisition.quantity:
                         # If the number of shares disposed of exceeds the number
                         # acquired on the same day the excess shares will be identified
@@ -996,8 +1084,9 @@ class CapitalGainsCalculator:
                         logging.INFO
                         if self.date_in_tax_year(date_index)
                         else logging.DEBUG,
-                        "Bed & breakfast match: %s disposed %s, re-acquired %s",
+                        "Bed & breakfast match: %s %s %s, re-acquired %s",
                         symbol,
+                        "transferred to spouse" if no_gain_no_loss else "disposed",
                         date_index,
                         search_index,
                     )
@@ -1026,7 +1115,12 @@ class CapitalGainsCalculator:
                         / adjusted_acquisition_quantity
                     )
                     acquisition_price = bnb_acquisition_cost / available_quantity
-                    bed_and_breakfast_amount = available_quantity * disposal_price
+                    # No gain/no loss: deemed proceeds equal the allowable cost.
+                    bed_and_breakfast_amount = (
+                        bnb_acquisition_cost
+                        if no_gain_no_loss
+                        else available_quantity * disposal_price
+                    )
                     bed_and_breakfast_proceeds = bed_and_breakfast_amount + fees
                     bed_and_breakfast_allowable_cost = bnb_acquisition_cost + fees
                     # ERI needs to be reported when doing bed and breakfast as if you
@@ -1085,7 +1179,11 @@ class CapitalGainsCalculator:
                     )
                     calculation_entries.append(
                         CalculationEntry(
-                            rule_type=RuleType.BED_AND_BREAKFAST,
+                            rule_type=(
+                                RuleType.TRANSFER_TO_SPOUSE
+                                if no_gain_no_loss
+                                else RuleType.BED_AND_BREAKFAST
+                            ),
                             quantity=available_quantity,
                             amount=bed_and_breakfast_amount,
                             gain=bed_and_breakfast_gain,
@@ -1109,7 +1207,10 @@ class CapitalGainsCalculator:
                 (available_quantity * current_amount) / current_quantity
             )
 
-            r104_amount = available_quantity * disposal_price
+            # No gain/no loss: deemed proceeds equal the allowable cost.
+            r104_amount = (
+                amount_delta if no_gain_no_loss else available_quantity * disposal_price
+            )
             r104_proceeds = r104_amount + fees
             r104_allowable_cost = amount_delta + fees
             r104_gain = r104_proceeds - r104_allowable_cost
@@ -1132,7 +1233,11 @@ class CapitalGainsCalculator:
                 )
             calculation_entries.append(
                 CalculationEntry(
-                    rule_type=RuleType.SECTION_104,
+                    rule_type=(
+                        RuleType.TRANSFER_TO_SPOUSE
+                        if no_gain_no_loss
+                        else RuleType.SECTION_104
+                    ),
                     quantity=available_quantity,
                     amount=r104_amount,
                     gain=r104_gain,
@@ -1171,6 +1276,87 @@ class CapitalGainsCalculator:
             allowable_cost=pos.amount,
             renamed_to=new,
         )
+
+    def _competes_with_same_day_sale(
+        self,
+        symbol: str,
+        date_index: datetime.date,
+    ) -> bool:
+        """Whether a same-day sale and transfer of ``symbol`` contend for shares.
+
+        Left to the Section 104 pool alone the two draw at the same average
+        cost, so the order between them cannot change either result. They only
+        contend when there are acquisitions both could be identified against
+        under the same-day or 30-day rules, and then HMRC does not say which
+        one gets them.
+        """
+        if has_key(self.acquisition_list, date_index, symbol):
+            return True
+        effective_symbol = symbol
+        for i in range(BED_AND_BREAKFAST_DAYS):
+            search_index = date_index + datetime.timedelta(days=i + 1)
+            # HMRC treats renames as the same security for B&B purposes.
+            effective_symbol = self.rename_list.get(search_index, {}).get(
+                effective_symbol, effective_symbol
+            )
+            if has_key(self.acquisition_list, search_index, effective_symbol):
+                return True
+        return False
+
+    def _record_transfers_to_spouse(
+        self,
+        date_index: datetime.date,
+        tax_year_start_index: datetime.date,
+        calculation_log: CalculationLog,
+    ) -> None:
+        """Process and log no gain/no loss transfers to spouse for a single day.
+
+        Each transfer is identified against the transferor's own acquisitions
+        exactly like a disposal (see ``process_disposal``), but with a nil gain,
+        so it is kept out of the taxable disposal totals.
+        """
+        if date_index not in self.transfer_to_spouse_list:
+            return
+        for symbol in self.transfer_to_spouse_list[date_index]:
+            # HMRC does not define how to identify a taxable sale and a no gain/no
+            # loss transfer of the same shares on the same day, so refuse the
+            # cases where that identification actually changes the answer.
+            if has_key(
+                self.disposal_list, date_index, symbol
+            ) and self._competes_with_same_day_sale(symbol, date_index):
+                raise CalculationError(
+                    f"Cannot compute a sale and a transfer to spouse of {symbol} "
+                    f"on the same day ({date_index}) when there are acquisitions "
+                    "of it on that day or within the next 30 days: HMRC does not "
+                    "define which of the two the acquisitions are identified "
+                    "against, so this tool cannot calculate it. This case must be "
+                    "worked out manually (consider professional advice). Do not "
+                    "change the real transaction dates to work around this."
+                )
+            gain, entries, spin_off_entry = self.process_disposal(
+                symbol, date_index, no_gain_no_loss=True
+            )
+            assert gain == 0, gain
+            base_cost = sum((entry.allowable_cost for entry in entries), Decimal(0))
+            # Surface transfers made in the reported period; the rest of the
+            # history walk logs them at DEBUG.
+            LOGGER.log(
+                logging.INFO if self.date_in_tax_year(date_index) else logging.DEBUG,
+                "Transferred %s units of %s to spouse on %s "
+                "(no gain/no loss, base cost £%s)",
+                self.transfer_to_spouse_list[date_index][symbol].quantity,
+                symbol,
+                date_index,
+                round_decimal(base_cost, 2),
+            )
+            if date_index >= tax_year_start_index:
+                calculation_log[date_index][f"transfer-to-spouse${symbol}"] = entries
+                if spin_off_entry is not None:
+                    spin_off = spin_off_entry.spin_off
+                    assert spin_off is not None
+                    calculation_log[spin_off.date][f"spin-off${spin_off.source}"] = [
+                        spin_off_entry
+                    ]
 
     def process_eri(
         self,
@@ -1503,6 +1689,10 @@ class CapitalGainsCalculator:
                     entry = self.process_rename(old, new)
                     if date_index >= tax_year_start_index:
                         calculation_log[date_index][f"rename${old}"] = [entry]
+
+            self._record_transfers_to_spouse(
+                date_index, tax_year_start_index, calculation_log
+            )
 
             # Excess Reported incomes should be reported at the end of the day
             if date_index in self.eris:

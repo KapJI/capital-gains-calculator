@@ -10,3 +10,5 @@
 ^logging\.py:.*`COLOR`
 # "a share that fell that far" is correct; the FeelFell typo rule misfires.
 ^schwab\.md:.*FeelFell
+# "Section 106A" - Harper reads the trailing "A" as an indefinite article.
+^raw\.md:.*AnA
