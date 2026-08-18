@@ -334,6 +334,25 @@ def _optional_decimal(details: JsonRowType, field_name: str) -> Decimal | None:
     return _decimal_from_str(value)
 
 
+def _lot_share_sum(row: JsonRowType, names: FieldNames) -> Decimal | None:
+    """Recover a sale's quantity where the row rounds it and the lots do not.
+
+    Returns None when the lots cannot answer: one of them states no count, or
+    they are all whole and the row's own figure was already exact.
+    """
+    total = Decimal(0)
+    found_decimals = False
+    for subtransac in row[names.transac_details]:
+        details = subtransac.get(OPTIONAL_DETAILS_NAME, subtransac)
+        if names.shares not in details:
+            return None
+        shares = _decimal_from_str(details[names.shares])
+        total += shares
+        if not _is_integer(shares):
+            found_decimals = True
+    return total if found_decimals else None
+
+
 def _espp_net_shares(
     details: JsonRowType,
     names: FieldNames,
@@ -620,6 +639,10 @@ class SchwabTransaction(BrokerTransaction):
                 # the units of the trade date while the pool is in current
                 # ones, so it would need converting anyway. Working from the
                 # money sidesteps both, and the money is the same in any units.
+                #
+                # The count still has to come from the lots when the row has
+                # rounded it away, or the pool loses the fraction silently.
+                quantity = _lot_share_sum(row, names) or quantity
                 price = (amount + fees) / quantity
             elif not _is_integer(quantity):
                 price = (amount + fees) / quantity
@@ -818,6 +841,18 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
             # source on dividends, and it is needed for SA106 and foreign tax
             # credit relief.
             if transac[fields.action] not in {"Journal", "Wire Transfer", "Lapse"}
+        ]
+
+        # A purchase whose every share went to tax acquired nothing. Keeping it
+        # would offer the calculator an acquisition of zero shares, which it
+        # rightly refuses; the tax on it is settled through payroll either way.
+        transactions = [
+            transaction
+            for transaction in transactions
+            if not (
+                transaction.action == ActionType.STOCK_ACTIVITY
+                and transaction.quantity == 0
+            )
         ]
 
         # And after: each converted disposal against the acquisitions around it.

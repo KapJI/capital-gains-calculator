@@ -252,6 +252,31 @@ def details_of(row: JsonRowType) -> JsonRowType:
     return first.get("Details", first)
 
 
+def test_a_sale_rounded_in_the_row_takes_its_count_from_the_lots(
+    tmp_path: Path,
+) -> None:
+    """The row rounds the quantity away; the lots still hold the fraction.
+
+    Deriving the price from the money hides it — the proceeds come out right
+    whichever count is used — so the pool would quietly lose the fraction and
+    never say so.
+    """
+
+    def fractional_lots(rows: list[JsonRowType]) -> None:
+        for row in rows:
+            if row.get("Action") == "Sale" and row["Date"] == "05/22/2025":
+                row["TransactionDetails"][0]["Details"]["Shares"] = "200.5"
+
+    sale = on(
+        parse(mutated(tmp_path, fractional_lots)),
+        datetime.date(2025, 5, 22),
+        ActionType.SELL,
+    )
+
+    assert sale.quantity == Decimal("500.5")
+    assert sale.amount == Decimal("66414.90")
+
+
 def test_a_disposal_schwab_already_restated_is_flagged(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -326,7 +351,7 @@ def test_espp_counts_must_account_for_every_share(tmp_path: Path) -> None:
 
 
 def test_espp_with_everything_withheld_pools_nothing(tmp_path: Path) -> None:
-    """And when the counts do add up, zero deposited is simply zero.
+    """And when the counts do add up, zero deposited means nothing was acquired.
 
     The same "0" as above, now corroborated. Distinguishing the two is the
     whole point of asking the counts rather than the field's emptiness.
@@ -346,5 +371,6 @@ def test_espp_with_everything_withheld_pools_nothing(tmp_path: Path) -> None:
         and t.date == datetime.date(2026, 2, 27)
     ]
 
-    assert len(espp) == 1
-    assert espp[0].quantity == Decimal(0)
+    # Not an acquisition of zero shares, which the calculator refuses outright,
+    # but no acquisition at all.
+    assert espp == []
