@@ -14,6 +14,7 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 import json
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -227,12 +228,16 @@ def details_of(row: JsonRowType) -> JsonRowType:
     return first.get("Details", first)
 
 
-def test_a_disposal_schwab_already_restated_is_caught(tmp_path: Path) -> None:
-    """The failure this check exists for, and the reason it needs one.
+def test_a_disposal_schwab_already_restated_is_flagged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The failure this check exists for, and why it only warns.
 
     Converting a disposal Schwab had already converted leaves the proceeds
     right and the share count ten times too high. Nothing fails to balance, so
-    before this check the run finished cleanly on a different answer.
+    without this the run finishes cleanly on a different answer. It warns
+    rather than raises because a share that fell far enough between the sale
+    and the nearest vest looks exactly the same.
     """
 
     def already_restated(rows: list[JsonRowType]) -> None:
@@ -241,11 +246,14 @@ def test_a_disposal_schwab_already_restated_is_caught(tmp_path: Path) -> None:
                 row["Quantity"] = "20"
                 details_of(row)["SalePrice"] = "$19.192"
 
-    with pytest.raises(ParsingError, match="already restated"):
-        parse(mutated(tmp_path, already_restated))
+    with caplog.at_level(logging.WARNING):
+        assert parse(mutated(tmp_path, already_restated))
+    assert "already restated" in caplog.text
 
 
-def test_a_disposal_in_its_own_units_is_left_alone(tmp_path: Path) -> None:
+def test_a_disposal_in_its_own_units_is_left_alone(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     """The check has to stay quiet on the units Schwab actually writes.
 
     A guard that fires on correct data is worse than no guard, because the way
@@ -255,7 +263,9 @@ def test_a_disposal_in_its_own_units_is_left_alone(tmp_path: Path) -> None:
     def nothing(rows: list[JsonRowType]) -> None:
         pass
 
-    assert parse(mutated(tmp_path, nothing))
+    with caplog.at_level(logging.WARNING):
+        assert parse(mutated(tmp_path, nothing))
+    assert "already restated" not in caplog.text
 
 
 def test_a_split_missing_from_the_table_is_caught(tmp_path: Path) -> None:

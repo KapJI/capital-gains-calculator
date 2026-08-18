@@ -414,24 +414,21 @@ def _check_lapse_units(
 def _check_disposal_units(
     transactions: Sequence[BrokerTransaction], file_path: Path
 ) -> None:
-    """Check that disposals really were in the units of their own day.
+    """Warn where a disposal looks like it had already been restated.
 
-    Converting them rests on Schwab restating acquisitions for later splits and
-    leaving disposals alone. That is what its NVDA exports do, but it is an
-    observation about the file rather than a guarantee, and the GOOG handling
-    in this same parser exists because Schwab restated some records and not
-    others for that split.
+    Converting disposals rests on Schwab restating acquisitions and leaving
+    disposals alone. That is what its NVDA exports do, but it is an observation
+    about the file rather than a guarantee, and the GOOG handling in this same
+    parser exists because Schwab restated some records and not others.
 
-    Getting it wrong is silent: the money is unchanged, so nothing fails to
-    balance. Only the share count moves, and the error surfaces years later as
-    a pool that no longer matches the broker.
+    Acquisitions are the yardstick: once a disposal is converted the two are in
+    the same units, so a disposal should cost about what shares cost around it,
+    and one converted twice is cheaper by the whole multiplier.
 
-    Acquisitions are the yardstick. They are restated, they sit in the same
-    file, and once a disposal has been converted the two are in the same units,
-    so a disposal should cost about what shares cost around it. Converting one
-    that Schwab had already converted leaves it cheaper by exactly the
-    multiplier — 4, 10 or 40 — and the market does not move that far between
-    neighbouring vests.
+    This warns rather than raises because the yardstick is a price. A share
+    that halves between the nearest vest and the sale trips the 4:1 threshold
+    on its own, which is a week NVDA has had more than once. The checks that do
+    raise are the ones a price move cannot reach.
     """
     acquisitions = [
         transaction
@@ -478,16 +475,21 @@ def _check_disposal_units(
         # are a factor of 4 apart at the very least, so the midpoint is not a
         # threshold that needs tuning.
         if ratio * ratio * multiplier < 1:
-            raise ParsingError(
+            LOGGER.warning(
+                "%s: the disposal on %s works out at %s a share once converted "
+                "for the %s:1 split, against %s for the acquisition on %s. "
+                "Being cheaper by about the split multiplier is what it looks "
+                "like when Schwab had already restated a disposal and it was "
+                "converted a second time, which would take the wrong number of "
+                "shares out of the pool while leaving the proceeds right. A "
+                "share that simply fell that far between the two dates looks "
+                "the same, so check it rather than trust it",
                 file_path,
-                f"The disposal on {transaction.date} works out at "
-                f"{transaction.price:.4f} a share once converted for the "
-                f"{multiplier}:1 split, against {nearest.price:.4f} for the "
-                f"acquisition on {nearest.date}. Being cheaper by about the "
-                "split multiplier is what it looks like when Schwab had "
-                "already restated a disposal and it was converted a second "
-                "time, which would take the wrong number of shares out of the "
-                "pool while leaving the proceeds right",
+                transaction.date,
+                round_decimal(transaction.price, 4),
+                multiplier,
+                round_decimal(nearest.price, 4),
+                nearest.date,
             )
 
 
