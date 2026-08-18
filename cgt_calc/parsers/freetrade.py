@@ -166,6 +166,8 @@ class FreetradeTransaction(BrokerTransaction):
         if amount_negative:
             amount *= -1
 
+        isin = row.get(FreetradeColumn.ISIN) or None
+
         super().__init__(
             date=datetime.fromisoformat(row[FreetradeColumn.TIMESTAMP]).date(),
             action=action,
@@ -177,6 +179,7 @@ class FreetradeTransaction(BrokerTransaction):
             amount=amount,
             currency=currency,
             broker=BROKER_NAME,
+            isin=isin,
         )
 
 
