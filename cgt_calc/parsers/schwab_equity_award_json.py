@@ -129,6 +129,22 @@ def _restates_acquisitions_only(symbol: str | None) -> bool:
     return history is not None and history.restatement is Restatement.ACQUISITIONS_ONLY
 
 
+def _detail_counts_multiplier(symbol: str | None, on: datetime.date) -> int:
+    """Factor turning counts inside a row's details into current units.
+
+    A row's own `Quantity` is restated for later splits while the counts inside
+    its `TransactionDetails` are in the units of their own day. The two are
+    therefore only comparable through this factor, and a count taken from the
+    details only reaches the pool through it.
+
+    Returns 1 where the export does not restate uniformly, because there the
+    difference cannot be told apart in the first place.
+    """
+    if not _restates_acquisitions_only(symbol):
+        return 1
+    return split_multiplier(symbol, on)
+
+
 @dataclass
 class FieldNames:
     """Names of the fields in the Schwab JSON data, depending on the schema version."""
@@ -322,6 +338,7 @@ def _espp_net_shares(
     details: JsonRowType,
     names: FieldNames,
     quantity: Decimal,
+    multiplier: int,
     file: Path,
 ) -> Decimal:
     """How many of an ESPP purchase's shares reach the pool.
@@ -330,6 +347,11 @@ def _espp_net_shares(
     case what was deposited, withheld and sold has to add back up to what was
     bought. Shares taken for tax were never acquired, so they are not a
     disposal and produce no gain; they simply never enter the pool.
+
+    The counts are in the units of the purchase date and `quantity` is
+    restated, so both the identity and the pooled figure go through
+    `multiplier`. Without it a purchase made before a later split reads as one
+    that does not add up, and the file stops parsing.
     """
     deposited = _optional_decimal(details, names.net_shares_deposited)
     withheld = _optional_decimal(details, names.shares_withheld)
@@ -348,17 +370,20 @@ def _espp_net_shares(
             "does not say how many were deposited",
         )
 
-    accounted = deposited + (withheld or Decimal(0)) + (sold or Decimal(0))
+    accounted = (
+        deposited + (withheld or Decimal(0)) + (sold or Decimal(0))
+    ) * multiplier
     if accounted != quantity:
         raise ParsingError(
             file,
             f"ESPP purchase on {when} bought {quantity} shares but accounts "
             f"for {accounted}: {deposited} deposited, {withheld or 0} "
-            f"withheld, {sold or 0} sold. Pooling the deposited count alone "
-            "would drop the difference without saying so",
+            f"withheld, {sold or 0} sold, at a split multiplier of "
+            f"{multiplier}. Pooling the deposited count alone would drop the "
+            "difference without saying so",
         )
 
-    return deposited
+    return deposited * multiplier
 
 
 def _check_lapse_units(
@@ -395,7 +420,7 @@ def _check_lapse_units(
             continue
 
         date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
-        multiplier = split_multiplier(symbol, date)
+        multiplier = _detail_counts_multiplier(symbol, date)
         quantity = _decimal_from_number_or_str(row, names.quantity)
         expected = (deposited + withheld) * multiplier
 
@@ -558,7 +583,13 @@ class SchwabTransaction(BrokerTransaction):
                 # So the counts have to account for every share bought. That
                 # settles it either way, and it is the same identity a Lapse
                 # has to satisfy.
-                quantity = _espp_net_shares(details, names, quantity, file)
+                quantity = _espp_net_shares(
+                    details,
+                    names,
+                    quantity,
+                    _detail_counts_multiplier(symbol, date),
+                    file,
+                )
 
                 amount = price * quantity
                 description = f"ESPP purchase on {details[names.purchase_date]}"

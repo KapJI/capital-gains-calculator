@@ -126,6 +126,30 @@ def test_espp_taxed_in_shares_pools_the_net(
     assert espp.price == Decimal("177.19")
 
 
+def test_espp_before_a_split_pools_the_net_in_current_units(tmp_path: Path) -> None:
+    """The counts inside the row are in the units of their own day.
+
+    Its Quantity is restated, so a purchase predating a split only adds up
+    through the multiplier — and the shares it pools have to go through it too,
+    or they land in a pool that is counting in something else.
+    """
+
+    def moved_before_the_splits(rows: list[JsonRowType]) -> None:
+        for row in rows:
+            if row.get("Description") == "ESPP" and row["Date"] == "02/27/2026":
+                row["Date"] = "05/17/2022"
+                row["Quantity"] = "2000"  # (150 + 50) restated by 10
+                details_of(row)["PurchaseDate"] = "05/17/2022"
+
+    espp = on(
+        parse(mutated(tmp_path, moved_before_the_splits)),
+        datetime.date(2022, 5, 17),
+        ActionType.STOCK_ACTIVITY,
+    )
+
+    assert espp.quantity == Decimal(1500)  # 150 restated by 10
+
+
 def test_disposal_before_the_split_is_converted(
     transactions: list[BrokerTransaction],
 ) -> None:
