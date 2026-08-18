@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import csv
 import logging
+import sys
 from typing import TYPE_CHECKING, Final
 
-from .exceptions import ParsingError
+from .const import DEFAULT_SPIN_OFF_FILE
+from .exceptions import InteractiveInputRequiredError, ParsingError
 
 if TYPE_CHECKING:
     import datetime
@@ -62,13 +64,23 @@ class SpinOffHandler:
         if symbol in self.cache:
             return self.cache[symbol]
 
+        if not sys.stdin.isatty():
+            raise InteractiveInputRequiredError(
+                symbol, date, self.spin_offs_file or DEFAULT_SPIN_OFF_FILE
+            )
+
         while True:
             # This would ideally be fetched from some stock DB but yfinance does not
             # provide any info on SpinOffs
-            ticker = input(
-                "For a spin off, please enter the original ticker from which the new "
-                f"stock (symbol: {symbol}) was spinned off on {date}: "
-            )
+            try:
+                ticker = input(
+                    "For a spin off, please enter the original ticker from which the "
+                    f"new stock (symbol: {symbol}) was spinned off on {date}: "
+                )
+            except EOFError as err:
+                raise InteractiveInputRequiredError(
+                    symbol, date, self.spin_offs_file or DEFAULT_SPIN_OFF_FILE
+                ) from err
             if ticker in portfolio:
                 break
             LOGGER.error(

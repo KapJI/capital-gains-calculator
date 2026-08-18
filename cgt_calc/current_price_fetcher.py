@@ -11,6 +11,7 @@ import yfinance as yf  # type: ignore[import-untyped]
 
 if TYPE_CHECKING:
     from .currency_converter import CurrencyConverter
+from .exceptions import MarketDataMissingError
 
 
 class CurrentPriceFetcher:
@@ -72,6 +73,8 @@ class CurrentPriceFetcher:
             start=date.strftime("%Y-%m-%d"),
             end=(date + datetime.timedelta(days=1)).strftime("%Y-%m-%d"),
         )
+        if prices.empty:
+            raise MarketDataMissingError(symbol, date)
         closing_price = prices.iloc[0]["Close"]
         closing_price_decimal = Decimal(format(closing_price, ".15g"))
         currency = yf_ticker.info.get("currency") if yf_ticker.info else None

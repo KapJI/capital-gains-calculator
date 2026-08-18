@@ -9,7 +9,7 @@ import pytest
 
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
-from tests.utils import build_cmd
+from tests.utils import build_cmd, stderr_alerts
 
 
 class TestInteractiveBrokers:
@@ -163,7 +163,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
                 f"stdout:\n{result.stdout}\n"
                 f"stderr:\n{result.stderr}"
             )
-        assert result.stderr == ""
+        assert stderr_alerts(result.stderr) == []
         expected_file = (
             Path("tests") / "interactive_brokers" / "data" / "expected_output.txt"
         )
@@ -262,5 +262,41 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
                 f"stdout:\n{result.stdout}\n"
                 f"stderr:\n{result.stderr}"
             )
-        assert result.stderr == ""
-        assert "Final balance:\n  Interactive Brokers: 0.00 (GBP)" in result.stdout
+        assert stderr_alerts(result.stderr) == []
+        assert "Final balance\n  Interactive Brokers: 0.00 (GBP)" in result.stdout
+
+    def test_withholding_before_its_dividend_does_not_go_negative(
+        self, tmp_path: Path
+    ) -> None:
+        """IBKR lists tax withheld at source before the dividend it came from.
+
+        A statement that does not reach back to the opening of the account
+        starts at a zero balance, so in file order the withholding is the first
+        row and takes the balance negative before the dividend that covers it
+        arrives on the same day.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-06-24,U***00000,"
+            "VT(US9220427424) Cash Dividend - US Tax,Foreign Tax Withholding,"
+            "VT,-,-,-15.0,-,-15.0\n" + "Transaction History,Data,2025-06-24,U***00000,"
+            "VT(US9220427424) Cash Dividend USD 0.5 per Share,Dividend,"
+            "VT,-,-,100.0,-,100.0\n"
+        )
+
+        cmd = build_cmd(
+            "--year",
+            "2025",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--output",
+            str(tmp_path / "out"),
+        )
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode:
+            pytest.fail(
+                "Integration test failed\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+        assert stderr_alerts(result.stderr) == []

@@ -13,7 +13,7 @@ import pytest
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.raw import COLUMNS, RawColumn, RawParser, _parse_decimal
-from tests.utils import build_cmd
+from tests.utils import build_cmd, stderr_alerts
 
 
 def _write_csv(path: Path, rows: list[list[str]]) -> None:
@@ -42,7 +42,7 @@ def test_run_with_raw_files_no_balance_check() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr.strip() == "", "Unexpected stderr message"
+    assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param or "''" for param in cmd])
@@ -70,7 +70,7 @@ def test_run_with_raw_files() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr.strip() == "", "Unexpected stderr message"
+    assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output_2.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param or "''" for param in cmd])
@@ -104,7 +104,7 @@ def test_run_with_raw_files_stdin() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr.strip() == "", "Unexpected stderr message"
+    assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output_stdin.txt"
     expected = expected_file.read_text()
 

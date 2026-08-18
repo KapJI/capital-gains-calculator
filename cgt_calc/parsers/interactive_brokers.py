@@ -224,13 +224,18 @@ class InteractiveBrokersParser(StandardCSVParser):
 
         # If there's a deposit in the same second as a buy
         # (happens with the referral award at least)
-        # we want to put the buy last to avoid negative balance errors
-        return (transaction.date, transaction.action == ActionType.BUY)
+        # we want to put the buy last to avoid negative balance errors.
+        # Tax withheld at source goes last for the same reason: IBKR lists it
+        # before the dividend it was taken from.
+        return (
+            transaction.date,
+            transaction.action in (ActionType.BUY, ActionType.DIVIDEND_TAX),
+        )
 
     @classmethod
     def post_process_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:
-        """Sort transactions by date, buys last."""
+        """Sort transactions by date, buys and withheld tax last."""
         transactions.sort(key=cls._by_date_and_action)
         return transactions

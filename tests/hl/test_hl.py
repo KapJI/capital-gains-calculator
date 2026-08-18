@@ -3,7 +3,6 @@
 from pathlib import Path
 import shutil
 import subprocess
-import tempfile
 
 import pytest
 from reportlab.lib.pagesizes import letter
@@ -11,7 +10,7 @@ from reportlab.pdfgen import canvas
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.parsers.hl import HargreavesLansdownParser
-from tests.utils import build_cmd
+from tests.utils import build_cmd, stderr_alerts
 
 HL_CSV_HEADER = (
     "Transaction Summary, , , ,\n"
@@ -85,15 +84,18 @@ def _prepare_pdf_test_data() -> str:
     # Set your source file path
     source_file = Path(test_dir / "data" / "inputs" / "hl-transaction-summary.csv")
 
-    # Get system temp directory
-    temp_dir = Path(tempfile.gettempdir())
+    # Use a stable repo-relative directory: its path is echoed in the parsing
+    # output, so a machine-specific temp dir would break the expected-output
+    # fixture on any other machine.
+    input_dir = Path("out") / "test-hl-inputs"
+    input_dir.mkdir(parents=True, exist_ok=True)
 
-    shutil.copy2(source_file, temp_dir)
+    shutil.copy2(source_file, input_dir)
 
-    _create_buy_pdf(str(temp_dir / "B302087054_BOUGHT_Vanguard.pdf"))
-    _create_sell_pdf(str(temp_dir / "S302087055_SOLD_Vanguard.pdf"))
+    _create_buy_pdf(str(input_dir / "B302087054_BOUGHT_Vanguard.pdf"))
+    _create_sell_pdf(str(input_dir / "S302087055_SOLD_Vanguard.pdf"))
 
-    return str(temp_dir)
+    return str(input_dir)
 
 
 def test_hl_parser() -> None:
@@ -116,7 +118,7 @@ def test_hl_parser() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr == "", "Run with example files generated errors"
+    assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
     expected_file = (
         Path("tests")
         / "hl"
@@ -124,7 +126,6 @@ def test_hl_parser() -> None:
         / "test_run_with_hl_files_no_balance_check_output.txt"
     )
     expected = expected_file.read_text()
-    expected = expected.replace("tests/hl/data/inputs", test_output_dir)
     cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "

@@ -16,6 +16,7 @@ from cgt_calc.args_validators import (
     existing_file_type,
 )
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.logging import parsing_msg
 from cgt_calc.model import BrokerTransaction
 
 LOGGER = logging.getLogger(__name__)
@@ -23,6 +24,8 @@ LOGGER = logging.getLogger(__name__)
 
 class BaseParser(ABC):
     """Base parser from which all brokers are derived."""
+
+    pretty_name: str
 
     @classmethod
     @abstractmethod
@@ -39,7 +42,6 @@ class BaseSingleFileParser(BaseParser):
     """Parser for single transaction file."""
 
     arg_name: str
-    pretty_name: str
     format_name: str
     full_arg: str
     deprecated_flags: ClassVar[list[str]] = []
@@ -86,12 +88,12 @@ class BaseSingleFileParser(BaseParser):
         """Load broker data from file path."""
         if file_path == STDIN_PATH:
             if show_parsing_msg:
-                print("Parsing stdin...")
+                parsing_msg("stdin")
             transactions = cls.read_transactions(sys.stdin, STDIN_PATH)
         else:
             with file_path.open(encoding=cls.encoding) as file:
                 if show_parsing_msg:
-                    print(f"Parsing {file_path}...")
+                    parsing_msg(file_path)
                 transactions = cls.read_transactions(file, file_path)
         if not transactions and warn_on_empty:
             LOGGER.warning("No transactions detected in file %s", file_path)

@@ -1,37 +1,39 @@
-Parsing tests/freetrade/data/transactions.csv...
-Found 17 broker transactions
-First pass completed
-Final portfolio:
-  TSLA: 1.45
+Final portfolio
   GOOGL: 0.14
   NDAQ: 2.12
-Final balance:
-  Freetrade: 8946.79 (GBP)
-Dividends:
-  NDAQ: 1.78 (GBP)
-Interests:
-  Freetrade: 9.02 (GBP)
-Disposal proceeds: £2930.36
+  TSLA: 1.45
 
-Second pass completed
-Portfolio at the end of 2023/2024 tax year:
-  TSLA: 1.45, £944.86
+Final balance
+  Freetrade: 8946.79 (GBP)
+
+Dividends
+  NDAQ: 1.78 (GBP)
+
+Interest
+  Freetrade: 9.02 (GBP)
+
+Portfolio at the end of 2023/2024 tax year
   GOOGL: 0.14, £279.58
   NDAQ: 2.12, £279.58
-For tax year 2023/2024:
-Number of disposals: 1
-Disposal proceeds: £2930.36
-Allowable costs: £2502.50
-Capital gain: £427.86
-Capital loss: £0.00
-Total capital gain: £427.86
-Taxable capital gain: £0
-Total dividends proceeds: £1.78
-Total amount of dividends tax yearly allowance: £1000.00
-Total taxable dividends proceeds: £0.00
-Total UK interest proceeds: £9.02
-Total foreign interest proceeds: £0.00
-Total interest tax paid: £0.00
+  TSLA: 1.45, £944.86
 
-Generating PDF report...
-All done!
+Tax summary for 2023/2024
+
+Capital gains
+  Disposals:                  1
+  Disposal proceeds:  £2,930.36
+  Allowable costs:    £2,502.50
+  Gain:                 £427.86
+  Loss:                   £0.00
+  Total gain:           £427.86
+  Taxable gain:           £0.00
+
+Dividends
+  Proceeds:               £1.78
+  Tax-free allowance: £1,000.00
+  Taxable proceeds:       £0.00
+
+Interest
+  UK proceeds:            £9.02
+  Foreign proceeds:       £0.00
+  Tax paid:               £0.00

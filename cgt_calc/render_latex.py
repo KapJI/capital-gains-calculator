@@ -1,17 +1,23 @@
 """Render PDF report with LaTeX."""
 
 from decimal import Decimal
+import logging
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 
+from colorama import Fore
 import jinja2
 
 from .const import LATEX_TEMPLATE_RESOURCE, PACKAGE_NAME
 from .exceptions import LatexRenderError, MissingExternalToolError
+from .logging import style_text
 from .model import CapitalGainsReport
 from .util import round_decimal, strip_zeros
+
+LOGGER = logging.getLogger(__name__)
 
 
 def render_pdf(
@@ -20,7 +26,18 @@ def render_pdf(
     skip_pdflatex: bool = False,
 ) -> None:
     """Render LaTeX to a PDF report."""
-    print("Generating PDF report...")
+    jobname = output_path.stem
+    out_dir = output_path.parent
+    tex_path = out_dir / f"{jobname}.tex"
+    progress = (
+        f"Writing LaTeX report to {tex_path}..."
+        if skip_pdflatex
+        else f"Writing PDF report to {output_path}..."
+    )
+    LOGGER.info(
+        "\n%s\n",
+        style_text(progress, colour=Fore.CYAN, emoji="💾", stream=sys.stderr),
+    )
     latex_template_env = jinja2.Environment(
         block_start_string="\\BLOCK{",
         block_end_string="}",
@@ -45,19 +62,20 @@ def render_pdf(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Without pdflatex the LaTeX source is the report: save it for the user
+    # instead of producing a PDF.
+    if skip_pdflatex:
+        tex_path.write_text(output_text, encoding="utf-8")
+        return
+
     with tempfile.NamedTemporaryFile(
         "w", encoding="utf-8", prefix="cgt_calc_", suffix=".tex", delete=False
     ) as tmp:
         tmp_path = Path(tmp.name)
         tmp.write(output_text)
 
-    jobname = output_path.stem
-    out_dir = output_path.parent
     log_path = out_dir / f"{jobname}.latex.log"
 
-    # Skip for integration tests when pdflatex is not available.
-    if skip_pdflatex:
-        return
     try:
         if shutil.which("pdflatex") is None:
             raise MissingExternalToolError("pdflatex")

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable, Iterator
 import datetime
+import logging
 from pathlib import Path
 from typing import IO, TextIO, cast
 
@@ -507,3 +508,19 @@ def test_raw_file_stdin() -> None:
     parser = create_parser()
     args = parser.parse_args(["--raw-file", "-"])
     assert args.raw_file == STDIN_PATH
+
+
+def test_initial_prices_alias_warns_deprecated(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The hidden --initial-prices alias still works but warns."""
+    file_path = tmp_path / "prices.csv"
+    file_path.write_text("", encoding="utf-8")
+    parser = create_parser()
+
+    with caplog.at_level(logging.WARNING):
+        args = parser.parse_args(["--initial-prices", str(file_path)])
+
+    assert args.initial_prices_file == file_path
+    assert "Option '--initial-prices' is deprecated" in caplog.text
+    assert "--initial-prices-file" in caplog.text

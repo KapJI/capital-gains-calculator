@@ -19,7 +19,56 @@ from cgt_calc.parsers.freetrade import (
     FreetradeParser,
     FreetradeTransaction,
 )
-from tests.utils import build_cmd
+from tests.utils import build_cmd, stderr_alerts
+
+# Header of a Freetrade export downloaded after the format change reported in
+# issue #800: two columns were renamed and the "Stock Split" ones are new.
+NEW_COLUMNS: list[str] = [
+    "Title",
+    "Type",
+    "Timestamp",
+    "Account Currency",
+    "Total Amount in Account Currency",
+    "Buy / Sell",
+    "Ticker",
+    "ISIN",
+    "Price per Share in Account Currency",
+    "Stamp Duty",
+    "Quantity",
+    "Venue",
+    "Order ID",
+    "Order Type",
+    "Instrument Currency",
+    "Total Amount in Instrument Currency",
+    "Price per Share",
+    "FX Rate",
+    "Base FX Rate",
+    "FX Fee (BPS)",
+    "FX Fee Amount",
+    "Dividend Ex Date",
+    "Dividend Pay Date",
+    "Dividend Eligible Quantity",
+    "Dividend Amount Per Share",
+    "Dividend Gross Distribution Amount",
+    "Dividend Net Distribution Amount",
+    "Dividend Withheld Tax Percentage",
+    "Dividend Withheld Tax Amount",
+    "Stock Split Ex Date",
+    "Stock Split Pay Date",
+    "Stock Split New ISIN",
+    "Stock Split Rate of Share Outturn From",
+    "Stock Split Rate of Share Outturn To",
+    "Stock Split Maintain Holding of Initial ISIN",
+    "Stock Split New Share Quantity",
+    "Stock Split Rate of Cash Outturn Amount",
+    "Stock Split Rate of Cash Outturn Currency",
+    "Stock Split Cash Outturn Received Amount",
+    "Stock Split Has Fractional Payout",
+    "Stock Split Rate of Fractional Payout Amount",
+    "Stock Split Rate of Fractional Payout Currency",
+    "Stock Split Fractional Payout Cash Received Amount",
+    "Stock Split Fractional Payout Cash Received Currency",
+]
 
 BASE_ROW_VALUES = {
     FreetradeColumn.TITLE.value: "Buy Apple",
@@ -53,6 +102,13 @@ BASE_ROW_VALUES = {
     FreetradeColumn.DIVIDEND_WITHHELD_AMOUNT.value: "0",
 }
 
+# The two columns Freetrade renamed, spelled out rather than read back from the
+# parser so that a wrong mapping there fails these tests.
+RENAMED_COLUMNS: dict[str, str] = {
+    FreetradeColumn.TOTAL_AMOUNT.value: "Total Amount in Account Currency",
+    FreetradeColumn.TOTAL_SHARES_AMOUNT.value: "Total Amount in Instrument Currency",
+}
+
 
 def _default_row(overrides: dict[str, str] | None = None) -> list[str]:
     """Return default row data with optional overrides."""
@@ -60,6 +116,17 @@ def _default_row(overrides: dict[str, str] | None = None) -> list[str]:
     if overrides:
         values.update(overrides)
     return [values[column] for column in COLUMNS]
+
+
+def _default_new_row(overrides: dict[str, str] | None = None) -> list[str]:
+    """Return default row data laid out for the new header."""
+    values = {
+        RENAMED_COLUMNS.get(column, column): value
+        for column, value in BASE_ROW_VALUES.items()
+    }
+    if overrides:
+        values.update(overrides)
+    return [values.get(column, "") for column in NEW_COLUMNS]
 
 
 def _write_csv(
@@ -92,7 +159,7 @@ def test_run_with_freetrade_file() -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert result.stderr == "", "Run with example files generated errors"
+    assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
     expected_file = Path("tests") / "freetrade" / "data" / "expected_output.txt"
     expected = expected_file.read_text()
     cmd_str = " ".join([param or "''" for param in cmd])
@@ -168,6 +235,48 @@ def test_read_freetrade_transactions_success(tmp_path: Path) -> None:
     assert transaction.price == Decimal(100)
     assert transaction.amount == Decimal(-100)
     assert transaction.currency == "GBP"
+
+
+def test_read_freetrade_transactions_new_header_success(tmp_path: Path) -> None:
+    """Renamed and added columns of the newer export parse like the old ones."""
+    path = _write_csv(tmp_path, NEW_COLUMNS, [_default_new_row()])
+
+    transactions = FreetradeParser().load_from_file(path)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action is ActionType.BUY
+    assert transaction.symbol == "AAPL"
+    assert transaction.quantity == Decimal(1)
+    assert transaction.price == Decimal(100)
+    assert transaction.amount == Decimal(-100)
+    assert transaction.currency == "GBP"
+
+
+def test_read_freetrade_transactions_new_header_top_up(tmp_path: Path) -> None:
+    """The renamed account currency amount is read from its new column."""
+    overrides = {
+        FreetradeColumn.TYPE.value: "TOP_UP",
+        FreetradeColumn.TICKER.value: "",
+        RENAMED_COLUMNS[FreetradeColumn.TOTAL_AMOUNT.value]: "150",
+    }
+    path = _write_csv(tmp_path, NEW_COLUMNS, [_default_new_row(overrides)])
+
+    transactions = FreetradeParser().load_from_file(path)
+
+    assert len(transactions) == 1
+    assert transactions[0].action is ActionType.TRANSFER
+    assert transactions[0].amount == Decimal(150)
+
+
+def test_read_freetrade_transactions_new_header_missing_column(tmp_path: Path) -> None:
+    """A renamed column still counts as missing when the export drops it."""
+    dropped = RENAMED_COLUMNS[FreetradeColumn.TOTAL_SHARES_AMOUNT.value]
+    header = [column for column in NEW_COLUMNS if column != dropped]
+    path = _write_csv(tmp_path, header)
+
+    with pytest.raises(ParsingError, match="Missing columns: Total Shares Amount"):
+        FreetradeParser().load_from_file(path)
 
 
 def test_freetrade_transaction_unsupported_action(

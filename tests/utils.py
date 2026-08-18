@@ -11,3 +11,12 @@ def build_cmd(*args: str) -> list[str]:
         cmd.append("--no-pdflatex")
     cmd += ["--exchange-rates-file", "tests/exchange_rates_data.csv"]
     return cmd
+
+
+def stderr_alerts(stderr: str) -> list[str]:
+    """Return warning/error lines from stderr, ignoring info chatter."""
+    return [
+        line
+        for line in stderr.splitlines()
+        if line.startswith(("WARNING", "ERROR", "CRITICAL"))
+    ]

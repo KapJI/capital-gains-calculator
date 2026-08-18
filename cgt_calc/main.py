@@ -11,9 +11,12 @@ import logging
 import sys
 from typing import TYPE_CHECKING
 
+from colorama import Fore, Style
+
 from . import render_latex
 from .args_parser import create_parser
 from .const import (
+    BALANCE_CHECK_CONTEXT_ROWS,
     BED_AND_BREAKFAST_DAYS,
     CAPITAL_GAIN_ALLOWANCES,
     DIVIDEND_ALLOWANCES,
@@ -41,6 +44,7 @@ from .exceptions import (
 )
 from .initial_prices import InitialPrices
 from .isin_converter import IsinConverter
+from .logging import bullet, setup_logging, style_text
 from .model import (
     ActionType,
     BrokerTransaction,
@@ -63,7 +67,6 @@ from .model import (
     SpinOff,
 )
 from .parsers.broker_registry import BrokerRegistry
-from .setup_logging import setup_logging
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
 from .util import approx_equal, normalize_amount, round_decimal
@@ -505,7 +508,6 @@ class CapitalGainsCalculator:
         dividends_tax: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         interests: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
         interest_taxes: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
-        total_disposal_proceeds = Decimal(0)
         balance_history: list[Decimal] = []
 
         for transaction in transactions:
@@ -535,10 +537,6 @@ class CapitalGainsCalculator:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 self.add_disposal(transaction)
-                if self.date_in_tax_year(transaction.date):
-                    total_disposal_proceeds += self.currency_converter.to_gbp_for(
-                        amount + transaction.fees, transaction
-                    )
             elif transaction.action is ActionType.FEE:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
@@ -625,23 +623,28 @@ class CapitalGainsCalculator:
                 )
             balance_history.append(new_balance)
             if self.balance_check and new_balance < 0:
+                entries = [
+                    f"{trx}\nBalance after transaction={balance_after}"
+                    for trx, balance_after in zip(
+                        transactions[: i + 1], balance_history, strict=True
+                    )
+                    # Only same-pool transactions that moved the cash balance
+                    # are relevant (skips other currencies, ERI entries,
+                    # renames, splits, etc.)
+                    if trx.broker == transaction.broker
+                    and trx.currency == transaction.currency
+                    and trx.amount
+                ]
+                omitted = len(entries) - BALANCE_CHECK_CONTEXT_ROWS
+                if omitted > 0:
+                    entries = [
+                        f"... {omitted} earlier transaction(s) omitted ...",
+                        *entries[-BALANCE_CHECK_CONTEXT_ROWS:],
+                    ]
                 msg = f"Reached a negative balance({new_balance})"
                 msg += f" for broker {transaction.broker} ({transaction.currency})"
                 msg += " after processing the following transactions:\n"
-                msg += (
-                    "\n".join(
-                        [
-                            f"{trx}\nBalance after transaction={balance_after}"
-                            for trx, balance_after in zip(
-                                transactions[: i + 1], balance_history, strict=True
-                            )
-                            # filter out ERI transactions, they don't affect the balance
-                            if trx.action != ActionType.EXCESS_REPORTED_INCOME
-                            and trx.broker == transaction.broker
-                        ]
-                    )
-                    + "\n"
-                )
+                msg += "\n".join(entries) + "\n"
                 msg += "Tip: If your input file is missing deposits/withdrawals use --no-balance-check."
                 raise CalculationError(msg)
             balance[(transaction.broker, transaction.currency)] = new_balance
@@ -652,7 +655,6 @@ class CapitalGainsCalculator:
             dividends_tax,
             interests,
             interest_taxes,
-            total_disposal_proceeds,
         )
 
     def first_pass_report(
@@ -662,31 +664,43 @@ class CapitalGainsCalculator:
         dividends_tax: dict[tuple[str, str], Decimal],
         interests: dict[tuple[str, str], Decimal],
         interest_taxes: dict[tuple[str, str], Decimal],
-        total_disposal_proceeds: Decimal,
     ) -> None:
         """Print the results of the first pass."""
-        print("First pass completed")
-        print("Final portfolio:")
-        for stock, position in self.portfolio.items():
-            print(f"  {stock}: {position}")
-        print("Final balance:")
+        LOGGER.info(
+            "\n%s\n",
+            style_text(
+                "First pass complete", colour=Fore.GREEN, emoji="✅", stream=sys.stderr
+            ),
+        )
+        bul = bullet(sys.stdout)
+        print(style_text("Final portfolio", colour=Style.BRIGHT, emoji="📊"))
+        if not self.portfolio:
+            print(f"{bul}(none)")
+        for stock, position in sorted(self.portfolio.items()):
+            print(f"{bul}{stock}: {position}")
+        print()
+        print(style_text("Final balance", colour=Style.BRIGHT, emoji="💰"))
         for (broker, currency), amount in balance.items():
-            print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
+            print(f"{bul}{broker}: {round_decimal(amount, 2)} ({currency})")
         if dividends:
-            print("Dividends:")
+            print()
+            print(style_text("Dividends", colour=Style.BRIGHT, emoji="💵"))
             for (symbol, currency), amount in dividends.items():
                 tax = dividends_tax[(symbol, currency)]
                 tax_str = f", excluding {-tax} taxed at source" if tax < 0 else ""
-                print(f"  {symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})")
+                print(
+                    f"{bul}{symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})"
+                )
         if interests:
-            print("Interests:")
+            print()
+            print(style_text("Interest", colour=Style.BRIGHT, emoji="🏦"))
             for (broker, currency), amount in interests.items():
-                print(f"  {broker}: {round_decimal(amount, 2)} ({currency})")
+                print(f"{bul}{broker}: {round_decimal(amount, 2)} ({currency})")
         if interest_taxes:
-            print("Interest taxes:")
+            print()
+            print(style_text("Interest taxes", colour=Style.BRIGHT, emoji="🧾"))
             for (broker, currency), amount in interest_taxes.items():
-                print(f"  {broker}: {round_decimal(-amount, 2)} ({currency})")
-        print(f"Disposal proceeds: £{round_decimal(total_disposal_proceeds, 2)}")
+                print(f"{bul}{broker}: {round_decimal(-amount, 2)} ({currency})")
         print()
 
     def process_acquisition(
@@ -935,10 +949,13 @@ class CapitalGainsCalculator:
                         )
                         continue
                     # Bed and breakfasting is a record of how the disposal was
-                    # matched rather than a problem, so it is logged at INFO.
-                    LOGGER.info(
-                        "Bed and breakfasting for %s. "
-                        "Disposed on %s and acquired again on %s",
+                    # matched rather than a problem. Surface it for the computed
+                    # tax year; the rest of the history walk logs it at DEBUG.
+                    LOGGER.log(
+                        logging.INFO
+                        if self.date_in_tax_year(date_index)
+                        else logging.DEBUG,
+                        "Bed & breakfast match: %s disposed %s, re-acquired %s",
                         symbol,
                         date_index,
                         search_index,
@@ -1494,7 +1511,12 @@ class CapitalGainsCalculator:
         self.process_dividends()
         self.process_interests()
 
-        print("Second pass completed")
+        LOGGER.info(
+            "\n%s\n",
+            style_text(
+                "Second pass complete", colour=Fore.GREEN, emoji="✅", stream=sys.stderr
+            ),
+        )
         allowance = CAPITAL_GAIN_ALLOWANCES.get(self.tax_year)
         dividend_allowance = DIVIDEND_ALLOWANCES.get(self.tax_year)
 
@@ -1573,7 +1595,9 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     calculator.convert_to_hmrc_transactions(broker_transactions)
     # Second pass calculates capital gain tax for the given tax year.
     report = calculator.calculate_capital_gain()
-    print(report)
+    # The report string is newline-terminated already; avoid a trailing
+    # blank line so piped output stays stable under newline normalisation.
+    print(report, end="")
 
     # Generate PDF report.
     if not args.no_report:
@@ -1582,7 +1606,12 @@ def calculate_cgt(args: argparse.Namespace) -> None:
             output_path=args.output,
             skip_pdflatex=args.no_pdflatex,
         )
-    print("All done!")
+    done_msg = (
+        "Done! Calculations complete (PDF generation skipped)."
+        if args.no_pdflatex
+        else "Done! Report generated successfully."
+    )
+    LOGGER.info(style_text(done_msg, colour=Fore.GREEN, emoji="🎉", stream=sys.stderr))
 
 
 def main() -> int:
@@ -1602,8 +1631,8 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    logging_level = logging.DEBUG if args.verbose else logging.WARNING
-    logging.getLogger().setLevel(logging_level)
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
 
     try:
         calculate_cgt(args)
@@ -1618,6 +1647,7 @@ def main() -> int:
         # Last-resort catch for unexpected exceptions
         LOGGER.critical("Unexpected error!")
         LOGGER.exception("Details:")
+        return 1
 
     return 0
 
