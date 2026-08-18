@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, ClassVar
 from colorama import Fore
 
 from cgt_calc.logging import style_text
+from cgt_calc.model import ActionType
 from cgt_calc.parsers.eri.raw import ERIRawParser
 from cgt_calc.parsers.freetrade import FreetradeParser
 from cgt_calc.parsers.hl import HargreavesLansdownParser
@@ -23,6 +24,7 @@ from cgt_calc.parsers.vanguard import VanguardParser
 
 if TYPE_CHECKING:
     import argparse
+    import datetime
 
     from cgt_calc.isin_converter import IsinConverter
     from cgt_calc.model import BrokerTransaction
@@ -30,6 +32,24 @@ if TYPE_CHECKING:
     from .base_parsers import BaseParser
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _transaction_sort_key(
+    transaction: BrokerTransaction,
+) -> tuple[datetime.date, int]:
+    """Sort transactions by date, ordering share vests before same-day sales.
+
+    A broker export can list the sale of vested shares before the vest itself
+    (e.g. Schwab or Morgan Stanley equity awards). A disposal is validated
+    against the current holding as soon as it is read, so the unsorted order
+    fails with "Tried to sell not owned symbol". Vesting (``STOCK_ACTIVITY``)
+    does not move the cash balance, so ordering it first cannot introduce a
+    negative balance. All other transactions keep their relative order, so the
+    "buys last" ordering that some parsers rely on to avoid negative balances is
+    preserved.
+    """
+    vest_first = 0 if transaction.action is ActionType.STOCK_ACTIVITY else 1
+    return (transaction.date, vest_first)
 
 
 class BrokerRegistry:
@@ -92,5 +112,5 @@ class BrokerRegistry:
             trx for trx in ERIRawParser.load_from_args(args) if trx.isin in isins
         ]
 
-        all_transactions.sort(key=lambda k: k.date)
+        all_transactions.sort(key=_transaction_sort_key)
         return all_transactions
