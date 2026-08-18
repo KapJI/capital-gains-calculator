@@ -209,10 +209,10 @@ def test_the_position_matches_the_transactions(
 
 def mutated(tmp_path: Path, change: Callable[[list[JsonRowType]], None]) -> Path:
     """Write a copy of the fixture with `change` applied to its transactions."""
-    data = json.loads(FIXTURE.read_text())
+    data = json.loads(FIXTURE.read_text(encoding="utf-8"))
     change(data["Transactions"])
     path = tmp_path / "mutated.json"
-    path.write_text(json.dumps(data))
+    path.write_text(json.dumps(data), encoding="utf-8")
     return path
 
 
