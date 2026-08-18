@@ -19,6 +19,7 @@ from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator, main
 from cgt_calc.model import ActionType, BrokerTransaction, RuleType
+from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
@@ -811,6 +812,80 @@ def test_bed_and_breakfast_matches_across_rename() -> None:
 
     # 100 sold at £8 = £800 proceeds against £900 B&B cost → £100 loss.
     assert report.total_gain() == Decimal(-100)
+
+
+def test_same_day_vest_ordered_before_sale() -> None:
+    """A sale listed before the same-day vest is reordered so it can be processed.
+
+    Equity-award exports (e.g. Schwab or Morgan Stanley) can list the sale of
+    vested shares before the vest itself. A disposal is validated against the
+    current holding as soon as it is read, so the raw order fails; the registry
+    sort places the balance-neutral vest first so the sale is processed.
+    """
+    day = datetime.date(2024, 6, 3)
+    vest = transaction(
+        day, ActionType.STOCK_ACTIVITY, "SYM", quantity=10, price=10, currency="GBP"
+    )
+    sale = transaction(
+        day, ActionType.SELL, "SYM", quantity=5, price=20, amount=100, currency="GBP"
+    )
+
+    # Raw order (sale before vest) fails the ownership check.
+    with pytest.raises(InvalidTransactionError):
+        get_report(create_calculator(), [sale, vest])
+
+    # The registry sort orders the vest first, so the sale succeeds.
+    report = get_report(
+        create_calculator(), sorted([sale, vest], key=_transaction_sort_key)
+    )
+    assert report.total_gain() == Decimal(50)  # 5 * (20 - 10)
+
+
+def test_same_day_sale_funding_purchase_survives_sort() -> None:
+    """Ordering vests first must not disturb the 'sales before purchases' order.
+
+    Only vests are moved, so a same-day sale that funds a purchase is still
+    processed before the purchase and the running balance stays non-negative
+    under the balance check.
+    """
+    day0 = datetime.date(2024, 6, 1)
+    day1 = datetime.date(2024, 6, 2)
+    transactions = [
+        transaction(day0, ActionType.TRANSFER, amount=50, currency="GBP"),
+        transaction(
+            day0,
+            ActionType.BUY,
+            "SYM",
+            quantity=5,
+            price=10,
+            amount=-50,
+            currency="GBP",
+        ),
+        transaction(
+            day1,
+            ActionType.SELL,
+            "SYM",
+            quantity=5,
+            price=20,
+            amount=100,
+            currency="GBP",
+        ),
+        transaction(
+            day1,
+            ActionType.BUY,
+            "OTH",
+            quantity=10,
+            price=10,
+            amount=-100,
+            currency="GBP",
+        ),
+    ]
+
+    report = get_report(
+        create_calculator(balance_check=True),
+        sorted(transactions, key=_transaction_sort_key),
+    )
+    assert report.total_gain() == Decimal(50)  # 5 * (20 - 10)
 
 
 def test_run_with_example_files() -> None:
