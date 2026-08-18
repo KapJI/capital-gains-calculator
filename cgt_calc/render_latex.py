@@ -23,6 +23,7 @@ LOGGER = logging.getLogger(__name__)
 def render_pdf(
     report: CapitalGainsReport,
     output_path: Path,
+    *,
     skip_pdflatex: bool = False,
 ) -> None:
     """Render LaTeX to a PDF report."""

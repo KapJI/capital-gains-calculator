@@ -159,6 +159,7 @@ class CapitalGainsCalculator:
         spin_off_handler: SpinOffHandler,
         initial_prices: InitialPrices,
         interest_fund_tickers: list[str],
+        *,
         balance_check: bool = True,
         calc_unrealized_gains: bool = False,
     ):

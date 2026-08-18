@@ -86,7 +86,7 @@ def approx_equal(
     return abs(val_a - val_b) < approx_quantity
 
 
-def open_with_parents(path: Path, clear_content: bool = True) -> TextIO:
+def open_with_parents(path: Path, *, clear_content: bool = True) -> TextIO:
     """Open a file for writing, creating parent directories if they do not exist."""
     path.parent.mkdir(parents=True, exist_ok=True)
     return path.open("w" if clear_content else "r+", encoding="utf8")

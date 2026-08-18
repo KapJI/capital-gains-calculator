@@ -413,7 +413,7 @@ class CapitalGainsReport:
         assert self.capital_gain_allowance is not None
         return max(Decimal(0), self.total_gain() - self.capital_gain_allowance)
 
-    def total_eri_amount(self, is_interest: bool) -> Decimal:
+    def total_eri_amount(self, *, is_interest: bool) -> Decimal:
         """Total dividends amount just from ERI."""
         total = Decimal(0)
         for item in self._filter_calculation_log(
