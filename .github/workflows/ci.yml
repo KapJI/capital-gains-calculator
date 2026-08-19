@@ -93,6 +93,9 @@ jobs:
           file: coverage.xml
           language: Python
           label: code-coverage/pytest
+          # Don't fail CI on upload issues: merge protection comes from
+          # the ruleset, not from this step.
+          fail-on-error: false
 
   markdown-link-check:
     name: Markdown link check
