@@ -12,12 +12,10 @@ runs:
       uses: astral-sh/setup-uv@v7
       with:
         enable-cache: true
-        # Also makes the cache key include this version. Without it
-        # setup-uv falls back to the system Python version, so all
-        # matrix jobs computed an identical key: they raced to save it
-        # ("Unable to reserve cache" warnings) and restored caches
-        # built for a different interpreter.
         python-version: ${{ inputs.python-version }}
+        # Different jobs on the same Python version still compute the
+        # same key and race to save it, so add the job name too.
+        cache-suffix: ${{ github.job }}
 
     - name: Install dependencies with uv
       shell: bash
