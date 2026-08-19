@@ -63,6 +63,9 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
+          # Publish the runtime stage; the default test stage exists
+          # for CI and includes uv.
+          target: runtime
           platforms: linux/amd64
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
@@ -115,6 +118,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
+          target: runtime
           platforms: linux/arm64
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
