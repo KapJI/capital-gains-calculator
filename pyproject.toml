@@ -64,6 +64,7 @@ dev = [
   "pdfplumber>=0.11.9",
   "pytest>=8.4.2,<10.0.0",
   "pytest-clarity>=1.0.1",
+  "pytest-cov>=7.0.0",
   "pytest-env>=1.1.5",
   "pytest-xdist>=3.8.0",
   "reportlab>=5.0.0",
@@ -224,4 +225,16 @@ env = [
 ]
 testpaths = [
   "tests",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["cgt_calc"]
+# Store relative paths so reports are portable outside the
+# environment that generated them.
+relative_files = true
+
+[tool.coverage.report]
+exclude_also = [
+  "if TYPE_CHECKING:",
 ]
