@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM python:3.12-slim-trixie
+FROM python:3.12-slim-trixie AS base
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
@@ -8,9 +8,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONFAULTHANDLER=1 \
     PYTHONUNBUFFERED=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      bash texlive-latex-base \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /data
+ENTRYPOINT ["/bin/bash"]
+
+# Build the virtual environment. This stage doesn't need LaTeX,
+# so dependency changes don't invalidate the texlive layer and
+# both stages can build in parallel.
+FROM base AS builder
 
 # Copy uv static binary
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -18,20 +22,37 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /build
 
 # 1) Copy dependency manifests first (for caching)
-COPY pyproject.toml uv.lock* /build/
+COPY pyproject.toml uv.lock /build/
 
 # Install dependencies (no project source yet -> cacheable)
 RUN --mount=type=cache,target=/root/.cache \
-    uv sync --frozen --no-install-project
+    uv sync --frozen --no-install-project --no-dev
 
-# 2) Now copy project source and install package
-COPY . /build
+# 2) Now copy project source and install the package.
+# README.md is required by the build backend (project.readme).
+COPY README.md LICENSE /build/
+COPY cgt_calc /build/cgt_calc
+
+# --no-editable installs the package into the venv itself,
+# so the runtime stage only needs the venv.
 RUN --mount=type=cache,target=/root/.cache \
-    uv sync --frozen
+    uv sync --frozen --no-dev --no-editable
+
+FROM base AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      bash texlive-latex-base \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/.venv /build/.venv
 
 # Simple CLI shim
-RUN printf '%s\n' 'uv run --project /build cgt-calc "$@"' > /bin/cgt-calc \
+RUN printf '%s\n' 'exec /build/.venv/bin/cgt-calc "$@"' > /bin/cgt-calc \
  && chmod +x /bin/cgt-calc
 
-WORKDIR /data
-ENTRYPOINT ["/bin/bash"]
+# CI runs the test suite from a workspace mounted over /build, which
+# needs uv inside the container. This stage is last so plain builds
+# (CI, local) get it by default; publishing targets the runtime stage.
+FROM runtime AS test
+
+COPY --from=builder /bin/uv /bin/uvx /bin/

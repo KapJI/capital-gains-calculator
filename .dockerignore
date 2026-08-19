@@ -1,0 +1,16 @@
+.coverage
+.coverage.*
+.DS_Store
+.git
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.venv
+__pycache__
+*.log
+coverage.xml
+dist
+docs
+junit.xml
+out
+tests
