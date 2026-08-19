@@ -61,40 +61,31 @@ jobs:
       - name: Run pytest
         env:
           CGT_TEST_MODE_STRICT: "1"
-        run: uv run pytest -q
-
-  coverage:
-    name: Coverage
-    if: github.repository_owner == 'KapJI'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Check out the repository
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Prepare and install deps
-        uses: ./.github/actions/install-deps
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Run pytest with coverage
-        env:
-          CGT_TEST_MODE_STRICT: "1"
-        run: uv run pytest -q --cov --cov-report=xml
+        run: uv run pytest -q --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
 
       - name: Upload coverage to Codecov
-        # Runs from this repository authenticate with the token.
-        # Pull requests from forks can't read secrets and fall back
-        # to tokenless uploads, supported for public repositories.
+        # Codecov merges the reports from all matrix jobs. Runs from
+        # this repository authenticate with the token. Pull requests
+        # from forks can't read secrets and fall back to tokenless
+        # uploads, supported for public repositories.
         uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
+          flags: python-${{ matrix.python-version }}
           token: ${{ secrets.CODECOV_TOKEN }}
           # Don't fail CI on upload issues: merge protection comes
           # from the codecov/project status check, not this step.
+          fail_ci_if_error: false
+
+      - name: Upload test results to Codecov
+        # Upload also when tests fail: failed tests are the point.
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v7
+        with:
+          report_type: test_results
+          files: junit.xml
+          flags: python-${{ matrix.python-version }}
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
   markdown-link-check:
