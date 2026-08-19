@@ -235,6 +235,7 @@ def test_read_freetrade_transactions_success(tmp_path: Path) -> None:
     assert transaction.price == Decimal(100)
     assert transaction.amount == Decimal(-100)
     assert transaction.currency == "GBP"
+    assert transaction.isin == "US0378331005"
 
 
 def test_read_freetrade_transactions_new_header_success(tmp_path: Path) -> None:
@@ -251,6 +252,7 @@ def test_read_freetrade_transactions_new_header_success(tmp_path: Path) -> None:
     assert transaction.price == Decimal(100)
     assert transaction.amount == Decimal(-100)
     assert transaction.currency == "GBP"
+    assert transaction.isin == "US0378331005"
 
 
 def test_read_freetrade_transactions_new_header_top_up(tmp_path: Path) -> None:
