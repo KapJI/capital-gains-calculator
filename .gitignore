@@ -2,6 +2,7 @@
 *.log
 .coverage
 .coverage.*
+coverage.xml
 .DS_Store
 .mypy_cache/
 .pytest_cache/

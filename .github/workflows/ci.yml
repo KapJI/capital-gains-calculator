@@ -65,8 +65,9 @@ jobs:
     if: github.repository_owner == 'KapJI'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
+      pull-requests: read
+      code-quality: write
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
@@ -81,20 +82,17 @@ jobs:
       - name: Run pytest with coverage
         env:
           CGT_TEST_MODE_STRICT: "1"
-        run: uv run pytest -q --cov
+        run: uv run pytest -q --cov --cov-report=xml
 
-      - name: Coverage comment
-        id: coverage_comment
-        uses: py-cov-action/python-coverage-comment-action@v4.3
+      - name: Upload coverage report
+        # Uploads are not supported for pull requests from forks:
+        # the workflow token there is read-only.
+        if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
+        uses: actions/upload-code-coverage@v1
         with:
-          GITHUB_TOKEN: ${{ github.token }}
-
-      - name: Store pull request comment to be posted
-        uses: actions/upload-artifact@v7
-        if: steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
-        with:
-          name: python-coverage-comment-action
-          path: python-coverage-comment-action.txt
+          file: coverage.xml
+          language: Python
+          label: code-coverage/pytest
 
   markdown-link-check:
     name: Markdown link check
