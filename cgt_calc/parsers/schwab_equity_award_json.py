@@ -338,7 +338,7 @@ def _lot_share_sum(row: JsonRowType, names: FieldNames) -> Decimal | None:
     """Recover a sale's quantity where the row rounds it and the lots do not.
 
     Returns None when the lots cannot answer: one of them states no count, or
-    they are all whole and the row's own figure was already exact.
+    they are all whole and so cannot hold a fraction the row dropped.
     """
     total = Decimal(0)
     found_decimals = False
@@ -351,6 +351,52 @@ def _lot_share_sum(row: JsonRowType, names: FieldNames) -> Decimal | None:
         if not _is_integer(shares):
             found_decimals = True
     return total if found_decimals else None
+
+
+def _lot_price(row: JsonRowType, names: FieldNames) -> Decimal | None:
+    """Return the one price every lot sold at, or None if they differ."""
+    prices = set()
+    for subtransac in row[names.transac_details]:
+        details = subtransac.get(OPTIONAL_DETAILS_NAME, subtransac)
+        if names.sale_price not in details:
+            return None
+        prices.add(details[names.sale_price])
+    if len(prices) != 1:
+        return None
+    return _decimal_from_str(prices.pop())
+
+
+def _recovered_sale_quantity(
+    row: JsonRowType,
+    names: FieldNames,
+    quantity: Decimal,
+    amount: Decimal,
+    fees: Decimal,
+) -> Decimal | None:
+    """Return the count a sale really disposed of, where its Quantity rounds it.
+
+    The lots answer first, when they kept the decimals the row dropped. Failing
+    that the money answers, provided every lot sold at one price — and that is
+    the only witness left when a lot stating zero shares hides the fraction
+    from both count fields at once.
+
+    The money is only consulted when the row does not already reconcile with
+    it, because the price is rounded for display and recomputing from it turns
+    an exact 5 into 4.999995.
+
+    Returns None when neither answers: lots sold at different prices leave the
+    row's own figure as the best there is.
+    """
+    lots = _lot_share_sum(row, names)
+    if lots is not None:
+        return lots
+
+    price = _lot_price(row, names)
+    if not price:
+        return None
+    if round_decimal(quantity * price - fees, 2) == amount:
+        return None
+    return (amount + fees) / price
 
 
 def _espp_net_shares(
@@ -640,9 +686,12 @@ class SchwabTransaction(BrokerTransaction):
                 # ones, so it would need converting anyway. Working from the
                 # money sidesteps both, and the money is the same in any units.
                 #
-                # The count still has to come from the lots when the row has
-                # rounded it away, or the pool loses the fraction silently.
-                quantity = _lot_share_sum(row, names) or quantity
+                # The count still has to be recovered when the row has rounded
+                # it away, or the pool loses the fraction silently.
+                quantity = (
+                    _recovered_sale_quantity(row, names, quantity, amount, fees)
+                    or quantity
+                )
                 price = (amount + fees) / quantity
             elif not _is_integer(quantity):
                 price = (amount + fees) / quantity

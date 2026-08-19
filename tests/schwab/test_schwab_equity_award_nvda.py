@@ -277,6 +277,57 @@ def test_a_sale_rounded_in_the_row_takes_its_count_from_the_lots(
     assert sale.amount == Decimal("66414.90")
 
 
+def test_a_sale_hiding_its_fraction_in_a_zero_lot_is_recovered(
+    tmp_path: Path,
+) -> None:
+    """Both share-count fields can round the same fraction away.
+
+    A lot stating zero shares leaves the row's count and the lot sum agreeing
+    on a whole number while the money says otherwise. Schwab writes this shape:
+    the v1 fixture's 2022-06-14 sale reads 3 in both and 3.13007 in cash. The
+    price is the only witness, and only when every lot sold at one.
+    """
+
+    def fraction_hidden_in_a_zero_lot(rows: list[JsonRowType]) -> None:
+        for row in rows:
+            if row.get("Action") == "Sale" and row["Date"] == "04/02/2026":
+                row["Amount"] = "$12,050.00"
+                row["FeesAndCommissions"] = None
+                lot = details_of(row)
+                lot["SalePrice"] = "$100.00"
+                row["TransactionDetails"].append({"Details": dict(lot, Shares="0")})
+
+    sale = on(
+        parse(mutated(tmp_path, fraction_hidden_in_a_zero_lot)),
+        datetime.date(2026, 4, 2),
+        ActionType.SELL,
+    )
+
+    assert sale.quantity == Decimal("120.5")
+    assert sale.price == Decimal(100)
+
+
+def test_a_sale_the_row_already_states_exactly_is_left_alone(
+    tmp_path: Path,
+) -> None:
+    """The price is rounded for display, so the money is not the better source.
+
+    Recomputing from it unconditionally turns an exact 50 into 49.99997 and the
+    pool starts drifting on transactions that were never wrong.
+    """
+
+    def nothing(rows: list[JsonRowType]) -> None:
+        pass
+
+    sale = on(
+        parse(mutated(tmp_path, nothing)),
+        datetime.date(2025, 5, 19),
+        ActionType.SELL,
+    )
+
+    assert sale.quantity == Decimal(50)
+
+
 def test_a_disposal_schwab_already_restated_is_flagged(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
