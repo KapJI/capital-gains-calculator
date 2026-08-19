@@ -6,6 +6,24 @@ codecov:
 
 comment:
   after_n_builds: 3
+  layout: "reach, diff, flags, components, files"
+
+# Path-based coverage views, shown in the PR comment and the Codecov
+# UI. Display only: no per-component status checks.
+component_management:
+  individual_components:
+    - component_id: core
+      name: Core calculation
+      paths:
+        - cgt_calc/*.py
+    - component_id: parsers
+      name: Broker parsers
+      paths:
+        - cgt_calc/parsers/**
+    - component_id: eri
+      name: ERI importers
+      paths:
+        - cgt_calc/parsers/eri/**
 
 coverage:
   status:
