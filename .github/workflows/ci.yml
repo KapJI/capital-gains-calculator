@@ -86,7 +86,7 @@ jobs:
         # Runs from this repository authenticate with the token.
         # Pull requests from forks can't read secrets and fall back
         # to tokenless uploads, supported for public repositories.
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
