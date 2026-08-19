@@ -146,6 +146,9 @@ jobs:
       - build-amd64
       - build-arm64
     runs-on: ubuntu-latest
+    environment:
+      name: ghcr
+      url: https://github.com/KapJI/capital-gains-calculator/pkgs/container/capital-gains-calculator
     permissions:
       packages: write
     steps:
