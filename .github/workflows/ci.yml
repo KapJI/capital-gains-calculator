@@ -88,6 +88,26 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
+  package:
+    name: Package smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Prepare and install deps
+        uses: ./.github/actions/install-deps
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Build package
+        run: uv build
+
+      - name: Run the built wheel in a clean environment
+        # Catches runtime imports of packages which are only declared
+        # as dev dependencies.
+        run: uv run --isolated --no-project --with ./dist/*.whl -- cgt-calc --help
+
   markdown-link-check:
     name: Markdown link check
     runs-on: ubuntu-latest
