@@ -33,10 +33,16 @@ RUN --mount=type=cache,target=/root/.cache \
 COPY README.md LICENSE /build/
 COPY cgt_calc /build/cgt_calc
 
+# Package version to stamp, e.g. "v2.1.0" or "2.0.0.post127+gabc1234".
+# Declared this late on purpose: changing it only invalidates the
+# project install below, not the dependency layers above.
+ARG VERSION
+
 # --no-editable installs the package into the venv itself,
 # so the runtime stage only needs the venv.
 RUN --mount=type=cache,target=/root/.cache \
-    uv sync --frozen --no-dev --no-editable
+    if [ -n "$VERSION" ]; then uv version "$VERSION"; fi \
+ && uv sync --frozen --no-dev --no-editable
 
 FROM base AS runtime
 
