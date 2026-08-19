@@ -6,6 +6,8 @@ import datetime
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from cgt_calc.model import ActionType
 from cgt_calc.parsers import schwab_equity_award_json
 
@@ -212,3 +214,42 @@ def test_schwab_transaction_v2_rounding() -> None:
         assert transactions[transaction_id].price == Decimal("123.45")
         assert transactions[transaction_id].fees == Decimal(0)
     assert num_vested == transactions[0].quantity
+
+
+def test_split_multiplier_google_boundary() -> None:
+    """GOOG counts are in current units from the day after the split."""
+    assert (
+        schwab_equity_award_json.split_multiplier("GOOG", datetime.date(2022, 7, 15))
+        == 20
+    )
+    assert (
+        schwab_equity_award_json.split_multiplier("GOOG", datetime.date(2022, 7, 16))
+        == 1
+    )
+
+
+def test_split_multiplier_ignores_unknown_symbol() -> None:
+    """A symbol with no split history is left alone rather than guessed at."""
+    assert (
+        schwab_equity_award_json.split_multiplier("AAPL", datetime.date(2014, 6, 8))
+        == 1
+    )
+    assert (
+        schwab_equity_award_json.split_multiplier(None, datetime.date(2022, 1, 1)) == 1
+    )
+
+
+def test_split_history_demands_a_price_floor_it_can_use() -> None:
+    """An UNRELIABLE export is unusable without the price that gives units away."""
+    with pytest.raises(ValueError, match="presplit_price_floor"):
+        schwab_equity_award_json.SplitHistory(
+            ((datetime.date(2022, 7, 16), 20),),
+            schwab_equity_award_json.Restatement.UNRELIABLE,
+        )
+
+    with pytest.raises(ValueError, match="presplit_price_floor"):
+        schwab_equity_award_json.SplitHistory(
+            ((datetime.date(2021, 7, 20), 4),),
+            schwab_equity_award_json.Restatement.ACQUISITIONS_ONLY,
+            presplit_price_floor=Decimal(175),
+        )
