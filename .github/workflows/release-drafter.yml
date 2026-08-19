@@ -12,6 +12,7 @@ permissions:
 jobs:
   draft_release:
     name: Release Drafter
+    if: github.repository_owner == 'KapJI'
     runs-on: ubuntu-latest
     steps:
       - name: Run release-drafter

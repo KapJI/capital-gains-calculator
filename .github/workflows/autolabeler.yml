@@ -17,6 +17,7 @@ permissions:
 jobs:
   autolabel:
     name: Autolabeler
+    if: github.repository_owner == 'KapJI'
     runs-on: ubuntu-latest
     steps:
       - name: Run release-drafter autolabeler
