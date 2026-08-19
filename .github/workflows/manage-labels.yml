@@ -8,6 +8,7 @@ on:
 jobs:
   labeler:
     name: Update labels
+    if: github.repository_owner == 'KapJI'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
