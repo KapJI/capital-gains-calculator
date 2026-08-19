@@ -22,15 +22,15 @@ COPY pyproject.toml uv.lock* /build/
 
 # Install dependencies (no project source yet -> cacheable)
 RUN --mount=type=cache,target=/root/.cache \
-    uv sync --frozen --no-install-project
+    uv sync --frozen --no-install-project --no-dev
 
 # 2) Now copy project source and install package
 COPY . /build
 RUN --mount=type=cache,target=/root/.cache \
-    uv sync --frozen
+    uv sync --frozen --no-dev
 
 # Simple CLI shim
-RUN printf '%s\n' 'uv run --project /build cgt-calc "$@"' > /bin/cgt-calc \
+RUN printf '%s\n' 'exec /build/.venv/bin/cgt-calc "$@"' > /bin/cgt-calc \
  && chmod +x /bin/cgt-calc
 
 WORKDIR /data
