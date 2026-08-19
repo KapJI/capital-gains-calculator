@@ -1,0 +1,28 @@
+name: Post coverage comment
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions: {}
+
+jobs:
+  post:
+    name: Post coverage comment
+    if: github.repository_owner == 'KapJI' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      # Post the comment on the pull request.
+      pull-requests: write
+      # Download the coverage artifact from the CI run.
+      actions: read
+      contents: read
+    steps:
+      - name: Post comment
+        uses: py-cov-action/python-coverage-comment-action@v4.3
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}

@@ -1,5 +1,7 @@
 *.aux
 *.log
+.coverage
+.coverage.*
 .DS_Store
 .mypy_cache/
 .pytest_cache/
