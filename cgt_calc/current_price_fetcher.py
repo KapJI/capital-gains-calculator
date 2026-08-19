@@ -28,7 +28,9 @@ class CurrentPriceFetcher:
         self.historical_prices_data = historical_prices_data or {}
         self.converter = converter
 
-    def _convert_to_gbp(self, price: Decimal, currency: str | None) -> Decimal:
+    def _convert_to_gbp(
+        self, price: Decimal, currency: str | None, date: datetime.date
+    ) -> Decimal:
         """Convert a price quoted in the given yfinance currency to GBP.
 
         yfinance uses the non-ISO code "GBp" (lowercase p) for LSE-listed
@@ -38,9 +40,7 @@ class CurrentPriceFetcher:
         """
         if currency == "GBp":
             return price / Decimal(100)
-        return self.converter.to_gbp(
-            price, currency or "USD", datetime.datetime.now().date()
-        )
+        return self.converter.to_gbp(price, currency or "USD", date)
 
     def get_current_market_price(self, symbol: str) -> Decimal | None:
         """Given a symbol gets the current market price."""
@@ -60,7 +60,9 @@ class CurrentPriceFetcher:
         if market_price is None:
             return None
         market_price_decimal = Decimal(format(market_price, ".15g"))
-        return self._convert_to_gbp(market_price_decimal, ticker.get("currency"))
+        return self._convert_to_gbp(
+            market_price_decimal, ticker.get("currency"), datetime.datetime.now().date()
+        )
 
     def get_closing_price(self, symbol: str, date: datetime.date) -> Decimal:
         """Get the price of the share on closing time."""
@@ -78,4 +80,4 @@ class CurrentPriceFetcher:
         closing_price = prices.iloc[0]["Close"]
         closing_price_decimal = Decimal(format(closing_price, ".15g"))
         currency = yf_ticker.info.get("currency") if yf_ticker.info else None
-        return self._convert_to_gbp(closing_price_decimal, currency)
+        return self._convert_to_gbp(closing_price_decimal, currency, date)

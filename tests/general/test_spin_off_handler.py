@@ -10,6 +10,7 @@ import pytest
 
 from cgt_calc.const import DEFAULT_SPIN_OFF_FILE
 from cgt_calc.exceptions import InteractiveInputRequiredError
+from cgt_calc.model import Position
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 if TYPE_CHECKING:
@@ -74,3 +75,19 @@ def test_eof_during_prompt_raises_clear_error(
 
     with pytest.raises(InteractiveInputRequiredError):
         handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
+
+
+def test_recording_spin_off_creates_missing_parent_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Saving a newly entered spin-off creates the file's parent directories."""
+    spin_offs_file = tmp_path / "missing" / "nested" / "spin_offs.csv"
+    handler = SpinOffHandler(spin_offs_file)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt: "OLD")
+
+    source = handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {"OLD": Position()})
+
+    assert source == "OLD"
+    content = spin_offs_file.read_text(encoding="utf8")
+    assert content.splitlines() == ["dst,src", "NEW,OLD"]

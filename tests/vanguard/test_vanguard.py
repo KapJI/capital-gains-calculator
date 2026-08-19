@@ -259,6 +259,42 @@ def test_dual_table_enriches_amount_from_investment_cost() -> None:
     assert bar_buys[0].amount == Decimal("-29947.28")
 
 
+def test_dual_table_enriches_fee_sale_with_positive_price(tmp_path: Path) -> None:
+    """A disposal made to fund fees has no quantity in its details text.
+
+    Quantity comes from the investment table and the derived unit price must
+    be positive even though the cash amount is an outflow.
+    See https://github.com/KapJI/capital-gains-calculator/issues/758.
+    """
+    fee_sale_details = (
+        "Selling of account investments for payment of Account Fee "
+        "for the period 08-Apr-2022 to 07-Jul-2022"
+    )
+    content = (
+        "Date,Details,Amount,Balance\n"
+        f"19/07/2022,{fee_sale_details},-13.91,100\n"
+        "\n"
+        "Investment Transactions\n"
+        "\n"
+        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        f"19/07/2022,Foo ETF (FOO),{fee_sale_details},1.391,10,13.91\n"
+    )
+    vanguard_file = tmp_path / "fee_sale.csv"
+    vanguard_file.write_text(content, encoding="utf-8")
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    enriched = [
+        t
+        for t in transactions
+        if t.action == ActionType.TRANSFER and t.quantity is not None
+    ]
+    assert len(enriched) == 1
+    assert enriched[0].quantity == Decimal("1.391")
+    assert enriched[0].price == Decimal(10)
+    assert enriched[0].amount == Decimal("-13.91")
+
+
 def test_dual_table_fractional_shares_from_investment() -> None:
     """Fractional shares from investment table are used over cash regex parsing."""
     transactions = VanguardParser().load_from_file(

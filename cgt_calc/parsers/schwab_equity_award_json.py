@@ -838,7 +838,7 @@ class SchwabTransaction(BrokerTransaction):
 
 
 class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
-    """Parser for RAW format transaction files."""
+    """Parser for Charles Schwab Equity Awards JSON files."""
 
     arg_name = "schwab-equity-award"
     pretty_name = "Charles Schwab Equity Awards"
@@ -856,7 +856,7 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
         except json.decoder.JSONDecodeError as exception:
             raise ParsingError(
                 file_path,
-                "Cloud not parse content as JSON",
+                "Could not parse content as JSON",
             ) from exception
 
         fields: FieldNames | None = None

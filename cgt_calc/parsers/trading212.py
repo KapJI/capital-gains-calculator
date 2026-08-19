@@ -298,7 +298,7 @@ class Trading212Transaction(BrokerTransaction):
 
 
 class Trading212Parser(BaseDirParser):
-    """Morgan Stanley parser."""
+    """Trading 212 parser."""
 
     arg_name = "trading212"
     pretty_name = "Trading 212"

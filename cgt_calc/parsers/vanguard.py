@@ -1,4 +1,4 @@
-"""Raw transaction parser."""
+"""Vanguard transaction parser."""
 
 from __future__ import annotations
 
@@ -216,7 +216,7 @@ class VanguardTransaction(BrokerTransaction):
                     InvestmentColumn.QUANTITY.value,
                 )
             )
-            self.price = self.amount / self.quantity
+            self.price = abs(self.amount) / self.quantity
 
     @classmethod
     def from_fields(

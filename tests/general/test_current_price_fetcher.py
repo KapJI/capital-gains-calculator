@@ -142,3 +142,44 @@ def test_raises_clear_error_when_no_market_data(
     )
     with pytest.raises(MarketDataMissingError, match=r"FOO.*2021-05-10"):
         _fetcher().get_closing_price("FOO", datetime.date(2021, 5, 10))
+
+
+class FakeHistoryTicker:
+    """Stand-in for yf.Ticker with a single day of price history."""
+
+    def __init__(self, close: float, currency: str) -> None:
+        """Store the closing price and quote currency to return."""
+        self._close = close
+        self.info = {"currency": currency}
+
+    def history(self, **kwargs: str) -> pd.DataFrame:
+        """Return a single-row price history."""
+        return pd.DataFrame({"Close": [self._close]})
+
+
+def test_closing_price_converted_at_historical_rate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Historical closing prices are converted at their own date's rate.
+
+    Seeding today's rate with a different value pins the regression where
+    the conversion silently used today's rate instead of the historical one.
+    """
+    historical_date = datetime.date(2021, 5, 10)
+    today = datetime.datetime.now().date()
+    converter = CurrencyConverter(
+        None,
+        {
+            historical_date: {"USD": Decimal("1.25")},
+            today: {"USD": Decimal(2)},
+        },
+    )
+    fetcher = CurrentPriceFetcher(converter)
+    monkeypatch.setattr(
+        "cgt_calc.current_price_fetcher.yf.Ticker",
+        lambda symbol: FakeHistoryTicker(100.0, "USD"),
+    )
+
+    price = fetcher.get_closing_price("AAPL", historical_date)
+
+    assert price == Decimal(100) / Decimal("1.25")

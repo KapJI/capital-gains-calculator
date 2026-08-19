@@ -214,17 +214,27 @@ class CurrencyConverter:
             )
 
         tree = ET.fromstring(response.text)
-        rates = {
-            str(getattr(row.find("currencyCode"), "text", None)).upper(): Decimal(
-                str(getattr(row.find("rateNew"), "text", None))
-            )
-            for row in tree
-        }
-        if None in rates or None in rates.values():
-            raise ExternalApiError(
-                url,
-                f"HMRC API response for {month_str} is missing expected currency data",
-            )
+        rates = {}
+        for row in tree:
+            currency_code_elem = row.find("currencyCode")
+            rate_new_elem = row.find("rateNew")
+            if (
+                currency_code_elem is None
+                or currency_code_elem.text is None
+                or rate_new_elem is None
+                or rate_new_elem.text is None
+            ):
+                raise ExternalApiError(
+                    url,
+                    f"HMRC API response for {month_str} is missing expected currency data",
+                )
+            try:
+                rates[currency_code_elem.text.upper()] = Decimal(rate_new_elem.text)
+            except (InvalidOperation, ValueError) as err:
+                raise ExternalApiError(
+                    url,
+                    f"HMRC API response for {month_str} contains invalid rate: {rate_new_elem.text}",
+                ) from err
         self.cache[date] = rates
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
 

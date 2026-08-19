@@ -1,4 +1,4 @@
-"""Vangaurd ERI transaction parser."""
+"""Vanguard ERI transaction parser."""
 
 from __future__ import annotations
 
@@ -20,7 +20,6 @@ from cgt_calc.parsers.eri.model import ERITransaction
 from .model import ERIImporter, ERIImporterOutput
 
 VANGUARD_NAME_REGEX = re.compile(r"^.*\b(vanguard).*\.xls(x)?$")
-ISHARES_NAME_REGEX = re.compile(r"^.*\b(ishares).*\.xls(x)?$")
 
 PERIOD_RE = re.compile(r"^.* (to|\-) ")
 

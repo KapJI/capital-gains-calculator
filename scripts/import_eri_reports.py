@@ -77,7 +77,7 @@ def eri_import_from_file(path: Path) -> None:
         if data is None:
             continue
 
-        assert data, f"ERI Importer {importer.name} emitted not transactions for {path}"
+        assert data, f"ERI Importer {importer.name} emitted no transactions for {path}"
         print(
             f"ERI file {path} successfully parsed with {importer.name}, "
             f"transactions found: {len(data.transactions)}"
@@ -107,7 +107,7 @@ def eri_import_from_file(path: Path) -> None:
 
 
 def eri_import_from_path(path_str: str) -> str:
-    """Import the specified path (file or d) into the tool resources.
+    """Import the specified path (file or directory) into the tool resources.
 
     Returns the path of the ISIN translation file to use for writing into resources
     """

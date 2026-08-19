@@ -141,3 +141,60 @@ def test_hmrc_fetch_announces_itself(
         converter.currency_to_gbp_rate("USD", datetime.date(2021, 5, 10))
 
     assert "Fetching HMRC exchange rates for 2021-05..." in caplog.text
+
+
+class CannedResponse:
+    """Minimal stand-in for a successful requests.Response."""
+
+    ok = True
+
+    def __init__(self, text: str) -> None:
+        """Store the body to return."""
+        self.text = text
+
+
+class CannedSession:
+    """Session stub that returns the same response for every request."""
+
+    def __init__(self, response: CannedResponse) -> None:
+        """Store the response to return."""
+        self._response = response
+
+    def get(self, url: str, timeout: int) -> CannedResponse:
+        """Return the canned response."""
+        return self._response
+
+
+def test_hmrc_response_missing_rate_element_raises_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A row without a rateNew element raises ExternalApiError."""
+    xml = (
+        "<exchangeRateMonthList>"
+        "<exchangeRate><currencyCode>USD</currencyCode></exchangeRate>"
+        "</exchangeRateMonthList>"
+    )
+    converter = CurrencyConverter()
+    monkeypatch.setattr(converter, "session", CannedSession(CannedResponse(xml)))
+
+    with pytest.raises(ExternalApiError, match="missing expected currency data"):
+        converter.currency_to_gbp_rate("USD", datetime.date(2021, 5, 10))
+
+
+def test_hmrc_response_invalid_rate_value_raises_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rate value that is not a valid decimal raises ExternalApiError."""
+    xml = (
+        "<exchangeRateMonthList>"
+        "<exchangeRate>"
+        "<currencyCode>USD</currencyCode>"
+        "<rateNew>not-a-rate</rateNew>"
+        "</exchangeRate>"
+        "</exchangeRateMonthList>"
+    )
+    converter = CurrencyConverter()
+    monkeypatch.setattr(converter, "session", CannedSession(CannedResponse(xml)))
+
+    with pytest.raises(ExternalApiError, match="contains invalid rate"):
+        converter.currency_to_gbp_rate("USD", datetime.date(2021, 5, 10))
