@@ -277,6 +277,31 @@ def test_a_sale_rounded_in_the_row_takes_its_count_from_the_lots(
     assert sale.amount == Decimal("66414.90")
 
 
+def test_a_vest_with_no_quantity_is_left_for_the_calculator_to_refuse(
+    tmp_path: Path,
+) -> None:
+    """Only a purchase that pooled nothing may be dropped, not any zero.
+
+    A blank Quantity reads as zero like any other missing number. Dropping it
+    would turn a malformed row into a smaller holding and a confident wrong
+    answer, where refusing it says so.
+    """
+
+    def blank_the_vest(rows: list[JsonRowType]) -> None:
+        for row in rows:
+            if row.get("Description") == "RS" and row["Date"] == "09/18/2024":
+                row["Quantity"] = ""
+                row.pop("QuantitySortValue", None)
+
+    vest = on(
+        parse(mutated(tmp_path, blank_the_vest)),
+        datetime.date(2024, 9, 18),
+        ActionType.STOCK_ACTIVITY,
+    )
+
+    assert vest.quantity == Decimal(0)
+
+
 def test_a_sale_hiding_its_fraction_in_a_zero_lot_is_recovered(
     tmp_path: Path,
 ) -> None:

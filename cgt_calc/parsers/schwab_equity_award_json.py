@@ -591,6 +591,11 @@ class SchwabTransaction(BrokerTransaction):
         names = field_names
         description = row[names.description]
         self.raw_action = row[names.action]
+
+        # Set where a purchase is known to have pooled nothing. A quantity of
+        # zero reached any other way is a malformed row, and has to stay
+        # visible so the calculator can refuse it.
+        self.acquired_nothing = False
         action = action_from_str(self.raw_action, file)
         symbol = row.get(names.symbol)
         symbol = TICKER_RENAMES.get(symbol, symbol)
@@ -655,6 +660,7 @@ class SchwabTransaction(BrokerTransaction):
                     _detail_counts_multiplier(symbol, date),
                     file,
                 )
+                self.acquired_nothing = quantity == 0
 
                 amount = price * quantity
                 description = f"ESPP purchase on {details[names.purchase_date]}"
@@ -892,16 +898,15 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
             if transac[fields.action] not in {"Journal", "Wire Transfer", "Lapse"}
         ]
 
-        # A purchase whose every share went to tax acquired nothing. Keeping it
-        # would offer the calculator an acquisition of zero shares, which it
-        # rightly refuses; the tax on it is settled through payroll either way.
+        # A purchase whose every share went to tax acquired nothing, so it is
+        # not offered as an acquisition of zero, which the calculator rightly
+        # refuses. Only that case: a zero that arrives any other way — a vest
+        # whose Quantity is blank, say — is a malformed row, and refusing it
+        # loudly beats dropping it and reporting a smaller holding.
         transactions = [
             transaction
             for transaction in transactions
-            if not (
-                transaction.action == ActionType.STOCK_ACTIVITY
-                and transaction.quantity == 0
-            )
+            if not transaction.acquired_nothing
         ]
 
         # And after: each converted disposal against the acquisitions around it.
