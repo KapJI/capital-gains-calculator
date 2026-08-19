@@ -1,4 +1,5 @@
 [![CI](https://github.com/KapJI/capital-gains-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/KapJI/capital-gains-calculator/actions)
+[![codecov](https://codecov.io/gh/KapJI/capital-gains-calculator/graph/badge.svg)](https://app.codecov.io/gh/KapJI/capital-gains-calculator)
 [![PyPI version](https://img.shields.io/pypi/v/cgt-calc)](https://pypi.org/project/cgt-calc/)
 
 # 💷 UK Capital Gains Calculator
