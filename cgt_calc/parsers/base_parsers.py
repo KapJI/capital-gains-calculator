@@ -218,6 +218,7 @@ class BaseDirParser(BaseSingleFileParser):
     @override
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Compute full arg."""
+        super().__init_subclass__(**kwargs)
         suffix = "dir"
         cls.full_arg = f"{getattr(cls, 'arg_name', None)}-{suffix}"
 

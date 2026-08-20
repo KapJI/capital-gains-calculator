@@ -266,8 +266,10 @@ class CalculationEntry:
             assert self.allowable_cost > 0, str(self)
             assert approx_equal(
                 self.allowable_cost, self.amount + self.new_pool_cost
-            ), f"Mismatch: {self.allowable_cost} != "
-            f"{self.amount} + {self.new_pool_cost} (for {self})"
+            ), (
+                f"Mismatch: {self.allowable_cost} != "
+                f"{self.amount} + {self.new_pool_cost} (for {self})"
+            )
         elif self.amount >= 0 and self.rule_type not in (
             RuleType.SPIN_OFF,
             RuleType.DIVIDEND,

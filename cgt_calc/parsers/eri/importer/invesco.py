@@ -135,7 +135,7 @@ class InvescoImporter(ERIImporter):
                 f"Bad ISIN in page {page_num}, row {row_num}: {row[ISIN_COLUMN]}"
             )
             currency = row[CURRENCY_COLUMN].replace("JPN", "JPY")
-            assert re.match(CURRENCY_REGEX, row[CURRENCY_COLUMN]), (
+            assert re.match(CURRENCY_REGEX, currency), (
                 f"Bad currency in page {page_num}, row {row_num}: {row[CURRENCY_COLUMN]}"
             )
             assert re.match(AMOUNT_REGEX, row[ERI_COLUMN]), (

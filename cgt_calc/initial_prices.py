@@ -13,7 +13,7 @@ from typing import Final, override
 from .const import INITIAL_PRICES_RESOURCE
 from .dates import is_date
 from .exceptions import (
-    ExchangeRateMissingError,
+    InitialPriceMissingError,
     ParsingError,
     UnexpectedColumnCountError,
 )
@@ -71,7 +71,7 @@ class InitialPrices:
         """Get initial stock price at given date."""
         assert is_date(date)
         if date not in self.initial_prices or symbol not in self.initial_prices[date]:
-            raise ExchangeRateMissingError(symbol, date)
+            raise InitialPriceMissingError(symbol, date)
         return self.initial_prices[date][symbol]
 
     def _read_initial_prices(self) -> dict[datetime.date, dict[str, Decimal]]:
