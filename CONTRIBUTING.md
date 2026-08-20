@@ -44,6 +44,8 @@ We use:
 - [markdown-link-check](https://github.com/tcort/markdown-link-check) - for checking links in
   Markdown
 - [codespell](https://github.com/codespell-project/codespell) - for catching common misspellings
+- [Harper](https://writewithharper.com/) - for grammar and spell checking of comments, docstrings,
+  and Markdown docs
 
 `prek` can be used to run all checks with one command (see below).
 
@@ -82,6 +84,12 @@ prek run mypy --all-files
 prek run pytest
 prek run --hook-stage manual python-typing-update --all-files
 ```
+
+Harper runs as a regular hook via `uv` (the `harper-cli` dev dependency), so no separate
+installation is needed. Project vocabulary (tickers, broker names, identifiers) lives in
+`.harper-dictionary.txt`; the Harper editor extension picks it up automatically. Words that the
+dictionary cannot whitelist — Harper dialect-gates US spellings such as product names — are accepted
+via regexes in `.harper-ignore.txt`.
 
 ## 🧹 Running linters and tests manually
 

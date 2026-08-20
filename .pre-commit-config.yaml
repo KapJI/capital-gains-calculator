@@ -20,6 +20,11 @@ repos:
         entry: uv run codespell --write-changes
         language: system
         pass_filenames: false
+      - id: harper
+        name: harper grammar check
+        entry: scripts/run_harper.sh
+        language: script
+        files: ^(cgt_calc/.*\.py|.*\.md)$
       - id: dprint
         name: dprint format
         language: system
