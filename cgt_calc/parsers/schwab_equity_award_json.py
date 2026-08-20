@@ -222,7 +222,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label == "Buy":
         return ActionType.BUY
 
-    if label in {"Sell", "Sale"}:
+    if label in {"Sell", "Sale", "Forced Quick Sell"}:
         return ActionType.SELL
 
     if label in {
@@ -234,6 +234,9 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Funds Received",
         "Journal",
         "Cash In Lieu",
+        # Proceeds of the historical autosale programme wired out of the
+        # account, see https://github.com/KapJI/capital-gains-calculator/issues/488
+        "Forced Disbursement",
     }:
         return ActionType.TRANSFER
 
@@ -677,7 +680,7 @@ class SchwabTransaction(BrokerTransaction):
                     f"{details[names.award_date]} "
                     f"(ID {details[names.award_id]})"
                 )
-        elif row[names.action] == "Sale":
+        elif row[names.action] in ("Sale", "Forced Quick Sell"):
             date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
 
             if _restates_acquisitions_only(symbol):
@@ -765,7 +768,13 @@ class SchwabTransaction(BrokerTransaction):
                     ):
                         quantity = (amount + fees) / price
 
-        elif action in [ActionType.DIVIDEND, ActionType.DIVIDEND_TAX]:
+        elif action in [
+            ActionType.DIVIDEND,
+            ActionType.DIVIDEND_TAX,
+            # Pure cash movements, e.g. Forced Disbursement wiring out the
+            # proceeds of the autosale programme.
+            ActionType.TRANSFER,
+        ]:
             date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
             price = None
             amount = _decimal_from_str(row[names.amount])
