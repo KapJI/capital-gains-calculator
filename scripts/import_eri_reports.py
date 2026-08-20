@@ -15,6 +15,7 @@ from cgt_calc.exceptions import InvalidTransactionError
 from cgt_calc.parsers.eri.importer.blackrock import BlackrockImporter
 from cgt_calc.parsers.eri.importer.invesco import InvescoImporter
 from cgt_calc.parsers.eri.importer.vanguard import VanguardImporter
+from cgt_calc.parsers.eri.importer.xtrackers import XtrackersImporter
 from cgt_calc.parsers.eri.raw import COLUMNS, RAW_DATE_FORMAT, ERIRawParser
 from cgt_calc.util import approx_equal
 
@@ -27,6 +28,7 @@ ERI_IMPORTERS: list[ERIImporter] = [
     BlackrockImporter(),
     InvescoImporter(),
     VanguardImporter(),
+    XtrackersImporter(),
 ]
 
 logging.basicConfig(level=logging.INFO)

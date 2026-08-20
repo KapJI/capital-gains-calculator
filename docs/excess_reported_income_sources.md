@@ -97,6 +97,14 @@ https://etf.dws.com/en-gb/information/etf-documents/reportings/
 
 They are split XTrackers (stocks ETF), XTrackers II (bonds ETF) and XTrackers IE (other stocks ETF).
 
+To contribute new data to the tool please run the
+[import_eri_reports.py](../scripts/import_eri_reports.py) script pointing to either the file or the
+folder containing the downloaded Xtrackers reports. All three umbrellas are supported and imported
+into the resource CSV for [xtrackers](../cgt_calc/resources/eri/xtrackers_eri.csv).
+
+Create a pull request with all the files in GitHub adjusting the README and this file with the
+updated bundled data.
+
 Columns mapping to ERI_RAW:
 
 - **ISIN:** same name column
