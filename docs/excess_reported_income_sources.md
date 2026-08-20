@@ -6,6 +6,8 @@ tool. Currently bundled data:
 - [Vanguard Funds 2018-2024](../cgt_calc/resources/eri/vanguard_eri.csv)
 - [Blackrock Funds 2019-2024](../cgt_calc/resources/eri/blackrock_eri.csv)
 - [iShares Funds 2018-2024](../cgt_calc/resources/eri/ishares_eri.csv)
+- [Invesco Funds 2018-2024](../cgt_calc/resources/eri/invesco_eri.csv)
+- [Xtrackers Funds 2024](../cgt_calc/resources/eri/xtrackers_eri.csv)
 
 <details>
     <summary>🏦 Instructions for ERI_RAW format</summary>
@@ -36,21 +38,22 @@ Note this tool **already includes** Vanguard Funds ERI data from 2018 to 2024.
 
 To contribute new data to the tool please run the
 [import_eri_reports.py](../scripts/import_eri_reports.py) script pointing to either the file or the
-folder containing the ERI reports for Blackrock or iShares. The tool will recognize the funds
-provider from the filename and import the data in the resource CSV for
+folder containing the ERI reports for Vanguard. The tool will recognize the funds provider from the
+filename and import the data in the resource CSV for
 [vanguard](../cgt_calc/resources/eri/vanguard_eri.csv).
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** End date in the Reporting Period column
 - **Currency:** Share Class Currency column
-- **Excess of reporting income over distribution:** same name column The tool also record any new
-  ISIN translation to the resource CSV for
-  [ISIN](../cgt_calc/resources/initial_isin_translation.csv)
+- **Excess of reporting income over distribution:** same name column
+
+The tool also records any new ISIN translation to the resource CSV for
+[ISIN](../cgt_calc/resources/initial_isin_translation.csv).
 
 To contribute new data to the tool please add it at the bottom of the
 [ERI RAW file](../cgt_calc/resources/eri/vanguard_eri.csv) for Vanguard. Then run the tool once to
 generate any new ISIN translations (if needed) and copy them from your own isin translation file
-(default `isin_translation.csv`) into the
+(default `out/isin_translation.csv`) into the
 [tool one](../cgt_calc/resources/initial_isin_translation.csv). Create a pull request with both
 files in GitHub adjusting the README and this file with the updated bundled data.
 
@@ -76,8 +79,8 @@ provider from the filename and import the data in the resource CSV for
 [blackrock](../cgt_calc/resources/eri/blackrock_eri.csv) or
 [ishares](../cgt_calc/resources/eri/ishares_eri.csv).
 
-The tool also record any new ISIN translation to the resource CSV for
-[ISIN](../cgt_calc/resources/initial_isin_translation.csv)
+The tool also records any new ISIN translation to the resource CSV for
+[ISIN](../cgt_calc/resources/initial_isin_translation.csv).
 
 Create a pull request with all the files in GitHub adjusting the README and this file with the
 updated bundled data.
@@ -120,8 +123,6 @@ Columns mapping to ERI_RAW:
 Amundi UK publishes the Reportable Income yearly report at the bottom of this page:
 https://www.amundietf.co.uk/en/individual/resources/document-library?documentType=uktaxcalculation
 
-They are split XTrackers (stocks ETF), XTrackers II (bonds ETF) and XTrackers IE (other stocks ETF).
-
 Columns mapping to ERI_RAW:
 
 - **ISIN:** same name column
@@ -158,7 +159,7 @@ Columns mapping to ERI_RAW:
 To contribute new data to the tool please add it at the bottom of the
 [ERI RAW file](../cgt_calc/resources/eri/invesco_eri.csv) for Invesco. Then run the tool once to
 generate any new ISIN translations (if needed) and copy them from your own isin translation file
-(default `isin_translation.csv`) into the
+(default `out/isin_translation.csv`) into the
 [tool one](../cgt_calc/resources/initial_isin_translation.csv). Create a pull request with both
 files in GitHub adjusting the README and this file with the updated bundled data.
 

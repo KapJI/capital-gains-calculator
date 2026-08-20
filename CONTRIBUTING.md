@@ -43,10 +43,11 @@ We use:
 - [shfmt](https://github.com/mvdan/sh#shfmt) - for formatting shell scripts
 - [markdown-link-check](https://github.com/tcort/markdown-link-check) - for checking links in
   Markdown
+- [codespell](https://github.com/codespell-project/codespell) - for catching common misspellings
 
 `prek` can be used to run all checks with one command (see below).
 
-The project uses **Python 3.12** as the minimum supported version
+The project uses **Python 3.12** as the minimum supported version.
 
 ## 🚸 Prek
 
