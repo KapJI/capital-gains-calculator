@@ -37,9 +37,9 @@ ETFs.
 Note this tool **already includes** Vanguard Funds ERI data from 2018 to 2024.
 
 To contribute new data to the tool please run the
-[import_eri_reports.py](../scripts/import_eri_reports.py) script pointing to either the file or the
-folder containing the ERI reports for Vanguard. The tool will recognize the funds provider from the
-filename and import the data in the resource CSV for
+[`import_eri_reports.py`](../scripts/import_eri_reports.py) script pointing to either the file or
+the folder containing the ERI reports for Vanguard. The tool will recognize the funds provider from
+the filename and import the data in the resource CSV for
 [vanguard](../cgt_calc/resources/eri/vanguard_eri.csv).
 
 - **ISIN:** same name column
@@ -52,7 +52,7 @@ The tool also records any new ISIN translation to the resource CSV for
 
 To contribute new data to the tool please add it at the bottom of the
 [ERI RAW file](../cgt_calc/resources/eri/vanguard_eri.csv) for Vanguard. Then run the tool once to
-generate any new ISIN translations (if needed) and copy them from your own isin translation file
+generate any new ISIN translations (if needed) and copy them from your own ISIN translation file
 (default `out/isin_translation.csv`) into the
 [tool one](../cgt_calc/resources/initial_isin_translation.csv). Create a pull request with both
 files in GitHub adjusting the README and this file with the updated bundled data.
@@ -73,11 +73,11 @@ https://www.ishares.com/uk/individual/en/education/library?materialType=tax+info
 They are split in different companies holding the funds each reporting yearly.
 
 To contribute new data to the tool please run the
-[import_eri_reports.py](../scripts/import_eri_reports.py) script pointing to either the file or the
-folder containing the ERI reports for Blackrock or iShares. The tool will recognize the funds
+[`import_eri_reports.py`](../scripts/import_eri_reports.py) script pointing to either the file or
+the folder containing the ERI reports for BlackRock or iShares. The tool will recognize the funds
 provider from the filename and import the data in the resource CSV for
-[blackrock](../cgt_calc/resources/eri/blackrock_eri.csv) or
-[ishares](../cgt_calc/resources/eri/ishares_eri.csv).
+[BlackRock](../cgt_calc/resources/eri/blackrock_eri.csv) or
+[iShares](../cgt_calc/resources/eri/ishares_eri.csv).
 
 The tool also records any new ISIN translation to the resource CSV for
 [ISIN](../cgt_calc/resources/initial_isin_translation.csv).
@@ -101,9 +101,9 @@ https://etf.dws.com/en-gb/information/etf-documents/reportings/
 They are split XTrackers (stocks ETF), XTrackers II (bonds ETF) and XTrackers IE (other stocks ETF).
 
 To contribute new data to the tool please run the
-[import_eri_reports.py](../scripts/import_eri_reports.py) script pointing to either the file or the
-folder containing the downloaded Xtrackers reports. All three umbrellas are supported and imported
-into the resource CSV for [xtrackers](../cgt_calc/resources/eri/xtrackers_eri.csv).
+[`import_eri_reports.py`](../scripts/import_eri_reports.py) script pointing to either the file or
+the folder containing the downloaded Xtrackers reports. All three umbrellas are supported and
+imported into the resource CSV for [xtrackers](../cgt_calc/resources/eri/xtrackers_eri.csv).
 
 Create a pull request with all the files in GitHub adjusting the README and this file with the
 updated bundled data.
@@ -146,7 +146,7 @@ Note this tool **already includes** Invesco Funds ERI data from 2018 to 2024.
 To contribute new data to the tool please run the `import_eri_reports.py` script pointing to either
 the file or the folder containing the ERI reports for Invesco. The tool will recognize the funds
 provider from the filename and import the data in the resource CSV for
-[invesco](../cgt_calc/resources/eri/invesco_eri.csv).
+[Invesco](../cgt_calc/resources/eri/invesco_eri.csv).
 
 Columns mapping to ERI_RAW:
 
@@ -158,7 +158,7 @@ Columns mapping to ERI_RAW:
 
 To contribute new data to the tool please add it at the bottom of the
 [ERI RAW file](../cgt_calc/resources/eri/invesco_eri.csv) for Invesco. Then run the tool once to
-generate any new ISIN translations (if needed) and copy them from your own isin translation file
+generate any new ISIN translations (if needed) and copy them from your own ISIN translation file
 (default `out/isin_translation.csv`) into the
 [tool one](../cgt_calc/resources/initial_isin_translation.csv). Create a pull request with both
 files in GitHub adjusting the README and this file with the updated bundled data.

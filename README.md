@@ -82,7 +82,7 @@ nix run nixpkgs#cgt-calc
 
 ### Installing LaTeX
 
-#### MacOS
+#### macOS
 
 ```shell
 brew install --cask mactex-no-gui
@@ -212,7 +212,7 @@ a share that fell that far looks the same.
 export becomes a mix of units and has to be downloaded again in full.
 
 Covered by
-[tests/schwab/test_schwab_equity_award_nvda.py](tests/schwab/test_schwab_equity_award_nvda.py),
+[`tests/schwab/test_schwab_equity_award_nvda.py`](tests/schwab/test_schwab_equity_award_nvda.py),
 against a synthetic portfolio with real dates and prices and invented share counts.
 
 </details>
@@ -320,9 +320,9 @@ _Note_: In the exported CSV there will be two separate tables: a "Cash Transacti
 "Investment Transactions" table. The parser will automatically detect which is which by the header
 names and join both. While you can manually save only the "Cash Transactions" and calculate capital
 gain, some investment transactions are not shown in the "Cash Transactions" table. (For example, if
-you setup selling of some assets to cover fees, the name of the asset and the amount of disposal are
-not shown in the cash table). **Therefore, for accurate reporting it is recommended to use the full
-CSV exported from the Excel file tab.**
+you set up selling of some assets to cover fees, the name of the asset and the amount of disposal
+are not shown in the cash table). **Therefore, for accurate reporting it is recommended to use the
+full CSV exported from the Excel file tab.**
 
 Example usage for the tax year 2024/25:
 
@@ -434,7 +434,7 @@ information.
 
 ### Configuration Files and Data Sources
 
-The following configuration files and options allow you to customize the calculator's behavior:
+The following configuration files and options allow you to customize the calculator's behaviour:
 
 #### Automatic Data Fetching
 

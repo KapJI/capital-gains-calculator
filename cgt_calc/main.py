@@ -420,7 +420,7 @@ class CapitalGainsCalculator:
         https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds
 
         Example of UK offshore funds are the most common UCITS ETFs (Vanguard,
-        Blackrock, XTrackers) that are normally located in Ireland.
+        BlackRock, Xtrackers) that are normally located in Ireland.
 
         When those funds are "reporting" funds, that is, enlisted in HMRC
         official list of reporting funds:
@@ -438,8 +438,8 @@ class CapitalGainsCalculator:
         You multiply number of shares times the Reportable income amount per
         share as reported by each fund.
 
-        Fund reports are directly provided in the fund website (i.e. Blackrock,
-        Vanguard, XTrackers, etc) on a yearly fashion.
+        Fund reports are directly provided in the fund website (i.e. BlackRock,
+        Vanguard, Xtrackers, etc) on a yearly fashion.
 
         The ERI has two consequences:
 

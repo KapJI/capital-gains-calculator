@@ -1,0 +1,12 @@
+# Harper lints accepted in this repository, one extended regex per line,
+# matched against `harper lint --format compact` output lines.
+# Use this only for words the dictionary cannot whitelist: Harper's base
+# dictionary dialect-gates US spellings, so they stay flagged under
+# --dialect gb even when added to .harper-dictionary.txt.
+
+# "Equity Award Center" is Schwab's product name.
+^schwab_equity_award_json\.py:.*`Center`
+# NO_COLOR is a standard environment variable (https://no-color.org/).
+^logging\.py:.*`COLOR`
+# "a share that fell that far" is correct; the FeelFell typo rule misfires.
+^README\.md:.*FeelFell
