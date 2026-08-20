@@ -12,7 +12,9 @@ from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
-from cgt_calc.args_validators import DeprecatedAction, existing_file_type
+import shtab
+
+from cgt_calc.args_validators import DeprecatedAction, existing_file_type, set_completer
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
     ParsingError,
@@ -678,12 +680,15 @@ class SchwabParser(BaseSingleFileParser):
     @override
     def register_arguments(cls, arg_group: argparse._ArgumentGroup) -> None:
         """Register argparse arguments for this broker."""
-        arg_group.add_argument(
-            "--schwab-award-file",
-            type=existing_file_type,
-            default=None,
-            metavar="PATH",
-            help="Charles Schwab Equity Awards transaction history in CSV format",
+        set_completer(
+            arg_group.add_argument(
+                "--schwab-award-file",
+                type=existing_file_type,
+                default=None,
+                metavar="PATH",
+                help="Charles Schwab Equity Awards transaction history in CSV format",
+            ),
+            shtab.FILE,
         )
         arg_group.add_argument(
             "--schwab-award",
