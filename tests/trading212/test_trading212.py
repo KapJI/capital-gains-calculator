@@ -975,6 +975,41 @@ def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
     assert "Invalid decimal in Total" in message
 
 
+def test_run_with_trading212_2026_files() -> None:
+    """Run the script on a 2026-format export with foreign fees.
+
+    Covers a US sell with a USD Finra fee and a French buy with an EUR
+    French transaction tax, so the report numbers pin the engine's
+    foreign fee conversion end to end.
+    """
+    cmd = build_cmd(
+        "--year",
+        "2024",
+        "--trading212-dir",
+        "tests/trading212/data/2026/inputs/",
+        "--output",
+        "out/test-trading212-2026/",
+    )
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode:
+        pytest.fail(
+            "Integration test failed\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
+    expected_file = (
+        Path("tests") / "trading212" / "data" / "2026" / "expected_output.txt"
+    )
+    expected = expected_file.read_text()
+    cmd_str = " ".join([param or "''" for param in cmd])
+    assert result.stdout == expected, (
+        "Run with example files generated unexpected outputs, "
+        "if you added new features update the test with:\n"
+        f"{cmd_str} > {expected_file}"
+    )
+
+
 def test_run_with_trading212_2024_files() -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
