@@ -84,7 +84,6 @@ def _create_sell_pdf(filename: str) -> None:
 def _prepare_pdf_test_data() -> str:
     test_dir = Path(__file__).resolve().parent
 
-    # Set your source file path
     source_file = Path(test_dir / "data" / "inputs" / "hl-transaction-summary.csv")
 
     # Use a stable repo-relative directory: its path is echoed in the parsing

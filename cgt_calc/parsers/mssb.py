@@ -174,8 +174,8 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
             broker=BROKER_NAME,
         )
 
-    # Morgan Stanley decided to put a notice in the end of the withdrawal report that looks
-    # like that:
+    # Morgan Stanley decided to put a notice at the end of the withdrawal report that looks
+    # like this:
     # "Please note that any Alphabet share sales, transfers, or deposits that occurred on
     # or prior to the July 15, 2022 stock split are reflected in pre-split. Any sales,
     # transfers, or deposits that occurred after July 15, 2022 are in post-split values.

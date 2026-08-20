@@ -104,7 +104,7 @@ def get_quantity_or_fail(transaction: BrokerTransaction) -> Decimal:
 # Amount difference can be caused by rounding errors in the price.
 # Schwab rounds down the price to 4 decimal places
 #  so that the error in amount can be more than $0.01.
-# Fox example:
+# For example:
 # 500 shares of FOO sold at $100.00016 with $1.23 fees.
 # "01/01/2024,"Sell","FOO","FOO","500","$100.0001","$1.23","$49,998.85"
 # calculated_amount = 500 * 100.0001 - 1.23 = 49998.82
@@ -733,7 +733,7 @@ class CapitalGainsCalculator:
         if acquisition.quantity > 0 and has_key(self.bnb_list, date_index, symbol):
             bnb_acquisition = self.bnb_list[date_index][symbol]
             assert bnb_acquisition.quantity <= acquisition.quantity
-            # Multiply by available_quantity before divide to avoid rounding errors from division
+            # Multiply by the B&B quantity before dividing to avoid rounding errors from division
             bnb_cost_basis = normalize_amount(
                 (bnb_acquisition.quantity * acquisition.amount) / acquisition.quantity
             )
@@ -803,9 +803,9 @@ class CapitalGainsCalculator:
             if date > date_index:
                 continue
             for spin_off in spin_offs:
-                # Up to the actual spin-off happening all the sales has to happen based
-                # on original cost basis, after spin-off we have to consider its impact
-                # for all future trades
+                # Up to the actual spin-off happening all the sales have to happen based
+                # on the original cost basis; after the spin-off we have to consider its
+                # impact for all future trades
                 amount = self.portfolio[spin_off.source].amount
                 quantity = self.portfolio[spin_off.source].quantity
                 new_amount = amount * spin_off.cost_proportion
@@ -827,8 +827,8 @@ class CapitalGainsCalculator:
                     amount=-amount,
                     new_quantity=quantity,
                     gain=None,
-                    # Fees, if any are already accounted on the acquisition of
-                    # spined off shares
+                    # Fees, if any, are already accounted for on the acquisition
+                    # of spun-off shares
                     fees=Decimal(0),
                     new_pool_cost=new_amount,
                     allowable_cost=new_amount,
@@ -906,13 +906,13 @@ class CapitalGainsCalculator:
                     effective_symbol, effective_symbol
                 )
 
-                # Check if there was any stock split, in which case we need to adjust the B&D quantity
+                # Check if there was any stock split, in which case we need to adjust the B&B quantity
                 split_multiplier *= self.split_list.get(
                     (effective_symbol, search_index), Decimal(1)
                 )
 
-                # ERI are distributed annually but when a fund close we might have
-                # multiple ERI distribution in close succession
+                # ERI is distributed annually, but when a fund closes we might have
+                # multiple ERI distributions in close succession
                 eri = self.get_eri(effective_symbol, search_index)
                 if eri:
                     eris.append(eri)
@@ -946,8 +946,8 @@ class CapitalGainsCalculator:
                         == 0
                     ):
                         continue
-                    # Splits are the only transaction that receive shares for free
-                    # they can't be part of a B&B
+                    # Splits are the only transactions that receive shares for free,
+                    # so they can't be part of a B&B
                     if acquisition.amount == 0:
                         LOGGER.warning(
                             "A split happened shortly after a disposal of %s, double check these transactions."
@@ -1065,7 +1065,7 @@ class CapitalGainsCalculator:
                         )
                     )
                     # If we completely matched the current disposal,
-                    # there's no need to keep looking for more B&D days
+                    # there's no need to keep looking for more B&B days
                     if disposal_quantity <= 0:
                         break
         if disposal_quantity > 0:
@@ -1556,7 +1556,6 @@ class CapitalGainsCalculator:
         self, symbol: str, quantity: Decimal, amount: Decimal
     ) -> PortfolioEntry:
         """Create a portfolio entry in the report."""
-        # (by calculating the unrealized gains)
         unrealized_gains = None
         if self.calc_unrealized_gains:
             current_price = (

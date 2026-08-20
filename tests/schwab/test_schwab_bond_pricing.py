@@ -108,7 +108,7 @@ class TestBondPricing:
                 Decimal(0),
                 True,
             ),
-            # Valid bond sell with small accrued interest
+            # Valid bond sell with fees and no accrued interest
             (
                 Decimal("10076.95"),
                 Decimal(50000),

@@ -264,7 +264,8 @@ def _make_transaction_from_investment(
         row[InvestmentColumn.QUANTITY], InvestmentColumn.QUANTITY.value
     )
     if not details and quantity != 0:
-        # Infer investment/quantity for pre ~Oct 2021 rows without TransactionDetails
+        # Infer action (from the quantity sign) and symbol (from InvestmentName)
+        # for pre ~Oct 2021 rows without TransactionDetails
         action = ActionType.BUY if quantity > 0 else ActionType.SELL
         symbol = _symbol_from_investment_name(row[InvestmentColumn.INVESTMENT_NAME])
     else:

@@ -226,7 +226,7 @@ class IsinConverter:
         json_data = json_response[0]["data"]
 
         # https://www.openfigi.com/assets/content/OpenFIGI_Exchange_Codes-3d3e5936ba.csv
-        # Get london exchange first
+        # Get London exchange first
         result = {data["ticker"] for data in json_data if data["exchCode"] == "LN"}
 
         if result:

@@ -49,6 +49,7 @@ class CurrencyConverter:
             **(initial_data or {}),
         }
 
+        # Limit borrowed from the Companies House API guidance:
         # https://developer-specs.company-information.service.gov.uk/guides/rateLimiting
         limiter = limiter_factory.create_inmemory_limiter(
             rate_per_duration=600, duration=Duration.MINUTE * 5
@@ -241,7 +242,7 @@ class CurrencyConverter:
     def currency_to_gbp_rate(self, currency: str, date: datetime.date) -> Decimal:
         """Get the number of currency units per GBP at the given date."""
         assert is_date(date)
-        # offshore (Honk Kong) Chinese Yuan handling
+        # offshore (Hong Kong) Chinese Yuan handling
         if currency == "CNH":
             currency = "CNY"
         if date not in self.cache:

@@ -25,7 +25,7 @@ class SpinOff:
     # Cost proportion to be applied to the cost of original shares from which
     # Spin-off originated
     cost_proportion: Decimal
-    # Source of the Spin-off, e.g MMM for SOLV
+    # Source of the Spin-off, e.g. MMM for SOLV
     source: str
     # Dest ticker to which SpinOff happened, e.g. SOLV for MMM
     dest: str
@@ -89,7 +89,7 @@ class HmrcTransactionData:
     fees: Decimal = Decimal(0)
     # This is a list to support Bed and Breakfast acquisitions that can cross multiple
     # ERI reports for the same fund. This can happen for example when a fund is
-    # liquidated close after its usual reporting data, requiring a new final reporting.
+    # liquidated shortly after its usual reporting date, requiring a new final report.
     eris: list[ExcessReportedIncome] = field(default_factory=list)
 
     def __add__(self, transaction: HmrcTransactionData) -> HmrcTransactionData:

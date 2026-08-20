@@ -99,7 +99,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
         # separated by any whitespace or optional pipes
         values_match = VALUES_REGEX.search(text)
 
-        # 3. Tolerate any characters between "Dealing charge" and its numeric value
+        # 3. Tolerate any non-digit characters between "Dealing charge" and its numeric value
         fees_match = FEES_REGEX.search(text)
 
         date_str = date_match.group(1) if date_match else None

@@ -399,7 +399,7 @@ class SharesightParser(BaseDirParser):
             # - Amount is negative when selling, and positive when buying
             #   (as it tracks portfolio value, not account balance)
             # - Value provided is always in GBP
-            # - Foreign exchange transactions are show as BUY and SELL
+            # - Foreign exchange transactions are shown as BUY and SELL
 
             if market == "FX":
                 # While Sharesight provides an exchange rate, it is not precise enough

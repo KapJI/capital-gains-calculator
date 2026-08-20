@@ -56,7 +56,7 @@ def luhn_check_digit(payload: str) -> int:
 
     return (
         10 - (checksum % 10)
-    ) % 10  # using mod operator twice asserts the check digit is < 10
+    ) % 10  # using mod operator twice ensures the check digit is < 10
 
 
 def is_isin(isin: str) -> bool:
