@@ -1,11 +1,11 @@
 codecov:
   notify:
-    # Wait for all matrix jobs before setting statuses,
+    # Wait for all test jobs (matrix and Docker) before setting statuses,
     # so they aren't computed from partial coverage.
-    after_n_builds: 3
+    after_n_builds: 4
 
 comment:
-  after_n_builds: 3
+  after_n_builds: 4
   layout: "reach, diff, flags, components, files"
 
 # Path-based coverage views, shown in the PR comment and the Codecov
