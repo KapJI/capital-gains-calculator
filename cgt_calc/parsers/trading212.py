@@ -40,13 +40,21 @@ class Trading212Column(StrEnum):
     WITHHOLDING_TAX = "Withholding tax"
     CURRENCY_WITHHOLDING_TAX = "Currency (Withholding tax)"
     CHARGE_AMOUNT_GBP = "Charge amount (GBP)"
+    CHARGE_AMOUNT = "Charge amount"
+    CURRENCY_CHARGE_AMOUNT = "Currency (Charge amount)"
+    DEPOSIT_FEE = "Deposit fee"
+    CURRENCY_DEPOSIT_FEE = "Currency (Deposit fee)"
     TRANSACTION_FEE_GBP = "Transaction fee (GBP)"
     TRANSACTION_FEE = "Transaction fee"
     FINRA_FEE_GBP = "Finra fee (GBP)"
     FINRA_FEE = "Finra fee"
     STAMP_DUTY_GBP = "Stamp duty (GBP)"
+    STAMP_DUTY = "Stamp duty"
+    CURRENCY_STAMP_DUTY = "Currency (Stamp duty)"
     STAMP_DUTY_RESERVE_TAX = "Stamp duty reserve tax"
     CURRENCY_STAMP_DUTY_RESERVE_TAX = "Currency (Stamp duty reserve tax)"
+    FRENCH_TRANSACTION_TAX = "French transaction tax"
+    CURRENCY_FRENCH_TRANSACTION_TAX = "Currency (French transaction tax)"
     NOTES = "Notes"
     TRANSACTION_ID = "ID"
     CURRENCY_CONVERSION_FEE_GBP = "Currency conversion fee (GBP)"
@@ -102,6 +110,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         return ActionType.SELL
 
     if label in [
+        "Card credit",
         "Card debit",
         "Card refund",
         "Deposit",
@@ -114,17 +123,25 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Dividend (Dividend)",
         "Dividend (Dividends paid by us corporations)",
         "Dividend (Dividend manufactured payment)",
+        "Dividend (Property income distribution)",
+        "Dividend adjustment",
     ]:
         return ActionType.DIVIDEND
 
     if label in [
         "Interest on cash",
         "Lending interest",
+        # Interest distributions from bond and money market funds,
+        # taxed as savings income rather than dividends.
+        "Dividend (Interest)",
     ]:
         return ActionType.INTEREST
 
     if label == "Stock Split":
         return ActionType.STOCK_SPLIT
+
+    if label == "Spin off":
+        return ActionType.SPIN_OFF
 
     if label in [
         "Currency conversion",
@@ -213,6 +230,33 @@ class Trading212Transaction(BrokerTransaction):
                     "Stamp duty reserve tax is not in GBP which is not supported yet",
                 )
             self.stamp_duty += stamp_duty_reserve_tax
+
+        stamp_duty_foreign = decimal_or_none(
+            row, Trading212Column.STAMP_DUTY
+        ) or Decimal(0)
+        if stamp_duty_foreign > 0:
+            stamp_duty_foreign_currency = row.get(Trading212Column.CURRENCY_STAMP_DUTY)
+            if stamp_duty_foreign_currency not in ("GBP", None, ""):
+                raise ParsingError(
+                    file,
+                    "Stamp duty is not in GBP which is not supported yet",
+                )
+            self.stamp_duty += stamp_duty_foreign
+
+        # Transaction tax on French shares, treated like stamp duty.
+        french_transaction_tax = decimal_or_none(
+            row, Trading212Column.FRENCH_TRANSACTION_TAX
+        ) or Decimal(0)
+        if french_transaction_tax > 0:
+            french_transaction_tax_currency = row.get(
+                Trading212Column.CURRENCY_FRENCH_TRANSACTION_TAX
+            )
+            if french_transaction_tax_currency not in ("GBP", None, ""):
+                raise ParsingError(
+                    file,
+                    "French transaction tax is not in GBP which is not supported yet",
+                )
+            self.stamp_duty += french_transaction_tax
 
         self.conversion_fee = decimal_or_none(
             row, Trading212Column.CURRENCY_CONVERSION_FEE_GBP
