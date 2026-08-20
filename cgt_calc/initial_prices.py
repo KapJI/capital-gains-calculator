@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from importlib import resources
 from pathlib import Path
 from typing import Final, override
@@ -35,14 +35,23 @@ class InitialPricesEntry:
         if len(row) != INITIAL_PRICES_COLUMNS_NUM:
             raise UnexpectedColumnCountError(row, INITIAL_PRICES_COLUMNS_NUM, file)
         # date,symbol,price
-        self.date = self._parse_date(row[0])
+        self.date = self._parse_date(row[0], file)
         self.symbol = row[1]
-        self.price = Decimal(row[2])
+        try:
+            self.price = Decimal(row[2])
+        except InvalidOperation as err:
+            raise ParsingError(file, f"Invalid decimal price: {row[2]!r}") from err
 
     @staticmethod
-    def _parse_date(date_str: str) -> datetime.date:
+    def _parse_date(date_str: str, file: Path) -> datetime.date:
         """Parse date from string."""
-        return datetime.datetime.strptime(date_str, "%b %d, %Y").date()
+        try:
+            return datetime.datetime.strptime(date_str, "%b %d, %Y").date()
+        except ValueError as err:
+            raise ParsingError(
+                file,
+                f"Invalid date format: {date_str!r}, expected e.g. 'Mar 08, 2021'",
+            ) from err
 
     @override
     def __str__(self) -> str:
