@@ -115,6 +115,13 @@ def existing_directory_type(value: str) -> Path:
     return _existing_path_type(value, require_dir=True)
 
 
+def set_completer(
+    action: argparse.Action, completer: dict[str, str | dict[str, str]]
+) -> None:
+    """Attach shtab completion hint (e.g. shtab.FILE) to an argparse action."""
+    action.complete = completer  # type: ignore[attr-defined]
+
+
 class DeprecatedAction(argparse.Action):
     """Print warning when deprecated argument is used."""
 

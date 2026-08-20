@@ -30,6 +30,40 @@ ReturnType = TextIO | IO[bytes]
 DirIterator = Iterator[Path]
 
 
+@pytest.mark.parametrize("shell", ["bash", "zsh", "fish", "tcsh"])
+def test_print_completion_outputs_script(
+    shell: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that --print-completion prints a completion script and exits."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--print-completion", shell])
+
+    assert exc_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "--trading212-dir" in output
+    assert "--initial-prices-file" in output
+
+
+def test_print_completion_zsh_completes_paths(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test path completers and hidden deprecated flags in the zsh script."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--print-completion", "zsh"])
+
+    output = capsys.readouterr().out
+    # Directory options complete directories, file options complete files.
+    assert ":DIR:_files -/" in output
+    assert ":PATH:_files" in output
+    # Deprecated aliases are hidden from help and must not be completed.
+    assert '"--report[' not in output
+    assert '"--trading212[' not in output
+
+
 def test_output_and_no_report_mutually_exclusive() -> None:
     """Test that --output and --no-report are mutually exclusive."""
     parser = create_parser()

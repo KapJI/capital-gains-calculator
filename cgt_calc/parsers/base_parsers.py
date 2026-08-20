@@ -9,11 +9,14 @@ from pathlib import Path
 import sys
 from typing import ClassVar, TextIO, override
 
+import shtab
+
 from cgt_calc.args_validators import (
     STDIN_PATH,
     DeprecatedAction,
     existing_directory_type,
     existing_file_type,
+    set_completer,
 )
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.logging import parsing_msg
@@ -59,12 +62,16 @@ class BaseSingleFileParser(BaseParser):
     @override
     def register_arguments(cls, arg_group: argparse._ArgumentGroup) -> None:
         """Register argparse arguments for this broker."""
-        arg_group.add_argument(
-            f"--{cls.full_arg}",
-            type=existing_file_type,
-            default=None,
-            metavar="PATH",
-            help=f"{cls.pretty_name} transaction history in {cls.format_name} format",
+        set_completer(
+            arg_group.add_argument(
+                f"--{cls.full_arg}",
+                type=existing_file_type,
+                default=None,
+                metavar="PATH",
+                help=f"{cls.pretty_name} transaction history "
+                f"in {cls.format_name} format",
+            ),
+            shtab.FILE,
         )
         for deprecated_flag in cls.deprecated_flags:
             arg_group.add_argument(
@@ -218,12 +225,16 @@ class BaseDirParser(BaseSingleFileParser):
     @override
     def register_arguments(cls, arg_group: argparse._ArgumentGroup) -> None:
         """Register argparse arguments for this broker."""
-        arg_group.add_argument(
-            f"--{cls.full_arg}",
-            type=existing_directory_type,
-            default=None,
-            metavar="DIR",
-            help=f"directory with {cls.pretty_name} reports in {cls.format_name} format",
+        set_completer(
+            arg_group.add_argument(
+                f"--{cls.full_arg}",
+                type=existing_directory_type,
+                default=None,
+                metavar="DIR",
+                help=f"directory with {cls.pretty_name} reports "
+                f"in {cls.format_name} format",
+            ),
+            shtab.DIRECTORY,
         )
         for deprecated_flag in cls.deprecated_flags:
             arg_group.add_argument(
