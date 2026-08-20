@@ -155,7 +155,27 @@ jobs:
             -e CGT_TEST_MODE_STRICT=1 \
             -v "${{ github.workspace }}:/build" \
             local/cgt-calc:test \
-            -lc "cd /build && uv run pytest -q"
+            -lc "cd /build && uv run pytest -q --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy"
+
+      - name: Upload coverage to Codecov
+        # The only job running the test suite with pdflatex enabled.
+        uses: codecov/codecov-action@v7
+        with:
+          files: coverage.xml
+          flags: docker
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+      - name: Upload test results to Codecov
+        # Upload also when tests fail: failed tests are the point.
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v7
+        with:
+          report_type: test_results
+          files: junit.xml
+          flags: docker
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
 
       - name: Upload e2e tests outputs
         if: always()
