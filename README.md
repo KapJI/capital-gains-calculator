@@ -24,6 +24,7 @@ brokers that pay daily interest.
 - [Prerequisites](#-prerequisites)
 - [Installation](#%EF%B8%8F-installation)
   - [Installing LaTeX](#installing-latex)
+  - [Shell Completions](#shell-completions)
 - [Usage](#-usage)
 - [Terminal Output](#%EF%B8%8F-terminal-output)
 - [Input Data](#-input-data)
@@ -84,6 +85,24 @@ apt install texlive-latex-base
 #### Windows
 
 [Install MiKTeX.](https://miktex.org/download)
+
+### Shell Completions
+
+`cgt-calc` can generate a tab completion script for `bash`, `zsh`, `fish` and `tcsh`. Save it where
+your shell looks for completions, e.g.:
+
+```shell
+# bash
+cgt-calc --print-completion bash > ~/.local/share/bash-completion/completions/cgt-calc
+
+# zsh (the target directory must be in your $fpath)
+cgt-calc --print-completion zsh > ~/.zfunc/_cgt-calc
+
+# fish
+cgt-calc --print-completion fish > ~/.config/fish/completions/cgt-calc.fish
+```
+
+Regenerate the script after upgrading to pick up new options.
 
 ## 🚀 Usage
 

@@ -7,11 +7,14 @@ import datetime
 import importlib.metadata
 import logging
 
+import shtab
+
 from .args_validators import (
     DeprecatedAction,
     existing_file_type,
     optional_file_type,
     output_path_type,
+    set_completer,
     ticker_list_type,
     year_type,
 )
@@ -64,11 +67,15 @@ Environment variables:
 
     # Additional Data Files
     data_group = parser.add_argument_group("Additional data files")
-    data_group.add_argument(
-        "--initial-prices-file",
-        type=existing_file_type,
-        metavar="PATH",
-        help="stock prices in USD at key events (vesting, splits, etc.) in CSV format",
+    set_completer(
+        data_group.add_argument(
+            "--initial-prices-file",
+            type=existing_file_type,
+            metavar="PATH",
+            help="stock prices in USD at key events (vesting, splits, etc.) "
+            "in CSV format",
+        ),
+        shtab.FILE,
     )
     data_group.add_argument(
         "--initial-prices",
@@ -77,26 +84,35 @@ Environment variables:
         type=existing_file_type,
         help=argparse.SUPPRESS,
     )
-    data_group.add_argument(
-        "--exchange-rates-file",
-        type=optional_file_type,
-        metavar="PATH",
-        default=DEFAULT_EXCHANGE_RATES_FILE,
-        help="monthly exchange rates in CSV format (generated automatically if missing; default: %(default)s)",
+    set_completer(
+        data_group.add_argument(
+            "--exchange-rates-file",
+            type=optional_file_type,
+            metavar="PATH",
+            default=DEFAULT_EXCHANGE_RATES_FILE,
+            help="monthly exchange rates in CSV format (generated automatically if missing; default: %(default)s)",
+        ),
+        shtab.FILE,
     )
-    data_group.add_argument(
-        "--isin-translation-file",
-        type=optional_file_type,
-        default=DEFAULT_ISIN_TRANSLATION_FILE,
-        metavar="PATH",
-        help="ISIN to ticker translations in CSV format (generated automatically if missing; default: %(default)s)",
+    set_completer(
+        data_group.add_argument(
+            "--isin-translation-file",
+            type=optional_file_type,
+            default=DEFAULT_ISIN_TRANSLATION_FILE,
+            metavar="PATH",
+            help="ISIN to ticker translations in CSV format (generated automatically if missing; default: %(default)s)",
+        ),
+        shtab.FILE,
     )
-    data_group.add_argument(
-        "--spin-offs-file",
-        type=optional_file_type,
-        metavar="PATH",
-        default=DEFAULT_SPIN_OFF_FILE,
-        help="spin-offs data in CSV format (default: %(default)s)",
+    set_completer(
+        data_group.add_argument(
+            "--spin-offs-file",
+            type=optional_file_type,
+            metavar="PATH",
+            default=DEFAULT_SPIN_OFF_FILE,
+            help="spin-offs data in CSV format (default: %(default)s)",
+        ),
+        shtab.FILE,
     )
 
     # Calculation Options
@@ -127,13 +143,16 @@ Environment variables:
     output_group = parser.add_argument_group("Output")
 
     output_mutex = output_group.add_mutually_exclusive_group()
-    output_mutex.add_argument(
-        "-o",
-        "--output",
-        type=output_path_type,
-        metavar="PATH",
-        default=DEFAULT_REPORT_PATH,
-        help="path to save the generated PDF report (default: %(default)s)",
+    set_completer(
+        output_mutex.add_argument(
+            "-o",
+            "--output",
+            type=output_path_type,
+            metavar="PATH",
+            default=DEFAULT_REPORT_PATH,
+            help="path to save the generated PDF report (default: %(default)s)",
+        ),
+        shtab.FILE,
     )
     output_mutex.add_argument(
         "--report",
@@ -162,6 +181,11 @@ Environment variables:
         action="version",
         version=f"cgt-calc {importlib.metadata.version(__package__)}",
         help="show version and exit",
+    )
+    shtab.add_argument_to(
+        general_group,  # type: ignore[arg-type]  # groups work like parsers here
+        "--print-completion",
+        help="print shell tab completion script and exit",
     )
     general_group.add_argument(
         "-v",
