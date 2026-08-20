@@ -44,6 +44,34 @@ def test_invalid_row(tmp_path: Path) -> None:
     assert excinfo.value.row_index == 2
 
 
+def test_invalid_date(tmp_path: Path) -> None:
+    """Report file and row context for unparsable dates."""
+    prices_file = tmp_path / "initial_prices.csv"
+    prices_file.write_text("date,symbol,price\n2021-03-08,FOO,10.5\n")
+
+    with pytest.raises(ParsingError, match="Invalid date format") as excinfo:
+        InitialPrices(initial_prices_file=prices_file)
+
+    message = str(excinfo.value)
+    assert excinfo.value.row_index == 2
+    assert "2021-03-08" in message
+    assert "initial_prices.csv" in message
+
+
+def test_invalid_price(tmp_path: Path) -> None:
+    """Report file and row context for unparsable prices."""
+    prices_file = tmp_path / "initial_prices.csv"
+    prices_file.write_text('date,symbol,price\n"Mar 08, 2021",FOO,ten\n')
+
+    with pytest.raises(ParsingError, match="Invalid decimal price") as excinfo:
+        InitialPrices(initial_prices_file=prices_file)
+
+    message = str(excinfo.value)
+    assert excinfo.value.row_index == 2
+    assert "ten" in message
+    assert "initial_prices.csv" in message
+
+
 def test_entry_parses_row() -> None:
     """Parse the date, symbol and decimal price from a CSV row."""
     entry = InitialPricesEntry(
