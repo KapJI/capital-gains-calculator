@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+import io
+import logging
 from pathlib import Path
 
 import pytest
 
-from cgt_calc.model import ActionType
+from cgt_calc.exceptions import ParsingError
+from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers import schwab_equity_award_json
 
 # ruff: noqa: SLF001 "Private member accessed"
@@ -253,3 +256,133 @@ def test_split_history_demands_a_price_floor_it_can_use() -> None:
             schwab_equity_award_json.Restatement.ACQUISITIONS_ONLY,
             presplit_price_floor=Decimal(175),
         )
+
+
+@pytest.mark.parametrize(
+    ("label", "action"),
+    [
+        ("Buy", ActionType.BUY),
+        ("Sale", ActionType.SELL),
+        ("Sell", ActionType.SELL),
+        ("Deposit", ActionType.STOCK_ACTIVITY),
+        ("Qualified Dividend", ActionType.DIVIDEND),
+        ("Cash Dividend", ActionType.DIVIDEND),
+        ("Dividend", ActionType.DIVIDEND),
+        ("MoneyLink Transfer", ActionType.TRANSFER),
+        ("Cash In Lieu", ActionType.TRANSFER),
+        ("Stock Plan Activity", ActionType.STOCK_ACTIVITY),
+        ("NRA Tax Adj", ActionType.DIVIDEND_TAX),
+        ("NRA Withholding", ActionType.DIVIDEND_TAX),
+        ("Foreign Tax Paid", ActionType.DIVIDEND_TAX),
+        ("Tax Reversal", ActionType.DIVIDEND_TAX),
+        ("Tax Withholding", ActionType.DIVIDEND_TAX),
+        ("ADR Mgmt Fee", ActionType.FEE),
+        ("Adjustment", ActionType.ADJUSTMENT),
+        ("IRS Withhold Adj", ActionType.ADJUSTMENT),
+        ("Short Term Cap Gain", ActionType.CAPITAL_GAIN),
+        ("Long Term Cap Gain", ActionType.CAPITAL_GAIN),
+        ("Spin-off", ActionType.SPIN_OFF),
+        ("Credit Interest", ActionType.INTEREST),
+        ("Reinvest Shares", ActionType.REINVEST_SHARES),
+        ("Reinvest Dividend", ActionType.REINVEST_DIVIDENDS),
+        ("Wire Funds Received", ActionType.WIRE_FUNDS_RECEIVED),
+    ],
+)
+def test_action_from_str(label: str, action: ActionType) -> None:
+    """Map every known Schwab equity award action label."""
+    assert (
+        schwab_equity_award_json.action_from_str(label, Path("awards.json")) == action
+    )
+
+
+def test_action_from_str_unknown() -> None:
+    """Raise on unknown action labels."""
+    with pytest.raises(ParsingError, match="Unknown action"):
+        schwab_equity_award_json.action_from_str("Dance", Path("awards.json"))
+
+
+def _read_json(content: str) -> list[BrokerTransaction]:
+    """Parse Schwab equity award JSON from a string."""
+    parser = schwab_equity_award_json.SchwabEquityAwardsJSONParser
+    return parser.read_transactions(io.StringIO(content), Path("awards.json"))
+
+
+def test_read_transactions_invalid_json() -> None:
+    """Raise on malformed JSON."""
+    with pytest.raises(ParsingError, match="Could not parse content as JSON"):
+        _read_json("{not json")
+
+
+def test_read_transactions_unknown_top_level_field() -> None:
+    """Raise when no known top level field is present."""
+    with pytest.raises(ParsingError, match="Expected top level field"):
+        _read_json('{"Unknown": []}')
+
+
+def test_read_transactions_transactions_not_a_list() -> None:
+    """Raise when the transactions field is not a list."""
+    with pytest.raises(ParsingError, match="is not a list"):
+        _read_json('{"Transactions": {}}')
+
+
+def test_unknown_symbol_warns(caplog: pytest.LogCaptureFixture) -> None:
+    """Warn about symbols without known split history."""
+    content = (
+        '{"Transactions": [{"Date": "01/15/2023", "Action": "Dividend",'
+        ' "Symbol": "ZZZ", "Description": "Div", "Quantity": null,'
+        ' "Amount": "$10.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []}]}'
+    )
+
+    with caplog.at_level(logging.WARNING):
+        transactions = _read_json(content)
+
+    assert "check the share counts" in caplog.text
+    assert transactions[0].action == ActionType.DIVIDEND
+    assert transactions[0].amount == Decimal(10)
+
+
+def test_unimplemented_action_raises() -> None:
+    """Raise on actions the parser does not implement."""
+    content = (
+        '{"Transactions": [{"Date": "01/15/2023", "Action": "Buy",'
+        ' "Symbol": "GOOG", "Description": "Buy", "Quantity": "1",'
+        ' "Amount": "$10.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []}]}'
+    )
+
+    with pytest.raises(ParsingError, match="is not implemented"):
+        _read_json(content)
+
+
+def test_detail_counts_multiplier() -> None:
+    """Compose the ratios of every split after the given date."""
+    multiplier = schwab_equity_award_json._detail_counts_multiplier
+
+    # NVDA restates acquisitions only and split 4:1 on 2021-07-20
+    # and 10:1 on 2024-06-10.
+    assert multiplier("NVDA", datetime.date(2021, 7, 19)) == 40
+    assert multiplier("NVDA", datetime.date(2021, 7, 20)) == 10
+    assert multiplier("NVDA", datetime.date(2024, 6, 10)) == 1
+    # GOOG's export does not restate uniformly, so counts inside the
+    # details are already comparable and need no multiplier.
+    assert multiplier("GOOG", datetime.date(2020, 1, 1)) == 1
+
+
+def test_lot_shares_and_price_helpers() -> None:
+    """Lot helpers return None when lots are incomplete or disagree."""
+    names = schwab_equity_award_json.FieldNames(2)
+
+    no_shares = {"TransactionDetails": [{"Details": {"SalePrice": "$10.00"}}]}
+    assert schwab_equity_award_json._lot_share_sum(no_shares, names) is None
+
+    no_price = {"TransactionDetails": [{"Details": {"Shares": "1.5"}}]}
+    assert schwab_equity_award_json._lot_price(no_price, names) is None
+
+    different_prices = {
+        "TransactionDetails": [
+            {"Details": {"SalePrice": "$10.00"}},
+            {"Details": {"SalePrice": "$11.00"}},
+        ]
+    }
+    assert schwab_equity_award_json._lot_price(different_prices, names) is None

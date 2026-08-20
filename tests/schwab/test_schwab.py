@@ -2,14 +2,22 @@
 
 import datetime
 from decimal import Decimal
+import io
 from pathlib import Path
 import subprocess
 
 import pytest
 
-from cgt_calc.exceptions import ParsingError
-from cgt_calc.parsers.schwab import AwardPrices, SchwabParser
+from cgt_calc.exceptions import ParsingError, SymbolMissingError
+from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.parsers.schwab import AwardPrices, SchwabParser, action_from_str
 from tests.utils import build_cmd, stderr_alerts
+
+
+@pytest.fixture(autouse=True)
+def _reset_awards_prices(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep changes to the class-level award prices out of other test modules."""
+    monkeypatch.setattr(SchwabParser, "awards_prices", AwardPrices(award_prices={}))
 
 
 def test_missing_award_file_reports_the_vest_it_cannot_price() -> None:
@@ -202,3 +210,144 @@ def test_run_with_schwab_interest_tax_files() -> None:
         "if you added new features update the test with:\n"
         f"{cmd_str} > {expected_file}"
     )
+
+
+SCHWAB_HEADER = "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
+
+
+def _read(content: str) -> list[BrokerTransaction]:
+    """Parse a Schwab CSV from a string."""
+    return SchwabParser.read_transactions(
+        io.StringIO(content), Path("transactions.csv")
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "action"),
+    [
+        ("Buy", ActionType.BUY),
+        ("Sell", ActionType.SELL),
+        ("Qualified Dividend", ActionType.DIVIDEND),
+        ("Cash Dividend", ActionType.DIVIDEND),
+        ("Qual Div Reinvest", ActionType.DIVIDEND),
+        ("Div Adjustment", ActionType.DIVIDEND),
+        ("Special Qual Div", ActionType.DIVIDEND),
+        ("Non-Qualified Div", ActionType.DIVIDEND),
+        ("NRA Tax Adj", ActionType.DIVIDEND_TAX),
+        ("NRA Withholding", ActionType.DIVIDEND_TAX),
+        ("Foreign Tax Paid", ActionType.DIVIDEND_TAX),
+        ("ADR Mgmt Fee", ActionType.FEE),
+        ("Adjustment", ActionType.ADJUSTMENT),
+        ("IRS Withhold Adj", ActionType.ADJUSTMENT),
+        ("Wire Funds Adj", ActionType.ADJUSTMENT),
+        ("Short Term Cap Gain", ActionType.CAPITAL_GAIN),
+        ("Long Term Cap Gain", ActionType.CAPITAL_GAIN),
+        ("Spin-off", ActionType.SPIN_OFF),
+        ("Credit Interest", ActionType.INTEREST),
+        ("Bond Interest", ActionType.INTEREST),
+        ("Reinvest Shares", ActionType.REINVEST_SHARES),
+        ("Reinvest Dividend", ActionType.REINVEST_DIVIDENDS),
+        ("Wire Funds Received", ActionType.WIRE_FUNDS_RECEIVED),
+        ("Stock Split", ActionType.STOCK_SPLIT),
+        ("Cash Merger", ActionType.CASH_MERGER),
+        ("Cash Merger Adj", ActionType.CASH_MERGER),
+        ("Full Redemption", ActionType.FULL_REDEMPTION),
+        ("Full Redemption Adj", ActionType.FULL_REDEMPTION),
+    ],
+)
+def test_action_from_str(label: str, action: ActionType) -> None:
+    """Map every known Schwab action label."""
+    assert action_from_str(label, Path("transactions.csv")) == action
+
+
+def test_action_from_str_unknown() -> None:
+    """Raise on unknown action labels."""
+    with pytest.raises(ParsingError, match="Unknown action"):
+        action_from_str("Dance", Path("transactions.csv"))
+
+
+def test_read_transactions_empty_file() -> None:
+    """Raise on empty transaction files."""
+    with pytest.raises(ParsingError, match="file is empty"):
+        _read("")
+
+
+def test_read_transactions_missing_columns() -> None:
+    """Raise when required columns are missing."""
+    with pytest.raises(ParsingError, match="Missing columns"):
+        _read("Date,Action\n01/15/2023,Sell\n")
+
+
+def test_read_transactions_skips_blank_lines() -> None:
+    """Skip blank lines in the file."""
+    content = SCHWAB_HEADER + ",,,,,,,\n"
+    assert _read(content) == []
+
+
+def test_read_transactions_wrong_column_count() -> None:
+    """Raise when a row has a different number of columns."""
+    content = SCHWAB_HEADER + "01/15/2023,Sell\n"
+    with pytest.raises(ParsingError) as excinfo:
+        _read(content)
+    assert excinfo.value.row_index == 2
+
+
+def test_read_transactions_as_of_date() -> None:
+    """Parse dates with an 'as of' suffix."""
+    content = (
+        SCHWAB_HEADER
+        + '01/15/2023 as of 01/12/2023,Credit Interest,,Interest,,,,"$1.00"\n'
+    )
+    transactions = _read(content)
+    assert transactions[0].date == datetime.date(2023, 1, 15)
+
+
+def test_read_transactions_invalid_date() -> None:
+    """Raise on unparsable dates."""
+    content = SCHWAB_HEADER + "2023-01-15,Credit Interest,,Interest,,,,$1.00\n"
+    with pytest.raises(ParsingError, match="Invalid date format"):
+        _read(content)
+
+
+def test_read_transactions_ninth_column_must_be_empty() -> None:
+    """Raise when the legacy ninth column contains data."""
+    header = SCHWAB_HEADER.rstrip("\n") + ",Extra\n"
+    content = header + "01/15/2023,Credit Interest,,Interest,,,,$1.00,oops\n"
+    with pytest.raises(ParsingError, match="should be empty"):
+        _read(content)
+
+
+def test_stock_activity_without_symbol() -> None:
+    """Raise when a stock activity row has no symbol to price."""
+    content = SCHWAB_HEADER + "01/15/2023,Stock Plan Activity,,Vest,,10,,\n"
+    with pytest.raises(SymbolMissingError):
+        _read(content)
+
+
+def test_cash_merger_adj_without_cash_merger() -> None:
+    """Raise when a Cash Merger Adj has no preceding Cash Merger."""
+    content = SCHWAB_HEADER + "01/15/2023,Cash Merger Adj,FOO,Merger,,-10,,\n"
+    with pytest.raises(ParsingError, match="must be preceded"):
+        _read(content)
+
+
+def test_invalid_cash_merger_pair() -> None:
+    """Raise when a Cash Merger pair fails validation."""
+    content = (
+        SCHWAB_HEADER
+        + '01/16/2023,Cash Merger,FOO,Merger,,,,"$100.00"\n'
+        + '01/15/2023,Cash Merger Adj,FOO,Merger,,-10,,"$5.00"\n'
+    )
+    with pytest.raises(ParsingError, match="Invalid Cash Merger format"):
+        _read(content)
+
+
+def test_invalid_full_redemption_pair() -> None:
+    """Raise when a Full Redemption pair fails validation."""
+    content = (
+        SCHWAB_HEADER
+        + '01/16/2023,Full Redemption Adj,FOO,Redemption,,,,"$100.00"\n'
+        + '01/15/2023,Full Redemption,FOO,Redemption,"$1.00",-10,,\n'
+    )
+    with pytest.raises(ParsingError, match="Invalid Full Redemption format"):
+        _read(content)
