@@ -401,6 +401,7 @@ Currently bundled data:
 - [Blackrock Funds 2019-2024](cgt_calc/resources/eri/blackrock_eri.csv)
 - [iShares Funds 2018-2024](cgt_calc/resources/eri/ishares_eri.csv)
 - [Invesco Funds 2018-2024](cgt_calc/resources/eri/invesco_eri.csv)
+- [Xtrackers Funds 2024](cgt_calc/resources/eri/xtrackers_eri.csv)
 
 The ERI funds are indexed by ISIN and the tool provides automatic translation from ISIN to tickers,
 in case your broker doesn't supply the ISIN in their transaction history. For instructions on how to

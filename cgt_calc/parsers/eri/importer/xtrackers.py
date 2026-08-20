@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import dateutil.parser as date_parser
 import pdfplumber
@@ -21,7 +21,12 @@ if TYPE_CHECKING:
 
 LOGGER = logging.getLogger(__name__)
 
-REPORT_FILE_REGEX = re.compile(r"^Xtrackers.*Report.*\.pdf$")
+# Matches both manually renamed reports and the official download names
+# from https://etf.dws.com/en-gb/information/etf-documents/reportings/,
+# e.g. Reporting-Funds-Xtrackers-II-2024.pdf.
+REPORT_FILE_REGEX = re.compile(
+    r"^(Xtrackers.*Report.*|Reporting-Funds-Xtrackers.*)\.pdf$"
+)
 
 XTRACKERS_ERI_FILENAME = "xtrackers_eri.csv"
 
@@ -36,12 +41,18 @@ MIN_VALID_YEAR = 2018
 
 
 class XtrackersImporter(ERIImporter):
-    """Parser for Xtrackers ERI spreadsheets."""
+    """Parser for Xtrackers ERI reports.
+
+    Covers the three Xtrackers umbrellas published by DWS: Xtrackers
+    (summary format), and Xtrackers II / Xtrackers (IE) Plc (investor
+    report format).
+    """
 
     def __init__(self) -> None:
         """Create a new Xtrackers Parser instance."""
         super().__init__(name="Xtrackers")
 
+    @override
     def parse(self, file: Path) -> ERIImporterOutput | None:
         """Parse the input PDF file and return ERI transactions."""
         if not REPORT_FILE_REGEX.match(file.name):
@@ -55,8 +66,8 @@ class XtrackersImporter(ERIImporter):
             if not pdf.pages:
                 return None
             parsers = [
-                XtrackersImporter._parse_format,
-                XtrackersImporter._parse_ie_format,
+                XtrackersImporter._parse_summary_format,
+                XtrackersImporter._parse_investor_report_format,
             ]
             for parser in parsers:
                 parsed_data = parser(pdf)
@@ -122,7 +133,7 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _extract_data_rows(
-        page_num: int, cropped: pdfplumber.page.CroppedPage, columns: list[float]
+        cropped: pdfplumber.page.CroppedPage, columns: list[float]
     ) -> list[list[str | None]]:
         table_settings = {
             "vertical_strategy": "explicit",
@@ -137,39 +148,35 @@ class XtrackersImporter(ERIImporter):
     def _process_data_table(
         page_num: int,
         data_table: list[list[str | None]],
-        default_reporting_end: datetime.date,
+        reporting_period_end: datetime.date,
         colmap: dict[int, int],
-        is_ie_format: bool = False,
     ) -> list[ERITransaction]:
         transactions = []
-        for _, raw_row in enumerate(data_table, 1):
+        for row_num, raw_row in enumerate(data_table, 1):
+            if not any((cell or "").strip() for cell in raw_row):
+                continue
             row = {}
             for col, pos in colmap.items():
-                if pos < len(raw_row):
-                    row[col] = (raw_row[pos] or "").strip()
-                else:
-                    row[col] = ""
+                row[col] = (raw_row[pos] or "").strip() if pos < len(raw_row) else ""
 
-            isin = row.get(ISIN_COLUMN, "")
-            if not isin or not is_isin(isin):
-                continue
-
-            currency = row.get(CURRENCY_COLUMN, "").replace("JPN", "JPY")
-            if not re.match(CURRENCY_REGEX, currency):
-                continue
-
-            eri_str = row.get(ERI_COLUMN, "")
-            if not re.match(AMOUNT_REGEX, eri_str):
-                continue
-
-            amount = round_decimal(Decimal(eri_str), 5)
-            if amount <= 0:
-                continue
+            isin = row[ISIN_COLUMN]
+            assert is_isin(isin), (
+                f"Bad ISIN in page {page_num}, row {row_num}: {isin!r}"
+            )
+            currency = row[CURRENCY_COLUMN].replace("JPN", "JPY")
+            assert re.match(CURRENCY_REGEX, currency), (
+                f"Bad currency in page {page_num}, row {row_num}: "
+                f"{row[CURRENCY_COLUMN]!r}"
+            )
+            assert re.match(AMOUNT_REGEX, row[ERI_COLUMN]), (
+                f"Bad amount in page {page_num}, row {row_num}: {row[ERI_COLUMN]!r}"
+            )
+            amount = round_decimal(Decimal(row[ERI_COLUMN]), 5)
 
             transactions.append(
                 ERITransaction(
                     isin=isin,
-                    date=default_reporting_end,
+                    date=reporting_period_end,
                     price=amount,
                     currency=currency,
                 )
@@ -178,12 +185,28 @@ class XtrackersImporter(ERIImporter):
         return transactions
 
     @staticmethod
-    def _parse_format(pdf: pdfplumber.pdf.PDF) -> list[ERITransaction] | None:
+    def _parse_pages(
+        pdf: pdfplumber.pdf.PDF, reporting_period_end: datetime.date
+    ) -> list[ERITransaction]:
+        transactions = []
+        for page_num, page in enumerate(pdf.pages, 1):
+            header_bbox, columns, colmap = XtrackersImporter._extract_header(page)
+            (h_left, _h_top, h_right, h_bottom) = header_bbox
+            cropped = page.crop((h_left, h_bottom, h_right, page.height))
+            data_table = XtrackersImporter._extract_data_rows(cropped, columns)
+            transactions += XtrackersImporter._process_data_table(
+                page_num, data_table, reporting_period_end, colmap
+            )
+        return transactions
+
+    @staticmethod
+    def _parse_summary_format(pdf: pdfplumber.pdf.PDF) -> list[ERITransaction] | None:
+        """Parse the summary format used by the main Xtrackers umbrella."""
         first_page = pdf.pages[0]
         prefix = "Period ended"
         if not first_page.search("Summary of reportable income calculations"):
             return None
-        LOGGER.info("Detected Xtrackers format")
+        LOGGER.info("Detected Xtrackers summary format")
 
         reporting_period_end = XtrackersImporter._extract_report_end_date(
             first_page, prefix
@@ -191,25 +214,19 @@ class XtrackersImporter(ERIImporter):
         if reporting_period_end is None or reporting_period_end.year < MIN_VALID_YEAR:
             return []
 
-        transactions = []
-        for page_num, page in enumerate(pdf.pages, 1):
-            header_bbox, columns, colmap = XtrackersImporter._extract_header(page)
-            (h_left, _h_top, h_right, h_bottom) = header_bbox
-            cropped = page.crop((h_left, h_bottom, h_right, page.height))
-            data_table = XtrackersImporter._extract_data_rows(
-                page_num, cropped, columns
-            )
-            transactions += XtrackersImporter._process_data_table(
-                page_num, data_table, reporting_period_end, colmap, is_ie_format=False
-            )
-        return transactions
+        return XtrackersImporter._parse_pages(pdf, reporting_period_end)
 
     @staticmethod
-    def _parse_ie_format(pdf: pdfplumber.pdf.PDF) -> list[ERITransaction] | None:
+    def _parse_investor_report_format(
+        pdf: pdfplumber.pdf.PDF,
+    ) -> list[ERITransaction] | None:
+        """Parse the investor report format used by Xtrackers II and (IE) Plc."""
         first_page = pdf.pages[0]
-        if not first_page.search(r"Xtrackers \(IE\) Plc"):
+        if not first_page.search("UK reporting fund status report to investors"):
             return None
-        LOGGER.info("Detected Xtrackers IE format")
+        if not first_page.search("Xtrackers"):
+            return None
+        LOGGER.info("Detected Xtrackers investor report format")
 
         reporting_period_end = XtrackersImporter._extract_report_end_date(
             first_page, "Period of account ended"
@@ -217,15 +234,4 @@ class XtrackersImporter(ERIImporter):
         if reporting_period_end is None or reporting_period_end.year < MIN_VALID_YEAR:
             return []
 
-        transactions = []
-        for page_num, page in enumerate(pdf.pages, 1):
-            header_bbox, columns, colmap = XtrackersImporter._extract_header(page)
-            (h_left, _h_top, h_right, h_bottom) = header_bbox
-            cropped = page.crop((h_left, h_bottom, h_right, page.height))
-            data_table = XtrackersImporter._extract_data_rows(
-                page_num, cropped, columns
-            )
-            transactions += XtrackersImporter._process_data_table(
-                page_num, data_table, reporting_period_end, colmap, is_ie_format=True
-            )
-        return transactions
+        return XtrackersImporter._parse_pages(pdf, reporting_period_end)
