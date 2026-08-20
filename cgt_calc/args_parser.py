@@ -11,6 +11,7 @@ import shtab
 
 from .args_validators import (
     DeprecatedAction,
+    date_type,
     existing_file_type,
     optional_file_type,
     output_path_type,
@@ -24,6 +25,7 @@ from .const import (
     DEFAULT_REPORT_PATH,
     DEFAULT_SPIN_OFF_FILE,
 )
+from .dates import get_tax_year_end, get_tax_year_for_date, get_tax_year_start
 from .parsers.broker_registry import BrokerRegistry
 
 LOGGER = logging.getLogger(__name__)
@@ -57,8 +59,24 @@ Environment variables:
         "--year",
         type=year_type,
         metavar="YYYY",
-        default=get_last_elapsed_tax_year(),
-        help="first year of the UK tax year (e.g. 2024 for tax year 2024/25; default: %(default)d)",
+        default=None,
+        help="first year of the UK tax year (e.g. 2024 for tax year 2024/25; "
+        f"default: {get_last_elapsed_tax_year()})",
+    )
+    year_group.add_argument(
+        "--from",
+        dest="period_from",
+        type=date_type,
+        metavar="YYYY-MM-DD",
+        help="start of a custom reporting period, e.g. for the HMRC 2024/25 "
+        "CGT adjustment calculation (requires --to, incompatible with --year)",
+    )
+    year_group.add_argument(
+        "--to",
+        dest="period_to",
+        type=date_type,
+        metavar="YYYY-MM-DD",
+        help="end of a custom reporting period (requires --from)",
     )
 
     # Broker Inputs
@@ -200,3 +218,30 @@ Environment variables:
         help=argparse.SUPPRESS,
     )
     return parser
+
+
+def resolve_reporting_period(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> None:
+    """Validate --year/--from/--to and resolve the effective tax year.
+
+    Sets args.year from the custom period when --from/--to are used,
+    or to the last elapsed tax year when nothing is specified.
+    """
+    if args.period_from is None and args.period_to is None:
+        if args.year is None:
+            args.year = get_last_elapsed_tax_year()
+        return
+    if args.period_from is None or args.period_to is None:
+        parser.error("--from and --to must be used together")
+    if args.year is not None:
+        parser.error("--year cannot be combined with --from/--to")
+    if args.period_from > args.period_to:
+        parser.error("--from must not be after --to")
+    tax_year = get_tax_year_for_date(args.period_from)
+    if tax_year != get_tax_year_for_date(args.period_to):
+        parser.error(
+            "--from and --to must be within the same UK tax year, "
+            f"e.g. {get_tax_year_start(tax_year)} to {get_tax_year_end(tax_year)}"
+        )
+    args.year = tax_year

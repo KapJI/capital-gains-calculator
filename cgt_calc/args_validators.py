@@ -37,6 +37,16 @@ def year_type(value: str) -> int:
     return year
 
 
+def date_type(value: str) -> datetime.date:
+    """Validate and convert ISO format date argument."""
+    try:
+        return datetime.date.fromisoformat(value)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(
+            f"invalid date value: '{value}', expected YYYY-MM-DD"
+        ) from err
+
+
 def ticker_list_type(value: str) -> list[str]:
     """Split comma-separated tickers and convert to uppercase list."""
     return [ticker.strip().upper() for ticker in value.split(",") if ticker.strip()]

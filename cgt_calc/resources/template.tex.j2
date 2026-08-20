@@ -3,7 +3,7 @@
 \usepackage[margin=3cm]{geometry}
 \setlength{\parindent}{0pt} %--don't indent paragraphs
 \begin{document}
-\centerline{\Large\bfseries Capital Gains Tax Calculations for \VAR{ report.tax_year }-\VAR{ ("{:02d}".format((report.tax_year + 1) % 100)) }}
+\centerline{\Large\bfseries Capital Gains Tax Calculations for \VAR{ report.title_period }}
 
 \BLOCK{ set total_gain = namespace(value=Decimal(0)) }
 \BLOCK{ set total_loss = namespace(value=Decimal(0)) }

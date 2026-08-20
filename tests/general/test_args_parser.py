@@ -11,7 +11,11 @@ from typing import IO, TextIO, cast
 
 import pytest
 
-from cgt_calc.args_parser import create_parser
+from cgt_calc.args_parser import (
+    create_parser,
+    get_last_elapsed_tax_year,
+    resolve_reporting_period,
+)
 from cgt_calc.args_validators import (
     STDIN_PATH,
     existing_directory_type,
@@ -576,3 +580,61 @@ def test_initial_prices_alias_warns_deprecated(
     assert args.initial_prices_file == file_path
     assert "Option '--initial-prices' is deprecated" in caplog.text
     assert "--initial-prices-file" in caplog.text
+
+
+def test_resolve_period_from_to() -> None:
+    """Test that --from/--to resolve the tax year from the range."""
+    parser = create_parser()
+    args = parser.parse_args(["--from", "2024-04-06", "--to", "2024-10-29"])
+
+    resolve_reporting_period(parser, args)
+
+    assert args.year == 2024
+    assert args.period_from == datetime.date(2024, 4, 6)
+    assert args.period_to == datetime.date(2024, 10, 29)
+
+
+def test_resolve_period_defaults_year_when_absent() -> None:
+    """Test that --year defaults to the last elapsed tax year."""
+    parser = create_parser()
+    args = parser.parse_args([])
+
+    resolve_reporting_period(parser, args)
+
+    assert args.year == get_last_elapsed_tax_year()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        # --from and --to must be used together.
+        ["--from", "2024-04-06"],
+        ["--to", "2024-10-29"],
+        # --year cannot be combined with a custom period.
+        ["--year", "2024", "--from", "2024-04-06", "--to", "2024-10-29"],
+        # --from must not be after --to.
+        ["--from", "2024-10-29", "--to", "2024-04-06"],
+        # The period must stay within one UK tax year.
+        ["--from", "2024-04-05", "--to", "2024-04-06"],
+        ["--from", "2024-10-29", "--to", "2025-04-06"],
+    ],
+)
+def test_resolve_period_rejects_invalid_combinations(argv: list[str]) -> None:
+    """Test that invalid --year/--from/--to combinations exit with an error."""
+    parser = create_parser()
+    args = parser.parse_args(argv)
+
+    with pytest.raises(SystemExit) as exc_info:
+        resolve_reporting_period(parser, args)
+
+    assert exc_info.value.code == 2
+
+
+def test_from_rejects_invalid_date() -> None:
+    """Test that malformed dates are rejected at parse time."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--from", "2024-13-01", "--to", "2024-12-31"])
+
+    assert exc_info.value.code == 2
