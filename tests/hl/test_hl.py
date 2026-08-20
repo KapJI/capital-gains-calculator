@@ -1,5 +1,7 @@
 """Tests for Hargreaves Lansdown parser."""
 
+from decimal import Decimal
+import io
 from pathlib import Path
 import shutil
 import subprocess
@@ -9,6 +11,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
 from cgt_calc.exceptions import ParsingError
+from cgt_calc.model import ActionType
 from cgt_calc.parsers.hl import HargreavesLansdownParser
 from tests.utils import build_cmd, stderr_alerts
 
@@ -190,3 +193,121 @@ def test_hl_blank_reference_skipped(tmp_path: Path) -> None:
     )
 
     assert transactions == []
+
+
+# The tests below call the parser directly: the end-to-end tests above
+# run in a subprocess, which is invisible to coverage.
+
+
+def test_read_row_interest() -> None:
+    """Read an interest row without a contract note."""
+    row = {
+        "Reference": "Interest",
+        "Description": "Gross interest",
+        "Trade date": "01/03/2026",
+        "Value (£)": "12.34",
+    }
+
+    transaction = HargreavesLansdownParser.read_row(row, Path("statement.csv"))
+
+    assert transaction is not None
+    assert transaction.action == ActionType.INTEREST
+    assert transaction.amount == Decimal("12.34")
+    assert transaction.currency == "GBP"
+    assert transaction.fees == Decimal(0)
+
+
+def test_read_row_transfer_with_na_value() -> None:
+    """Read a fee row where the value column is n/a."""
+    row = {
+        "Reference": "MANAGE FEE",
+        "Description": "Management fee",
+        "Trade date": "01/03/2026",
+        "Value (£)": "n/a",
+    }
+
+    transaction = HargreavesLansdownParser.read_row(row, Path("statement.csv"))
+
+    assert transaction is not None
+    assert transaction.action == ActionType.TRANSFER
+    assert transaction.amount == Decimal(0)
+
+
+def test_read_row_blank_reference_returns_none() -> None:
+    """Skip rows without a reference."""
+    row = {"Reference": " ", "Description": "x", "Trade date": "01/03/2026"}
+
+    assert HargreavesLansdownParser.read_row(row, Path("statement.csv")) is None
+
+
+def test_read_row_invalid_date() -> None:
+    """Raise on rows with an invalid trade date."""
+    row = {
+        "Reference": "Interest",
+        "Description": "x",
+        "Trade date": "garbage",
+        "Value (£)": "1",
+    }
+
+    with pytest.raises(ParsingError, match="Invalid date format"):
+        HargreavesLansdownParser.read_row(row, Path("statement.csv"))
+
+
+def test_read_row_buy_with_contract_note(tmp_path: Path) -> None:
+    """Cross-reference a buy row with its contract note PDF."""
+    _create_buy_pdf(str(tmp_path / "B123_contract.pdf"))
+    row = {
+        "Reference": "B123",
+        "Description": "Buy VHVG",
+        "Trade date": "24/02/2026",
+        "Value (£)": "149,994.89",
+    }
+
+    transaction = HargreavesLansdownParser.read_row(row, tmp_path / "statement.csv")
+
+    assert transaction is not None
+    assert transaction.action == ActionType.BUY
+    assert transaction.symbol == "VHVG"
+    assert transaction.isin == "IE00BK5BQV03"
+    assert transaction.quantity == Decimal("4563.00")
+    # Prices in the contract note are in pence.
+    assert transaction.price == Decimal("32.87199")
+    assert transaction.fees == Decimal("11.95")
+
+
+def test_read_row_sell_without_contract_note(tmp_path: Path) -> None:
+    """Raise when the contract note PDF is missing."""
+    row = {
+        "Reference": "S99",
+        "Description": "Sell VHVG",
+        "Trade date": "24/02/2026",
+        "Value (£)": "100.00",
+    }
+
+    with pytest.raises(ParsingError, match="Cannot find contract note"):
+        HargreavesLansdownParser.read_row(row, tmp_path / "statement.csv")
+
+
+def test_read_transactions_reverses_order() -> None:
+    """Return rows in reverse file order."""
+    content = HL_CSV_HEADER + (
+        "02/03/2026,02/03/2026,Interest,Later interest,n/a,n/a,20.00,\n"
+        "01/03/2026,01/03/2026,Interest,Earlier interest,n/a,n/a,10.00,\n"
+    )
+
+    transactions = HargreavesLansdownParser.read_transactions(
+        io.StringIO(content), Path("statement.csv")
+    )
+
+    assert [transaction.description for transaction in transactions] == [
+        "Earlier interest",
+        "Later interest",
+    ]
+
+
+def test_pre_reading_missing_header() -> None:
+    """Raise when the trade date header cannot be found."""
+    file = io.StringIO("no,header,here\n1,2,3\n")
+
+    with pytest.raises(ParsingError, match="Could not find the 'Trade date' header"):
+        list(HargreavesLansdownParser.pre_reading(file, Path("statement.csv")))
