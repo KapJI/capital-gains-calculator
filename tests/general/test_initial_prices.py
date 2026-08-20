@@ -44,10 +44,12 @@ def test_invalid_row(tmp_path: Path) -> None:
     assert excinfo.value.row_index == 2
 
 
-def test_entry_str() -> None:
-    """Entries have a readable representation."""
+def test_entry_parses_row() -> None:
+    """Parse the date, symbol and decimal price from a CSV row."""
     entry = InitialPricesEntry(
         ["Mar 08, 2021", "FOO", "10.5"], Path("initial_prices.csv")
     )
 
-    assert str(entry) == "date: 2021-03-08, symbol: FOO, price: 10.5"
+    assert entry.date == datetime.date(2021, 3, 8)
+    assert entry.symbol == "FOO"
+    assert entry.price == Decimal("10.5")

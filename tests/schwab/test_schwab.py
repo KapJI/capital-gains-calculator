@@ -14,6 +14,12 @@ from cgt_calc.parsers.schwab import AwardPrices, SchwabParser, action_from_str
 from tests.utils import build_cmd, stderr_alerts
 
 
+@pytest.fixture(autouse=True)
+def _reset_awards_prices(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep changes to the class-level award prices out of other test modules."""
+    monkeypatch.setattr(SchwabParser, "awards_prices", AwardPrices(award_prices={}))
+
+
 def test_missing_award_file_reports_the_vest_it_cannot_price() -> None:
     """A vest without a price is the only thing the award file is needed for.
 
@@ -211,7 +217,6 @@ SCHWAB_HEADER = "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amoun
 
 def _read(content: str) -> list[BrokerTransaction]:
     """Parse a Schwab CSV from a string."""
-    SchwabParser.awards_prices = AwardPrices(award_prices={})
     return SchwabParser.read_transactions(
         io.StringIO(content), Path("transactions.csv")
     )

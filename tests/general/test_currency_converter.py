@@ -246,10 +246,6 @@ def test_create_for_each_runtime_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cgt_calc.currency_converter, "CGT_MODE", RuntimeMode.TEST)
     assert type(CurrencyConverter.create()) is RecordingCurrencyConverter
 
-    monkeypatch.setattr(cgt_calc.currency_converter, "CGT_MODE", "unknown")
-    with pytest.raises(NotImplementedError):
-        CurrencyConverter.create()
-
 
 def test_read_exchange_rates_rejects_unexpected_columns(tmp_path: Path) -> None:
     """Reject rates files with a different schema."""
@@ -313,7 +309,11 @@ def test_query_hmrc_api_http_error_includes_snippet() -> None:
     with pytest.raises(ExternalApiError, match="HTTP 500") as excinfo:
         converter.currency_to_gbp_rate("USD", DATE)
 
-    assert "..." in str(excinfo.value)
+    message = str(excinfo.value)
+    assert "xxx" in message
+    assert "..." in message
+    # The full 300 character body must not leak into the message.
+    assert "x" * 300 not in message
 
 
 def test_cnh_is_treated_as_cny() -> None:

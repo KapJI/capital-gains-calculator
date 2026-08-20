@@ -355,14 +355,18 @@ def test_unimplemented_action_raises() -> None:
         _read_json(content)
 
 
-def test_detail_counts_multiplier_for_uniform_restatement() -> None:
-    """Uniformly restated symbols need no detail multiplier."""
-    assert (
-        schwab_equity_award_json._detail_counts_multiplier(
-            "GOOG", datetime.date(2020, 1, 1)
-        )
-        == 1
-    )
+def test_detail_counts_multiplier() -> None:
+    """Compose the ratios of every split after the given date."""
+    multiplier = schwab_equity_award_json._detail_counts_multiplier
+
+    # NVDA restates acquisitions only and split 4:1 on 2021-07-20
+    # and 10:1 on 2024-06-10.
+    assert multiplier("NVDA", datetime.date(2021, 7, 19)) == 40
+    assert multiplier("NVDA", datetime.date(2021, 7, 20)) == 10
+    assert multiplier("NVDA", datetime.date(2024, 6, 10)) == 1
+    # GOOG's export does not restate uniformly, so counts inside the
+    # details are already comparable and need no multiplier.
+    assert multiplier("GOOG", datetime.date(2020, 1, 1)) == 1
 
 
 def test_lot_shares_and_price_helpers() -> None:

@@ -6,24 +6,38 @@ import datetime
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
+import cgt_calc.exceptions
 from cgt_calc.exceptions import (
     AmountMissingError,
     CalculatedAmountDiscrepancyError,
+    CalculationError,
+    CgtError,
     ExchangeRateMissingError,
+    ExternalApiError,
+    InteractiveInputRequiredError,
+    InvalidTransactionError,
+    IsinTranslationError,
     LatexRenderError,
+    MarketDataMissingError,
+    MissingExternalToolError,
     ParsingError,
     PriceMissingError,
     QuantityMissingError,
     QuantityNotPositiveError,
     SymbolMissingError,
+    UnexpectedColumnCountError,
     UnexpectedRowCountError,
     UnsupportedBrokerActionError,
     UnsupportedBrokerCurrencyError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction
 
+DATE = datetime.date(2023, 1, 1)
+
 TRANSACTION = BrokerTransaction(
-    date=datetime.date(2023, 1, 1),
+    date=DATE,
     action=ActionType.BUY,
     symbol="FOO",
     description="test",
@@ -64,27 +78,94 @@ def test_parsing_error_add_row_context_updates_message() -> None:
     assert str(err) == "While parsing file.csv, row 11: bad value"
 
 
-def test_transaction_error_messages() -> None:
-    """Transaction errors describe what is missing."""
+def test_add_row_context_on_parsing_error_subclass() -> None:
+    """Row context can be attached through ParsingError subclasses.
 
-    assert "Amount missing" in str(AmountMissingError(TRANSACTION))
-    assert "Symbol missing" in str(SymbolMissingError(TRANSACTION))
-    assert "Price missing" in str(PriceMissingError(TRANSACTION))
-    assert "Quantity missing" in str(QuantityMissingError(TRANSACTION))
-    assert "Positive quantity" in str(QuantityNotPositiveError(TRANSACTION))
-    assert "-42" in str(CalculatedAmountDiscrepancyError(TRANSACTION, Decimal(-42)))
+    File readers catch ParsingError and call add_row_context, so the
+    machinery has to work on every subclass, not just the base class.
+    """
+    err = UnsupportedBrokerActionError(Path("f.csv"), "TestBroker", "Dance")
 
+    err.add_row_context(5)
 
-def test_parsing_error_subclasses() -> None:
-    """Parsing errors embed the offending file and detail."""
-
-    assert "SELL" in str(UnsupportedBrokerActionError(Path("f.csv"), "Broker", "SELL"))
-    assert "XXX" in str(UnsupportedBrokerCurrencyError(Path("f.csv"), "Broker", "XXX"))
-    assert "6 rows" in str(UnexpectedRowCountError(6, Path("f.csv")))
+    assert err.row_index == 5
+    assert "row 5" in str(err)
 
 
-def test_other_error_messages() -> None:
-    """Calculation and rendering errors describe their context."""
+# Each error paired with the inputs a user needs to locate the problem.
+# The exact wording is free to change; losing the context is a regression.
+CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
+    (
+        InvalidTransactionError(TRANSACTION, "unexpected fees"),
+        ["unexpected fees", "FOO", "2023"],
+    ),
+    (AmountMissingError(TRANSACTION), ["FOO", "2023"]),
+    (SymbolMissingError(TRANSACTION), ["FOO", "2023"]),
+    (PriceMissingError(TRANSACTION), ["FOO", "2023"]),
+    (QuantityMissingError(TRANSACTION), ["FOO", "2023"]),
+    (QuantityNotPositiveError(TRANSACTION), ["FOO", "2023"]),
+    # Both the calculated and the supplied amount are needed to see the gap.
+    (CalculatedAmountDiscrepancyError(TRANSACTION, Decimal(-42)), ["-42", "-1", "FOO"]),
+    (
+        UnsupportedBrokerActionError(Path("f.csv"), "TestBroker", "Dance"),
+        ["f.csv", "TestBroker", "Dance"],
+    ),
+    (
+        UnsupportedBrokerCurrencyError(Path("f.csv"), "TestBroker", "XXX"),
+        ["f.csv", "TestBroker", "XXX"],
+    ),
+    (
+        UnexpectedColumnCountError(["only", "two"], 3, Path("f.csv")),
+        ["f.csv", "3", "only", "two"],
+    ),
+    (UnexpectedRowCountError(6, Path("f.csv")), ["f.csv", "6"]),
+    (ExchangeRateMissingError("USD", DATE), ["USD", "2023-01-01"]),
+    (LatexRenderError(Path("render.log")), ["render.log"]),
+    (MissingExternalToolError("pdflatex"), ["pdflatex"]),
+    (IsinTranslationError("ISIN XS123 is broken"), ["ISIN XS123 is broken"]),
+    (
+        ExternalApiError("https://api.example.com/rates", "boom"),
+        ["https://api.example.com/rates", "boom"],
+    ),
+    (
+        InteractiveInputRequiredError("FOO", DATE, Path("spin_offs.csv")),
+        ["FOO", "2023-01-01", "spin_offs.csv"],
+    ),
+    (MarketDataMissingError("FOO", DATE), ["FOO", "2023-01-01"]),
+]
 
-    assert "USD" in str(ExchangeRateMissingError("USD", datetime.date(2023, 1, 1)))
-    assert "render.log" in str(LatexRenderError(Path("render.log")))
+
+@pytest.mark.parametrize(
+    ("error", "fragments"),
+    CONTEXT_CASES,
+    ids=[type(error).__name__ for error, _ in CONTEXT_CASES],
+)
+def test_error_message_contains_context(error: CgtError, fragments: list[str]) -> None:
+    """Error messages name the inputs needed to locate the problem."""
+    message = str(error)
+
+    for fragment in fragments:
+        assert fragment in message
+
+
+def test_every_exception_has_a_context_case() -> None:
+    """Every exception in the module is exercised by the context sweep.
+
+    A new exception with a broken message would otherwise only surface
+    in the failing user run that raises it.
+    """
+    bare_base_classes = {CgtError, CalculationError}
+    tested_directly = {ParsingError}
+    covered = (
+        {type(error) for error, _ in CONTEXT_CASES}
+        | bare_base_classes
+        | tested_directly
+    )
+
+    module_classes = {
+        obj
+        for obj in vars(cgt_calc.exceptions).values()
+        if isinstance(obj, type) and issubclass(obj, CgtError)
+    }
+
+    assert module_classes <= covered
