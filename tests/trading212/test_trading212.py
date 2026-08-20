@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+import logging
 from pathlib import Path
 import subprocess
 from typing import TYPE_CHECKING
@@ -767,7 +768,7 @@ def test_read_trading212_transactions_mixed_fee_currencies(tmp_path: Path) -> No
                 Trading212Column.PRICE_PER_SHARE: "10.50",
                 Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
                 Trading212Column.EXCHANGE_RATE: "1.25",
-                Trading212Column.TOTAL: "17.00",
+                Trading212Column.TOTAL: "17.11",
                 Trading212Column.CURRENCY_TOTAL: "GBP",
                 Trading212Column.TRANSACTION_FEE: "0.20",
                 Trading212Column.CURRENCY_TRANSACTION_FEE: "USD",
@@ -787,6 +788,159 @@ def test_read_trading212_transactions_mixed_fee_currencies(tmp_path: Path) -> No
     assert buy.transaction_fee == Decimal(0)
     assert buy.conversion_fee == Decimal("0.15")
     assert buy.fees == Decimal("0.15")
+
+
+def test_read_trading212_transactions_missing_fee_currency(tmp_path: Path) -> None:
+    """Raise ParsingError when a broker fee has no currency."""
+
+    rows = [
+        HEADER_2024,
+        _make_row(
+            HEADER_2024,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2024-01-01 16:10:05",
+                Trading212Column.ISIN: "US0000000003",
+                Trading212Column.TICKER: "BAZ",
+                Trading212Column.NAME: "Baz Corp",
+                Trading212Column.NO_OF_SHARES: "2",
+                Trading212Column.PRICE_PER_SHARE: "10.50",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
+                Trading212Column.EXCHANGE_RATE: "1.25",
+                Trading212Column.TOTAL: "16.96",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_FEE: "0.20",
+                Trading212Column.TRANSACTION_ID: "buy-no-fee-currency",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        Trading212Parser().load_from_dir(folder)
+
+    message = str(exc.value)
+    assert "row 2" in message
+    assert "Missing currency for Transaction fee" in message
+
+
+def test_read_trading212_transactions_blank_tax_currency(tmp_path: Path) -> None:
+    """Fold a tax with a blank currency into the transaction currency."""
+
+    rows = [
+        HEADER_2025_BARE,
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2025-04-02 10:30:00",
+                Trading212Column.ISIN: "IE0000000009",
+                Trading212Column.TICKER: "EURX",
+                Trading212Column.NAME: "Euro plc",
+                Trading212Column.NO_OF_SHARES: "50",
+                Trading212Column.PRICE_PER_SHARE: "6.00",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "EUR",
+                Trading212Column.TOTAL: "301.50",
+                Trading212Column.CURRENCY_TOTAL: "EUR",
+                Trading212Column.STAMP_DUTY: "1.50",
+                Trading212Column.TRANSACTION_ID: "buy-blank-tax-currency",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    buy = transactions[0]
+    assert isinstance(buy, Trading212Transaction)
+    assert buy.stamp_duty == Decimal("1.50")
+    assert buy.fees == Decimal("1.50")
+    assert buy.foreign_fees == {}
+    assert buy.price == Decimal("6.00")
+
+
+def _make_usd_fee_buy_row(total: str) -> list[str]:
+    """Build a GBP-account buy of a USD stock with a USD transaction fee."""
+    return _make_row(
+        HEADER_2024,
+        {
+            Trading212Column.ACTION: "Market buy",
+            Trading212Column.TIME: "2024-01-01 16:10:05",
+            Trading212Column.ISIN: "US0000000003",
+            Trading212Column.TICKER: "BAZ",
+            Trading212Column.NAME: "Baz Corp",
+            Trading212Column.NO_OF_SHARES: "2",
+            Trading212Column.PRICE_PER_SHARE: "10.50",
+            Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
+            Trading212Column.EXCHANGE_RATE: "1.25",
+            Trading212Column.TOTAL: total,
+            Trading212Column.CURRENCY_TOTAL: "GBP",
+            Trading212Column.TRANSACTION_FEE: "0.20",
+            Trading212Column.CURRENCY_TRANSACTION_FEE: "USD",
+            Trading212Column.TRANSACTION_ID: "buy-usd-fee",
+        },
+    )
+
+
+def test_read_trading212_transactions_foreign_fee_price_discrepancy(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Warn when the price does not add up for a foreign-fee row."""
+
+    folder = _prepare_file(tmp_path, [HEADER_2024, _make_usd_fee_buy_row("17.50")])
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        Trading212Parser().load_from_dir(folder)
+
+    assert "does not add up" in caplog.text
+
+
+def test_read_trading212_transactions_foreign_fee_price_consistent(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Stay quiet when a foreign-fee row's price adds up."""
+
+    folder = _prepare_file(tmp_path, [HEADER_2024, _make_usd_fee_buy_row("16.96")])
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        Trading212Parser().load_from_dir(folder)
+
+    assert "does not add up" not in caplog.text
+
+
+def test_read_trading212_transactions_unconvertible_fee_skips_price_check(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Skip the price check when a fee cannot be converted from the export."""
+
+    rows = [
+        HEADER_2025_BARE,
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2025-04-03 11:00:00",
+                Trading212Column.ISIN: "US0000000003",
+                Trading212Column.TICKER: "BAZ",
+                Trading212Column.NAME: "Baz Corp",
+                Trading212Column.NO_OF_SHARES: "2",
+                Trading212Column.PRICE_PER_SHARE: "10.50",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
+                Trading212Column.EXCHANGE_RATE: "1.25",
+                Trading212Column.TOTAL: "17.50",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.FRENCH_TRANSACTION_TAX: "0.60",
+                Trading212Column.CURRENCY_FRENCH_TRANSACTION_TAX: "EUR",
+                Trading212Column.TRANSACTION_ID: "buy-eur-tax",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        Trading212Parser().load_from_dir(folder)
+
+    assert "does not add up" not in caplog.text
 
 
 def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:

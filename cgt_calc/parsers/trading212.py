@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
@@ -76,47 +77,68 @@ COLUMNS: Final[list[str]] = [column.value for column in Trading212Column]
 COLUMN_SET: Final[set[str]] = {column.value for column in Trading212Column}
 LOGGER = logging.getLogger(__name__)
 
-# Fee columns: (attribute, legacy "(GBP)" column, bare column, currency
-# of the bare column). French transaction tax counts as stamp duty since
-# both are statutory transaction taxes that increase the cost basis.
-FEE_COLUMNS: Final[
-    list[tuple[str, Trading212Column | None, Trading212Column, Trading212Column]]
-] = [
-    (
-        "transaction_fee",
-        Trading212Column.TRANSACTION_FEE_GBP,
-        Trading212Column.TRANSACTION_FEE,
-        Trading212Column.CURRENCY_TRANSACTION_FEE,
+
+@dataclass(frozen=True)
+class FeeColumn:
+    """How to read one group of Trading 212 fee columns.
+
+    Broker fees with a blank currency are ambiguous so they must state
+    one (`currency_required`); statutory taxes tolerate a blank currency
+    (folded into the transaction currency) since some exports leave it
+    empty.
+    """
+
+    attribute: str
+    gbp_column: Trading212Column | None
+    bare_column: Trading212Column
+    currency_column: Trading212Column
+    currency_required: bool
+
+
+# French transaction tax counts as stamp duty since both are statutory
+# transaction taxes that increase the cost basis.
+FEE_COLUMNS: Final[list[FeeColumn]] = [
+    FeeColumn(
+        attribute="transaction_fee",
+        gbp_column=Trading212Column.TRANSACTION_FEE_GBP,
+        bare_column=Trading212Column.TRANSACTION_FEE,
+        currency_column=Trading212Column.CURRENCY_TRANSACTION_FEE,
+        currency_required=True,
     ),
-    (
-        "finra_fee",
-        Trading212Column.FINRA_FEE_GBP,
-        Trading212Column.FINRA_FEE,
-        Trading212Column.CURRENCY_FINRA_FEE,
+    FeeColumn(
+        attribute="finra_fee",
+        gbp_column=Trading212Column.FINRA_FEE_GBP,
+        bare_column=Trading212Column.FINRA_FEE,
+        currency_column=Trading212Column.CURRENCY_FINRA_FEE,
+        currency_required=True,
     ),
-    (
-        "stamp_duty",
-        Trading212Column.STAMP_DUTY_GBP,
-        Trading212Column.STAMP_DUTY,
-        Trading212Column.CURRENCY_STAMP_DUTY,
+    FeeColumn(
+        attribute="stamp_duty",
+        gbp_column=Trading212Column.STAMP_DUTY_GBP,
+        bare_column=Trading212Column.STAMP_DUTY,
+        currency_column=Trading212Column.CURRENCY_STAMP_DUTY,
+        currency_required=False,
     ),
-    (
-        "stamp_duty",
-        None,
-        Trading212Column.STAMP_DUTY_RESERVE_TAX,
-        Trading212Column.CURRENCY_STAMP_DUTY_RESERVE_TAX,
+    FeeColumn(
+        attribute="stamp_duty",
+        gbp_column=None,
+        bare_column=Trading212Column.STAMP_DUTY_RESERVE_TAX,
+        currency_column=Trading212Column.CURRENCY_STAMP_DUTY_RESERVE_TAX,
+        currency_required=False,
     ),
-    (
-        "stamp_duty",
-        None,
-        Trading212Column.FRENCH_TRANSACTION_TAX,
-        Trading212Column.CURRENCY_FRENCH_TRANSACTION_TAX,
+    FeeColumn(
+        attribute="stamp_duty",
+        gbp_column=None,
+        bare_column=Trading212Column.FRENCH_TRANSACTION_TAX,
+        currency_column=Trading212Column.CURRENCY_FRENCH_TRANSACTION_TAX,
+        currency_required=False,
     ),
-    (
-        "conversion_fee",
-        Trading212Column.CURRENCY_CONVERSION_FEE_GBP,
-        Trading212Column.CURRENCY_CONVERSION_FEE,
-        Trading212Column.CURRENCY_CURRENCY_CONVERSION_FEE,
+    FeeColumn(
+        attribute="conversion_fee",
+        gbp_column=Trading212Column.CURRENCY_CONVERSION_FEE_GBP,
+        bare_column=Trading212Column.CURRENCY_CONVERSION_FEE,
+        currency_column=Trading212Column.CURRENCY_CURRENCY_CONVERSION_FEE,
+        currency_required=True,
     ),
 ]
 
@@ -250,7 +272,7 @@ class Trading212Transaction(BrokerTransaction):
         self.conversion_fee = Decimal(0)
         foreign_fees: dict[str, Decimal] = {}
         for attr, fee_amount, fee_currency in self._read_fees(row):
-            if fee_currency == currency:
+            if fee_currency is None or fee_currency == currency:
                 setattr(self, attr, getattr(self, attr) + fee_amount)
             else:
                 foreign_fees[fee_currency] = (
@@ -273,22 +295,25 @@ class Trading212Transaction(BrokerTransaction):
         )
 
         if (
-            price is not None
-            and not foreign_fees
+            amount is not None
+            and quantity is not None
             and self.price_foreign is not None
             and (self.currency_foreign == "GBP" or self.exchange_rate is not None)
         ):
             exchange_rate = self.exchange_rate or Decimal(1)
-            calculated_price_foreign = price * exchange_rate
-            discrepancy = self.price_foreign - calculated_price_foreign
-            if abs(discrepancy) > Decimal("0.015"):
-                LOGGER.warning(
-                    "The Price per Share for this transaction after converting and "
-                    "adding in the fees does not add up to the total amount. "
-                    "You can fix the CSV by reviewing the transaction in the UI. "
-                    "Discrepancy per Share: %.3f.",
-                    float(discrepancy),
-                )
+            check_fees = self._checkable_fees(fees, foreign_fees, exchange_rate)
+            if check_fees is not None:
+                check_price = abs(amount + check_fees) / quantity
+                calculated_price_foreign = check_price * exchange_rate
+                discrepancy = self.price_foreign - calculated_price_foreign
+                if abs(discrepancy) > Decimal("0.015"):
+                    LOGGER.warning(
+                        "The Price per Share for this transaction after converting "
+                        "and adding in the fees does not add up to the total amount. "
+                        "You can fix the CSV by reviewing the transaction in the UI. "
+                        "Discrepancy per Share: %.3f.",
+                        float(discrepancy),
+                    )
 
         isin = row[Trading212Column.ISIN]
         self.transaction_id = row.get(Trading212Column.TRANSACTION_ID)
@@ -309,20 +334,48 @@ class Trading212Transaction(BrokerTransaction):
             foreign_fees=foreign_fees,
         )
 
+    def _checkable_fees(
+        self,
+        fees: Decimal,
+        foreign_fees: dict[str, Decimal],
+        exchange_rate: Decimal,
+    ) -> Decimal | None:
+        """Total fees for the price consistency check.
+
+        Foreign fees in the instrument currency are converted with the
+        export's own exchange rate. Returns None when a fee is in some
+        other currency, which the export alone cannot convert.
+        """
+        total = fees
+        for fee_currency, fee_amount in foreign_fees.items():
+            if fee_currency != self.currency_foreign:
+                return None
+            total += fee_amount / exchange_rate
+        return total
+
     @staticmethod
     def _read_fees(
         row: dict[Trading212Column, str],
-    ) -> list[tuple[str, Decimal, str]]:
-        """Read fee columns as (attribute, amount, currency) entries."""
-        entries: list[tuple[str, Decimal, str]] = []
-        for attr, gbp_column, bare_column, currency_column in FEE_COLUMNS:
-            if gbp_column is not None:
-                gbp_amount = decimal_or_none(row, gbp_column) or Decimal(0)
+    ) -> list[tuple[str, Decimal, str | None]]:
+        """Read fee columns as (attribute, amount, currency) entries.
+
+        A None currency means the export left it blank; only statutory
+        taxes tolerate that (treated as the transaction currency).
+        """
+        entries: list[tuple[str, Decimal, str | None]] = []
+        for fee_column in FEE_COLUMNS:
+            if fee_column.gbp_column is not None:
+                gbp_amount = decimal_or_none(row, fee_column.gbp_column) or Decimal(0)
                 if gbp_amount:
-                    entries.append((attr, gbp_amount, "GBP"))
-            bare_amount = decimal_or_none(row, bare_column) or Decimal(0)
+                    entries.append((fee_column.attribute, gbp_amount, "GBP"))
+            bare_amount = decimal_or_none(row, fee_column.bare_column) or Decimal(0)
             if bare_amount > 0:
-                entries.append((attr, bare_amount, row.get(currency_column) or "GBP"))
+                fee_currency = row.get(fee_column.currency_column) or None
+                if fee_currency is None and fee_column.currency_required:
+                    raise ValueError(
+                        f"Missing currency for {fee_column.bare_column.value}"
+                    )
+                entries.append((fee_column.attribute, bare_amount, fee_currency))
         return entries
 
     @override
