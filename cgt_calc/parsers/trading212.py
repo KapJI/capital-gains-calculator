@@ -76,6 +76,50 @@ COLUMNS: Final[list[str]] = [column.value for column in Trading212Column]
 COLUMN_SET: Final[set[str]] = {column.value for column in Trading212Column}
 LOGGER = logging.getLogger(__name__)
 
+# Fee columns: (attribute, legacy "(GBP)" column, bare column, currency
+# of the bare column). French transaction tax counts as stamp duty since
+# both are statutory transaction taxes that increase the cost basis.
+FEE_COLUMNS: Final[
+    list[tuple[str, Trading212Column | None, Trading212Column, Trading212Column]]
+] = [
+    (
+        "transaction_fee",
+        Trading212Column.TRANSACTION_FEE_GBP,
+        Trading212Column.TRANSACTION_FEE,
+        Trading212Column.CURRENCY_TRANSACTION_FEE,
+    ),
+    (
+        "finra_fee",
+        Trading212Column.FINRA_FEE_GBP,
+        Trading212Column.FINRA_FEE,
+        Trading212Column.CURRENCY_FINRA_FEE,
+    ),
+    (
+        "stamp_duty",
+        Trading212Column.STAMP_DUTY_GBP,
+        Trading212Column.STAMP_DUTY,
+        Trading212Column.CURRENCY_STAMP_DUTY,
+    ),
+    (
+        "stamp_duty",
+        None,
+        Trading212Column.STAMP_DUTY_RESERVE_TAX,
+        Trading212Column.CURRENCY_STAMP_DUTY_RESERVE_TAX,
+    ),
+    (
+        "stamp_duty",
+        None,
+        Trading212Column.FRENCH_TRANSACTION_TAX,
+        Trading212Column.CURRENCY_FRENCH_TRANSACTION_TAX,
+    ),
+    (
+        "conversion_fee",
+        Trading212Column.CURRENCY_CONVERSION_FEE_GBP,
+        Trading212Column.CURRENCY_CONVERSION_FEE,
+        Trading212Column.CURRENCY_CURRENCY_CONVERSION_FEE,
+    ),
+]
+
 
 def decimal_or_none(
     row: dict[Trading212Column, str], column: Trading212Column
@@ -186,103 +230,6 @@ class Trading212Transaction(BrokerTransaction):
         self.currency_foreign = row[Trading212Column.CURRENCY_PRICE_PER_SHARE]
         self.exchange_rate = decimal_or_none(row, Trading212Column.EXCHANGE_RATE)
 
-        self.transaction_fee = decimal_or_none(
-            row, Trading212Column.TRANSACTION_FEE_GBP
-        ) or Decimal(0)
-
-        transaction_fee_foreign = decimal_or_none(
-            row, Trading212Column.TRANSACTION_FEE
-        ) or Decimal(0)
-        if transaction_fee_foreign > 0:
-            if row.get(Trading212Column.CURRENCY_TRANSACTION_FEE) != "GBP":
-                raise ParsingError(
-                    file,
-                    "The transaction fee is not in GBP which is not supported yet",
-                )
-            self.transaction_fee += transaction_fee_foreign
-
-        self.finra_fee = decimal_or_none(
-            row, Trading212Column.FINRA_FEE_GBP
-        ) or Decimal(0)
-
-        finra_fee_foreign = decimal_or_none(row, Trading212Column.FINRA_FEE) or Decimal(
-            0
-        )
-        if finra_fee_foreign > 0:
-            if row.get(Trading212Column.CURRENCY_FINRA_FEE) != "GBP":
-                raise ParsingError(
-                    file,
-                    "Finra fee is not in GBP which is not supported yet",
-                )
-            self.finra_fee += finra_fee_foreign
-
-        self.stamp_duty = decimal_or_none(
-            row, Trading212Column.STAMP_DUTY_GBP
-        ) or Decimal(0)
-
-        stamp_duty_reserve_tax = decimal_or_none(
-            row, Trading212Column.STAMP_DUTY_RESERVE_TAX
-        ) or Decimal(0)
-        if stamp_duty_reserve_tax > 0:
-            stamp_duty_currency = row.get(
-                Trading212Column.CURRENCY_STAMP_DUTY_RESERVE_TAX
-            )
-            if stamp_duty_currency not in ("GBP", None, ""):
-                raise ParsingError(
-                    file,
-                    "Stamp duty reserve tax is not in GBP which is not supported yet",
-                )
-            self.stamp_duty += stamp_duty_reserve_tax
-
-        stamp_duty_foreign = decimal_or_none(
-            row, Trading212Column.STAMP_DUTY
-        ) or Decimal(0)
-        if stamp_duty_foreign > 0:
-            stamp_duty_foreign_currency = row.get(Trading212Column.CURRENCY_STAMP_DUTY)
-            if stamp_duty_foreign_currency not in ("GBP", None, ""):
-                raise ParsingError(
-                    file,
-                    "Stamp duty is not in GBP which is not supported yet",
-                )
-            self.stamp_duty += stamp_duty_foreign
-
-        # Transaction tax on French shares, treated like stamp duty.
-        french_transaction_tax = decimal_or_none(
-            row, Trading212Column.FRENCH_TRANSACTION_TAX
-        ) or Decimal(0)
-        if french_transaction_tax > 0:
-            french_transaction_tax_currency = row.get(
-                Trading212Column.CURRENCY_FRENCH_TRANSACTION_TAX
-            )
-            if french_transaction_tax_currency not in ("GBP", None, ""):
-                raise ParsingError(
-                    file,
-                    "French transaction tax is not in GBP which is not supported yet",
-                )
-            self.stamp_duty += french_transaction_tax
-
-        self.conversion_fee = decimal_or_none(
-            row, Trading212Column.CURRENCY_CONVERSION_FEE_GBP
-        ) or Decimal(0)
-
-        conversion_fee_foreign = decimal_or_none(
-            row, Trading212Column.CURRENCY_CONVERSION_FEE
-        ) or Decimal(0)
-        if conversion_fee_foreign > 0:
-            if row.get(Trading212Column.CURRENCY_CURRENCY_CONVERSION_FEE) != "GBP":
-                raise ParsingError(
-                    file,
-                    "The transaction fee is not in GBP which is not supported yet",
-                )
-            self.conversion_fee += conversion_fee_foreign
-
-        fees = (
-            self.transaction_fee
-            + self.finra_fee
-            + self.conversion_fee
-            + self.stamp_duty
-        )
-
         if Trading212Column.TOTAL in row:
             amount = decimal_or_none(row, Trading212Column.TOTAL)
             currency = row[Trading212Column.CURRENCY_TOTAL]
@@ -297,6 +244,28 @@ class Trading212Transaction(BrokerTransaction):
         ):
             amount *= -1
 
+        self.transaction_fee = Decimal(0)
+        self.finra_fee = Decimal(0)
+        self.stamp_duty = Decimal(0)
+        self.conversion_fee = Decimal(0)
+        foreign_fees: dict[str, Decimal] = {}
+        for attr, fee_amount, fee_currency in self._read_fees(row):
+            if fee_currency == currency:
+                setattr(self, attr, getattr(self, attr) + fee_amount)
+            else:
+                foreign_fees[fee_currency] = (
+                    foreign_fees.get(fee_currency, Decimal(0)) + fee_amount
+                )
+
+        fees = (
+            self.transaction_fee
+            + self.finra_fee
+            + self.conversion_fee
+            + self.stamp_duty
+        )
+
+        # With fees pending conversion the price below is provisional;
+        # the calculation engine re-derives it after folding them in.
         price = (
             abs(amount + fees) / quantity
             if amount is not None and quantity is not None
@@ -305,6 +274,7 @@ class Trading212Transaction(BrokerTransaction):
 
         if (
             price is not None
+            and not foreign_fees
             and self.price_foreign is not None
             and (self.currency_foreign == "GBP" or self.exchange_rate is not None)
         ):
@@ -336,7 +306,24 @@ class Trading212Transaction(BrokerTransaction):
             currency,
             broker,
             isin,
+            foreign_fees=foreign_fees,
         )
+
+    @staticmethod
+    def _read_fees(
+        row: dict[Trading212Column, str],
+    ) -> list[tuple[str, Decimal, str]]:
+        """Read fee columns as (attribute, amount, currency) entries."""
+        entries: list[tuple[str, Decimal, str]] = []
+        for attr, gbp_column, bare_column, currency_column in FEE_COLUMNS:
+            if gbp_column is not None:
+                gbp_amount = decimal_or_none(row, gbp_column) or Decimal(0)
+                if gbp_amount:
+                    entries.append((attr, gbp_amount, "GBP"))
+            bare_amount = decimal_or_none(row, bare_column) or Decimal(0)
+            if bare_amount > 0:
+                entries.append((attr, bare_amount, row.get(currency_column) or "GBP"))
+        return entries
 
     @override
     def __hash__(self) -> int:

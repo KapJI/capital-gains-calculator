@@ -680,7 +680,7 @@ def test_read_trading212_transactions_supports_2025_bare_columns(
 
 
 def test_read_trading212_transactions_non_gbp_french_tax(tmp_path: Path) -> None:
-    """Raise ParsingError when French transaction tax is not in GBP."""
+    """Store non-GBP French transaction tax in foreign_fees."""
 
     rows = [
         HEADER_2025_BARE,
@@ -705,12 +705,18 @@ def test_read_trading212_transactions_non_gbp_french_tax(tmp_path: Path) -> None
     ]
     folder = _prepare_file(tmp_path, rows)
 
-    with pytest.raises(ParsingError, match="French transaction tax is not in GBP"):
-        Trading212Parser().load_from_dir(folder)
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    buy = transactions[0]
+    assert isinstance(buy, Trading212Transaction)
+    assert buy.foreign_fees == {"EUR": Decimal("0.60")}
+    assert buy.stamp_duty == Decimal(0)
+    assert buy.fees == Decimal(0)
+    assert buy.amount == Decimal("-170.00")
 
 
 def test_read_trading212_transactions_non_gbp_stamp_duty(tmp_path: Path) -> None:
-    """Raise ParsingError when bare stamp duty is not in GBP."""
+    """Store non-GBP stamp duty in foreign_fees."""
 
     rows = [
         HEADER_2025_BARE,
@@ -735,8 +741,52 @@ def test_read_trading212_transactions_non_gbp_stamp_duty(tmp_path: Path) -> None
     ]
     folder = _prepare_file(tmp_path, rows)
 
-    with pytest.raises(ParsingError, match="Stamp duty is not in GBP"):
-        Trading212Parser().load_from_dir(folder)
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    buy = transactions[0]
+    assert isinstance(buy, Trading212Transaction)
+    assert buy.foreign_fees == {"EUR": Decimal("1.50")}
+    assert buy.stamp_duty == Decimal(0)
+    assert buy.fees == Decimal(0)
+
+
+def test_read_trading212_transactions_mixed_fee_currencies(tmp_path: Path) -> None:
+    """Split fees between the account currency and foreign_fees."""
+
+    rows = [
+        HEADER_2024,
+        _make_row(
+            HEADER_2024,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2024-01-01 16:10:05",
+                Trading212Column.ISIN: "US0000000003",
+                Trading212Column.TICKER: "BAZ",
+                Trading212Column.NAME: "Baz Corp",
+                Trading212Column.NO_OF_SHARES: "2",
+                Trading212Column.PRICE_PER_SHARE: "10.50",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
+                Trading212Column.EXCHANGE_RATE: "1.25",
+                Trading212Column.TOTAL: "17.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_FEE: "0.20",
+                Trading212Column.CURRENCY_TRANSACTION_FEE: "USD",
+                Trading212Column.CURRENCY_CONVERSION_FEE: "0.15",
+                Trading212Column.CURRENCY_CURRENCY_CONVERSION_FEE: "GBP",
+                Trading212Column.TRANSACTION_ID: "buy-mixed",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    buy = transactions[0]
+    assert isinstance(buy, Trading212Transaction)
+    assert buy.foreign_fees == {"USD": Decimal("0.20")}
+    assert buy.transaction_fee == Decimal(0)
+    assert buy.conversion_fee == Decimal("0.15")
+    assert buy.fees == Decimal("0.15")
 
 
 def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
