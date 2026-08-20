@@ -148,7 +148,6 @@ class DeprecatedAction(argparse.Action):
         replacements: dict[str, str] = {
             "--freetrade": "--freetrade-file",
             "--initial-prices": "--initial-prices-file",
-            "--hl": "--hl-dir",
             "--mssb": "--mssb-dir",
             "--raw": "--raw-file",
             "--report": "--output",

@@ -461,9 +461,12 @@ def _unify_schwab_paired_transactions(
 
         elif transaction.raw_action == "Full Redemption Adj":
             # Full Redemption Adj comes BEFORE Full Redemption
-            assert i + 1 < len(transactions), (
-                "Full Redemption Adj must be followed by a Full Redemption transaction"
-            )
+            if i + 1 >= len(transactions):
+                raise ParsingError(
+                    transactions_file,
+                    "Full Redemption Adj must be followed by a Full Redemption "
+                    "transaction",
+                )
             adj_transaction = transaction
             main_transaction = transactions[i + 1]
 

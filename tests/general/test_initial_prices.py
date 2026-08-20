@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from cgt_calc.exceptions import ExchangeRateMissingError, ParsingError
+from cgt_calc.exceptions import InitialPriceMissingError, ParsingError
 from cgt_calc.initial_prices import InitialPrices, InitialPricesEntry
 
 
@@ -29,7 +29,7 @@ def test_get_missing_price(tmp_path: Path) -> None:
 
     prices = InitialPrices(initial_prices_file=prices_file)
 
-    with pytest.raises(ExchangeRateMissingError):
+    with pytest.raises(InitialPriceMissingError):
         prices.get(datetime.date(2021, 3, 8), "FOO")
 
 

@@ -716,7 +716,7 @@ class SchwabTransaction(BrokerTransaction):
                 for subtransac in row[names.transac_details]:
                     subtransac = subtransac.get(OPTIONAL_DETAILS_NAME, subtransac)
 
-                    if "shares" in subtransac:
+                    if names.shares in subtransac:
                         # Schwab only provides this one as a string:
                         shares = _decimal_from_str(subtransac[names.shares])
                         subtransac_shares_sum += shares
