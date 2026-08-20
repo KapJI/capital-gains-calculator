@@ -23,6 +23,7 @@ brokers that pay daily interest.
 - [Example Report](#-example-report)
 - [Prerequisites](#-prerequisites)
 - [Installation](#%EF%B8%8F-installation)
+  - [Nix](#nix)
   - [Installing LaTeX](#installing-latex)
   - [Shell Completions](#shell-completions)
 - [Usage](#-usage)
@@ -66,6 +67,16 @@ Or run it directly without installing:
 
 ```shell
 uvx cgt-calc
+```
+
+### Nix
+
+The Nix community maintains a
+[`cgt-calc` package in nixpkgs](https://search.nixos.org/packages?query=cgt-calc), which bundles
+`pdflatex` so no separate LaTeX install is needed:
+
+```shell
+nix run nixpkgs#cgt-calc
 ```
 
 ### Installing LaTeX
