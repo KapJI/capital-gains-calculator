@@ -245,8 +245,8 @@ def test_dual_table_enriches_sell_with_investment_data() -> None:
     assert bar_sells[0].price == Decimal("104.06")
 
 
-def test_dual_table_enriches_amount_from_investment_cost() -> None:
-    """Enriched amount equals quantity * price from investment table."""
+def test_dual_table_keeps_cash_table_amount() -> None:
+    """The cash-table amount is preserved when a buy is enriched."""
     transactions = VanguardParser().load_from_file(
         INVESTMENT_DATA_DIR / "cash_investment_report.csv"
     )

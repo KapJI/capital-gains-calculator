@@ -7,7 +7,7 @@ from cgt_calc.model import ActionType, BrokerTransaction
 
 
 class ERITransaction(BrokerTransaction):
-    """Eri transaction data."""
+    """ERI transaction data."""
 
     def __init__(
         self,
@@ -16,7 +16,7 @@ class ERITransaction(BrokerTransaction):
         price: Decimal,
         currency: str,
     ) -> None:
-        """Create an Eri transaction."""
+        """Create an ERI transaction."""
 
         super().__init__(
             date=date,

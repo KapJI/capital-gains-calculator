@@ -671,7 +671,7 @@ class SchwabTransaction(BrokerTransaction):
                 date = datetime.datetime.strptime(
                     details[names.vest_date], "%m/%d/%Y"
                 ).date()
-                # Schwab only provide this one as string:
+                # Schwab only provides this one as a string:
                 price = _decimal_from_str(details[names.vest_fair_market_value])
                 if amount == Decimal(0):
                     amount = price * quantity
@@ -859,7 +859,7 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
-        """Schwab Equity Awards transactions from JSON."""
+        """Read Schwab Equity Awards transactions from JSON."""
         try:
             data = json.load(file, parse_float=Decimal, parse_int=Decimal)
         except json.decoder.JSONDecodeError as exception:

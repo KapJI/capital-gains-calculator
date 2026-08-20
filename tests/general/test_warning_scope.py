@@ -26,8 +26,8 @@ from .calc_test_data import (
 if TYPE_CHECKING:
     from cgt_calc.model import BrokerTransaction
 
-# Both the tax year computed by the tests below and an earlier one, so that a
-# transaction can be placed inside or outside the reported year.
+# The tax year under test, plus one date inside it and one in an earlier year,
+# so that a transaction can be placed inside or outside the reported year.
 TAX_YEAR = 2024
 IN_YEAR_DATE = datetime.date(2024, 6, 3)
 EARLIER_DATE = datetime.date(2022, 6, 3)

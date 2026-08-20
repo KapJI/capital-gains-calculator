@@ -1,4 +1,4 @@
-"""Additional tests for calc."""
+"""Test data for calc tests."""
 
 from __future__ import annotations
 
@@ -153,7 +153,7 @@ def split_transaction(
     symbol: str,
     quantity: float,
 ) -> BrokerTransaction:
-    """Create sell transaction."""
+    """Create stock split transaction."""
     return BrokerTransaction(
         date,
         ActionType.STOCK_SPLIT,
@@ -1286,7 +1286,7 @@ calc_basic_data = [
                 symbol="FOO",
                 quantity=2,
                 price=6,
-                amount=12,  # 2.00 gain
+                amount=12,  # 2.00 gain before B&B matching; realised result is -3.00
                 fees=0,
             ),
             split_transaction(
@@ -1299,7 +1299,7 @@ calc_basic_data = [
                 symbol="FOO",
                 quantity=2,
                 price=5,
-                amount=-10,  # 5.00 gain
+                amount=-10,  # B&B matched against the 10 May sell
                 fees=0,
             ),
         ],

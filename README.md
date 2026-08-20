@@ -7,14 +7,15 @@
 Easily calculate **UK Capital Gains Tax** from your investment transaction history.
 
 Supported sources include **Charles Schwab**, **Trading 212**, **Morgan Stanley**, **Sharesight**,
-**Hargreaves Lansdown**, **Vanguard**, **Freetrade**, or a custom **RAW** format.
+**Hargreaves Lansdown**, **Vanguard**, **Freetrade**, **Interactive Brokers**, or a custom **RAW**
+format.
 
 The tool generates a detailed **PDF report** with all calculations.
 
 All prices are automatically converted to **GBP**, and all **HMRC rules** are applied — including
 the **same-day**, **bed and breakfast**, and **Section 104 holding** rules.
 
-The PDF report includes separate **Capital Gains** and **Interest and Dividens** sections, with a
+The PDF report includes separate **Capital Gains** and **Interest and Dividends** sections, with a
 summary at the end. Interest is grouped **monthly per broker** to keep reports concise, even for
 brokers that pay daily interest.
 
@@ -121,13 +122,13 @@ Regenerate the script after upgrading to pick up new options.
   [Broker Instructions](#broker-instructions).
 - The history should include **all transactions** since you first acquired any shares owned during
   the relevant tax years.
-- If you own or have owned **funds from outside the UK** (i.e. Ireland), either them being
-  accumulating or distributing, see the [Offshore Funds](#offshore-funds).
+- If you own or have owned **funds from outside the UK** (e.g. Ireland), whether accumulating or
+  distributing, see the [Offshore Funds](#offshore-funds).
 - Once you've gathered all transactions from all your brokers, generate a report — for example, for
   tax year 2020/21:
 
 ```shell
-cgt-calc --year 2020 --schwab schwab_transactions.csv --trading212-dir trading212/ --mssb-dir mmsb_report/
+cgt-calc --year 2020 --schwab-file schwab_transactions.csv --trading212-dir trading212/ --mssb-dir mssb_report/
 ```
 
 - Run `cgt-calc --help` for all available options.
@@ -156,9 +157,9 @@ keep colours but drop emoji. Use `--verbose` for debug-level detail.
 
 You will need:
 
-- **Exported transaction history in CSV format.** Schwab only allows to download transaction for the
-  last 4 years. If you require more, you can download the history in 4-year chunks and combine them.
-  [See example](tests/schwab/data/schwab_transactions.csv).
+- **Exported transaction history in CSV format.** Schwab only allows you to download transactions
+  for the last 4 years. If you require more, you can download the history in 4-year chunks and
+  combine them. [See example](tests/schwab/data/schwab_transactions.csv).
 - **Exported transaction history from Schwab Equity Awards in CSV format.** Only applicable if you
   receive equity awards in your account (e.g. for Alphabet/Google employees). Follow the same
   procedure as in the normal transaction history but selecting your Equity Award account.
@@ -166,7 +167,7 @@ You will need:
 Example usage for the tax year 2020/21:
 
 ```shell
-cgt-calc --year 2020 --schwab schwab_transactions.csv --schwab-award schwab_awards.csv
+cgt-calc --year 2020 --schwab-file schwab_transactions.csv --schwab-award-file schwab_awards.csv
 ```
 
 _Note: For historic reasons, it is possible to provide the Equity Awards history in JSON format with
@@ -416,7 +417,8 @@ Currently bundled data:
 
 The ERI funds are indexed by ISIN and the tool provides automatic translation from ISIN to tickers,
 in case your broker doesn't supply the ISIN in their transaction history. For instructions on how to
-override ISIN translation look at the Extra options section below.
+override ISIN translation see the **ISIN to ticker translation** entry in the
+[Configuration Files and Data Sources](#configuration-files-and-data-sources) section below.
 
 There are a few **unsupported** functionalities at the moment for taxation on offshore funds:
 
@@ -427,7 +429,7 @@ There are a few **unsupported** functionalities at the moment for taxation on of
   is an optional arrangement which certain funds can support to reduce the amount of excess reported
   income in case you held the fund stocks for less than the reporting period.
 
-Check [ERI data additional instrunctions](docs/excess_reported_income_sources.md) for more
+Check [ERI data additional instructions](docs/excess_reported_income_sources.md) for more
 information.
 
 ### Configuration Files and Data Sources
@@ -480,7 +482,7 @@ a4800eca1914:/data# cgt-calc [...]
 This will create a temporary Docker container with the current directory on the host (where your
 transaction data is) mounted inside the container at `/data`. Follow the usage instructions below as
 normal, and when you're done, simply exit the shell. You will be dropped back into the shell on your
-host, with your output report pdf etc..
+host, with your output report PDF etc.
 
 You can also run a single command directly:
 

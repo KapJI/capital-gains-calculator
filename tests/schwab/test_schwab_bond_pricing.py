@@ -108,7 +108,7 @@ class TestBondPricing:
                 Decimal(0),
                 True,
             ),
-            # Valid bond sell with small accrued interest
+            # Valid bond sell with fees and no accrued interest
             (
                 Decimal("10076.95"),
                 Decimal(50000),
@@ -197,14 +197,13 @@ class TestBondPricing:
         # accrued_interest = 3967408 - 3966908 - 0 = 500
         assert adjusted_fees == Decimal("500.00")
 
-    def test_bond_small_accrued_interest_not_added(self) -> None:
-        """Test that very small accrued interest (<=0.01) is not added to fees."""
+    def test_bond_no_accrued_interest_fees_unchanged(self) -> None:
+        """Test that fees stay zero when the amount implies no accrued interest."""
         symbol = "91282CMF5"
         price = Decimal("10000.00")
         quantity = Decimal(100)
         fees = Decimal(0)
 
-        # Amount includes only $0.005 accrued interest (rounds to 0.01 threshold)
         amount = Decimal("-10000.00")  # Exactly quantity * (price/100), no accrued
 
         adjusted_price, adjusted_fees = adjust_cusip_bond_price(

@@ -99,7 +99,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
         # separated by any whitespace or optional pipes
         values_match = VALUES_REGEX.search(text)
 
-        # 3. Tolerate any characters between "Dealing charge" and its numeric value
+        # 3. Tolerate any non-digit characters between "Dealing charge" and its numeric value
         fees_match = FEES_REGEX.search(text)
 
         date_str = date_match.group(1) if date_match else None
@@ -173,7 +173,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
             Decimal(amount_str) if amount_str and amount_str != "n/a" else Decimal(0)
         )
 
-        # Live PDF lookup only when needed for buy/sell actions[cite: 1]
+        # Live PDF lookup only when needed for buy/sell actions
         if action_type in [ActionType.BUY, ActionType.SELL]:
             matching_pdfs = list(file_path.parent.glob(f"{reference}_*.pdf"))
             if matching_pdfs:

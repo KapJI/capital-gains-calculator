@@ -1,4 +1,4 @@
-"""Raw transaction parser."""
+"""ERI raw data CSV parser."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ class ERIRaw(ERITransaction):
 
 
 class ERIRawParser(BaseSingleFileParser):
-    """Parser for RAW format transaction files."""
+    """Parser for ERI (Excess Reported Income) CSV data files."""
 
     arg_name = "eri-raw"
     pretty_name = "Historical Excess Reported Income data"

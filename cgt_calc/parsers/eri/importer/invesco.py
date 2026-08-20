@@ -35,7 +35,7 @@ INVESCO_ERI_FILENAME = "invesco_eri.csv"
 
 
 class InvescoImporter(ERIImporter):
-    """Parser for Invesco ERI spreadsheets."""
+    """Parser for Invesco ERI PDF reports."""
 
     def __init__(self) -> None:
         """Create a new Invesco Parser instance."""
@@ -211,7 +211,7 @@ class InvescoImporter(ERIImporter):
 
     @override
     def parse(self, file: Path) -> ERIImporterOutput | None:
-        """Parse a Invesco ERI file."""
+        """Parse an Invesco ERI file."""
         if not REPORT_FILE_REGEX.match(file.name):
             return None
 

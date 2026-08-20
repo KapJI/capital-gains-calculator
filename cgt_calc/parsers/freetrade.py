@@ -126,7 +126,7 @@ class FreetradeTransaction(BrokerTransaction):
                 file, BROKER_NAME, row[FreetradeColumn.ACCOUNT_CURRENCY]
             )
 
-        # Convert all numbers in GBP using Freetrade rates
+        # Convert all numbers to GBP using Freetrade rates
         if action in [ActionType.SELL, ActionType.BUY]:
             quantity = _parse_decimal(row, FreetradeColumn.QUANTITY)
             price = _parse_decimal(row, FreetradeColumn.PRICE_PER_SHARE)

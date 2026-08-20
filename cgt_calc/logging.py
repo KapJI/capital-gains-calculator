@@ -66,7 +66,7 @@ class ConsoleUI:
     def _should_use_emoji(self, stream: TextIO) -> bool:
         """Return True if emoji output should be enabled for the given stream."""
 
-        # Should be available by now
+        # Emoji output requires colour support
         if not self.supports_colour(stream):
             return False
 

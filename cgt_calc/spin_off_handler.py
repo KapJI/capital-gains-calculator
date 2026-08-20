@@ -1,4 +1,4 @@
-"""Convert currencies to GBP using rate history."""
+"""Handle stock spin-offs."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ class SpinOffHandler:
         self,
         spin_offs_file: Path | None = None,
     ):
-        """Load data from spin_offs_file and optionally from initial_data."""
+        """Load data from spin_offs_file."""
         self.spin_offs_file = spin_offs_file
         self.cache = self._read_spin_offs_file()
 

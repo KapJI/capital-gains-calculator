@@ -124,19 +124,19 @@ class BaseSingleFileParser(BaseParser):
     def post_process_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:
-        """Do any required post processing after loading all the transactions in the dir."""
+        """Do any required post processing after loading the transactions."""
         return transactions
 
 
 class StandardCSVParser(BaseSingleFileParser):
-    """Parser for RAW format transaction files."""
+    """Base parser for CSV files with a fixed set of expected columns."""
 
     columns: ClassVar[set[str]]
     optional_columns: ClassVar[set[str]] = set()
 
     @classmethod
     def _validate_header(cls, header: Sequence[str], file_path: Path) -> None:
-        """Validate optional header row."""
+        """Validate the header has required columns and no unexpected ones."""
         header_set = set(header)
         missing = cls.columns - header_set
         extra = header_set - cls.columns - cls.optional_columns
@@ -162,7 +162,7 @@ class StandardCSVParser(BaseSingleFileParser):
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
-        """Read Raw transactions from file."""
+        """Read transactions from a CSV file."""
         reader = csv.DictReader(cls.pre_reading(file, file_path))
         if reader.fieldnames is None:
             raise ParsingError(

@@ -192,10 +192,10 @@ def test_disposal_price_comes_from_the_money(
     assert sale.quantity == Decimal(500)
 
 
-def test_a_commission_free_disposal_has_zero_fees(
+def test_disposal_fees_are_preserved(
     transactions: list[BrokerTransaction],
 ) -> None:
-    """Schwab writes an empty string for the fees rather than a zero."""
+    """A populated Schwab fee like "$0.02" is parsed and kept on the disposal."""
     sale = on(transactions, datetime.date(2023, 1, 23), ActionType.SELL)
 
     assert sale.fees == Decimal("0.02")

@@ -1,4 +1,4 @@
-"""Exceptions to different errors."""
+"""Exception types for the various error conditions."""
 
 from __future__ import annotations
 
@@ -100,7 +100,7 @@ class PriceMissingError(InvalidTransactionError):
 
 
 class QuantityMissingError(InvalidTransactionError):
-    """Price is missing error."""
+    """Quantity is missing error."""
 
     def __init__(self, transaction: BrokerTransaction):
         """Initialise."""
@@ -108,7 +108,7 @@ class QuantityMissingError(InvalidTransactionError):
 
 
 class QuantityNotPositiveError(InvalidTransactionError):
-    """Quantity is negative error."""
+    """Quantity is not positive error."""
 
     def __init__(self, transaction: BrokerTransaction):
         """Initialise."""

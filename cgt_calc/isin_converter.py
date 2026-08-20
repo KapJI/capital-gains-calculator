@@ -58,7 +58,7 @@ class IsinTranslationEntry:
 
 
 class IsinConverter:
-    """Converter which holds rate history."""
+    """Converter which holds ISIN-to-ticker mappings."""
 
     def __init__(
         self,
@@ -124,7 +124,7 @@ class IsinConverter:
                 self._write_isin_translation_file()
 
     def get_symbols(self, isin: str) -> set[str]:
-        """Return the symbol associated with the input ISIN or empty string."""
+        """Return the set of symbols associated with the input ISIN (may be empty)."""
         result = self.data.get(isin)
         if result is None:
             result = self._fetch_live(isin)
@@ -135,7 +135,7 @@ class IsinConverter:
         return result
 
     def get_symbol_to_isin_map(self) -> dict[str, str]:
-        """Return a map from symbols to isin's."""
+        """Return a map from symbols to ISINs."""
         symbol_to_isin = {}
         for isin, symbols in self.data.items():
             for symbol in symbols:
@@ -226,7 +226,7 @@ class IsinConverter:
         json_data = json_response[0]["data"]
 
         # https://www.openfigi.com/assets/content/OpenFIGI_Exchange_Codes-3d3e5936ba.csv
-        # Get london exchange first
+        # Get London exchange first
         result = {data["ticker"] for data in json_data if data["exchCode"] == "LN"}
 
         if result:

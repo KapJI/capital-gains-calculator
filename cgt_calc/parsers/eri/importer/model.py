@@ -15,7 +15,7 @@ class ERIImporterOutput:
 
 
 class ERIImporter:
-    """Base class for all ERI Importer."""
+    """Base class for all ERI importers."""
 
     def __init__(self, name: str):
         """Create a new instance with the given name."""
