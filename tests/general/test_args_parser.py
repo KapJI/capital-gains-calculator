@@ -64,6 +64,24 @@ def test_print_completion_zsh_completes_paths(
     assert '"--trading212[' not in output
 
 
+def test_print_completion_zsh_covers_all_path_options(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that every PATH/DIR option in the zsh script completes paths."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--print-completion", "zsh"])
+
+    output = capsys.readouterr().out
+    missing = [
+        line.strip()
+        for line in output.splitlines()
+        if (":PATH:" in line or ":DIR:" in line) and "_files" not in line
+    ]
+    assert not missing, f"options without a path completer: {missing}"
+
+
 def test_output_and_no_report_mutually_exclusive() -> None:
     """Test that --output and --no-report are mutually exclusive."""
     parser = create_parser()
