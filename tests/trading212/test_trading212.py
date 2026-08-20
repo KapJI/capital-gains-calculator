@@ -466,6 +466,279 @@ def test_read_trading212_transactions_supports_2026_export(tmp_path: Path) -> No
     assert cashback.notes == "Cashback"
 
 
+HEADER_2025_BARE = [
+    "Action",
+    "Time",
+    "ISIN",
+    "Ticker",
+    "Name",
+    "Notes",
+    "ID",
+    "No. of shares",
+    "Price / share",
+    "Currency (Price / share)",
+    "Exchange rate",
+    "Result",
+    "Currency (Result)",
+    "Total",
+    "Currency (Total)",
+    "Withholding tax",
+    "Currency (Withholding tax)",
+    "Charge amount",
+    "Currency (Charge amount)",
+    "Deposit fee",
+    "Currency (Deposit fee)",
+    "Stamp duty",
+    "Currency (Stamp duty)",
+    "Stamp duty reserve tax",
+    "Currency (Stamp duty reserve tax)",
+    "Currency conversion fee",
+    "Currency (Currency conversion fee)",
+    "French transaction tax",
+    "Currency (French transaction tax)",
+]
+
+
+def test_read_trading212_transactions_supports_2025_bare_columns(
+    tmp_path: Path,
+) -> None:
+    """Parse exports with bare tax columns and 2025 action labels."""
+
+    rows = [
+        HEADER_2025_BARE,
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Deposit",
+                Trading212Column.TIME: "2025-04-01 08:00:00",
+                Trading212Column.TOTAL: "1000.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.DEPOSIT_FEE: "0.70",
+                Trading212Column.CURRENCY_DEPOSIT_FEE: "GBP",
+                Trading212Column.TRANSACTION_ID: "deposit-1",
+            },
+        ),
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2025-04-02 10:30:00",
+                Trading212Column.ISIN: "GB0000000001",
+                Trading212Column.TICKER: "WID",
+                Trading212Column.NAME: "Widget plc",
+                Trading212Column.NO_OF_SHARES: "50",
+                Trading212Column.PRICE_PER_SHARE: "6.00",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+                Trading212Column.TOTAL: "301.50",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.STAMP_DUTY: "1.50",
+                Trading212Column.CURRENCY_STAMP_DUTY: "GBP",
+                Trading212Column.TRANSACTION_ID: "buy-1",
+            },
+        ),
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2025-04-03 11:00:00",
+                Trading212Column.ISIN: "FR0000000002",
+                Trading212Column.TICKER: "FRA",
+                Trading212Column.NAME: "Frenchie SA",
+                Trading212Column.NO_OF_SHARES: "10",
+                Trading212Column.PRICE_PER_SHARE: "20.00",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "EUR",
+                Trading212Column.EXCHANGE_RATE: "1.25",
+                Trading212Column.TOTAL: "161.36",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.FRENCH_TRANSACTION_TAX: "0.51",
+                Trading212Column.CURRENCY_FRENCH_TRANSACTION_TAX: "GBP",
+                Trading212Column.CURRENCY_CONVERSION_FEE: "0.85",
+                Trading212Column.CURRENCY_CURRENCY_CONVERSION_FEE: "GBP",
+                Trading212Column.TRANSACTION_ID: "buy-2",
+            },
+        ),
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Card credit",
+                Trading212Column.TIME: "2025-04-04 09:00:00",
+                Trading212Column.TOTAL: "25.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "card-credit-1",
+            },
+        ),
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Dividend (Interest)",
+                Trading212Column.TIME: "2025-04-05 12:00:00",
+                Trading212Column.ISIN: "IE0000000003",
+                Trading212Column.TICKER: "BOND",
+                Trading212Column.NAME: "Bond Fund",
+                Trading212Column.TOTAL: "0.08",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "interest-1",
+            },
+        ),
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Dividend (Property income distribution)",
+                Trading212Column.TIME: "2025-04-06 12:00:00",
+                Trading212Column.ISIN: "GB0000000004",
+                Trading212Column.TICKER: "REIT",
+                Trading212Column.NAME: "Property Trust",
+                Trading212Column.TOTAL: "3.20",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "pid-1",
+            },
+        ),
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Dividend adjustment",
+                Trading212Column.TIME: "2025-04-07 12:00:00",
+                Trading212Column.ISIN: "GB0000000004",
+                Trading212Column.TICKER: "REIT",
+                Trading212Column.NAME: "Property Trust",
+                Trading212Column.TOTAL: "-0.02",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "div-adj-1",
+            },
+        ),
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Spin off",
+                Trading212Column.TIME: "2025-04-08 06:00:00",
+                Trading212Column.ISIN: "US0000000005",
+                Trading212Column.TICKER: "NEWCO",
+                Trading212Column.NAME: "NewCo Inc",
+                Trading212Column.NO_OF_SHARES: "5",
+                Trading212Column.TOTAL: "0.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "spin-off-1",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert [transaction.action for transaction in transactions] == [
+        ActionType.TRANSFER,
+        ActionType.BUY,
+        ActionType.BUY,
+        ActionType.TRANSFER,
+        ActionType.INTEREST,
+        ActionType.DIVIDEND,
+        ActionType.DIVIDEND,
+        ActionType.SPIN_OFF,
+    ]
+
+    deposit = transactions[0]
+    assert deposit.action == ActionType.TRANSFER
+    assert deposit.amount == Decimal("1000.00")
+
+    buy = transactions[1]
+    assert isinstance(buy, Trading212Transaction)
+    assert buy.amount == Decimal("-301.50")
+    assert buy.stamp_duty == Decimal("1.50")
+    assert buy.fees == Decimal("1.50")
+    assert buy.price == Decimal("6.00")
+
+    buy_french = transactions[2]
+    assert isinstance(buy_french, Trading212Transaction)
+    assert buy_french.amount == Decimal("-161.36")
+    assert buy_french.stamp_duty == Decimal("0.51")
+    assert buy_french.conversion_fee == Decimal("0.85")
+    assert buy_french.fees == Decimal("1.36")
+    assert buy_french.price == Decimal("16.00")
+
+    card_credit = transactions[3]
+    assert card_credit.action == ActionType.TRANSFER
+    assert card_credit.amount == Decimal("25.00")
+
+    interest = transactions[4]
+    assert interest.action == ActionType.INTEREST
+    assert interest.amount == Decimal("0.08")
+    assert interest.symbol == "BOND"
+
+    pid = transactions[5]
+    assert pid.action == ActionType.DIVIDEND
+    assert pid.amount == Decimal("3.20")
+    assert pid.symbol == "REIT"
+
+    dividend_adjustment = transactions[6]
+    assert dividend_adjustment.action == ActionType.DIVIDEND
+    assert dividend_adjustment.amount == Decimal("-0.02")
+
+    spin_off = transactions[7]
+    assert spin_off.action == ActionType.SPIN_OFF
+    assert spin_off.symbol == "NEWCO"
+    assert spin_off.quantity == Decimal(5)
+
+
+def test_read_trading212_transactions_non_gbp_french_tax(tmp_path: Path) -> None:
+    """Raise ParsingError when French transaction tax is not in GBP."""
+
+    rows = [
+        HEADER_2025_BARE,
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2025-04-03 11:00:00",
+                Trading212Column.ISIN: "FR0000000002",
+                Trading212Column.TICKER: "FRA",
+                Trading212Column.NAME: "Frenchie SA",
+                Trading212Column.NO_OF_SHARES: "10",
+                Trading212Column.PRICE_PER_SHARE: "20.00",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "EUR",
+                Trading212Column.TOTAL: "170.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.FRENCH_TRANSACTION_TAX: "0.60",
+                Trading212Column.CURRENCY_FRENCH_TRANSACTION_TAX: "EUR",
+                Trading212Column.TRANSACTION_ID: "buy-fr-tax",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    with pytest.raises(ParsingError, match="French transaction tax is not in GBP"):
+        Trading212Parser().load_from_dir(folder)
+
+
+def test_read_trading212_transactions_non_gbp_stamp_duty(tmp_path: Path) -> None:
+    """Raise ParsingError when bare stamp duty is not in GBP."""
+
+    rows = [
+        HEADER_2025_BARE,
+        _make_row(
+            HEADER_2025_BARE,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2025-04-02 10:30:00",
+                Trading212Column.ISIN: "GB0000000001",
+                Trading212Column.TICKER: "WID",
+                Trading212Column.NAME: "Widget plc",
+                Trading212Column.NO_OF_SHARES: "50",
+                Trading212Column.PRICE_PER_SHARE: "6.00",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+                Trading212Column.TOTAL: "301.50",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.STAMP_DUTY: "1.50",
+                Trading212Column.CURRENCY_STAMP_DUTY: "EUR",
+                Trading212Column.TRANSACTION_ID: "buy-1",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    with pytest.raises(ParsingError, match="Stamp duty is not in GBP"):
+        Trading212Parser().load_from_dir(folder)
+
+
 def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
     """Raise ParsingError when a decimal value is invalid."""
 
