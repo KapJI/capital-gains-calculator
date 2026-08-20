@@ -123,7 +123,7 @@ def _parse_decimal(row: dict[str, str], column: str) -> Decimal | None:
 
 
 class InteractiveBrokersTransaction(BrokerTransaction):
-    """Interactive Brokers Transaction parser."""
+    """Represents a single Interactive Brokers transaction."""
 
     def __init__(
         self,

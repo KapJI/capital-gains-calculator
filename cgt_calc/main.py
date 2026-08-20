@@ -78,7 +78,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def get_amount_or_fail(transaction: BrokerTransaction) -> Decimal:
-    """Return the transaction amount or throw an error."""
+    """Return the transaction amount or raise an error if missing."""
     amount = transaction.amount
     if amount is None:
         raise AmountMissingError(transaction)
@@ -86,7 +86,7 @@ def get_amount_or_fail(transaction: BrokerTransaction) -> Decimal:
 
 
 def get_symbol_or_fail(transaction: BrokerTransaction) -> str:
-    """Return the transaction symbol or throw an error."""
+    """Return the transaction symbol or raise an error if missing."""
     symbol = transaction.symbol
     if symbol is None:
         raise SymbolMissingError(transaction)
@@ -94,7 +94,7 @@ def get_symbol_or_fail(transaction: BrokerTransaction) -> str:
 
 
 def get_quantity_or_fail(transaction: BrokerTransaction) -> Decimal:
-    """Return the transaction quantity or throw an error."""
+    """Return the transaction quantity or raise an error if missing."""
     quantity = transaction.quantity
     if quantity is None:
         raise QuantityMissingError(transaction)
@@ -230,7 +230,7 @@ class CapitalGainsCalculator:
         self,
         transaction: BrokerTransaction,
     ) -> None:
-        """Add new acquisition to the given list."""
+        """Record an acquisition in the portfolio and the acquisition list."""
         symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
         price = transaction.price
@@ -281,7 +281,7 @@ class CapitalGainsCalculator:
     ) -> tuple[Decimal, Decimal]:
         """Handle spin off transaction.
 
-        Doc basing on SOLV spin off out of MMM.
+        Documentation based on the SOLV spin-off from MMM.
 
         # 1. Determine the Cost Basis (Acquisition Cost) of the SOLV Shares
         In the UK, the cost basis (or acquisition cost) of the new SOLV shares
@@ -364,7 +364,7 @@ class CapitalGainsCalculator:
         self,
         transaction: BrokerTransaction,
     ) -> None:
-        """Add new disposal to the given list."""
+        """Record a disposal in the portfolio and the disposal list."""
         symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
         if symbol not in self.portfolio:
@@ -1286,7 +1286,7 @@ class CapitalGainsCalculator:
         return DIVIDEND_CURRENCY_TO_COUNTRY.get(currency)
 
     def process_dividends(self) -> None:
-        """Process all dividends events and taxes.
+        """Process all dividend events and taxes.
 
         It updates the interest total for the year if needed.
         """

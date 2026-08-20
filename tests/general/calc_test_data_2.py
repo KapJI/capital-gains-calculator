@@ -1,4 +1,4 @@
-"""Additional tests for calc."""
+"""Additional test data for calc tests."""
 
 from __future__ import annotations
 

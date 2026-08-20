@@ -1,6 +1,6 @@
 """Morgan Stanley parser.
 
-Note, that I only had access to an Alphabet export. I have no idea how it looks like
+Note: I only had access to an Alphabet export. I have no idea what it looks like
 for another company, or for a full profile.
 """
 
@@ -115,7 +115,7 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
     @classmethod
     @override
     def pre_reading(cls, file: TextIO, file_path: Path) -> Iterable[str]:
-        """Do any preprocessing of the file before parsing the csv."""
+        """Select the expected column set based on the report filename."""
         if file_path.name == WITHDRAWALS_REPORT_FILENAME:
             cls.columns = set(COLUMNS_WITHDRAWAL)
         else:

@@ -53,7 +53,7 @@ def test_decimal_from_number_or_str_empty_string() -> None:
 
 
 def test_decimal_from_number_or_str_float_custom_suffix() -> None:
-    """Test _decimal_from_number_or_str_default_suffix() on float.
+    """Test _decimal_from_number_or_str() on float.
 
     With a custom suffix.
     """

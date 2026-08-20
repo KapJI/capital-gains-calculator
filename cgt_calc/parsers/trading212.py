@@ -80,7 +80,10 @@ LOGGER = logging.getLogger(__name__)
 def decimal_or_none(
     row: dict[Trading212Column, str], column: Trading212Column
 ) -> Decimal | None:
-    """Convert a column value to Decimal or return None when blank."""
+    """Convert a column value to Decimal.
+
+    Return None when the value is blank, missing, or "Not available".
+    """
 
     value = row.get(column)
     if value is None or value in ("", "Not available"):
@@ -154,7 +157,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
 
 
 class Trading212Transaction(BrokerTransaction):
-    """Represent single Trading 212 transaction."""
+    """Represents a single Trading 212 transaction."""
 
     def __init__(self, header: list[str], row_raw: list[str], file: Path) -> None:
         """Create transaction from CSV row."""

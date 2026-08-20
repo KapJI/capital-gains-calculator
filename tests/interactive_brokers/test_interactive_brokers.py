@@ -48,7 +48,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
     )
 
     def test_single_buy(self, tmp_path: Path) -> None:
-        """Test that bond buy price is divided by 100 for CUSIP symbols."""
+        """Test parsing a single buy transaction."""
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             self.base_header

@@ -172,7 +172,7 @@ class CalculationType(Enum):
 
 @dataclass
 class BrokerTransaction:
-    """Broken transaction data."""
+    """Broker transaction data."""
 
     date: datetime.date
     action: ActionType
@@ -221,7 +221,7 @@ class Dividend:
 
     @property
     def tax_treaty_amount(self) -> Decimal:
-        """As title."""
+        """Dividend amount reclaimable under the tax treaty (0 if none)."""
         if self.tax_treaty is None:
             return Decimal(0)
         return self.amount * self.tax_treaty.treaty_rate
@@ -435,7 +435,10 @@ class CapitalGainsReport:
         return max(Decimal(0), self.total_gain() - self.capital_gain_allowance)
 
     def total_eri_amount(self, *, is_interest: bool) -> Decimal:
-        """Total dividends amount just from ERI."""
+        """Return the total ERI distribution amount.
+
+        Covers interest funds if is_interest is True, otherwise dividend funds.
+        """
         total = Decimal(0)
         for item in self._filter_calculation_log(
             self.calculation_log_yields, RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION
@@ -482,8 +485,8 @@ class CapitalGainsReport:
 
     @override
     def __repr__(self) -> str:
-        """Return string representation."""
-        return f"<CalculationEntry: {self!s}>"
+        """Return print representation."""
+        return f"<CapitalGainsReport: {self!s}>"
 
     @override
     def __str__(self) -> str:

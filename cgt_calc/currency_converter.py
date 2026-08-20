@@ -239,7 +239,7 @@ class CurrencyConverter:
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
 
     def currency_to_gbp_rate(self, currency: str, date: datetime.date) -> Decimal:
-        """Get GBP/currency rate at given date."""
+        """Get the number of currency units per GBP at the given date."""
         assert is_date(date)
         # offshore (Honk Kong) Chinese Yuan handling
         if currency == "CNH":
@@ -263,9 +263,10 @@ class CurrencyConverter:
 
 
 class TestCurrencyConverter(CurrencyConverter):
-    """Variant of CurrencyConverter that append single currency entry on the input exchange rate files based on usage.
+    """Variant of CurrencyConverter that appends each used rate to the input exchange rate file.
 
-    Created when RuntimeMode is TEST, this is meant to be used to populated test fixture data when adding new ones.
+    Created when RuntimeMode is TEST; this is meant to be used to populate test fixture data
+    when adding new tests.
     """
 
     def __init__(
@@ -282,10 +283,11 @@ class TestCurrencyConverter(CurrencyConverter):
 
     @override
     def currency_to_gbp_rate(self, currency: str, date: datetime.date) -> Decimal:
-        """Get GBP/currency rate at given date.
+        """Get the number of currency units per GBP at the given date.
 
-        When the value is missing from the view of the test_file_cache append that value to the exchange rate CSV file.
-        This allow us to record the rates that are being used in tests.
+        When the value is missing from the view of the test_file_cache, append it
+        to the exchange rate CSV file.
+        This allows us to record the rates that are being used in tests.
         """
         result = super().currency_to_gbp_rate(currency, date)
         if date not in self._test_file_cache:

@@ -1,4 +1,4 @@
-"""Additional tests for calc."""
+"""Test data for calc tests."""
 
 from __future__ import annotations
 
@@ -153,7 +153,7 @@ def split_transaction(
     symbol: str,
     quantity: float,
 ) -> BrokerTransaction:
-    """Create sell transaction."""
+    """Create stock split transaction."""
     return BrokerTransaction(
         date,
         ActionType.STOCK_SPLIT,

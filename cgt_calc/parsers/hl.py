@@ -173,7 +173,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
             Decimal(amount_str) if amount_str and amount_str != "n/a" else Decimal(0)
         )
 
-        # Live PDF lookup only when needed for buy/sell actions[cite: 1]
+        # Live PDF lookup only when needed for buy/sell actions
         if action_type in [ActionType.BUY, ActionType.SELL]:
             matching_pdfs = list(file_path.parent.glob(f"{reference}_*.pdf"))
             if matching_pdfs:

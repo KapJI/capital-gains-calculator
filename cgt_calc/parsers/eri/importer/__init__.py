@@ -1,5 +1,6 @@
 """Import ERI files into cgt_calc resources.
 
-ERI files can be various formats from the various brokers.
-This module provides importers for the various format in the RAW format used for parsing.
+ERI files can be in various formats from the various brokers.
+This module provides importers that convert those formats into the RAW format
+used for parsing.
 """

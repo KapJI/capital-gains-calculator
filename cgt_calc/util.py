@@ -36,7 +36,7 @@ def strip_zeros(value: Decimal) -> str:
 
 
 def luhn_check_digit(payload: str) -> int:
-    """Return the check digit given a string of numbers given the Luhn Algorithm.
+    """Return the check digit for a string of digits using the Luhn algorithm.
 
     Reference: https://en.wikipedia.org/wiki/Luhn_algorithm
     """
@@ -77,11 +77,11 @@ def is_isin(isin: str) -> bool:
 def approx_equal(
     val_a: Decimal, val_b: Decimal, approx_quantity: Decimal = Decimal("0.01")
 ) -> bool:
-    """Calculate if two decimal are the same within approx_quantity input.
+    """Check if two decimals are equal within approx_quantity.
 
     It is not clear how Schwab or other brokers round the dollar value,
-    so assume the values are equal if they are within approx_quantity input.
-    Defaults to 0.01
+    so assume the values are equal if they are within approx_quantity.
+    Defaults to 0.01.
     """
     return abs(val_a - val_b) < approx_quantity
 

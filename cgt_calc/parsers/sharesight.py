@@ -171,7 +171,7 @@ class SharesightParser(BaseDirParser):
     def post_process_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:
-        """Sort."""
+        """Sort transactions by date."""
         transactions.sort(key=lambda t: t.date)
         return transactions
 

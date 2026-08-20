@@ -15,7 +15,7 @@ from .exceptions import MarketDataMissingError
 
 
 class CurrentPriceFetcher:
-    """Converter which holds rate history."""
+    """Fetches current and historical market prices and converts them to GBP."""
 
     def __init__(
         self,
@@ -23,7 +23,7 @@ class CurrentPriceFetcher:
         current_prices_data: dict[str, Decimal | None] | None = None,
         historical_prices_data: dict[str, dict[datetime.date, Decimal]] | None = None,
     ):
-        """Load data from exchange_rates_file and optionally from initial_data."""
+        """Store the converter and optional pre-seeded price data."""
         self.current_prices_data = current_prices_data
         self.historical_prices_data = historical_prices_data or {}
         self.converter = converter
