@@ -264,6 +264,8 @@ def test_split_history_demands_a_price_floor_it_can_use() -> None:
         ("Buy", ActionType.BUY),
         ("Sale", ActionType.SELL),
         ("Sell", ActionType.SELL),
+        ("Forced Quick Sell", ActionType.SELL),
+        ("Forced Disbursement", ActionType.TRANSFER),
         ("Deposit", ActionType.STOCK_ACTIVITY),
         ("Qualified Dividend", ActionType.DIVIDEND),
         ("Cash Dividend", ActionType.DIVIDEND),
@@ -340,6 +342,25 @@ def test_unknown_symbol_warns(caplog: pytest.LogCaptureFixture) -> None:
     assert "check the share counts" in caplog.text
     assert transactions[0].action == ActionType.DIVIDEND
     assert transactions[0].amount == Decimal(10)
+
+
+def test_forced_disbursement_parses_as_transfer() -> None:
+    """Parse the Forced Disbursement sample from issue #488."""
+    content = (
+        '{"Transactions": [{"Date": "03/31/2015", "Action": "Forced Disbursement",'
+        ' "Symbol": "GOOG", "Quantity": null, "Description": "Debit",'
+        ' "FeesAndCommissions": null, "DisbursementElection": null,'
+        ' "Amount": "-$2,490.13", "TransactionDetails": []}]}'
+    )
+
+    transactions = _read_json(content)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action == ActionType.TRANSFER
+    assert transaction.amount == Decimal("-2490.13")
+    assert transaction.date == datetime.date(2015, 3, 31)
+    assert transaction.quantity is None or transaction.quantity == 0
 
 
 def test_unimplemented_action_raises() -> None:
