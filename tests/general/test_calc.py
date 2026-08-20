@@ -19,7 +19,7 @@ from cgt_calc.exceptions import CalculationError, InvalidTransactionError
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator, main
-from cgt_calc.model import ActionType, BrokerTransaction, RuleType
+from cgt_calc.model import ActionType, BrokerTransaction, CapitalGainsReport, RuleType
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.spin_off_handler import SpinOffHandler
@@ -38,7 +38,7 @@ from .calc_test_data_2 import calc_basic_data_2
 if TYPE_CHECKING:
     import argparse
 
-    from cgt_calc.model import CalculationLog, CapitalGainsReport
+    from cgt_calc.model import CalculationLog
 
 
 # USD to GBP exchange rate used in tests (creates repeating decimals)
@@ -1066,3 +1066,74 @@ def test_negative_balance_error_shows_only_relevant_transactions() -> None:
     assert message.count("Balance after transaction=") == 3
     assert "currency='EUR'" not in message
     assert "Split of FOO" not in message
+
+
+def test_custom_period_narrows_reporting_window() -> None:
+    """Only dates inside the custom period count towards the report."""
+    currency_converter = CurrencyConverter(None, {})
+    calculator = CapitalGainsCalculator(
+        2024,
+        currency_converter,
+        IsinConverter(),
+        CurrentPriceFetcher(currency_converter, {}, {}),
+        SpinOffHandler(),
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+        period_start=datetime.date(2024, 4, 6),
+        period_end=datetime.date(2024, 10, 29),
+    )
+
+    assert calculator.date_in_tax_year(datetime.date(2024, 10, 29))
+    assert not calculator.date_in_tax_year(datetime.date(2024, 10, 30))
+    assert calculator.tax_year_end_date == datetime.date(2024, 10, 29)
+
+
+def test_report_labels_custom_period() -> None:
+    """Report headings and title show the custom period when set."""
+    report = CapitalGainsReport(
+        2024,
+        [],
+        0,
+        Decimal(0),
+        Decimal(0),
+        Decimal(0),
+        Decimal(0),
+        None,
+        None,
+        {},
+        {},
+        Decimal(0),
+        Decimal(0),
+        Decimal(0),
+        show_unrealized_gains=False,
+        period_start=datetime.date(2024, 4, 6),
+        period_end=datetime.date(2024, 10, 29),
+    )
+
+    assert report.title_period == "2024-04-06 to 2024-10-29"
+    assert "period 2024-04-06 to 2024-10-29" in str(report)
+
+
+def test_report_labels_full_tax_year() -> None:
+    """Report headings keep the tax year wording without a custom period."""
+    report = CapitalGainsReport(
+        2024,
+        [],
+        0,
+        Decimal(0),
+        Decimal(0),
+        Decimal(0),
+        Decimal(0),
+        None,
+        None,
+        {},
+        {},
+        Decimal(0),
+        Decimal(0),
+        Decimal(0),
+        show_unrealized_gains=False,
+    )
+
+    assert report.title_period == "2024-25"
+    assert "Tax summary for 2024/2025" in str(report)

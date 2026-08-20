@@ -388,6 +388,22 @@ class CapitalGainsReport:
     total_foreign_interest: Decimal
     total_interest_tax: Decimal
     show_unrealized_gains: bool
+    # Custom reporting period within the tax year, if one was requested.
+    period_start: datetime.date | None = None
+    period_end: datetime.date | None = None
+
+    def period_label(self) -> str | None:
+        """Label for a custom reporting period, None for a full tax year."""
+        if self.period_start is None or self.period_end is None:
+            return None
+        return f"period {self.period_start} to {self.period_end}"
+
+    @property
+    def title_period(self) -> str:
+        """Reporting period rendered in the PDF report title."""
+        if self.period_start is not None and self.period_end is not None:
+            return f"{self.period_start} to {self.period_end}"
+        return f"{self.tax_year}-{(self.tax_year + 1) % 100:02d}"
 
     def _filter_calculation_log(
         self, calculation_log: CalculationLog, rule_type: RuleType
@@ -473,9 +489,12 @@ class CapitalGainsReport:
     def __str__(self) -> str:
         """Return string representation."""
         bul = bullet(sys.stdout)
+        portfolio_label = (
+            self.period_label() or f"{self.tax_year}/{self.tax_year + 1} tax year"
+        )
         out = (
             style_text(
-                f"Portfolio at the end of {self.tax_year}/{self.tax_year + 1} tax year",
+                f"Portfolio at the end of {portfolio_label}",
                 colour=Style.BRIGHT,
                 emoji="📈",
             )
@@ -498,7 +517,8 @@ class CapitalGainsReport:
         out += "\n"
         out += (
             style_text(
-                f"Tax summary for {self.tax_year}/{self.tax_year + 1}",
+                "Tax summary for "
+                f"{self.period_label() or f'{self.tax_year}/{self.tax_year + 1}'}",
                 colour=Style.BRIGHT,
                 emoji="🧮",
             )

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from colorama import Fore, Style
 
 from . import render_latex
-from .args_parser import create_parser
+from .args_parser import create_parser, resolve_reporting_period
 from .const import (
     BALANCE_CHECK_CONTEXT_ROWS,
     BED_AND_BREAKFAST_DAYS,
@@ -162,12 +162,20 @@ class CapitalGainsCalculator:
         *,
         balance_check: bool = True,
         calc_unrealized_gains: bool = False,
+        period_start: datetime.date | None = None,
+        period_end: datetime.date | None = None,
     ):
-        """Create calculator object."""
-        self.tax_year = tax_year
+        """Create calculator object.
 
-        self.tax_year_start_date = get_tax_year_start(tax_year)
-        self.tax_year_end_date = get_tax_year_end(tax_year)
+        period_start/period_end narrow the reporting window within the
+        tax year, e.g. for the HMRC 2024/25 CGT adjustment calculation.
+        """
+        self.tax_year = tax_year
+        self.period_start = period_start
+        self.period_end = period_end
+
+        self.tax_year_start_date = period_start or get_tax_year_start(tax_year)
+        self.tax_year_end_date = period_end or get_tax_year_end(tax_year)
 
         self.currency_converter = currency_converter
         self.isin_converter = isin_converter
@@ -1540,6 +1548,8 @@ class CapitalGainsCalculator:
             round_decimal(self.total_foreign_interest, 2),
             round_decimal(self.total_interest_tax, 2),
             show_unrealized_gains=self.calc_unrealized_gains,
+            period_start=self.period_start,
+            period_end=self.period_end,
         )
 
     def make_portfolio_entry(
@@ -1587,6 +1597,8 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         args.interest_fund_tickers,
         balance_check=args.balance_check,
         calc_unrealized_gains=args.calc_unrealized_gains,
+        period_start=args.period_from,
+        period_end=args.period_to,
     )
     # First pass converts broker transactions to HMRC transactions.
     # This means applying same day rule and collapsing all transactions with
@@ -1631,6 +1643,7 @@ def main() -> int:
         return 0
 
     args = parser.parse_args()
+    resolve_reporting_period(parser, args)
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
