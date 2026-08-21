@@ -1082,6 +1082,31 @@ def test_transfer_to_spouse_same_day_as_sale_is_rejected(
     assert str(acquisition_day) in message
 
 
+def test_same_day_sale_and_transfer_after_a_split_is_allowed() -> None:
+    """A split is not an acquisition a sale and a transfer can contend over.
+
+    It hands over shares for free, so the B&B rule skips it and neither
+    disposal can be identified against it. Both fall through to the pool.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    event_day = datetime.date(2024, 6, 10)
+    split_day = datetime.date(2024, 6, 15)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, "GBP"),
+            transfer_to_spouse_transaction(event_day, "FOO", 2),
+            split_transaction(split_day, "FOO", 5),
+        ],
+    )
+
+    entries = report.calculation_log[event_day]["transfer-to-spouse$FOO"]
+    # Straight out of the pool at the £10 average.
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(20)
+
+
 def test_transfer_to_spouse_same_day_as_sale_from_pool_is_allowed() -> None:
     """A sale and a transfer both drawing on the pool alone are unambiguous.
 

@@ -1346,16 +1346,25 @@ class CapitalGainsCalculator:
         when there is nothing to argue over.
         """
         dates = []
-        if has_key(self.acquisition_list, date_index, symbol):
-            dates.append(date_index)
         effective_symbol = symbol
+
+        def is_real_acquisition(day: datetime.date, ticker: str) -> bool:
+            # Splits hand over shares for free and the B&B rule skips them, so
+            # neither the sale nor the transfer can be identified against one.
+            return (
+                has_key(self.acquisition_list, day, ticker)
+                and self.acquisition_list[day][ticker].amount != 0
+            )
+
+        if is_real_acquisition(date_index, symbol):
+            dates.append(date_index)
         for i in range(BED_AND_BREAKFAST_DAYS):
             search_index = date_index + datetime.timedelta(days=i + 1)
             # HMRC treats renames as the same security for B&B purposes.
             effective_symbol = self.rename_list.get(search_index, {}).get(
                 effective_symbol, effective_symbol
             )
-            if has_key(self.acquisition_list, search_index, effective_symbol):
+            if is_real_acquisition(search_index, effective_symbol):
                 dates.append(search_index)
         return dates
 
