@@ -15,4 +15,5 @@ env
 dist
 out/
 site/
+.wrangler/
 exchange_rates.csv

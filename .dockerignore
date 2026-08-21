@@ -6,6 +6,7 @@
 .pytest_cache
 .ruff_cache
 .venv
+.wrangler
 __pycache__
 *.log
 coverage.xml
