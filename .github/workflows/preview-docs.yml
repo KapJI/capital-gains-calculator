@@ -16,7 +16,6 @@ env:
   GH_REPO: ${{ github.repository }}
   HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
   COMMENT_MARKER: "<!-- cgt-calc-docs-preview -->"
-  STATUS_CONTEXT: docs/preview
 
 jobs:
   preview:
@@ -29,8 +28,8 @@ jobs:
       name: docs-preview
     permissions:
       actions: read
+      checks: write
       pull-requests: write
-      statuses: write
     steps:
       - name: Resolve PR
         id: pr
@@ -50,11 +49,14 @@ jobs:
             echo "base_sha=$(jq -r .base_sha <<<"${PR}")"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Set status pending
+      - name: Start check run
+        id: check
         if: steps.pr.outputs.number
         run: |
-          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
-            -f state=pending -f context="${STATUS_CONTEXT}" -f description="Building docs preview…"
+          ID=$(jq -n --arg sha "${HEAD_SHA}" --arg started "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{name: "Docs preview", head_sha: $sha, status: "in_progress", started_at: $started, output: {title: "Deploying preview", summary: "Building the docs preview."}}' |
+            gh api --method POST "repos/${GH_REPO}/check-runs" --input - --jq '.id')
+          echo "id=${ID}" >> "${GITHUB_OUTPUT}"
 
       - name: Download PR site
         if: steps.pr.outputs.number
@@ -108,24 +110,6 @@ jobs:
             echo "unchanged=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Report no change
-        if: steps.pr.outputs.number && steps.compare.outputs.unchanged == 'true'
-        env:
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
-        run: |
-          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
-            -f state=success -f context="${STATUS_CONTEXT}" \
-            -f description="No change — rendered docs match main" \
-            -f target_url="https://cgt-calc.uk/"
-          # An earlier preview comment would now link to stale content — refresh it.
-          ID=$(gh api "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" --paginate \
-            --jq ".[] | select(.body | startswith(\"${COMMENT_MARKER}\")) | .id" | head -1)
-          if [ -n "${ID}" ]; then
-            UPDATED=$(TZ='Europe/London' date '+%Y-%m-%d %H:%M %Z')
-            BODY=$(printf '%s\n📖 No rendered changes — this PR matches the live docs at https://cgt-calc.uk/\n\n_Last updated: %s_' "${COMMENT_MARKER}" "${UPDATED}")
-            gh api --method PATCH "repos/${GH_REPO}/issues/comments/${ID}" -f body="${BODY}"
-          fi
-
       - name: Deploy to Cloudflare Pages
         id: deploy
         if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
@@ -150,14 +134,6 @@ jobs:
             echo "updated=$(TZ='Europe/London' date '+%Y-%m-%d %H:%M %Z')"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Report preview ready
-        if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
-        run: |
-          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
-            -f state=success -f context="${STATUS_CONTEXT}" \
-            -f description="Preview ready" \
-            -f target_url="${{ steps.facts.outputs.url }}"
-
       - name: Comment preview link
         if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
         env:
@@ -177,10 +153,42 @@ jobs:
             gh api --method POST "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" -f body="${BODY}"
           fi
 
-      - name: Report failure
-        if: failure() && steps.pr.outputs.number
+      - name: Refresh stale comment on no change
+        if: steps.pr.outputs.number && steps.compare.outputs.unchanged == 'true'
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
-          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
-            -f state=failure -f context="${STATUS_CONTEXT}" \
-            -f description="Preview failed" \
-            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          ID=$(gh api "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"${COMMENT_MARKER}\")) | .id" | head -1)
+          if [ -n "${ID}" ]; then
+            UPDATED=$(TZ='Europe/London' date '+%Y-%m-%d %H:%M %Z')
+            BODY=$(printf '%s\n📖 No rendered changes — this PR matches the live docs at https://cgt-calc.uk/\n\n_Last updated: %s_' "${COMMENT_MARKER}" "${UPDATED}")
+            gh api --method PATCH "repos/${GH_REPO}/issues/comments/${ID}" -f body="${BODY}"
+          fi
+
+      - name: Finish check run
+        if: always() && steps.check.outputs.id
+        env:
+          CHECK_ID: ${{ steps.check.outputs.id }}
+          JOB_STATUS: ${{ job.status }}
+          UNCHANGED: ${{ steps.compare.outputs.unchanged }}
+          PREVIEW_URL: ${{ steps.facts.outputs.url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "${JOB_STATUS}" = "success" ]; then
+            conclusion=success
+            if [ "${UNCHANGED}" = "true" ]; then
+              title="No rendered changes"
+              url="https://cgt-calc.uk/"
+            else
+              title="Preview ready"
+              url="${PREVIEW_URL}"
+            fi
+          else
+            conclusion=failure
+            title="Preview failed"
+            url="${RUN_URL}"
+          fi
+          jq -n --arg c "${conclusion}" --arg completed "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg url "${url}" --arg t "${title}" \
+            '{status: "completed", conclusion: $c, completed_at: $completed, details_url: $url, output: {title: $t, summary: $t}}' |
+            gh api --method PATCH "repos/${GH_REPO}/check-runs/${CHECK_ID}" --input -
