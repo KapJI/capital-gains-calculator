@@ -506,6 +506,37 @@ class CapitalGainsCalculator:
                 is_interest=symbol in self.interest_fund_tickers,
             )
 
+    def _convert_foreign_fees(self, transaction: BrokerTransaction) -> None:
+        """Fold fees paid in other currencies into the transaction's fees.
+
+        Parsers store fees whose currency differs from the transaction
+        currency in `foreign_fees` since they cannot do currency conversion
+        themselves.
+        """
+        if not transaction.foreign_fees:
+            return
+        converted = Decimal(0)
+        for currency, fee in transaction.foreign_fees.items():
+            fee_gbp = self.currency_converter.to_gbp(fee, currency, transaction.date)
+            if transaction.currency == "GBP":
+                converted += fee_gbp
+            else:
+                converted += fee_gbp * self.currency_converter.currency_to_gbp_rate(
+                    transaction.currency, transaction.date
+                )
+        transaction.foreign_fees = {}
+        transaction.fees += converted
+        # The parser derived the price without the foreign fees; re-derive it
+        # so that amount, price and fees stay mutually consistent.
+        if (
+            transaction.action in [ActionType.BUY, ActionType.SELL]
+            and transaction.quantity
+            and transaction.amount is not None
+        ):
+            transaction.price = (
+                abs(transaction.amount + transaction.fees) / transaction.quantity
+            )
+
     def convert_to_hmrc_transactions(
         self,
         transactions: list[BrokerTransaction],
@@ -523,6 +554,7 @@ class CapitalGainsCalculator:
             self.isin_converter.add_from_transaction(transaction)
 
         for i, transaction in enumerate(transactions):
+            self._convert_foreign_fees(transaction)
             if transaction.action == ActionType.EXCESS_REPORTED_INCOME:
                 self.add_eri(transaction)
                 balance_history.append(

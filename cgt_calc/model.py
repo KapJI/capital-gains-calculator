@@ -185,6 +185,9 @@ class BrokerTransaction:
     currency: str
     broker: str
     isin: str | None = None
+    # Fees paid in currencies other than `currency`, keyed by their own
+    # currency. Converted and folded into `fees` by the calculation engine.
+    foreign_fees: dict[str, Decimal] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Validate BrokerTransaction data."""
