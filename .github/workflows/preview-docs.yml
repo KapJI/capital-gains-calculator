@@ -1,0 +1,186 @@
+name: Docs preview
+
+on:
+  workflow_run:
+    workflows:
+      - Build docs
+    types:
+      - completed
+
+concurrency:
+  group: docs-preview-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_REPO: ${{ github.repository }}
+  HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+  COMMENT_MARKER: "<!-- cgt-calc-docs-preview -->"
+  STATUS_CONTEXT: docs/preview
+
+jobs:
+  preview:
+    name: Deploy preview
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: docs-preview
+    permissions:
+      actions: read
+      pull-requests: write
+      statuses: write
+    steps:
+      - name: Resolve PR
+        id: pr
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+        run: |
+          PR=$(gh api "repos/${GH_REPO}/pulls?state=open" --paginate |
+            jq -c --arg b "${HEAD_BRANCH}" --arg r "${HEAD_REPO}" \
+              'first(.[] | select(.head.ref == $b and .head.repo.full_name == $r) | {number, base_sha: .base.sha})')
+          if [ -z "${PR}" ] || [ "${PR}" = "null" ]; then
+            echo "No matching open PR for ${HEAD_REPO}:${HEAD_BRANCH}; nothing to preview."
+            exit 0
+          fi
+          {
+            echo "number=$(jq -r .number <<<"${PR}")"
+            echo "base_sha=$(jq -r .base_sha <<<"${PR}")"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Set status pending
+        if: steps.pr.outputs.number
+        run: |
+          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+            -f state=pending -f context="${STATUS_CONTEXT}" -f description="Building docs preview…"
+
+      - name: Download PR site
+        if: steps.pr.outputs.number
+        uses: actions/download-artifact@v7
+        with:
+          name: site
+          path: site
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download PR digest
+        if: steps.pr.outputs.number
+        uses: actions/download-artifact@v7
+        with:
+          name: docs-digest
+          path: pr-digest
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find base digest run
+        id: base
+        if: steps.pr.outputs.number
+        env:
+          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+        run: |
+          RUN_ID=$(gh api "repos/${GH_REPO}/actions/workflows/docs.yml/runs?branch=main&head_sha=${BASE_SHA}&status=success" \
+            --jq '.workflow_runs[0].id // empty')
+          if [ -z "${RUN_ID}" ]; then
+            RUN_ID=$(gh api "repos/${GH_REPO}/actions/workflows/docs.yml/runs?branch=main&event=push&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id // empty')
+          fi
+          echo "run_id=${RUN_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download base digest
+        if: steps.pr.outputs.number && steps.base.outputs.run_id
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          name: docs-digest
+          path: base-digest
+          run-id: ${{ steps.base.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compare digests
+        id: compare
+        if: steps.pr.outputs.number
+        run: |
+          if [ -f base-digest/digest.txt ] && diff -q pr-digest/digest.txt base-digest/digest.txt >/dev/null 2>&1; then
+            echo "unchanged=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "unchanged=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Report no change
+        if: steps.pr.outputs.number && steps.compare.outputs.unchanged == 'true'
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+            -f state=success -f context="${STATUS_CONTEXT}" \
+            -f description="No change — rendered docs match main" \
+            -f target_url="https://cgt-calc.uk/"
+          # An earlier preview comment would now link to stale content — refresh it.
+          ID=$(gh api "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"${COMMENT_MARKER}\")) | .id" | head -1)
+          if [ -n "${ID}" ]; then
+            UPDATED=$(TZ='Europe/London' date '+%Y-%m-%d %H:%M %Z')
+            BODY=$(printf '%s\n📖 No rendered changes — this PR matches the live docs at https://cgt-calc.uk/\n\n_Last updated: %s_' "${COMMENT_MARKER}" "${UPDATED}")
+            gh api --method PATCH "repos/${GH_REPO}/issues/comments/${ID}" -f body="${BODY}"
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site --project-name=cgt-calc --branch=pr-${{ steps.pr.outputs.number }} --commit-dirty=true
+
+      - name: Collect preview facts
+        id: facts
+        if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
+        env:
+          NUMBER: ${{ steps.pr.outputs.number }}
+          ALIAS_URL: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
+        run: |
+          URL="${ALIAS_URL}"
+          [ -z "${URL}" ] && URL="https://pr-${NUMBER}.cgt-calc.pages.dev"
+          {
+            echo "url=${URL}"
+            echo "short_sha=${HEAD_SHA:0:7}"
+            echo "updated=$(TZ='Europe/London' date '+%Y-%m-%d %H:%M %Z')"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Report preview ready
+        if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
+        run: |
+          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+            -f state=success -f context="${STATUS_CONTEXT}" \
+            -f description="Preview ready" \
+            -f target_url="${{ steps.facts.outputs.url }}"
+
+      - name: Comment preview link
+        if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          URL: ${{ steps.facts.outputs.url }}
+          SHORT_SHA: ${{ steps.facts.outputs.short_sha }}
+          UPDATED: ${{ steps.facts.outputs.updated }}
+        run: |
+          ID=$(gh api "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"${COMMENT_MARKER}\")) | .id" | head -1)
+          BODY=$(printf '%s\n📖 **Docs preview:** %s\n\nBuilt from %s' "${COMMENT_MARKER}" "${URL}" "${SHORT_SHA}")
+          if [ -n "${ID}" ]; then
+            # Editing an existing comment — note when it was refreshed.
+            BODY=$(printf '%s\n_Last updated: %s_' "${BODY}" "${UPDATED}")
+            gh api --method PATCH "repos/${GH_REPO}/issues/comments/${ID}" -f body="${BODY}"
+          else
+            gh api --method POST "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" -f body="${BODY}"
+          fi
+
+      - name: Report failure
+        if: failure() && steps.pr.outputs.number
+        run: |
+          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+            -f state=failure -f context="${STATUS_CONTEXT}" \
+            -f description="Preview failed" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
