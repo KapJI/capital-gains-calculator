@@ -9,4 +9,4 @@
 # NO_COLOR is a standard environment variable (https://no-color.org/).
 ^logging\.py:.*`COLOR`
 # "a share that fell that far" is correct; the FeelFell typo rule misfires.
-^README\.md:.*FeelFell
+^schwab\.md:.*FeelFell

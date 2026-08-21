@@ -73,6 +73,7 @@ MMM
 msg
 mypy
 NameChange
+nav
 navPrice
 nixpkgs
 noqa

@@ -14,4 +14,5 @@ __pycache__
 env
 dist
 out/
+site/
 exchange_rates.csv

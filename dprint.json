@@ -23,6 +23,7 @@
         "**/dist",
         "**/build",
         "**/out",
+        "**/site",
         "**/.DS_Store"
     ],
 
