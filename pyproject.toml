@@ -49,7 +49,7 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/KapJI/capital-gains-calculator"
+"Homepage" = "https://cgt-calc.uk"
 "Repository" = "https://github.com/KapJI/capital-gains-calculator"
 "Bug Tracker" = "https://github.com/KapJI/capital-gains-calculator/issues"
 "Release Notes" = "https://github.com/KapJI/capital-gains-calculator/releases"
@@ -61,6 +61,7 @@ cgt-calc = "cgt_calc.main:init"
 dev = [
   "codespell>=2.4.1",
   "dprint-py>=0.50.2.0",
+  "harper-cli>=2.8.0.post1",
   "mypy>=2.3.0",
   "pandas-stubs>=2.2",
   "pytest>=8.4.2,<10.0.0",
@@ -75,6 +76,9 @@ dev = [
   "types-python-dateutil>=2.9.0.20250822",
   "types-reportlab>=4.5.1.20260807",
   "types-requests>=2.32.4.20250913",
+]
+docs = [
+  "zensical>=0.0.56",
 ]
 
 [tool.uv.build-backend]
@@ -217,7 +221,7 @@ enable_error_code = [
 
 [tool.codespell]
 quiet-level = 2
-skip = "uv.lock,./.git/*,./.mypy_cache/*,./.pytest_cache/*,./.ruff_cache/*,./.venv/*,./dist/*,*.csv,./env/*,./out/*"
+skip = "uv.lock,./.git/*,./.mypy_cache/*,./.pytest_cache/*,./.ruff_cache/*,./.venv/*,./dist/*,*.csv,./env/*,./out/*,./site/*,./.wrangler/*"
 
 [tool.pytest.ini_options]
 addopts = "-vv -n auto"

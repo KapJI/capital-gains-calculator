@@ -6,7 +6,7 @@ To get the data from Schwab:
 3. Select date range 'Previous 4 Years' and click SEARCH
 4. At the top right, click on Export and select type JSON
 5. If you have had Equity Awards for more than 4 years, good news:
-   Schwab now allows to export all the data history (which you do need
+   Schwab now allows you to export all the data history (which you do need
    to calculate the CGT). In that case:
    * repeat the process to export older data
    * manually combine the data into a single file
@@ -716,7 +716,7 @@ class SchwabTransaction(BrokerTransaction):
                 for subtransac in row[names.transac_details]:
                     subtransac = subtransac.get(OPTIONAL_DETAILS_NAME, subtransac)
 
-                    if "shares" in subtransac:
+                    if names.shares in subtransac:
                         # Schwab only provides this one as a string:
                         shares = _decimal_from_str(subtransac[names.shares])
                         subtransac_shares_sum += shares

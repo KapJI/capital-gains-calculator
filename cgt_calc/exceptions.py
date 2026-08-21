@@ -164,6 +164,17 @@ class ExchangeRateMissingError(CalculationError):
         super().__init__(self.message)
 
 
+class InitialPriceMissingError(CalculationError):
+    """Initial stock price is missing error."""
+
+    def __init__(self, symbol: str, date: datetime.date):
+        """Initialise."""
+        self.message = (
+            f"No initial price for {symbol} on {date}, add it via --initial-prices-file"
+        )
+        super().__init__(self.message)
+
+
 class LatexRenderError(CgtError):
     """Raised when LaTeX PDF rendering fails."""
 

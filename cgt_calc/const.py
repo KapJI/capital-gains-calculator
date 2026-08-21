@@ -78,7 +78,7 @@ ISIN_COUNTRY_CODE_LENGTH: Final = 2
 
 
 class RuntimeMode(Enum):
-    """Runtime mode, used to differentiate testing behaviors."""
+    """Runtime mode, used to differentiate testing behaviours."""
 
     # Default
     PROD = 1

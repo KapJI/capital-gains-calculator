@@ -363,6 +363,31 @@ def test_forced_disbursement_parses_as_transfer() -> None:
     assert transaction.quantity is None or transaction.quantity == 0
 
 
+def test_v2_sale_quantity_from_lot_shares() -> None:
+    """Sum fractional lot Shares for a v2 sale whose lots have different prices.
+
+    Regression test: the lot membership check used the lowercase v1 key
+    "shares", so v2 sales never took the share-sum path and fell through to
+    the sale-price path, which raises when lots disagree on price.
+    """
+    content = (
+        '{"Transactions": [{"Date": "08/31/2023", "Action": "Sale",'
+        ' "Symbol": "GOOG", "Quantity": "10", "Description": "Share Sale",'
+        ' "FeesAndCommissions": "$0.00", "Amount": "$1,045.00",'
+        ' "TransactionDetails": ['
+        '{"Details": {"Shares": "5.5", "SalePrice": "$100.00"}},'
+        '{"Details": {"Shares": "4.5", "SalePrice": "$110.00"}}'
+        "]}]}"
+    )
+
+    transactions = _read_json(content)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.quantity == Decimal(10)
+    assert transaction.price == Decimal("104.5")
+
+
 def test_unimplemented_action_raises() -> None:
     """Raise on actions the parser does not implement."""
     content = (

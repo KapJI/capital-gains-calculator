@@ -27,7 +27,7 @@ class SpinOff:
     cost_proportion: Decimal
     # Source of the Spin-off, e.g. MMM for SOLV
     source: str
-    # Dest ticker to which SpinOff happened, e.g. SOLV for MMM
+    # Destination ticker to which SpinOff happened, e.g. SOLV for MMM
     dest: str
     # When the spin-off happened
     date: datetime.date
@@ -82,7 +82,7 @@ class ExcessReportedIncomeDistribution:
 
 @dataclass
 class HmrcTransactionData:
-    """Hmrc transaction figures."""
+    """HMRC transaction figures."""
 
     quantity: Decimal = Decimal(0)
     amount: Decimal = Decimal(0)
@@ -269,8 +269,10 @@ class CalculationEntry:
             assert self.allowable_cost > 0, str(self)
             assert approx_equal(
                 self.allowable_cost, self.amount + self.new_pool_cost
-            ), f"Mismatch: {self.allowable_cost} != "
-            f"{self.amount} + {self.new_pool_cost} (for {self})"
+            ), (
+                f"Mismatch: {self.allowable_cost} != "
+                f"{self.amount} + {self.new_pool_cost} (for {self})"
+            )
         elif self.amount >= 0 and self.rule_type not in (
             RuleType.SPIN_OFF,
             RuleType.DIVIDEND,
