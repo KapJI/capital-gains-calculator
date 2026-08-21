@@ -25,6 +25,7 @@ from .const import (
     ERI_TAX_DATE_DELTA,
     INTERNAL_START_DATE,
     ISIN_COUNTRY_CODE_LENGTH,
+    MAX_CONTENDED_DATES_SHOWN,
     RENAME_DESCRIPTION_PREFIX,
     UK_CURRENCY,
 )
@@ -41,6 +42,7 @@ from .exceptions import (
     QuantityMissingError,
     QuantityNotPositiveError,
     SymbolMissingError,
+    UnclassifiedGiftError,
 )
 from .initial_prices import InitialPrices
 from .isin_converter import IsinConverter
@@ -69,7 +71,7 @@ from .model import (
 from .parsers.broker_registry import BrokerRegistry
 from .spin_off_handler import SpinOffHandler
 from .transaction_log import add_to_list, has_key
-from .util import approx_equal, normalize_amount, round_decimal
+from .util import approx_equal, normalize_amount, round_decimal, strip_zeros
 
 if TYPE_CHECKING:
     import argparse
@@ -462,6 +464,56 @@ class CapitalGainsCalculator:
             Decimal(0),
         )
 
+    def _resolve_gifts(
+        self,
+        transactions: list[BrokerTransaction],
+    ) -> list[BrokerTransaction]:
+        """Drop broker-reported gifts the user has classified, refuse the rest.
+
+        A gift to a spouse or civil partner is no gain/no loss; a gift to
+        anyone else is a disposal at market value. Broker exports record only
+        that the shares left, so the user says which it was by adding a RAW
+        ``TRANSFER_TO_SPOUSE`` row for the same date, symbol and quantity. That
+        row carries everything needed, so the broker's own row is then
+        redundant and is dropped here.
+        """
+        if not any(
+            transaction.action is ActionType.GIFT for transaction in transactions
+        ):
+            return transactions
+        classified = {
+            (transaction.date, transaction.symbol, transaction.quantity)
+            for transaction in transactions
+            if transaction.action is ActionType.TRANSFER_TO_SPOUSE
+        }
+        remaining = []
+        for transaction in transactions:
+            if transaction.action is not ActionType.GIFT:
+                remaining.append(transaction)
+                continue
+            if (
+                transaction.date,
+                transaction.symbol,
+                transaction.quantity,
+            ) in classified:
+                LOGGER.debug(
+                    "Gift of %s on %s is accounted for by a transfer to spouse",
+                    transaction.symbol,
+                    transaction.date,
+                )
+                continue
+            symbol = get_symbol_or_fail(transaction)
+            quantity = transaction.quantity
+            if quantity is None or quantity <= 0:
+                raise QuantityNotPositiveError(transaction)
+            raise UnclassifiedGiftError(
+                transaction,
+                strip_zeros(quantity),
+                f"{transaction.date},TRANSFER_TO_SPOUSE,{symbol},"
+                f"{strip_zeros(quantity)},0.00,0.00,{transaction.currency}",
+            )
+        return remaining
+
     def add_eri(
         self,
         transaction: BrokerTransaction,
@@ -606,6 +658,8 @@ class CapitalGainsCalculator:
 
         for transaction in transactions:
             self.isin_converter.add_from_transaction(transaction)
+
+        transactions = self._resolve_gifts(transactions)
 
         for i, transaction in enumerate(transactions):
             self._convert_foreign_fees(transaction)
@@ -1277,21 +1331,23 @@ class CapitalGainsCalculator:
             renamed_to=new,
         )
 
-    def _competes_with_same_day_sale(
+    def _contending_acquisitions(
         self,
         symbol: str,
         date_index: datetime.date,
-    ) -> bool:
-        """Whether a same-day sale and transfer of ``symbol`` contend for shares.
+    ) -> list[datetime.date]:
+        """Dates a same-day sale and transfer of ``symbol`` would both claim.
 
         Left to the Section 104 pool alone the two draw at the same average
         cost, so the order between them cannot change either result. They only
-        contend when there are acquisitions both could be identified against
-        under the same-day or 30-day rules, and then HMRC does not say which
-        one gets them.
+        contend over acquisitions both could be identified against under the
+        same-day or 30-day rules, and then HMRC does not say which one gets
+        them. Returns those acquisition dates, earliest first, or an empty list
+        when there is nothing to argue over.
         """
+        dates = []
         if has_key(self.acquisition_list, date_index, symbol):
-            return True
+            dates.append(date_index)
         effective_symbol = symbol
         for i in range(BED_AND_BREAKFAST_DAYS):
             search_index = date_index + datetime.timedelta(days=i + 1)
@@ -1300,8 +1356,39 @@ class CapitalGainsCalculator:
                 effective_symbol, effective_symbol
             )
             if has_key(self.acquisition_list, search_index, effective_symbol):
-                return True
-        return False
+                dates.append(search_index)
+        return dates
+
+    def _same_day_sale_and_transfer_message(
+        self,
+        symbol: str,
+        date_index: datetime.date,
+        contended: list[datetime.date],
+    ) -> str:
+        """Explain why a same-day sale and transfer cannot be calculated."""
+        sold = self.disposal_list[date_index][symbol].quantity
+        transferred = self.transfer_to_spouse_list[date_index][symbol].quantity
+        shown = ", ".join(str(date) for date in contended[:MAX_CONTENDED_DATES_SHOWN])
+        if len(contended) > MAX_CONTENDED_DATES_SHOWN:
+            shown += f" and {len(contended) - MAX_CONTENDED_DATES_SHOWN} more"
+        return (
+            f"On {date_index} you sold {strip_zeros(sold)} units of {symbol} and "
+            f"transferred {strip_zeros(transferred)} to a spouse, and you also "
+            f"acquired {symbol} on {shown}.\n"
+            "Both the sale and the transfer have to be identified against those "
+            "acquisitions under the same-day and 30-day rules, but they cannot "
+            "share them: TCGA 1992 s105(1) treats everything disposed of on one "
+            "day as a single transaction, and here one part is chargeable while "
+            "the other is no gain/no loss. HMRC does not say how to split the "
+            "acquisitions between the two, so this tool will not guess.\n"
+            "What to do: work this disposal out by hand and consider taking "
+            "professional advice, then leave the affected symbol out of the "
+            "input and add its figures to your return yourself. Everything else "
+            "in your history still calculates normally.\n"
+            "Do not move the real transaction dates to get past this: the dates "
+            "are what the identification rules run on, so changing them changes "
+            "the tax."
+        )
 
     def _record_transfers_to_spouse(
         self,
@@ -1321,17 +1408,13 @@ class CapitalGainsCalculator:
             # HMRC does not define how to identify a taxable sale and a no gain/no
             # loss transfer of the same shares on the same day, so refuse the
             # cases where that identification actually changes the answer.
-            if has_key(
-                self.disposal_list, date_index, symbol
-            ) and self._competes_with_same_day_sale(symbol, date_index):
+            if has_key(self.disposal_list, date_index, symbol) and (
+                contended := self._contending_acquisitions(symbol, date_index)
+            ):
                 raise CalculationError(
-                    f"Cannot compute a sale and a transfer to spouse of {symbol} "
-                    f"on the same day ({date_index}) when there are acquisitions "
-                    "of it on that day or within the next 30 days: HMRC does not "
-                    "define which of the two the acquisitions are identified "
-                    "against, so this tool cannot calculate it. This case must be "
-                    "worked out manually (consider professional advice). Do not "
-                    "change the real transaction dates to work around this."
+                    self._same_day_sale_and_transfer_message(
+                        symbol, date_index, contended
+                    )
                 )
             gain, entries, spin_off_entry = self.process_disposal(
                 symbol, date_index, no_gain_no_loss=True

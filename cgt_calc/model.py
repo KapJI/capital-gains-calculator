@@ -201,6 +201,7 @@ class ActionType(Enum):
     RENAME = 19
     INTEREST_TAX = 20
     TRANSFER_TO_SPOUSE = 21
+    GIFT = 22
 
 
 class CalculationType(Enum):

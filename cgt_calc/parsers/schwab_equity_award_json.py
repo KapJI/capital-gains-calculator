@@ -279,6 +279,12 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label == "Wire Funds Received":
         return ActionType.WIRE_FUNDS_RECEIVED
 
+    # Shares moved out of the account with no money attached. Who received
+    # them decides the tax, and the export does not say, so the calculator
+    # refuses it with instructions rather than assuming.
+    if label == "Gift":
+        return ActionType.GIFT
+
     raise ParsingError(file, f"Unknown action: {label}")
 
 
@@ -768,6 +774,16 @@ class SchwabTransaction(BrokerTransaction):
                     ):
                         quantity = (amount + fees) / price
 
+        elif action is ActionType.GIFT:
+            date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
+            price = None
+            # A gift moves shares, not money. Anything in these fields means
+            # the row is not what this branch assumes it is.
+            if amount or fees:
+                raise ParsingError(
+                    file, "Unexpected amount or fees on a gift of shares."
+                )
+            description = self.raw_action
         elif action in [
             ActionType.DIVIDEND,
             ActionType.DIVIDEND_TAX,

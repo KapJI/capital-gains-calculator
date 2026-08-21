@@ -288,6 +288,7 @@ def test_split_history_demands_a_price_floor_it_can_use() -> None:
         ("Reinvest Shares", ActionType.REINVEST_SHARES),
         ("Reinvest Dividend", ActionType.REINVEST_DIVIDENDS),
         ("Wire Funds Received", ActionType.WIRE_FUNDS_RECEIVED),
+        ("Gift", ActionType.GIFT),
     ],
 )
 def test_action_from_str(label: str, action: ActionType) -> None:
@@ -361,6 +362,39 @@ def test_forced_disbursement_parses_as_transfer() -> None:
     assert transaction.amount == Decimal("-2490.13")
     assert transaction.date == datetime.date(2015, 3, 31)
     assert transaction.quantity is None or transaction.quantity == 0
+
+
+def test_gift_parses_as_gift() -> None:
+    """Parse a gift of shares: quantity moves, no money does."""
+    content = (
+        '{"Transactions": [{"Date": "11/20/2022", "Action": "Gift",'
+        ' "Symbol": "GOOG", "Quantity": "2", "Description": "Share Transfer",'
+        ' "FeesAndCommissions": null, "Amount": null,'
+        ' "TransactionDetails": []}]}'
+    )
+
+    transactions = _read_json(content)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action == ActionType.GIFT
+    assert transaction.symbol == "GOOG"
+    assert transaction.quantity == Decimal(2)
+    assert transaction.date == datetime.date(2022, 11, 20)
+    assert transaction.price is None
+
+
+def test_gift_with_money_raises() -> None:
+    """A gift row carrying money is not the row this parser assumes."""
+    content = (
+        '{"Transactions": [{"Date": "11/20/2022", "Action": "Gift",'
+        ' "Symbol": "GOOG", "Quantity": "2", "Description": "Share Transfer",'
+        ' "FeesAndCommissions": null, "Amount": "$100.00",'
+        ' "TransactionDetails": []}]}'
+    )
+
+    with pytest.raises(ParsingError, match="Unexpected amount or fees"):
+        _read_json(content)
 
 
 def test_v2_sale_quantity_from_lot_shares() -> None:

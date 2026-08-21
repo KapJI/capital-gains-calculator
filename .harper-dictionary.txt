@@ -58,6 +58,7 @@ HL
 Hmrc
 IBKR
 IBKR's
+InvalidTransactionError
 Invesco
 InvestmentName
 iShares

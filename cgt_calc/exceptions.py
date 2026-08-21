@@ -75,6 +75,38 @@ class InvalidTransactionError(CgtError):
         super().__init__(self.message)
 
 
+class UnclassifiedGiftError(CgtError):
+    """Raised when a broker reports a gift of shares without saying who got them.
+
+    Deliberately not an InvalidTransactionError: the transaction is perfectly
+    valid and the message already names it, so dumping the row on the end only
+    buries the instructions.
+    """
+
+    def __init__(self, transaction: BrokerTransaction, quantity: str, raw_row: str):
+        """Initialise."""
+        self.transaction = transaction
+        self.message = (
+            f"{transaction.broker} reported a gift of {quantity} units of "
+            f"{transaction.symbol} on {transaction.date}, but not who received "
+            "them, and that decides the tax.\n"
+            "\n"
+            "If you gave them to a spouse or civil partner you live with, it is a "
+            "no gain/no loss transfer. Put this line in a CSV and pass it with "
+            "--raw-file alongside the file you already use, and the gift is then "
+            "taken as accounted for:\n"
+            f"  {raw_row}\n"
+            "\n"
+            "If they went to anyone else, it is a disposal at market value and may "
+            "be chargeable. cgt-calc cannot work that out yet, so you have to do "
+            "it by hand (consider professional advice).\n"
+            "\n"
+            "See https://cgt-calc.uk/brokers/raw/"
+            "#transfers-to-a-spouse-or-civil-partner"
+        )
+        super().__init__(self.message)
+
+
 class AmountMissingError(InvalidTransactionError):
     """Amount is missing error."""
 

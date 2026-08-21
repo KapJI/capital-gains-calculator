@@ -15,7 +15,11 @@ import pytest
 from cgt_calc.const import BALANCE_CHECK_CONTEXT_ROWS, RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
-from cgt_calc.exceptions import CalculationError, InvalidTransactionError
+from cgt_calc.exceptions import (
+    CalculationError,
+    InvalidTransactionError,
+    UnclassifiedGiftError,
+)
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator, main
@@ -1059,7 +1063,7 @@ def test_transfer_to_spouse_same_day_as_sale_is_rejected(
     buy_day = datetime.date(2024, 6, 1)
     event_day = datetime.date(2024, 6, 10)
     calculator = create_calculator()
-    with pytest.raises(CalculationError, match="same day"):
+    with pytest.raises(CalculationError, match="does not say how to split") as err:
         get_report(
             calculator,
             [
@@ -1071,6 +1075,11 @@ def test_transfer_to_spouse_same_day_as_sale_is_rejected(
                 ),
             ],
         )
+
+    # The message names the clash concretely so it can be acted on.
+    message = str(err.value)
+    assert "sold 3 units of FOO and transferred 2" in message
+    assert str(acquisition_day) in message
 
 
 def test_transfer_to_spouse_same_day_as_sale_from_pool_is_allowed() -> None:
@@ -1175,6 +1184,67 @@ def test_transfer_to_spouse_shown_in_report() -> None:
     output = str(report)
     assert "Transferred to spouse" in output
     assert f"{transfer_day}: FOO 400.00 units, base cost £4,000.00" in output
+
+
+def test_unclassified_gift_is_rejected_with_instructions() -> None:
+    """A broker gift with no classification refuses and says how to fix it."""
+    buy_day = datetime.date(2024, 6, 1)
+    gift_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    with pytest.raises(UnclassifiedGiftError) as err:
+        get_report(
+            calculator,
+            [
+                transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+                transaction(gift_day, ActionType.GIFT, "FOO", 4, currency="GBP"),
+            ],
+        )
+
+    message = str(err.value)
+    # The exact RAW line to paste, so the fix is mechanical.
+    assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,4,0.00,0.00,GBP" in message
+    # Both outcomes are named, so a non-spouse gift is not quietly treated as one.
+    assert "spouse or civil partner" in message
+    assert "disposal at market value" in message
+
+
+def test_gift_matched_by_transfer_to_spouse_is_accounted_for() -> None:
+    """A matching transfer row classifies the gift, which is then not counted twice."""
+    buy_day = datetime.date(2024, 6, 1)
+    gift_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(gift_day, ActionType.GIFT, "FOO", 4, currency="GBP"),
+            transfer_to_spouse_transaction(gift_day, "FOO", 4),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(0)
+    # Four units left once, not twice: the broker row is redundant, not extra.
+    assert calculator.portfolio["FOO"].quantity == Decimal(6)
+    assert calculator.portfolio["FOO"].amount == Decimal(60)
+    entries = report.calculation_log[gift_day]["transfer-to-spouse$FOO"]
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(40)
+
+
+def test_gift_with_mismatched_transfer_is_rejected() -> None:
+    """A transfer row that does not match the gift does not classify it."""
+    buy_day = datetime.date(2024, 6, 1)
+    gift_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    with pytest.raises(UnclassifiedGiftError):
+        get_report(
+            calculator,
+            [
+                transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+                transaction(gift_day, ActionType.GIFT, "FOO", 4, currency="GBP"),
+                # Same day and symbol, different quantity.
+                transfer_to_spouse_transaction(gift_day, "FOO", 3),
+            ],
+        )
 
 
 def test_run_with_example_files() -> None:
