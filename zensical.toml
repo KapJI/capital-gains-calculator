@@ -9,10 +9,35 @@ edit_uri = "edit/main/docs/"
 
 nav = [
   { "Home" = "index.md" },
-  { "Getting started" = [{ "Installation" = "installation.md" }, { "Usage" = "usage.md" }, { "Docker" = "docker.md" }] },
-  { "Input data" = [{ "Brokers" = ["brokers/index.md", { "Charles Schwab" = "brokers/schwab.md" }, { "Trading 212" = "brokers/trading212.md" }, { "Morgan Stanley" = "brokers/morgan-stanley.md" }, { "Sharesight" = "brokers/sharesight.md" }, { "Hargreaves Lansdown" = "brokers/hargreaves-lansdown.md" }, { "Vanguard" = "brokers/vanguard.md" }, { "Freetrade" = "brokers/freetrade.md" }, { "Interactive Brokers" = "brokers/interactive-brokers.md" }, { "RAW format" = "brokers/raw.md" }] }, { "Offshore funds (ERI)" = "offshore-funds.md" }, { "Custom ERI data" = "custom-eri-data.md" }, { "Configuration files" = "configuration.md" }] },
+  { "Getting started" = [
+    { "Installation" = "installation.md" },
+    { "Usage" = "usage.md" },
+    { "Docker" = "docker.md" },
+  ] },
+  { "Input data" = [
+    { "Brokers" = [
+      "brokers/index.md",
+      { "Charles Schwab" = "brokers/schwab.md" },
+      { "Trading 212" = "brokers/trading212.md" },
+      { "Morgan Stanley" = "brokers/morgan-stanley.md" },
+      { "Sharesight" = "brokers/sharesight.md" },
+      { "Hargreaves Lansdown" = "brokers/hargreaves-lansdown.md" },
+      { "Vanguard" = "brokers/vanguard.md" },
+      { "Freetrade" = "brokers/freetrade.md" },
+      { "Interactive Brokers" = "brokers/interactive-brokers.md" },
+      { "RAW format" = "brokers/raw.md" },
+    ] },
+    { "Offshore funds (ERI)" = "offshore-funds.md" },
+    { "Custom ERI data" = "custom-eri-data.md" },
+    { "Configuration files" = "configuration.md" },
+  ] },
   { "Privacy & disclaimer" = "privacy.md" },
-  { "Development" = [{ "Contributing" = "development/index.md" }, { "Adding a broker" = "development/adding-a-broker.md" }, { "Contributing ERI data" = "development/eri-data.md" }, { "Release process" = "development/releasing.md" }] },
+  { "Development" = [
+    { "Contributing" = "development/index.md" },
+    { "Adding a broker" = "development/adding-a-broker.md" },
+    { "Contributing ERI data" = "development/eri-data.md" },
+    { "Release process" = "development/releasing.md" },
+  ] },
 ]
 
 extra_css = ["stylesheets/extra.css"]

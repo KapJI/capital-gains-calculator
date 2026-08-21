@@ -49,8 +49,7 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/KapJI/capital-gains-calculator"
-"Documentation" = "https://cgt-calc.uk"
+"Homepage" = "https://cgt-calc.uk"
 "Repository" = "https://github.com/KapJI/capital-gains-calculator"
 "Bug Tracker" = "https://github.com/KapJI/capital-gains-calculator/issues"
 "Release Notes" = "https://github.com/KapJI/capital-gains-calculator/releases"
@@ -222,7 +221,7 @@ enable_error_code = [
 
 [tool.codespell]
 quiet-level = 2
-skip = "uv.lock,./.git/*,./.mypy_cache/*,./.pytest_cache/*,./.ruff_cache/*,./.venv/*,./dist/*,*.csv,./env/*,./out/*,./site/*"
+skip = "uv.lock,./.git/*,./.mypy_cache/*,./.pytest_cache/*,./.ruff_cache/*,./.venv/*,./dist/*,*.csv,./env/*,./out/*,./site/*,./.wrangler/*"
 
 [tool.pytest.ini_options]
 addopts = "-vv -n auto"

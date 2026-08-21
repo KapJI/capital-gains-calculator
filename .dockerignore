@@ -14,4 +14,5 @@ dist
 docs
 junit.xml
 out
+site
 tests

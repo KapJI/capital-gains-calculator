@@ -24,7 +24,8 @@
         "**/build",
         "**/out",
         "**/site",
-        "**/.DS_Store"
+        "**/.DS_Store",
+        "zensical.toml"
     ],
 
     "plugins": [
