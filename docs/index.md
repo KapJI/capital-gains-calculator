@@ -1,6 +1,6 @@
 # UK Capital Gains Calculator
 
-Easily calculate **UK Capital Gains Tax** from your investment transaction history.
+Quickly calculate **UK Capital Gains Tax** from your investment transaction history.
 
 Supported sources include **Charles Schwab**, **Trading 212**, **Morgan Stanley**, **Sharesight**,
 **Hargreaves Lansdown**, **Vanguard**, **Freetrade**, **Interactive Brokers**, or a custom **RAW**
