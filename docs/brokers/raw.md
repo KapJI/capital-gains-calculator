@@ -74,14 +74,8 @@ the Section 104 pool, and the transfer is simply a reduction of the pool at its 
 
     Matching does not apply when you **sell** shares and your spouse **buys** them, because s106A
     matches a disposal only against securities reacquired by "the person making" it, and that is
-    someone else. Much of the published commentary about spouses and the 30-day rule is about that
-    arrangement. It says nothing about the case here, where _you_ transfer shares and then _you_ buy the
-    same shares back.
-
-    An answer on the HMRC community forum states that the matching rules do not apply to transfers
-    between spouses, which is most likely the same confusion. It also says the transfer is not a
-    disposal until the recipient sells, which contradicts CG22200 above. Forum answers are not
-    binding guidance, so cgt-calc follows the legislation and the manual.
+    someone else. That is a different arrangement from the one here, where _you_ transfer shares and
+    then _you_ buy the same shares back.
 
 You can sell and transfer the same symbol on the same day as long as both come out of the Section
 104 pool, since they then take the same average cost.
