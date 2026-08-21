@@ -9,8 +9,8 @@ set -euo pipefail
 ### --- Configuration ---------------------------------------------------------
 
 # Source PDF and output PNG paths
-PDF_PATH="docs/example_report.pdf"
-OUTPUT_PATH="docs/example_report_preview.png"
+PDF_PATH="docs/assets/example_report.pdf"
+OUTPUT_PATH="docs/assets/example_report_preview.png"
 
 # Rendering resolution (DPI)
 DPI=300

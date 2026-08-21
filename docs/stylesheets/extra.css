@@ -1,0 +1,51 @@
+/* Palette inspired by the HMRC/GOV.UK blue (#386FB3), deliberately not the
+   official colour so the site doesn't imitate HMRC branding. */
+:root > * {
+  --md-primary-fg-color: #33639e;
+  --md-primary-fg-color--light: #5b87bc;
+  --md-primary-fg-color--dark: #26507f;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+  --md-accent-fg-color: #2f7cc4;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #2b568c;
+  --md-typeset-a-color: #7fa9d9;
+  --md-accent-fg-color: #a3c5e8;
+}
+
+/* Modern variant paints the header with the default background; tint it with
+   the brand colour instead. */
+.md-header {
+  background-color: var(--md-primary-fg-color);
+  color: var(--md-primary-bg-color);
+}
+
+/* Nudge the header logo up from the theme default (1.2rem). */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 1.5rem;
+}
+
+/* The modern search trigger is styled for a light header. Restyle it as a
+   translucent-white pill so it reads well on the tinted header. Scoped to
+   .md-header so the open search modal keeps its default light styling. */
+.md-header .md-search__button {
+  background-color: #ffffff26;
+  color: var(--md-primary-bg-color);
+}
+
+.md-header .md-search__button:hover {
+  background-color: #ffffff40;
+  color: var(--md-primary-bg-color);
+}
+
+.md-header .md-search__button:before {
+  background-color: var(--md-primary-bg-color);
+}
+
+.md-header .md-search__button:after {
+  background-color: #ffffff33;
+  color: var(--md-primary-bg-color);
+}

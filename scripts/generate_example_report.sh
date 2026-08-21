@@ -16,4 +16,4 @@ uv run cgt-calc \
     --schwab-file tests/schwab/data/schwab_transactions.csv \
     --trading212-dir tests/trading212/data/2020/ \
     --mssb-dir tests/morgan_stanley/data/ \
-    --output docs/example_report.pdf
+    --output docs/assets/example_report.pdf
