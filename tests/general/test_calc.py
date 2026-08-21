@@ -18,6 +18,7 @@ from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import (
     CalculationError,
     InvalidTransactionError,
+    QuantityNotPositiveError,
     UnclassifiedGiftError,
 )
 from cgt_calc.initial_prices import InitialPrices
@@ -953,7 +954,9 @@ def test_transfer_to_spouse_from_pool_is_no_gain_no_loss() -> None:
         calculator,
         [
             transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(buy_day, ActionType.BUY, "BAR", 5, 5, 0, -25, "GBP"),
             transfer_to_spouse_transaction(transfer_day, "FOO", 4),
+            transfer_to_spouse_transaction(transfer_day, "BAR", 2),
         ],
     )
 
@@ -972,6 +975,11 @@ def test_transfer_to_spouse_from_pool_is_no_gain_no_loss() -> None:
     assert sum((e.gain for e in entries), Decimal(0)) == Decimal(0)
     # £40 base cost passes to the recipient (4 units * £10 average).
     assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(40)
+
+    # The second symbol transferred that day is handled independently.
+    bar = report.calculation_log[transfer_day]["transfer-to-spouse$BAR"]
+    assert sum((e.allowable_cost for e in bar), Decimal(0)) == Decimal(10)
+    assert calculator.portfolio["BAR"].quantity == Decimal(3)
 
 
 def test_transfer_to_spouse_matches_repurchase_within_30_days() -> None:
@@ -1270,6 +1278,179 @@ def test_gift_with_mismatched_transfer_is_rejected() -> None:
                 transfer_to_spouse_transaction(gift_day, "FOO", 3),
             ],
         )
+
+
+def test_transfer_to_spouse_without_quantity_is_rejected() -> None:
+    """A transfer row has to say how many units moved."""
+    buy_day = datetime.date(2024, 6, 1)
+    calculator = create_calculator()
+    with pytest.raises(QuantityNotPositiveError):
+        get_report(
+            calculator,
+            [
+                transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+                transfer_to_spouse_transaction(datetime.date(2024, 6, 10), "FOO", 0),
+            ],
+        )
+
+
+def test_gift_without_quantity_is_rejected() -> None:
+    """A gift row with no quantity is refused before asking who received it."""
+    calculator = create_calculator()
+    with pytest.raises(QuantityNotPositiveError):
+        get_report(
+            calculator,
+            [
+                transaction(
+                    datetime.date(2024, 6, 10),
+                    ActionType.GIFT,
+                    "FOO",
+                    0,
+                    currency="GBP",
+                )
+            ],
+        )
+
+
+def test_transfer_to_spouse_reserves_its_share_of_a_same_day_acquisition() -> None:
+    """An earlier sale cannot bed-and-breakfast shares a later transfer will claim.
+
+    The transfer is same-day with the repurchase, and the same-day rule beats
+    bed and breakfast, so the sale has to leave those shares alone or they get
+    counted twice.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    sell_day = datetime.date(2024, 6, 10)
+    rebuy_day = datetime.date(2024, 6, 15)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(sell_day, ActionType.SELL, "FOO", 5, 20, 0, 100, "GBP"),
+            transaction(rebuy_day, ActionType.BUY, "FOO", 5, 30, 0, -150, "GBP"),
+            transfer_to_spouse_transaction(rebuy_day, "FOO", 5),
+        ],
+    )
+
+    # The sale falls through to the pool at £10 rather than matching the £30
+    # repurchase, so the gain is £100 - £50 rather than £100 - £150.
+    assert report.total_gain() == Decimal(50)
+    sale = report.calculation_log[sell_day]["sell$FOO"]
+    assert all(e.rule_type is RuleType.SECTION_104 for e in sale)
+    # The transfer takes the repurchase under the same-day rule.
+    entries = report.calculation_log[rebuy_day]["transfer-to-spouse$FOO"]
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(150)
+    assert calculator.portfolio["FOO"].quantity == Decimal(5)
+    assert calculator.portfolio["FOO"].amount == Decimal(50)
+
+
+def test_same_day_sale_and_transfer_message_caps_the_dates_it_lists() -> None:
+    """Too many contended acquisitions are summarised rather than all listed."""
+    buy_day = datetime.date(2024, 6, 1)
+    event_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    rebuys = [
+        transaction(
+            event_day + datetime.timedelta(days=offset),
+            ActionType.BUY,
+            "FOO",
+            1,
+            30,
+            0,
+            -30,
+            "GBP",
+        )
+        for offset in (1, 2, 3, 4)
+    ]
+    with pytest.raises(CalculationError) as err:
+        get_report(
+            calculator,
+            [
+                transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+                transaction(event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, "GBP"),
+                transfer_to_spouse_transaction(event_day, "FOO", 2),
+                *rebuys,
+            ],
+        )
+
+    message = str(err.value)
+    assert "2024-06-11, 2024-06-12, 2024-06-13 and 1 more" in message
+
+
+def test_transfer_to_spouse_logs_a_pending_spin_off() -> None:
+    """A spin-off still pending when the transfer happens is recorded.
+
+    The transfer is identified like a disposal, so it is the event that
+    applies the outstanding cost-proportion adjustment and has to report it.
+    """
+    buy_day = datetime.date(2023, 6, 1)
+    spin_off_day = datetime.date(2023, 7, 5)
+    transfer_day = datetime.date(2024, 6, 10)
+    currency_converter = CurrencyConverter(None, {})
+    spin_off_handler = SpinOffHandler()
+    spin_off_handler.cache = {"BAR": "FOO"}
+    calculator = CapitalGainsCalculator(
+        2024,
+        currency_converter,
+        IsinConverter(),
+        CurrentPriceFetcher(
+            currency_converter,
+            {},
+            {
+                "FOO": {spin_off_day: Decimal(90)},
+                "BAR": {spin_off_day: Decimal(10)},
+            },
+        ),
+        spin_off_handler,
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 100, 10, 0, -1000, "GBP"),
+            transaction(
+                spin_off_day, ActionType.SPIN_OFF, "BAR", 100, 10, 0, currency="GBP"
+            ),
+            transfer_to_spouse_transaction(transfer_day, "FOO", 50),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(0)
+    # 90/(90+10) of the £1,000 stays with FOO, so 50 of 100 units carry £450.
+    entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(450)
+    # The transfer applied the adjustment, so it reports the spin-off too.
+    spin_off_entries = report.calculation_log[spin_off_day]["spin-off$FOO"]
+    assert len(spin_off_entries) == 1
+    assert spin_off_entries[0].rule_type is RuleType.SPIN_OFF
+
+
+def test_transfer_to_spouse_before_the_tax_year_still_reduces_the_pool() -> None:
+    """A historical transfer shapes the pool without appearing in the report.
+
+    The whole history is walked to build the pool, but only events inside the
+    reported period belong in the calculations.
+    """
+    buy_day = datetime.date(2022, 5, 1)
+    transfer_day = datetime.date(2022, 6, 10)
+    sell_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transfer_to_spouse_transaction(transfer_day, "FOO", 4),
+            transaction(sell_day, ActionType.SELL, "FOO", 6, 20, 0, 120, "GBP"),
+        ],
+    )
+
+    assert transfer_day not in report.calculation_log
+    # The pool lost 4 units at £10, so the later sale has a £60 allowable cost.
+    assert report.disposal_count == 1
+    assert report.total_gain() == Decimal(60)
 
 
 def test_run_with_example_files() -> None:
