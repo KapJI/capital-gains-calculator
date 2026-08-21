@@ -1,0 +1,25 @@
+name: Build docs
+description: Build the Zensical docs site into site/ and write its content digest to digest.txt.
+
+inputs:
+  python-version:
+    description: Python version to build with
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+        python-version: ${{ inputs.python-version }}
+        cache-suffix: docs
+
+    - name: Build docs
+      shell: bash
+      run: uv run --group docs zensical build --clean
+
+    - name: Compute content digest
+      shell: bash
+      run: find site -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1 > digest.txt
