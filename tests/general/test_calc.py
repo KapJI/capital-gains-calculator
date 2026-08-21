@@ -1137,3 +1137,122 @@ def test_report_labels_full_tax_year() -> None:
 
     assert report.title_period == "2024-25"
     assert "Tax summary for 2024/2025" in str(report)
+
+
+def test_foreign_fees_folded_into_gbp_transaction() -> None:
+    """Convert foreign fees to the transaction currency and re-derive price."""
+    date = datetime.date(2024, 5, 1)
+    currency_converter = CurrencyConverter(None, {date: {"USD": Decimal("1.25")}})
+    calculator = CapitalGainsCalculator(
+        2024,
+        currency_converter,
+        IsinConverter(),
+        CurrentPriceFetcher(currency_converter, {}, {}),
+        SpinOffHandler(),
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    buy = BrokerTransaction(
+        date=date,
+        action=ActionType.BUY,
+        symbol="FOO",
+        description="Foo Inc",
+        quantity=Decimal(10),
+        price=Decimal(10),
+        fees=Decimal(0),
+        amount=Decimal(-100),
+        currency="GBP",
+        broker="Trading212",
+        foreign_fees={"USD": Decimal("1.25")},
+    )
+
+    calculator.convert_to_hmrc_transactions([buy])
+
+    assert buy.foreign_fees == {}
+    assert buy.fees == Decimal(1)
+    assert buy.price == Decimal("9.9")
+
+
+def test_foreign_fees_folded_into_non_gbp_transaction() -> None:
+    """Convert GBP fees into a non-GBP transaction currency."""
+    date = datetime.date(2024, 5, 1)
+    currency_converter = CurrencyConverter(None, {date: {"USD": Decimal("1.25")}})
+    calculator = CapitalGainsCalculator(
+        2024,
+        currency_converter,
+        IsinConverter(),
+        CurrentPriceFetcher(currency_converter, {}, {}),
+        SpinOffHandler(),
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    buy = BrokerTransaction(
+        date=date,
+        action=ActionType.BUY,
+        symbol="FOO",
+        description="Foo Inc",
+        quantity=Decimal(10),
+        price=Decimal("12.5"),
+        fees=Decimal(0),
+        amount=Decimal(-125),
+        currency="USD",
+        broker="Trading212",
+        foreign_fees={"GBP": Decimal(1)},
+    )
+
+    calculator.convert_to_hmrc_transactions([buy])
+
+    assert buy.foreign_fees == {}
+    assert buy.fees == Decimal("1.25")
+    assert buy.price == Decimal("12.375")
+
+
+def test_multiple_foreign_fee_currencies_on_sell() -> None:
+    """Convert each foreign fee currency and re-derive the sell price."""
+    date = datetime.date(2024, 5, 1)
+    currency_converter = CurrencyConverter(
+        None, {date: {"USD": Decimal("1.25"), "EUR": Decimal("1.10")}}
+    )
+    calculator = CapitalGainsCalculator(
+        2024,
+        currency_converter,
+        IsinConverter(),
+        CurrentPriceFetcher(currency_converter, {}, {}),
+        SpinOffHandler(),
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    buy = BrokerTransaction(
+        date=date,
+        action=ActionType.BUY,
+        symbol="FOO",
+        description="Foo Inc",
+        quantity=Decimal(10),
+        price=Decimal(9),
+        fees=Decimal(0),
+        amount=Decimal(-90),
+        currency="GBP",
+        broker="Trading212",
+    )
+    sell = BrokerTransaction(
+        date=date,
+        action=ActionType.SELL,
+        symbol="FOO",
+        description="Foo Inc",
+        quantity=Decimal(10),
+        price=Decimal("9.93"),
+        fees=Decimal(0),
+        amount=Decimal("99.30"),
+        currency="GBP",
+        broker="Trading212",
+        foreign_fees={"USD": Decimal("0.25"), "EUR": Decimal("0.55")},
+    )
+
+    calculator.convert_to_hmrc_transactions([buy, sell])
+
+    assert sell.foreign_fees == {}
+    assert sell.fees == Decimal("0.70")
+    assert sell.price == Decimal(10)
