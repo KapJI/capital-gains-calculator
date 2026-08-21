@@ -961,11 +961,11 @@ def test_run_with_example_files() -> None:
     assert stderr_lines[:-2] == [
         "Parsing tests/schwab/data/schwab_transactions.csv...",
         "Loaded 13 transactions from Charles Schwab",
-        "Parsing tests/trading212/data/2020/from_2020-09-11_to_2021-04-02.csv...",
-        "Loaded 8 transactions from Trading 212",
         "Parsing tests/morgan_stanley/data/Releases Report.csv...",
         "Parsing tests/morgan_stanley/data/Withdrawals Report.csv...",
         "Loaded 6 transactions from Morgan Stanley",
+        "Parsing tests/trading212/data/2020/from_2020-09-11_to_2021-04-02.csv...",
+        "Loaded 8 transactions from Trading 212",
         "Found 27 broker transactions",
         "First pass complete",
         "Bed & breakfast match: VUAG disposed 2020-06-03, re-acquired 2020-07-02",

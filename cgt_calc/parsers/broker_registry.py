@@ -55,18 +55,19 @@ def _transaction_sort_key(
 class BrokerRegistry:
     """Registry for all broker parsers."""
 
+    # Ordered by pretty name, matching the docs, with the generic RAW format
+    # last. Add new brokers in their sorted place.
     _BROKERS: ClassVar[list[type[BaseParser]]] = [
-        FreetradeParser,
-        RawParser,
         SchwabParser,
         SchwabEquityAwardsJSONParser,
+        FreetradeParser,
+        HargreavesLansdownParser,
+        InteractiveBrokersParser,
+        MSSBParser,
         SharesightParser,
         Trading212Parser,
-        MSSBParser,
         VanguardParser,
-        InteractiveBrokersParser,
-        HargreavesLansdownParser,
-        # Add new brokers here
+        RawParser,
     ]
 
     @staticmethod
