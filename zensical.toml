@@ -18,13 +18,14 @@ nav = [
     { "Brokers" = [
       "brokers/index.md",
       { "Charles Schwab" = "brokers/schwab.md" },
-      { "Trading 212" = "brokers/trading212.md" },
+      { "Freetrade" = "brokers/freetrade.md" },
+      { "Hargreaves Lansdown" = "brokers/hargreaves-lansdown.md" },
+      { "Interactive Brokers" = "brokers/interactive-brokers.md" },
       { "Morgan Stanley" = "brokers/morgan-stanley.md" },
       { "Sharesight" = "brokers/sharesight.md" },
-      { "Hargreaves Lansdown" = "brokers/hargreaves-lansdown.md" },
+      { "Trading 212" = "brokers/trading212.md" },
       { "Vanguard" = "brokers/vanguard.md" },
-      { "Freetrade" = "brokers/freetrade.md" },
-      { "Interactive Brokers" = "brokers/interactive-brokers.md" },
+      # The generic fallback belongs after the named brokers.
       { "RAW format" = "brokers/raw.md" },
     ] },
     { "Offshore funds (ERI)" = "offshore-funds.md" },
