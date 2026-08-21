@@ -53,6 +53,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     concurrency: docs-deploy
+    environment:
+      name: docs
+      url: https://cgt-calc.uk
     steps:
       - name: Download site artifact
         uses: actions/download-artifact@v7
