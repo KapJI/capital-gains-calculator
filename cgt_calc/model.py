@@ -15,6 +15,7 @@ from colorama import Style
 from .logging import bullet, style_text
 from .util import (
     approx_equal,
+    exact_str,
     is_currency,
     luhn_check_digit,
     normalize_amount,
@@ -705,7 +706,7 @@ class CapitalGainsReport:
                     f"{strip_zeros(quantity)} units, base cost "
                     f"£{round_decimal(base_cost, 2):,}\n"
                     f"    {date_index},TRANSFER_FROM_SPOUSE,{symbol},"
-                    f"{strip_zeros(quantity)},{strip_zeros(base_cost / quantity)},"
+                    f"{exact_str(quantity)},{exact_str(base_cost / quantity)},"
                     "0.00,GBP\n"
                 )
 

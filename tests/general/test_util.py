@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from cgt_calc.util import approx_equal
+from cgt_calc.util import approx_equal, exact_str
 
 
 @pytest.mark.parametrize(
@@ -38,3 +38,19 @@ def test_approx_equal_default_tolerance() -> None:
     """approx_equal defaults to a tolerance of 0.01 when none is given."""
     assert approx_equal(Decimal("1.00"), Decimal("1.005")) is True
     assert approx_equal(Decimal("1.00"), Decimal("1.02")) is False
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (Decimal("10.0000000000"), "10"),
+        (Decimal(400), "400"),
+        (Decimal("0.01") / Decimal(1_000_000_000), "0.00000000001"),
+        (Decimal("0.00000000001"), "0.00000000001"),
+        (Decimal(100) / Decimal(3), "33.33333333333333333333333333"),
+    ],
+)
+def test_exact_str_keeps_every_digit(value: Decimal, expected: str) -> None:
+    """Output meant to be parsed again must not round to nothing or use exponents."""
+    assert exact_str(value) == expected
+    assert Decimal(exact_str(value)) == value

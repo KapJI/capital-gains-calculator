@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 import logging
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -27,6 +28,7 @@ from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import ActionType, BrokerTransaction, RuleType
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
+from cgt_calc.parsers.raw import RawParser
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 from .calc_test_data import (
@@ -35,6 +37,9 @@ from .calc_test_data import (
     transfer_to_spouse_transaction,
 )
 from .test_calc import create_calculator, get_report
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_transfer_to_spouse_from_pool_is_no_gain_no_loss() -> None:
@@ -1148,3 +1153,48 @@ def test_transferor_report_hands_over_the_recipients_row() -> None:
     )
 
     assert "2024-06-10,TRANSFER_FROM_SPOUSE,FOO,400,10,0.00,GBP" in str(report)
+
+
+def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> None:
+    """What the transferor's report prints is exactly what the recipient reads.
+
+    A pool of 15 shares costing £155 gives 3 of them a base cost of £31, and
+    £31 over 3 shares does not terminate. The row still has to reproduce £31
+    once parsed and pooled, with nothing rounded away on the way.
+    """
+    transfer_day = datetime.date(2024, 6, 10)
+    sender = get_report(
+        create_calculator(),
+        [
+            transaction(
+                datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"
+            ),
+            transaction(
+                datetime.date(2024, 6, 2), ActionType.BUY, "FOO", 5, 11, 0, -55, "GBP"
+            ),
+            transfer_to_spouse_transaction(transfer_day, "FOO", 3),
+        ],
+    )
+    row = next(
+        line.strip()
+        for line in str(sender).splitlines()
+        if "TRANSFER_FROM_SPOUSE" in line
+    )
+    raw_file = tmp_path / "transfers.csv"
+    raw_file.write_text(f"date,action,symbol,quantity,price,fees,currency\n{row}\n")
+
+    (arrival,) = RawParser().load_from_file(raw_file)
+    recipient = get_report(
+        create_calculator(balance_check=True),
+        [
+            arrival,
+            transaction(
+                datetime.date(2024, 9, 1), ActionType.SELL, "FOO", 3, 20, 0, 60, "GBP"
+            ),
+        ],
+    )
+
+    assert arrival.action is ActionType.TRANSFER_FROM_SPOUSE
+    assert arrival.quantity == Decimal(3)
+    assert recipient.allowable_costs == Decimal(31)
+    assert recipient.total_gain() == Decimal(29)
