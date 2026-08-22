@@ -1,4 +1,4 @@
-# RAW format
+# RAW Format
 
 You will need:
 
