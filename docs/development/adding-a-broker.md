@@ -6,5 +6,6 @@
    [`cgt_calc/parsers/broker_registry.py`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/parsers/broker_registry.py)
 3. Add tests in `tests/`
 4. Add a docs page under `docs/brokers/` and a nav entry in `zensical.toml`, and add the broker to
-   the table in [Brokers](../brokers/index.md)
+   the table in [Brokers](../brokers/index.md) and the list in the README. All three are sorted by
+   broker name, with the RAW format left last
 5. Submit a pull request describing your changes

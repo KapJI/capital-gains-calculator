@@ -7,13 +7,13 @@ export instructions.
 | Broker                                        | CLI option                             | Notes                                |
 | --------------------------------------------- | -------------------------------------- | ------------------------------------ |
 | [Charles Schwab](schwab.md)                   | `--schwab-file`, `--schwab-award-file` | Equity awards supported              |
-| [Trading 212](trading212.md)                  | `--trading212-dir`                     | Folder of yearly exports             |
+| [Freetrade](freetrade.md)                     | `--freetrade-file`                     | Activity CSV export                  |
+| [Hargreaves Lansdown](hargreaves-lansdown.md) | `--hl-dir`                             | CSVs plus contract-note PDFs         |
+| [Interactive Brokers](interactive-brokers.md) | `--interactive-brokers-file`           | Transaction history CSV              |
 | [Morgan Stanley](morgan-stanley.md)           | `--mssb-dir`                           | Folder from the report download page |
 | [Sharesight](sharesight.md)                   | `--sharesight-dir`                     | Multi-broker portfolio tracker       |
-| [Hargreaves Lansdown](hargreaves-lansdown.md) | `--hl-dir`                             | CSVs plus contract-note PDFs         |
+| [Trading 212](trading212.md)                  | `--trading212-dir`                     | Folder of yearly exports             |
 | [Vanguard](vanguard.md)                       | `--vanguard-file`                      | Excel export tab saved as CSV        |
-| [Freetrade](freetrade.md)                     | `--freetrade-file`                     | Activity CSV export                  |
-| [Interactive Brokers](interactive-brokers.md) | `--interactive-brokers-file`           | Transaction history CSV              |
 | [RAW format](raw.md)                          | `--raw-file`                           | Generic fallback for other brokers   |
 
 If your broker is not listed, try the [RAW format](raw.md). Contributions for new brokers are very
