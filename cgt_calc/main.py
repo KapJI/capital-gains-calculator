@@ -257,9 +257,9 @@ class CapitalGainsCalculator:
         )
         # The source side of each spin-off, recorded when it is applied and
         # collected into the calculation log by date.
-        self.spin_off_entries: dict[datetime.date, dict[str, CalculationEntry]] = (
-            defaultdict(dict)
-        )
+        self.spin_off_entries: dict[
+            datetime.date, dict[str, list[CalculationEntry]]
+        ] = defaultdict(lambda: defaultdict(list))
         self.eris: ExcessReportedIncomeLog = defaultdict(dict)
         self.eris_distribution: ExcessReportedIncomeDistributionLog = defaultdict(
             lambda: defaultdict(ExcessReportedIncomeDistribution)
@@ -983,18 +983,20 @@ class CapitalGainsCalculator:
                 source = self.portfolio[spin_off.source]
                 share = round_decimal((1 - spin_off.cost_proportion) * source.amount, 2)
                 carried += share
-                self.spin_off_entries[date_index][spin_off.source] = CalculationEntry(
-                    RuleType.SPIN_OFF,
-                    quantity=source.quantity,
-                    amount=-source.amount,
-                    new_quantity=source.quantity,
-                    gain=None,
-                    # Fees, if any, are already accounted for on the
-                    # acquisition of spun-off shares
-                    fees=Decimal(0),
-                    new_pool_cost=source.amount - share,
-                    allowable_cost=source.amount - share,
-                    spin_off=spin_off,
+                self.spin_off_entries[date_index][spin_off.source].append(
+                    CalculationEntry(
+                        RuleType.SPIN_OFF,
+                        quantity=source.quantity,
+                        amount=-source.amount,
+                        new_quantity=source.quantity,
+                        gain=None,
+                        # Fees, if any, are already accounted for on the
+                        # acquisition of spun-off shares
+                        fees=Decimal(0),
+                        new_pool_cost=source.amount - share,
+                        allowable_cost=source.amount - share,
+                        spin_off=spin_off,
+                    )
                 )
                 source.amount -= share
             acquisition.amount += carried - self.spin_off_estimates.pop(
@@ -1244,10 +1246,18 @@ class CapitalGainsCalculator:
                             "this disposal against them. What they cost is a "
                             "share of the source holding's pool on the day of the "
                             "spin-off, which is not settled until that day, so "
-                            "this tool cannot say what they cost here. Work this "
-                            "disposal out by hand (consider professional advice) "
-                            "and leave the symbol out of the input; everything "
-                            "else still calculates."
+                            "this tool cannot say what they cost here.\n"
+                            "What to do: run again with this one disposal left "
+                            "out. That run still applies the spin-off to both "
+                            "holdings and shows what the spun-off shares cost, "
+                            f"as the {effective_symbol} acquisition on "
+                            f"{search_index}. Identify this disposal against them "
+                            "at that cost by hand (consider professional advice). "
+                            f"Any later {effective_symbol} figures in that run "
+                            "still include the shares disposed of here, so check "
+                            "those by hand as well. Do not leave the symbol or "
+                            "the spin-off row out: the spin-off also reduces the "
+                            "source holding's cost."
                         )
                     # Bed and breakfasting is a record of how the disposal was
                     # matched rather than a problem. Surface it for the computed
@@ -1880,7 +1890,17 @@ class CapitalGainsCalculator:
                 else {}
             )
             if date_index in self.acquisition_list:
-                for symbol in self.acquisition_list[date_index]:
+                # A spin-off takes its share of the source's pool as it stands
+                # on the day, and the day's purchases of the source are part of
+                # that: same-day acquisitions form a single acquisition (TCGA
+                # 1992 s105). So pool every other symbol first, and the spun-off
+                # holdings after, whatever order the input listed them in.
+                spun_off = {
+                    spin_off.dest for spin_off in self.spin_offs.get(date_index, [])
+                }
+                for symbol in sorted(
+                    self.acquisition_list[date_index], key=lambda s: s in spun_off
+                ):
                     calculation_entries = self.process_acquisition(
                         symbol,
                         date_index,
@@ -1889,9 +1909,9 @@ class CapitalGainsCalculator:
                         calculation_log[date_index][f"buy${symbol}"] = (
                             calculation_entries
                         )
-            for source, entry in self.spin_off_entries.pop(date_index, {}).items():
+            for source, entries in self.spin_off_entries.pop(date_index, {}).items():
                 if date_index >= tax_year_start_index:
-                    calculation_log[date_index][f"spin-off${source}"] = [entry]
+                    calculation_log[date_index][f"spin-off${source}"] = entries
             if date_index in self.disposal_list:
                 for symbol in self.disposal_list[date_index]:
                     transaction_capital_gain, calculation_entries = (

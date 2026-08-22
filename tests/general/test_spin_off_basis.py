@@ -250,7 +250,7 @@ def test_selling_the_new_holding_just_before_the_spin_off_is_refused() -> None:
     has not reached, and the first-pass figure is £0 here because FOO was
     sold at a profit first. There is no right number to use, so say so.
     """
-    with pytest.raises(CalculationError, match="spin-off added BAR"):
+    with pytest.raises(CalculationError, match="run again with this one disposal"):
         spin_off(
             [
                 transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
@@ -319,3 +319,68 @@ def test_a_spin_off_before_the_period_is_applied_but_not_reported() -> None:
     # The 2024/25 sale gets the apportioned £90, and nothing from 2023 is listed.
     assert report.allowable_costs == Decimal(90)
     assert earlier_spin_off not in report.calculation_log
+
+
+def test_the_days_purchases_of_the_source_are_in_the_pool_whatever_the_order() -> None:
+    """Same-day acquisitions are one acquisition (s105), so they share the cost.
+
+    BAR is listed before FOO, so it used to be pooled first and the spin-off
+    read FOO's pool without the day's £100 purchase: FOO £190 and BAR £60
+    instead of £180 and £70.
+    """
+    calculator, _ = spin_off(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAR", 5, 10, 0, -50, "GBP"),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+        ],
+        20,
+        {BUY_DAY: {"GBP": FLAT}, SPIN_OFF_DAY: {"GBP": FLAT}},
+    )
+
+    assert calculator.portfolio["FOO"].amount == Decimal(180)
+    assert calculator.portfolio["BAR"].amount == Decimal(70)
+
+
+def test_two_spin_offs_from_one_source_on_one_day_are_both_recorded() -> None:
+    """Each spin-off gets its own entry, and each takes its share in turn."""
+    converter = CurrencyConverter(None, {})
+    handler = SpinOffHandler()
+    handler.cache = {"BAR": "FOO", "BAZ": "FOO"}
+    calculator = CapitalGainsCalculator(
+        2024,
+        converter,
+        IsinConverter(),
+        CurrentPriceFetcher(
+            converter,
+            {},
+            {
+                "FOO": {SPIN_OFF_DAY: Decimal(90)},
+                "BAR": {SPIN_OFF_DAY: Decimal(10)},
+                "BAZ": {SPIN_OFF_DAY: Decimal(10)},
+            },
+        ),
+        handler,
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    report = get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency="GBP"
+            ),
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency="GBP"
+            ),
+        ],
+    )
+
+    entries = report.calculation_log[SPIN_OFF_DAY]["spin-off$FOO"]
+    # £100 -> £90 after BAR took a tenth, then £90 -> £81 after BAZ took a tenth.
+    assert [e.new_pool_cost for e in entries] == [Decimal(90), Decimal(81)]
+    assert calculator.portfolio["BAR"].amount == Decimal(10)
+    assert calculator.portfolio["BAZ"].amount == Decimal(9)
+    assert calculator.portfolio["FOO"].amount == Decimal(81)
