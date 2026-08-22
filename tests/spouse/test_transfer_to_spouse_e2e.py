@@ -12,7 +12,7 @@ import subprocess
 
 import pytest
 
-from tests.utils import build_cmd, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts
 
 DATA = Path("tests") / "spouse" / "data"
 
@@ -21,17 +21,13 @@ BASE_COST_PASSED_ON = "£400.00"
 
 
 def _run(name: str, request: pytest.FixtureRequest) -> subprocess.CompletedProcess[str]:
-    # Name the report after the test that produced it, so a downloaded
-    # artifact says which one it came from. Hyphens because the workflow
-    # collects them with an `out/test-*` glob.
-    report = request.node.name.replace("_", "-")
     cmd = build_cmd(
         "--year",
         "2024",
         "--raw-file",
         str(DATA / f"{name}.csv"),
         "--output",
-        f"out/{report}/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

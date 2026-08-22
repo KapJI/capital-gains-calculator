@@ -9,7 +9,7 @@ import pytest
 
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
-from tests.utils import build_cmd, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts
 
 
 class TestInteractiveBrokers:
@@ -146,7 +146,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert txn.amount == Decimal("-13016.0428084197")
         assert txn.currency == "GBP"
 
-    def test_basic_csv_file(self) -> None:
+    def test_basic_csv_file(self, request: pytest.FixtureRequest) -> None:
         """Runs the script and verifies it doesn't fail."""
         cmd = build_cmd(
             "--year",
@@ -154,7 +154,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "--interactive-brokers-file",
             "tests/interactive_brokers/data/test_basic.csv",
             "--output",
-            "out/test-interactive_brokers/",
+            report_path(request),
         )
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode:

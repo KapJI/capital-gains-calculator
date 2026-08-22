@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 from pathlib import Path
 import subprocess
 
-from tests.utils import build_cmd, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts
 
 
 def _write_csv(path: Path, rows: list[list[str]]) -> None:
@@ -26,7 +26,9 @@ def _write_csv(path: Path, rows: list[list[str]]) -> None:
         writer.writerows(rows)
 
 
-def test_run_with_sharesight_files_no_balance_check() -> None:
+def test_run_with_sharesight_files_no_balance_check(
+    request: pytest.FixtureRequest,
+) -> None:
     """Runs the tool and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -35,7 +37,7 @@ def test_run_with_sharesight_files_no_balance_check() -> None:
         "tests/sharesight/data/inputs/",
         "--no-balance-check",
         "--output",
-        "out/test-sharesight/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

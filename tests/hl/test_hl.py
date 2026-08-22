@@ -13,7 +13,7 @@ from reportlab.pdfgen import canvas
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.hl import HargreavesLansdownParser
-from tests.utils import build_cmd, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts
 
 HL_CSV_HEADER = (
     "Transaction Summary, , , ,\n"
@@ -100,7 +100,7 @@ def _prepare_pdf_test_data() -> str:
     return str(input_dir)
 
 
-def test_hl_parser() -> None:
+def test_hl_parser(request: pytest.FixtureRequest) -> None:
     """Runs the tool and verifies it doesn't fail."""
 
     test_output_dir = _prepare_pdf_test_data()
@@ -111,7 +111,7 @@ def test_hl_parser() -> None:
         test_output_dir,
         "--no-balance-check",
         "--output",
-        "out/test-hl/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -136,7 +136,7 @@ def test_hl_parser() -> None:
     )
 
 
-def test_hl_parser_missing_pdf() -> None:
+def test_hl_parser_missing_pdf(request: pytest.FixtureRequest) -> None:
     """Runs the tool and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -145,7 +145,7 @@ def test_hl_parser_missing_pdf() -> None:
         "tests/hl/data/inputs/",
         "--no-balance-check",
         "--output",
-        "out/test-hl/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     assert result.returncode, "Test succeeded but expected failure"

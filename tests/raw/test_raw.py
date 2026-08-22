@@ -13,7 +13,7 @@ import pytest
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.raw import COLUMNS, RawColumn, RawParser, _parse_decimal
-from tests.utils import build_cmd, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts
 
 
 def _write_csv(path: Path, rows: list[list[str]]) -> None:
@@ -24,7 +24,7 @@ def _write_csv(path: Path, rows: list[list[str]]) -> None:
         writer.writerows(rows)
 
 
-def test_run_with_raw_files_no_balance_check() -> None:
+def test_run_with_raw_files_no_balance_check(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -33,7 +33,7 @@ def test_run_with_raw_files_no_balance_check() -> None:
         "tests/raw/data/test_data.csv",
         "--no-balance-check",
         "--output",
-        "out/test-raw/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -53,7 +53,7 @@ def test_run_with_raw_files_no_balance_check() -> None:
     )
 
 
-def test_run_with_raw_files() -> None:
+def test_run_with_raw_files(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -61,7 +61,7 @@ def test_run_with_raw_files() -> None:
         "--raw-file",
         "tests/raw/data/test_data_2.csv",
         "--output",
-        "out/test-raw-2/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -81,7 +81,7 @@ def test_run_with_raw_files() -> None:
     )
 
 
-def test_run_with_raw_files_stdin() -> None:
+def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
     """Runs the script with stdin and verifies it works identically."""
     csv_file = Path("tests") / "raw" / "data" / "test_data.csv"
     csv_content = csv_file.read_text(encoding="utf-8")
@@ -93,7 +93,7 @@ def test_run_with_raw_files_stdin() -> None:
         "-",
         "--no-balance-check",
         "--output",
-        "out/test-raw-stdin/",
+        report_path(request),
     )
     result = subprocess.run(
         cmd, input=csv_content, capture_output=True, text=True, check=False
