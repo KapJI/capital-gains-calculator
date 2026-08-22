@@ -850,3 +850,96 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
         "transfer-to-spouse$FOO"
     ]
     assert all(e.rule_type is RuleType.TRANSFER_TO_SPOUSE for e in entries)
+
+
+def test_same_day_sale_and_transfer_after_a_split_is_allowed() -> None:
+    """A split is not an acquisition a sale and a transfer can contend over.
+
+    It hands over shares for free, so the B&B rule skips it and neither
+    disposal can be identified against it. Both fall through to the pool.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    event_day = datetime.date(2024, 6, 10)
+    split_day = datetime.date(2024, 6, 15)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, "GBP"),
+            transfer_to_spouse_transaction(event_day, "FOO", 2),
+            split_transaction(split_day, "FOO", 5),
+        ],
+    )
+
+    entries = report.calculation_log[event_day]["transfer-to-spouse$FOO"]
+    # Straight out of the pool at the £10 average.
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(20)
+
+
+def test_same_day_sale_and_transfer_message_caps_the_dates_it_lists() -> None:
+    """Too many contended acquisitions are summarised rather than all listed."""
+    buy_day = datetime.date(2024, 6, 1)
+    event_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    rebuys = [
+        transaction(
+            event_day + datetime.timedelta(days=offset),
+            ActionType.BUY,
+            "FOO",
+            1,
+            30,
+            0,
+            -30,
+            "GBP",
+        )
+        for offset in (1, 2, 3, 4)
+    ]
+    with pytest.raises(CalculationError) as err:
+        get_report(
+            calculator,
+            [
+                transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+                transaction(event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, "GBP"),
+                transfer_to_spouse_transaction(event_day, "FOO", 2),
+                *rebuys,
+            ],
+        )
+
+    message = str(err.value)
+    assert "2024-06-11, 2024-06-12, 2024-06-13 and 1 more" in message
+
+
+def test_transfer_fee_does_not_move_the_cash_balance() -> None:
+    """A hand-written transfer row has no funded ledger to charge the fee to.
+
+    RAW rows come in under their own broker, so charging the fee there drives
+    that balance straight below zero and trips the balance check.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    transfer = BrokerTransaction(
+        date=transfer_day,
+        action=ActionType.TRANSFER_TO_SPOUSE,
+        symbol="FOO",
+        description="",
+        quantity=Decimal(4),
+        price=Decimal(0),
+        fees=Decimal(5),
+        amount=Decimal(-5),
+        currency="GBP",
+        broker="Unknown",
+    )
+    calculator = create_calculator(balance_check=True)
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.TRANSFER, None, None, None, 0, 200, "GBP"),
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transfer,
+        ],
+    )
+
+    # The fee still reaches the recipient's base cost: £40 of pool plus £5.
+    entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(45)
