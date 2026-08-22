@@ -690,6 +690,85 @@ def test_a_certain_gift_is_not_stranded_by_an_uncertain_one() -> None:
     assert calculator.portfolio["FOO"].quantity == Decimal(58)
 
 
+def _gift(
+    day: datetime.date, quantity: int, ambiguous: Decimal | None = None
+) -> BrokerTransaction:
+    return BrokerTransaction(
+        date=day,
+        action=ActionType.GIFT,
+        symbol="FOO",
+        description="",
+        quantity=Decimal(quantity),
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(0),
+        currency="GBP",
+        broker="Testing",
+        ambiguous_quantity=ambiguous,
+    )
+
+
+def test_two_uncertain_gifts_are_read_the_way_that_fits_both() -> None:
+    """Which reading each gift takes is settled for the day, not one by one.
+
+    Read first come, first served, the 20-or-400 gift takes the 20 row and
+    the 1-or-20 gift is stranded, although 400 and 20 fit them perfectly.
+    """
+    gift_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                datetime.date(2024, 6, 1),
+                ActionType.BUY,
+                "FOO",
+                1000,
+                10,
+                0,
+                -10000,
+                "GBP",
+            ),
+            _gift(gift_day, 20, Decimal(400)),
+            _gift(gift_day, 1, Decimal(20)),
+            transfer_to_spouse_transaction(gift_day, "FOO", 400),
+            transfer_to_spouse_transaction(gift_day, "FOO", 20),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(0)
+    assert calculator.portfolio["FOO"].quantity == Decimal(580)
+
+
+def test_gifts_no_reading_can_satisfy_still_name_the_one_left_out() -> None:
+    """When no way of reading the day fits, the gift without a row is named."""
+    gift_day = datetime.date(2024, 6, 10)
+    with pytest.raises(UnclassifiedGiftError) as err:
+        get_report(
+            create_calculator(),
+            [
+                transaction(
+                    datetime.date(2024, 6, 1),
+                    ActionType.BUY,
+                    "FOO",
+                    1000,
+                    10,
+                    0,
+                    -10000,
+                    "GBP",
+                ),
+                _gift(gift_day, 20, Decimal(400)),
+                _gift(gift_day, 20, Decimal(400)),
+                # One row between two gifts that both need one.
+                transfer_to_spouse_transaction(gift_day, "FOO", 20),
+            ],
+        )
+
+    message = str(err.value)
+    assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,20,0.00,0.00,GBP" in message
+    assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,400,0.00,0.00,GBP" in message
+
+
 def test_each_gift_needs_its_own_classification() -> None:
     """Two gifts of the same shares on one day are not settled by one row."""
     buy_day = datetime.date(2024, 6, 1)

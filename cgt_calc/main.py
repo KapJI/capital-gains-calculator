@@ -149,6 +149,31 @@ def _approx_equal_price_rounding(
     return accptable_amount
 
 
+def _match_gifts_to_rows(
+    gifts: list[tuple[int, list[Decimal]]],
+    available: Counter[Decimal],
+    position: int = 0,
+) -> bool:
+    """Give every gift one of its readings without overdrawing any row count.
+
+    First come, first served strands a gift whose only remaining reading
+    another gift took, when the other could have read differently and both
+    would have fitted. So try the alternatives: depth-first over the gifts,
+    at most two readings each, undoing a choice that leads nowhere. Returns
+    whether every gift found a row; on failure `available` is left as it was.
+    """
+    if position == len(gifts):
+        return True
+    _, readings = gifts[position]
+    for reading in readings:
+        if available[reading] > 0:
+            available[reading] -= 1
+            if _match_gifts_to_rows(gifts, available, position + 1):
+                return True
+            available[reading] += 1
+    return False
+
+
 class CapitalGainsCalculator:
     """Main calculator class."""
 
@@ -499,47 +524,55 @@ class CapitalGainsCalculator:
             for transaction in transactions
             if transaction.action is ActionType.TRANSFER_TO_SPOUSE
         )
-        gifts = [
-            (index, transaction)
-            for index, transaction in enumerate(transactions)
-            if transaction.action is ActionType.GIFT
-        ]
-        settled = set()
-        # Gifts with only one possible count go first. They have no choice, so
-        # letting a gift that could go either way take their row would strand
-        # them for no reason.
-        for index, transaction in sorted(
-            gifts, key=lambda gift: gift[1].ambiguous_quantity is not None
-        ):
+        # Gifts of one symbol on one day all draw on the same rows, and a gift
+        # printed before a split can state either of two counts, so which row
+        # each takes has to be settled for the day as a whole.
+        groups: dict[
+            tuple[datetime.date, str | None], list[tuple[int, list[Decimal]]]
+        ] = defaultdict(list)
+        for index, transaction in enumerate(transactions):
+            if transaction.action is not ActionType.GIFT:
+                continue
             get_symbol_or_fail(transaction)
             quantity = transaction.quantity
             if quantity is None or quantity <= 0:
                 raise QuantityNotPositiveError(transaction)
-            # Either count could be what the row states, so a row for either
-            # settles the recipient and the count at once.
             readings = [quantity]
             if transaction.ambiguous_quantity is not None:
                 readings.append(transaction.ambiguous_quantity)
-            key = next(
-                (
-                    candidate
+            groups[(transaction.date, transaction.symbol)].append((index, readings))
+
+        settled: set[int] = set()
+        for (day, symbol), gifts in groups.items():
+            available = Counter(
+                {
+                    reading: classified[(day, symbol, reading)]
+                    for _, readings in gifts
                     for reading in readings
-                    if classified[
-                        candidate := (transaction.date, transaction.symbol, reading)
-                    ]
-                    > 0
-                ),
-                None,
+                }
             )
-            if key is None:
-                raise UnclassifiedGiftError(transaction, readings)
-            classified[key] -= 1
-            settled.add(index)
-            LOGGER.debug(
-                "Gift of %s on %s is accounted for by a transfer to spouse",
-                transaction.symbol,
-                transaction.date,
-            )
+            # Gifts with one possible count go first. They have no choice, so
+            # they prune the search, and when nothing fits they are the right
+            # ones to blame.
+            gifts.sort(key=lambda gift: len(gift[1]))
+            if not _match_gifts_to_rows(gifts, available):
+                # Walk the same order first come, first served to name the
+                # gift that is left without a row.
+                for index, readings in gifts:
+                    taken = next((r for r in readings if available[r] > 0), None)
+                    if taken is None:
+                        raise UnclassifiedGiftError(transactions[index], readings)
+                    available[taken] -= 1
+                # That order is one the search already rejected, so it cannot
+                # have placed every gift.
+                raise AssertionError("every gift found a row after all")
+            for index, _ in gifts:
+                settled.add(index)
+                LOGGER.debug(
+                    "Gift of %s on %s is accounted for by a transfer to spouse",
+                    symbol,
+                    day,
+                )
         return [
             transaction
             for index, transaction in enumerate(transactions)
