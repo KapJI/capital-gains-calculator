@@ -1638,6 +1638,119 @@ def test_fractional_transfer_keeps_its_units_in_the_report() -> None:
     assert "FOO 0.001 units" in str(report)
 
 
+def test_split_shares_do_not_dilute_a_same_day_purchase() -> None:
+    """A split on the day of a purchase must not spread its cost over free shares.
+
+    Both land in the acquisition list for the day, so treating the total as one
+    acquisition prices the purchase across shares that cost nothing.
+    """
+    day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"
+            ),
+            split_transaction(day, "FOO", 10),
+            transaction(day, ActionType.BUY, "FOO", 5, 20, 0, -100, "GBP"),
+            transfer_to_spouse_transaction(day, "FOO", 5),
+        ],
+    )
+
+    entries = report.calculation_log[day]["transfer-to-spouse$FOO"]
+    # The five shares bought that day cost £100, and that is what is passed on.
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(100)
+    # 10 original plus 10 free shares, still holding the original £100.
+    assert calculator.portfolio["FOO"].quantity == Decimal(20)
+    assert calculator.portfolio["FOO"].amount == Decimal(100)
+
+
+def test_transfer_reservation_survives_a_split_before_the_repurchase() -> None:
+    """Reservations are counted in the acquisition's units, not the disposal's.
+
+    A split between an earlier sale and the repurchase means the two are
+    counted differently; subtracting one from the other unconverted drove the
+    available quantity negative.
+    """
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"
+            ),
+            transaction(
+                datetime.date(2024, 6, 5), ActionType.SELL, "FOO", 4, 15, 0, 60, "GBP"
+            ),
+            split_transaction(datetime.date(2024, 6, 8), "FOO", 6),
+            transaction(
+                datetime.date(2024, 6, 12), ActionType.BUY, "FOO", 10, 5, 0, -50, "GBP"
+            ),
+            transfer_to_spouse_transaction(datetime.date(2024, 6, 12), "FOO", 6),
+        ],
+    )
+
+    assert report.disposal_count == 1
+    assert report.total_gain() == Decimal(20)
+
+
+def test_fully_matched_acquisition_is_not_contended() -> None:
+    """An acquisition its own day's sale consumes cannot reach an earlier day."""
+    buy_day = datetime.date(2024, 6, 1)
+    event_day = datetime.date(2024, 6, 10)
+    later = datetime.date(2024, 6, 15)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, "GBP"),
+            transaction(event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, "GBP"),
+            transfer_to_spouse_transaction(event_day, "FOO", 2),
+            transaction(later, ActionType.BUY, "FOO", 4, 30, 0, -120, "GBP"),
+            transaction(later, ActionType.SELL, "FOO", 4, 31, 0, 124, "GBP"),
+        ],
+    )
+
+    # £30 on the 10th (3 units at £10 cost) plus £4 on the 15th.
+    assert report.total_gain() == Decimal(34)
+
+
+def test_transfer_fee_does_not_move_the_cash_balance() -> None:
+    """A hand-written transfer row has no funded ledger to charge the fee to.
+
+    RAW rows come in under their own broker, so charging the fee there drives
+    that balance straight below zero and trips the balance check.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    transfer = BrokerTransaction(
+        date=transfer_day,
+        action=ActionType.TRANSFER_TO_SPOUSE,
+        symbol="FOO",
+        description="",
+        quantity=Decimal(4),
+        price=Decimal(0),
+        fees=Decimal(5),
+        amount=Decimal(-5),
+        currency="GBP",
+        broker="Unknown",
+    )
+    calculator = create_calculator(balance_check=True)
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.TRANSFER, None, None, None, 0, 200, "GBP"),
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transfer,
+        ],
+    )
+
+    # The fee still reaches the recipient's base cost: £40 of pool plus £5.
+    entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(45)
+
+
 def test_run_with_example_files() -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(

@@ -198,6 +198,14 @@ class CapitalGainsCalculator:
         self.transfer_to_spouse_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
         self.split_list: dict[tuple[str, datetime.date], Decimal] = {}
+        # Shares a split added, by symbol and date. They sit in
+        # acquisition_list so they reach the pool, but they cost nothing and
+        # are not an acquisition a disposal can be identified against
+        # (TCGA 1992 s127), so they have to stay distinguishable from a real
+        # purchase made the same day.
+        self.split_shares: dict[tuple[str, datetime.date], Decimal] = defaultdict(
+            Decimal
+        )
         # Stores old->new mapping when a symbol changes its name.
         self.rename_list: dict[datetime.date, dict[str, str]] = defaultdict(dict)
 
@@ -718,6 +726,7 @@ class CapitalGainsCalculator:
                 holding_quantity = self.portfolio[symbol].quantity
                 multiplier = (acquired_quantity + holding_quantity) / holding_quantity
                 self.split_list[(symbol, transaction.date)] = multiplier
+                self.split_shares[(symbol, transaction.date)] += acquired_quantity
                 self.add_acquisition(transaction)
             elif transaction.action in [ActionType.DIVIDEND, ActionType.CAPITAL_GAIN]:
                 amount = get_amount_or_fail(transaction)
@@ -768,9 +777,11 @@ class CapitalGainsCalculator:
                 self.rename_list[transaction.date][old_symbol] = new_symbol
                 self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
             elif transaction.action is ActionType.TRANSFER_TO_SPOUSE:
-                # No consideration changes hands, but a transfer fee is real
-                # money leaving the account.
-                new_balance -= transaction.fees
+                # The balance is left alone. A transfer fee is real money, but
+                # these rows are written by hand in a RAW file, which is its own
+                # unfunded "Unknown" ledger, so charging the fee there only ever
+                # drives that balance negative. The fee still counts towards the
+                # base cost; it is the cash check it cannot take part in.
                 self.add_transfer_to_spouse(transaction)
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
@@ -998,17 +1009,13 @@ class CapitalGainsCalculator:
         assert disposal_quantity <= current_quantity
         chargeable_gain = Decimal(0)
         calculation_entries = []
-        # Same day rule is first. A reorganisation such as a split is not an
-        # acquisition (TCGA 1992 s127, CG51805): the new shares are treated as
-        # acquired when the original ones were, so they cannot be matched here.
-        # Without this they would be matched at their nil cost and the disposal
-        # would take a zero allowable cost. The B&B rule below skips them too.
-        if (
-            has_key(self.acquisition_list, date_index, symbol)
-            and self.acquisition_list[date_index][symbol].amount != 0
-        ):
-            same_day_acquisition = self.acquisition_list[date_index][symbol]
-
+        # Same day rule is first, against the day's real purchases only. Shares
+        # from a split are not an acquisition (TCGA 1992 s127, CG51805) and cost
+        # nothing, so matching them would hand the disposal a nil allowable cost
+        # and, on a day that also has a purchase, spread that purchase's cost
+        # over the free shares as well.
+        same_day_acquisition = self._matchable_acquisition(date_index, symbol)
+        if same_day_acquisition.quantity > 0:
             available_quantity = min(disposal_quantity, same_day_acquisition.quantity)
             if available_quantity > 0:
                 fees = disposal.fees * available_quantity / original_disposal_quantity
@@ -1091,9 +1098,21 @@ class CapitalGainsCalculator:
                 eri = self.get_eri(effective_symbol, search_index)
                 if eri:
                     eris.append(eri)
-                if has_key(self.acquisition_list, search_index, effective_symbol):
-                    acquisition = self.acquisition_list[search_index][effective_symbol]
-
+                # Shares from a split are free, so they are never part of a
+                # B&B match and _matchable_acquisition leaves them out. Say so:
+                # a split this close to a disposal is worth a second look.
+                if self.split_shares.get((effective_symbol, search_index)):
+                    LOGGER.warning(
+                        "A split happened shortly after a disposal of %s, double check these transactions."
+                        "Disposed on %s and split happened on %s",
+                        symbol,
+                        date_index,
+                        search_index,
+                    )
+                acquisition = self._matchable_acquisition(
+                    search_index, effective_symbol
+                )
+                if acquisition.quantity > 0:
                     bnb_acquisition = (
                         self.bnb_list[search_index][effective_symbol]
                         if has_key(self.bnb_list, search_index, effective_symbol)
@@ -1132,17 +1151,6 @@ class CapitalGainsCalculator:
                         == 0
                     ):
                         continue
-                    # Splits are the only transactions that receive shares for free,
-                    # so they can't be part of a B&B
-                    if acquisition.amount == 0:
-                        LOGGER.warning(
-                            "A split happened shortly after a disposal of %s, double check these transactions."
-                            "Disposed on %s and split happened on %s",
-                            symbol,
-                            date_index,
-                            search_index,
-                        )
-                        continue
                     # Bed and breakfasting is a record of how the disposal was
                     # matched rather than a problem. Surface it for the computed
                     # tax year; the rest of the history walk logs it at DEBUG.
@@ -1163,11 +1171,19 @@ class CapitalGainsCalculator:
                             symbol,
                             split_multiplier,
                         )
+                    # Everything reserved here is counted in the acquisition's
+                    # own units, so the whole remainder converts to the
+                    # disposal's units once. Converting only the acquisition
+                    # would subtract post-split counts from a pre-split one and
+                    # can go negative.
                     available_quantity = min(
                         disposal_quantity,
-                        acquisition.quantity / split_multiplier
-                        - same_day_disposal.quantity
-                        - bnb_acquisition.quantity,
+                        (
+                            acquisition.quantity
+                            - same_day_disposal.quantity
+                            - bnb_acquisition.quantity
+                        )
+                        / split_multiplier,
                     )
                     fees = (
                         disposal.fees * available_quantity / original_disposal_quantity
@@ -1343,6 +1359,31 @@ class CapitalGainsCalculator:
             renamed_to=new,
         )
 
+    def _matchable_acquisition(
+        self,
+        date_index: datetime.date,
+        symbol: str,
+    ) -> HmrcTransactionData:
+        """Return the acquisitions a disposal could be identified with.
+
+        Shares handed over by a split are removed: they cost nothing and are
+        not an acquisition (TCGA 1992 s127, CG51805). They are pooled with real
+        purchases in ``acquisition_list``, so leaving them in would spread the
+        purchase cost over free shares as well.
+        """
+        if not has_key(self.acquisition_list, date_index, symbol):
+            return HmrcTransactionData()
+        acquisition = self.acquisition_list[date_index][symbol]
+        split = self.split_shares.get((symbol, date_index), Decimal(0))
+        if not split:
+            return acquisition
+        return HmrcTransactionData(
+            quantity=acquisition.quantity - split,
+            amount=acquisition.amount,
+            fees=acquisition.fees,
+            eris=acquisition.eris,
+        )
+
     def _contending_acquisitions(
         self,
         symbol: str,
@@ -1360,17 +1401,31 @@ class CapitalGainsCalculator:
         dates = []
         effective_symbol = symbol
 
-        def is_real_acquisition(day: datetime.date, ticker: str) -> bool:
-            # Two kinds of entry live here without being something a disposal
-            # can be identified against: a split hands over shares for free,
-            # and a management fee is recorded as cost with no shares at all.
-            # The B&B rule skips both.
-            if not has_key(self.acquisition_list, day, ticker):
+        def has_shares_going_spare(
+            day: datetime.date, ticker: str, *, is_disposal_day: bool
+        ) -> bool:
+            # Only what is left over is worth arguing about. Shares from a split
+            # are already excluded, a management fee is recorded as cost with no
+            # shares, and an earlier disposal's bed and breakfast match has
+            # taken what it took.
+            acquisition = self._matchable_acquisition(day, ticker)
+            if acquisition.quantity <= 0 or acquisition.amount == 0:
                 return False
-            acquisition = self.acquisition_list[day][ticker]
-            return acquisition.quantity > 0 and acquisition.amount != 0
+            # What the same-day sale has already bed-and-breakfasted is
+            # deliberately not deducted. Those are the very shares in dispute,
+            # and it only got them because it happens to be processed first.
+            taken = Decimal(0)
+            if not is_disposal_day:
+                # Whatever that later day disposes of under the same-day rule
+                # is spoken for before either of ours can reach it. On the
+                # disposal day itself the sale and the transfer are the two
+                # laying claim, so subtracting them would hide the clash.
+                for log in (self.disposal_list, self.transfer_to_spouse_list):
+                    if has_key(log, day, ticker):
+                        taken += log[day][ticker].quantity
+            return acquisition.quantity - taken > 0
 
-        if is_real_acquisition(date_index, symbol):
+        if has_shares_going_spare(date_index, symbol, is_disposal_day=True):
             dates.append(date_index)
         for i in range(BED_AND_BREAKFAST_DAYS):
             search_index = date_index + datetime.timedelta(days=i + 1)
@@ -1378,7 +1433,9 @@ class CapitalGainsCalculator:
             effective_symbol = self.rename_list.get(search_index, {}).get(
                 effective_symbol, effective_symbol
             )
-            if is_real_acquisition(search_index, effective_symbol):
+            if has_shares_going_spare(
+                search_index, effective_symbol, is_disposal_day=False
+            ):
                 dates.append(search_index)
         return dates
 
