@@ -19,7 +19,8 @@ still affect disposals in the tax year you are reporting; see
 2. Set the date range to **Since Inception**.
 3. Select **Do not group (Holdings)**.
 4. Export the report to a spreadsheet or Google Drive. Do not use the PDF export.
-5. Open the exported workbook and select the **Combined** worksheet.
+5. Open the exported workbook and select the worksheet containing all trades without grouping (named
+   **Combined** in current exports).
 6. Save or download that worksheet as a CSV file.
 
 See Sharesight's current
@@ -53,9 +54,9 @@ matching is case-insensitive, including the `.csv` extension, so suffixes added 
 uppercase `.CSV` extensions are accepted. cgt-calc does not read the original `.xlsx` files or
 search subdirectories.
 
-Do not rename or delete columns when converting the worksheets. cgt-calc accepts both the legacy
-Sharesight headings and newer headings such as `Market Code`, `Qty`, `Instrument Currency` and
-`Exch. Rate`. You can compare the structure with the
+Do not rename or delete columns when converting the worksheets. In addition to the legacy headings,
+cgt-calc accepts aliases including `Market Code`, `Qty`, `Instrument Currency` and `Exch. Rate`. You
+can compare the legacy structure with the
 [sanitised example reports](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/sharesight/data/inputs).
 
 ## Generate the report
@@ -92,6 +93,9 @@ that marker is rejected.
 
 ## Known limitations
 
+- [`Opening Balance`](https://help.sharesight.com/opening-balance/) trades are not supported.
+  Sharesight uses them when the original buy and sell records are unavailable, but cgt-calc needs
+  the original acquisition dates and costs for UK share matching.
 - `Split`, `Consolidation` and `Bonus` rows are not supported. They stop the import with an unknown
   action error. Do not delete such a row to make the calculation run: later quantities and gains
   could be wrong.
@@ -112,9 +116,9 @@ start with `All Trades Report` and `Taxable Income Report`.
 
 ### `Missing expected columns`
 
-For All Trades, make sure you exported **Do not group (Holdings)** and converted the **Combined**
-worksheet without editing its headings. For Taxable Income, convert the report worksheet rather than
-a summary or chart.
+For All Trades, make sure you exported **Do not group (Holdings)** and converted the worksheet
+containing the combined trades without editing its headings. For Taxable Income, convert the report
+worksheet rather than a summary or chart.
 
 First upgrade cgt-calc using the same method you used to install it and try again. If the error
 remains, open a [GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with:

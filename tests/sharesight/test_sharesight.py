@@ -233,10 +233,10 @@ TRADE_HEADER = [
     "Comments",
 ]
 
-# Sharesight's newer Combined worksheet uses these spellings and puts Code
-# before Market Code. Keep this list independent of the parser aliases so a
-# wrong mapping there fails the tests.
-COMBINED_TRADE_HEADER = [
+# Exercise the newer header aliases together. This is deliberately not labelled
+# as a verbatim export fixture; keep it independent of the parser mapping so a
+# wrong alias there fails the tests.
+ALIASED_TRADE_HEADER = [
     "Code",
     "Market Code",
     "Name",
@@ -519,12 +519,12 @@ def test_parse_trade_report_with_renamed_columns(tmp_path: Path) -> None:
     assert transaction.amount == Decimal(-21)
 
 
-def test_parse_combined_trade_report_with_extra_column(tmp_path: Path) -> None:
-    """Parse the newer Combined worksheet and ignore informational columns."""
+def test_parse_trade_report_with_newer_aliases(tmp_path: Path) -> None:
+    """Parse the newer aliases and ignore an unrelated report column."""
     _write_csv(
         tmp_path / "All Trades Report.csv",
         [
-            [*COMBINED_TRADE_HEADER, "Holding"],
+            [*ALIASED_TRADE_HEADER, "Unused report column"],
             [
                 "ABC",
                 "NASDAQ",
@@ -539,7 +539,7 @@ def test_parse_combined_trade_report_with_extra_column(tmp_path: Path) -> None:
                 "1.2",
                 "16.67",
                 "",
-                "Example holding",
+                "not used",
             ],
         ],
     )
@@ -554,12 +554,12 @@ def test_parse_combined_trade_report_with_extra_column(tmp_path: Path) -> None:
     assert transaction.amount == Decimal(19)
 
 
-def test_parse_combined_trade_report_with_foreign_brokerage(tmp_path: Path) -> None:
+def test_parse_trade_report_with_foreign_brokerage(tmp_path: Path) -> None:
     """Reject brokerage whose currency differs from the instrument currency."""
     _write_csv(
         tmp_path / "All Trades Report.csv",
         [
-            COMBINED_TRADE_HEADER,
+            ALIASED_TRADE_HEADER,
             [
                 "ABC",
                 "NASDAQ",
@@ -587,12 +587,12 @@ def test_parse_combined_trade_report_with_foreign_brokerage(tmp_path: Path) -> N
     assert excinfo.value.row_index == 2
 
 
-def test_parse_combined_fx_trade_with_gbp_brokerage(tmp_path: Path) -> None:
+def test_parse_fx_trade_with_gbp_brokerage(tmp_path: Path) -> None:
     """Accept an FX row whose brokerage is in GBP, the currency FX rows use."""
     _write_csv(
         tmp_path / "All Trades Report.csv",
         [
-            COMBINED_TRADE_HEADER,
+            ALIASED_TRADE_HEADER,
             [
                 "USDGBP",
                 "FX",
