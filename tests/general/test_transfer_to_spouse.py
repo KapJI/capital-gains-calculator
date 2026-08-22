@@ -24,7 +24,7 @@ from cgt_calc.exceptions import (
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
-from cgt_calc.model import ActionType, RuleType
+from cgt_calc.model import ActionType, BrokerTransaction, RuleType
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.spin_off_handler import SpinOffHandler
 
@@ -569,6 +569,75 @@ def test_transfer_to_spouse_is_not_matched_against_a_same_day_split() -> None:
     assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(20)
     assert calculator.portfolio["FOO"].quantity == Decimal(16)
     assert calculator.portfolio["FOO"].amount == Decimal(80)
+
+
+@pytest.mark.parametrize("confirmed", [Decimal(2), Decimal(40)])
+def test_either_reading_of_an_ambiguous_gift_settles_it(confirmed: Decimal) -> None:
+    """The row the user confirms settles the share count as well as who got them.
+
+    A gift printed before a split could state either count, so the tool cannot
+    pick. Whichever the user confirms from a statement is accepted.
+    """
+    gift_day = datetime.date(2024, 6, 10)
+    gift = BrokerTransaction(
+        date=gift_day,
+        action=ActionType.GIFT,
+        symbol="FOO",
+        description="",
+        quantity=Decimal(2),
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(0),
+        currency="GBP",
+        broker="Testing",
+        ambiguous_quantity=Decimal(40),
+    )
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                datetime.date(2024, 6, 1),
+                ActionType.BUY,
+                "FOO",
+                100,
+                10,
+                0,
+                -1000,
+                "GBP",
+            ),
+            gift,
+            transfer_to_spouse_transaction(gift_day, "FOO", float(confirmed)),
+        ],
+    )
+
+    entries = report.calculation_log[gift_day]["transfer-to-spouse$FOO"]
+    assert sum((e.quantity for e in entries), Decimal(0)) == confirmed
+    assert calculator.portfolio["FOO"].quantity == Decimal(100) - confirmed
+
+
+def test_ambiguous_gift_error_offers_both_readings() -> None:
+    """Unresolved, the error shows both rows rather than guessing one."""
+    gift_day = datetime.date(2024, 6, 10)
+    gift = BrokerTransaction(
+        date=gift_day,
+        action=ActionType.GIFT,
+        symbol="FOO",
+        description="",
+        quantity=Decimal(2),
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(0),
+        currency="GBP",
+        broker="Testing",
+        ambiguous_quantity=Decimal(40),
+    )
+    with pytest.raises(UnclassifiedGiftError) as err:
+        get_report(create_calculator(), [gift])
+
+    message = str(err.value)
+    assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,2,0.00,0.00,GBP" in message
+    assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,40,0.00,0.00,GBP" in message
 
 
 def test_each_gift_needs_its_own_classification() -> None:

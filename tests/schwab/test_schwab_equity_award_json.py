@@ -403,12 +403,12 @@ def test_gift_before_a_split_is_restated_like_a_sale() -> None:
     assert transactions[0].quantity == Decimal(20)
 
 
-def test_ambiguous_gift_before_a_split_raises() -> None:
+def test_ambiguous_gift_before_a_split_records_both_readings() -> None:
     """Where only the price can date the units, a gift has nothing to go on.
 
     GOOG exports restate some records and not others, and a gift carries no
     price, so the count could be either and guessing is wrong by the whole
-    multiplier.
+    multiplier. Both readings are kept for the calculator to put to the user.
     """
     content = (
         '{"Transactions": [{"Date": "05/02/2022", "Action": "Gift",'
@@ -417,8 +417,10 @@ def test_ambiguous_gift_before_a_split_raises() -> None:
         ' "TransactionDetails": []}]}'
     )
 
-    with pytest.raises(ParsingError, match="Cannot tell how many shares"):
-        _read_json(content)
+    transaction = _read_json(content)[0]
+
+    assert transaction.quantity == Decimal(2)
+    assert transaction.ambiguous_quantity == Decimal(40)
 
 
 def test_gift_after_every_split_is_left_alone() -> None:
@@ -430,7 +432,11 @@ def test_gift_after_every_split_is_left_alone() -> None:
         ' "TransactionDetails": []}]}'
     )
 
-    assert _read_json(content)[0].quantity == Decimal(2)
+    transaction = _read_json(content)[0]
+
+    assert transaction.quantity == Decimal(2)
+    # Nothing to be unsure about once the counts are current.
+    assert transaction.ambiguous_quantity is None
 
 
 def test_gift_with_money_raises() -> None:

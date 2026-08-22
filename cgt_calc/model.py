@@ -230,6 +230,11 @@ class BrokerTransaction:
     # Fees paid in currencies other than `currency`, keyed by their own
     # currency. Converted and folded into `fees` by the calculation engine.
     foreign_fees: dict[str, Decimal] = field(default_factory=dict)
+    # The other count this row could be stating, where an export does not say
+    # whether a share count predating a split was restated for it. Set only
+    # when the two cannot be told apart, so that whichever the user confirms
+    # can settle it.
+    ambiguous_quantity: Decimal | None = None
 
     def __post_init__(self) -> None:
         """Validate BrokerTransaction data."""

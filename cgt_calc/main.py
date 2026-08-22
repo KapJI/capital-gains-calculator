@@ -504,8 +504,27 @@ class CapitalGainsCalculator:
             if transaction.action is not ActionType.GIFT:
                 remaining.append(transaction)
                 continue
-            key = (transaction.date, transaction.symbol, transaction.quantity)
-            if classified[key] > 0:
+            get_symbol_or_fail(transaction)
+            quantity = transaction.quantity
+            if quantity is None or quantity <= 0:
+                raise QuantityNotPositiveError(transaction)
+            # Either count could be what the row states, so a row for either
+            # settles the recipient and the count at once.
+            readings = [quantity]
+            if transaction.ambiguous_quantity is not None:
+                readings.append(transaction.ambiguous_quantity)
+            key = next(
+                (
+                    candidate
+                    for reading in readings
+                    if classified[
+                        candidate := (transaction.date, transaction.symbol, reading)
+                    ]
+                    > 0
+                ),
+                None,
+            )
+            if key is not None:
                 classified[key] -= 1
                 LOGGER.debug(
                     "Gift of %s on %s is accounted for by a transfer to spouse",
@@ -513,16 +532,7 @@ class CapitalGainsCalculator:
                     transaction.date,
                 )
                 continue
-            symbol = get_symbol_or_fail(transaction)
-            quantity = transaction.quantity
-            if quantity is None or quantity <= 0:
-                raise QuantityNotPositiveError(transaction)
-            raise UnclassifiedGiftError(
-                transaction,
-                strip_zeros(quantity),
-                f"{transaction.date},TRANSFER_TO_SPOUSE,{symbol},"
-                f"{strip_zeros(quantity)},0.00,0.00,{transaction.currency}",
-            )
+            raise UnclassifiedGiftError(transaction, readings)
         return remaining
 
     def add_eri(

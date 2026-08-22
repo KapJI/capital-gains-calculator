@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO, override
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
-from cgt_calc.util import round_decimal, strip_zeros
+from cgt_calc.util import round_decimal
 
 from .base_parsers import BaseSingleFileParser
 
@@ -821,7 +821,7 @@ class SchwabTransaction(BrokerTransaction):
         if history.restatement is Restatement.ACQUISITIONS_ONLY:
             self._convert_disposal_to_current_units()
         else:
-            self._convert_row_priced_before_a_split(history, file)
+            self._convert_row_priced_before_a_split(history)
 
     def _convert_disposal_to_current_units(self) -> None:
         """Convert a disposal into current share units.
@@ -840,9 +840,7 @@ class SchwabTransaction(BrokerTransaction):
 
         self._rescale(split_multiplier(self.symbol, self.date))
 
-    def _convert_row_priced_before_a_split(
-        self, history: SplitHistory, file: Path
-    ) -> None:
+    def _convert_row_priced_before_a_split(self, history: SplitHistory) -> None:
         """Convert a row whose price shows it was never restated.
 
         Where the export restates some records and not others, with nothing
@@ -853,21 +851,15 @@ class SchwabTransaction(BrokerTransaction):
         floor = history.presplit_price_floor
         assert floor is not None  # guaranteed by SplitHistory.__post_init__
         multiplier = split_multiplier(self.symbol, self.date)
-        printed = self.quantity or Decimal(0)
-        if self.action is ActionType.GIFT and multiplier != 1:
+        if self.action is ActionType.GIFT and multiplier != 1 and self.quantity:
             # A gift carries no money, so the price cannot say which units the
             # count is in, and being wrong here is wrong by the whole
-            # multiplier. Refuse rather than pick one.
-            raise ParsingError(
-                file,
-                f"Cannot tell how many shares the {self.symbol} gift of "
-                f"{self.date} moved. {self.symbol} split {multiplier}:1 after "
-                "that date, this export restates only some records, and a gift "
-                "has no price to tell them apart, so the count could be "
-                f"{strip_zeros(printed)} or "
-                f"{strip_zeros(printed * multiplier)}. "
-                "Check a statement and work this symbol out by hand.",
+            # multiplier. Record both readings rather than pick one; the
+            # calculator refuses unless the user's own row settles it.
+            self.ambiguous_quantity = round_decimal(
+                self.quantity * multiplier, ROUND_DIGITS
             )
+            return
         if self.price and self.price > floor and self.quantity:
             self._rescale(multiplier)
 
