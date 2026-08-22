@@ -345,6 +345,10 @@ def test_a_spin_off_before_the_period_is_applied_but_not_reported() -> None:
             [transaction(SPIN_OFF_DAY, ActionType.SELL, "FOO", 5, 10, 0, 50, GBP)],
             id="sold",
         ),
+        pytest.param(
+            [transfer_to_spouse_transaction(SPIN_OFF_DAY, "FOO", 5)],
+            id="transferred-to-a-spouse",
+        ),
     ],
 )
 def test_source_traded_on_the_spin_off_day_is_refused(
@@ -609,3 +613,47 @@ def test_rows_for_one_spin_off_from_two_brokers_are_one_event() -> None:
     assert calculator.portfolio["BAR"].quantity == Decimal(10)
     # One reorganisation, one entry.
     assert len(report.calculation_log[SPIN_OFF_DAY]["spin-off$FOO"]) == 1
+
+
+def test_a_rename_of_another_symbol_on_the_day_is_ignored() -> None:
+    """Only a rename of the source itself changes where its pool is looked up."""
+    converter = CurrencyConverter(None, {})
+    handler = SpinOffHandler()
+    handler.cache = {"BAR": "FOO"}
+    calculator = CapitalGainsCalculator(
+        2024,
+        converter,
+        IsinConverter(),
+        CurrentPriceFetcher(converter, {}, PRICES),
+        handler,
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    rename = BrokerTransaction(
+        date=SPIN_OFF_DAY,
+        action=ActionType.RENAME,
+        symbol="NEW",
+        description=f"{RENAME_DESCRIPTION_PREFIX}OLD",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=None,
+        currency=GBP,
+        broker="Testing",
+    )
+    get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(BUY_DAY, ActionType.BUY, "OLD", 3, 7, 0, -21, GBP),
+            rename,
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
+            ),
+        ],
+    )
+
+    assert calculator.portfolio["FOO"].amount == Decimal(90)
+    assert calculator.portfolio["BAR"].amount == Decimal(10)
+    assert calculator.portfolio["NEW"].amount == Decimal(21)
