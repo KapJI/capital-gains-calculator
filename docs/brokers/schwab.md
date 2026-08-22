@@ -64,15 +64,13 @@ against a synthetic portfolio with real dates and prices and invented share coun
 ## Gifted shares
 
 An Equity Awards export can contain a `Gift` action: shares that left the account with no money
-attached. cgt-calc refuses to calculate until you say who received them, because that decides the
-tax and the export does not record it:
+attached. Who received them decides the tax, and the export does not say, so cgt-calc stops and
+asks:
 
-- **A spouse or civil partner, where the transfer qualifies under s58.** No gain / no loss — see
-  [transfers to a spouse](raw.md#transfers-to-a-spouse-or-civil-partner). Record the gift as a
-  `TRANSFER_TO_SPOUSE` row in a small RAW file, using the same date, symbol and quantity, and pass
-  it alongside your Schwab file. The error message prints the exact line to copy.
+- **A spouse or civil partner.** Usually no gain / no loss — see
+  [transfers to a spouse](raw.md#transfers-to-a-spouse-or-civil-partner) for who qualifies. Add a
+  `TRANSFER_TO_SPOUSE` row with the same date, symbol and quantity to a small RAW file and pass it
+  alongside your Schwab file; the error prints the exact line to copy. The shares then leave your
+  pool once, not twice.
 - **Anyone else.** A disposal at market value, which is usually chargeable. cgt-calc cannot work
   that out yet, so it has to be done by hand.
-
-Once the RAW row is there, cgt-calc treats the broker's own gift row as accounted for and ignores
-it, so the shares leave your pool once rather than twice.

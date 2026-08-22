@@ -26,50 +26,39 @@ cgt-calc --year 2024 --raw-file raw_data.csv
 
 ## Transfers to a spouse or civil partner
 
-Use the `TRANSFER_TO_SPOUSE` action to record shares given to a spouse or civil partner where the
-transfer qualifies for no gain / no loss treatment under
-[TCGA 1992 s58](https://www.legislation.gov.uk/ukpga/1992/12/section/58): the shares leave your
-Section 104 pool at their base cost with a nil gain, and the report shows the base cost that passes
-to the recipient.
-
-That normally means you were living together at some point in the tax year of the transfer. Since 6
-April 2023 it can also cover transfers made after separating, up to the earlier of the end of the
-third tax year after the year of separation or the date of the final order — see
-[CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420). Check you qualify
-before using this action; if you do not, the transfer is a disposal at market value and cgt-calc
-cannot work it out yet.
-
-Leave `price` at `0` — a gift has no consideration, so it is ignored. Any fee you paid to make the
-transfer belongs in `fees`: it is an incidental cost of the disposal, so it is added to the base
-cost passed to the recipient.
+Shares given to a spouse or civil partner usually move at **no gain / no loss**: nothing is taxable
+for you, and they inherit your base cost
+([CG22200](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22200)). Record them with
+the `TRANSFER_TO_SPOUSE` action.
 
 ```csv
 2024-03-16,TRANSFER_TO_SPOUSE,META,21.5,0.00,0.00,USD
 ```
 
-No broker export marks these, so you have to add the row yourself. You do not have to convert your
-whole history to the RAW format to do it: pass a RAW file holding just the transfers alongside your
-broker export, and the two are merged.
+Leave `price` at `0`, since a gift has no sale price. Put any fee you paid to make the transfer in
+`fees` — it is added to the base cost the recipient inherits.
+
+No broker export marks these, so you add the row yourself. You do not have to convert your whole
+history to the RAW format to do it: pass a small RAW file of just the transfers alongside your
+broker export.
 
 ```shell
 cgt-calc --year 2024 --schwab-file transactions.csv --raw-file transfers.csv
 ```
 
-### How the shares are identified
+The report and the PDF show the base cost that passes to the recipient. Pass that figure on to them:
+it is what they will need for their own return when they come to sell.
 
-The transfer is a disposal for identification purposes, so the same-day and 30-day rules apply to it
-as they would to a sale
-([CG22200](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22200),
-[s106A](https://www.legislation.gov.uk/ukpga/1992/12/section/106A)). That only changes anything if
-you bought the same shares on the transfer date or within the next 30 days, in which case the base
-cost passing to the recipient is the cost of those shares rather than the pool average. Otherwise,
-the shares simply leave the Section 104 pool at its average cost.
+!!! warning "Check that you qualify"
 
-!!! warning "Selling and transferring on the same day"
+    No gain / no loss applies if you were living together at some point in the tax year of the
+    transfer, and since 6 April 2023 for a period after separating as well — see
+    [CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420). If you do not
+    qualify, or the shares went to anyone else, the transfer is a disposal at market value, which
+    cgt-calc cannot work out yet.
 
-    One case is refused: selling and transferring the same symbol on the same day when you also
-    acquired it that day or in the next 30.
-    [Section 105(1)](https://www.legislation.gov.uk/ukpga/1992/12/section/105) makes same-day
-    disposals a single transaction, but one part is chargeable and the other is not, and nothing
-    says how to split the matched acquisitions between them. Without such an acquisition both take
-    the same pool average and it calculates normally.
+Buying the same shares within 30 days of a transfer changes the figure. The transfer is matched
+against that purchase in the same way a sale would be, so the recipient inherits the cost of those
+shares rather than your pool average. Selling and transferring the same shares on the same day is
+refused when there is such a purchase, because there is no rule for splitting it between the two;
+the error says what to do instead.
