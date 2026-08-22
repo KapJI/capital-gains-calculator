@@ -1361,12 +1361,14 @@ class CapitalGainsCalculator:
         effective_symbol = symbol
 
         def is_real_acquisition(day: datetime.date, ticker: str) -> bool:
-            # Splits hand over shares for free and the B&B rule skips them, so
-            # neither the sale nor the transfer can be identified against one.
-            return (
-                has_key(self.acquisition_list, day, ticker)
-                and self.acquisition_list[day][ticker].amount != 0
-            )
+            # Two kinds of entry live here without being something a disposal
+            # can be identified against: a split hands over shares for free,
+            # and a management fee is recorded as cost with no shares at all.
+            # The B&B rule skips both.
+            if not has_key(self.acquisition_list, day, ticker):
+                return False
+            acquisition = self.acquisition_list[day][ticker]
+            return acquisition.quantity > 0 and acquisition.amount != 0
 
         if is_real_acquisition(date_index, symbol):
             dates.append(date_index)

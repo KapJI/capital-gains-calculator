@@ -384,6 +384,55 @@ def test_gift_parses_as_gift() -> None:
     assert transaction.price is None
 
 
+def test_gift_before_a_split_is_restated_like_a_sale() -> None:
+    """Shares leave in the units of their own day, gift or sale alike.
+
+    NVDA exports restate acquisitions and nothing else, so a 2022 gift is
+    printed in pre-split units and has to be converted like a disposal.
+    """
+    content = (
+        '{"Transactions": [{"Date": "11/20/2022", "Action": "Gift",'
+        ' "Symbol": "NVDA", "Quantity": "2", "Description": "Share Transfer",'
+        ' "FeesAndCommissions": null, "Amount": null,'
+        ' "TransactionDetails": []}]}'
+    )
+
+    transactions = _read_json(content)
+
+    # 4:1 in 2021 is already reflected; the 10:1 of June 2024 is not.
+    assert transactions[0].quantity == Decimal(20)
+
+
+def test_ambiguous_gift_before_a_split_raises() -> None:
+    """Where only the price can date the units, a gift has nothing to go on.
+
+    GOOG exports restate some records and not others, and a gift carries no
+    price, so the count could be either and guessing is wrong by the whole
+    multiplier.
+    """
+    content = (
+        '{"Transactions": [{"Date": "05/02/2022", "Action": "Gift",'
+        ' "Symbol": "GOOG", "Quantity": "2", "Description": "Share Transfer",'
+        ' "FeesAndCommissions": null, "Amount": null,'
+        ' "TransactionDetails": []}]}'
+    )
+
+    with pytest.raises(ParsingError, match="Cannot tell how many shares"):
+        _read_json(content)
+
+
+def test_gift_after_every_split_is_left_alone() -> None:
+    """Nothing to convert once the counts are already current."""
+    content = (
+        '{"Transactions": [{"Date": "11/20/2024", "Action": "Gift",'
+        ' "Symbol": "GOOG", "Quantity": "2", "Description": "Share Transfer",'
+        ' "FeesAndCommissions": null, "Amount": null,'
+        ' "TransactionDetails": []}]}'
+    )
+
+    assert _read_json(content)[0].quantity == Decimal(2)
+
+
 def test_gift_with_money_raises() -> None:
     """A gift row carrying money is not the row this parser assumes."""
     content = (

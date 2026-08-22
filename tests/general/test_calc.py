@@ -1253,7 +1253,8 @@ def test_transfer_to_spouse_shown_in_report() -> None:
 
     output = str(report)
     assert "Transferred to spouse" in output
-    assert f"{transfer_day}: FOO 400.00 units, base cost £4,000.00" in output
+    # Quantities are shown as entered, like the PDF, so fractions survive.
+    assert f"{transfer_day}: FOO 400 units, base cost £4,000.00" in output
 
 
 def test_unclassified_gift_is_rejected_with_instructions() -> None:
@@ -1595,6 +1596,46 @@ def test_transfer_to_spouse_sorts_after_a_same_day_acquisition() -> None:
 
     entries = report.calculation_log[day]["transfer-to-spouse$FOO"]
     assert sum((e.quantity for e in entries), Decimal(0)) == Decimal(4)
+
+
+def test_management_fee_is_not_a_contended_acquisition() -> None:
+    """A fee buys no shares, so it cannot be something two disposals fight over.
+
+    Fees are recorded in the acquisition list with a cost and no quantity, so
+    a naive "has a cost" test mistakes one for a purchase.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    event_day = datetime.date(2024, 6, 10)
+    fee_day = datetime.date(2024, 6, 20)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, "GBP"),
+            transfer_to_spouse_transaction(event_day, "FOO", 2),
+            transaction(fee_day, ActionType.FEE, "FOO", None, None, 0, -1, "GBP"),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(30)
+    entries = report.calculation_log[event_day]["transfer-to-spouse$FOO"]
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(20)
+
+
+def test_fractional_transfer_keeps_its_units_in_the_report() -> None:
+    """Rounding to two places would report a real transfer as zero units."""
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    report = get_report(
+        create_calculator(),
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transfer_to_spouse_transaction(transfer_day, "FOO", 0.001),
+        ],
+    )
+
+    assert "FOO 0.001 units" in str(report)
 
 
 def test_run_with_example_files() -> None:

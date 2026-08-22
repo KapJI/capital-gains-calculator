@@ -19,6 +19,7 @@ from .util import (
     luhn_check_digit,
     normalize_amount,
     round_decimal,
+    strip_zeros,
 )
 
 if TYPE_CHECKING:
@@ -693,7 +694,7 @@ class CapitalGainsReport:
                 base_cost = sum((e.allowable_cost for e in entry_list), Decimal(0))
                 out += (
                     f"{bul}{date_index}: {symbol} "
-                    f"{round_decimal(quantity, 2):,} units, base cost "
+                    f"{strip_zeros(quantity)} units, base cost "
                     f"£{round_decimal(base_cost, 2):,}\n"
                 )
 

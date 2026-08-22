@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO, override
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
-from cgt_calc.util import round_decimal
+from cgt_calc.util import round_decimal, strip_zeros
 
 from .base_parsers import BaseSingleFileParser
 
@@ -821,7 +821,7 @@ class SchwabTransaction(BrokerTransaction):
         if history.restatement is Restatement.ACQUISITIONS_ONLY:
             self._convert_disposal_to_current_units()
         else:
-            self._convert_row_priced_before_a_split(history)
+            self._convert_row_priced_before_a_split(history, file)
 
     def _convert_disposal_to_current_units(self) -> None:
         """Convert a disposal into current share units.
@@ -829,17 +829,20 @@ class SchwabTransaction(BrokerTransaction):
         Schwab restates acquisitions for later splits — an NVDA vest of 3,000
         at $22.341 is recorded that way even though 300 at $223.41 is what
         happened — but leaves disposals in the units of their own day. Only
-        disposals need converting.
+        disposals need converting, and a gift is one: shares leave the account
+        the same way, so its count is printed in the units of its own day too.
 
         Missing this costs 54 shares on the two 2023 disposals, and the pool
         stays wrong by that much for every year afterwards.
         """
-        if self.action != ActionType.SELL:
+        if self.action not in (ActionType.SELL, ActionType.GIFT):
             return
 
         self._rescale(split_multiplier(self.symbol, self.date))
 
-    def _convert_row_priced_before_a_split(self, history: SplitHistory) -> None:
+    def _convert_row_priced_before_a_split(
+        self, history: SplitHistory, file: Path
+    ) -> None:
         """Convert a row whose price shows it was never restated.
 
         Where the export restates some records and not others, with nothing
@@ -849,8 +852,24 @@ class SchwabTransaction(BrokerTransaction):
         """
         floor = history.presplit_price_floor
         assert floor is not None  # guaranteed by SplitHistory.__post_init__
+        multiplier = split_multiplier(self.symbol, self.date)
+        printed = self.quantity or Decimal(0)
+        if self.action is ActionType.GIFT and multiplier != 1:
+            # A gift carries no money, so the price cannot say which units the
+            # count is in, and being wrong here is wrong by the whole
+            # multiplier. Refuse rather than pick one.
+            raise ParsingError(
+                file,
+                f"Cannot tell how many shares the {self.symbol} gift of "
+                f"{self.date} moved. {self.symbol} split {multiplier}:1 after "
+                "that date, this export restates only some records, and a gift "
+                "has no price to tell them apart, so the count could be "
+                f"{strip_zeros(printed)} or "
+                f"{strip_zeros(printed * multiplier)}. "
+                "Check a statement and work this symbol out by hand.",
+            )
         if self.price and self.price > floor and self.quantity:
-            self._rescale(split_multiplier(self.symbol, self.date))
+            self._rescale(multiplier)
 
     def _rescale(self, multiplier: int) -> None:
         """Restate this row in current units, leaving the money unchanged."""
