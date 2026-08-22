@@ -5,8 +5,8 @@ single file because a complete account history may require several exports.
 
 Export the Invest account only. Do not include ISA activity: income and capital gains from
 [investments in an ISA do not need to be declared](https://www.gov.uk/individual-savings-accounts/how-isas-work).
-Keep Invest and ISA exports in separate directories. The CSV does not identify the account type, so
-cgt-calc cannot separate them later.
+If you also export the ISA for your own records, keep it in a separate directory. The CSV does not
+identify the account type, so cgt-calc cannot separate the accounts later.
 
 ## Export your account history
 
