@@ -408,6 +408,28 @@ class CapitalGainsCalculator:
         original_src_amount = self.portfolio[ticker].amount
 
         share_of_original_cost = src_amount / (dst_amount + src_amount)
+        # If this holding has already spun something off today, that spin-off
+        # was worked out on it before it received these shares, so both its
+        # split of value and its estimate are wrong. The order the input
+        # lists same-day rows in is all the first pass has to go on.
+        already_spun_from = next(
+            (
+                spin_off
+                for spin_off in self.spin_offs[transaction.date]
+                if spin_off.source == symbol
+            ),
+            None,
+        )
+        if already_spun_from is not None:
+            raise CalculationError(
+                f"On {transaction.date} {symbol} spins off "
+                f"{already_spun_from.dest} and is itself spun off from {ticker}, "
+                f"but the input lists the {already_spun_from.dest} spin-off "
+                f"first, so it was worked out on {symbol} before {symbol} "
+                f"received {ticker}'s shares. List the spin-off that creates "
+                f"{symbol} before the one it makes, or work this day out by "
+                "hand (consider professional advice). Do not change the dates."
+            )
         self.spin_offs[transaction.date].append(
             SpinOff(
                 dest=symbol,
@@ -1463,6 +1485,27 @@ class CapitalGainsCalculator:
             renamed_to=new,
         )
 
+    def _acquisition_order(self, date_index: datetime.date) -> list[str]:
+        """Return the day's acquired symbols, each spun-off holding after its source.
+
+        A spin-off takes its share of the source's pool as it stands on the
+        day, and the day's purchases of the source are part of that, since
+        same-day acquisitions form a single acquisition (TCGA 1992 s105). So
+        every other symbol is pooled first, and a spun-off holding only after
+        whatever it was spun off from, so that a holding spun off and spun off
+        from on the same day is complete before it is apportioned.
+        """
+        sources: dict[str, list[str]] = defaultdict(list)
+        for spin_off in self.spin_offs.get(date_index, []):
+            sources[spin_off.dest].append(spin_off.source)
+
+        def depth(symbol: str) -> int:
+            # A cycle cannot get here: the first pass refuses a chain that is
+            # not in order, and a cycle is never in order.
+            return 1 + max((depth(source) for source in sources[symbol]), default=-1)
+
+        return sorted(self.acquisition_list[date_index], key=depth)
+
     def _matchable_acquisition(
         self,
         date_index: datetime.date,
@@ -1890,17 +1933,7 @@ class CapitalGainsCalculator:
                 else {}
             )
             if date_index in self.acquisition_list:
-                # A spin-off takes its share of the source's pool as it stands
-                # on the day, and the day's purchases of the source are part of
-                # that: same-day acquisitions form a single acquisition (TCGA
-                # 1992 s105). So pool every other symbol first, and the spun-off
-                # holdings after, whatever order the input listed them in.
-                spun_off = {
-                    spin_off.dest for spin_off in self.spin_offs.get(date_index, [])
-                }
-                for symbol in sorted(
-                    self.acquisition_list[date_index], key=lambda s: s in spun_off
-                ):
+                for symbol in self._acquisition_order(date_index):
                     calculation_entries = self.process_acquisition(
                         symbol,
                         date_index,

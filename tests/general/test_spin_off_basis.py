@@ -384,3 +384,77 @@ def test_two_spin_offs_from_one_source_on_one_day_are_both_recorded() -> None:
     assert calculator.portfolio["BAR"].amount == Decimal(10)
     assert calculator.portfolio["BAZ"].amount == Decimal(9)
     assert calculator.portfolio["FOO"].amount == Decimal(81)
+
+
+def _chain_calculator() -> CapitalGainsCalculator:
+    """FOO spins BAR off, and BAR spins BAZ off, on the same day."""
+    converter = CurrencyConverter(None, {})
+    handler = SpinOffHandler()
+    handler.cache = {"BAR": "FOO", "BAZ": "BAR"}
+    return CapitalGainsCalculator(
+        2024,
+        converter,
+        IsinConverter(),
+        CurrentPriceFetcher(
+            converter,
+            {},
+            {
+                "FOO": {SPIN_OFF_DAY: Decimal(90)},
+                "BAR": {SPIN_OFF_DAY: Decimal(10)},
+                "BAZ": {SPIN_OFF_DAY: Decimal(10)},
+            },
+        ),
+        handler,
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+
+
+def test_a_chain_of_spin_offs_on_one_day_is_applied_in_order() -> None:
+    """BAZ must not be apportioned until BAR has received its shares from FOO.
+
+    BAZ is bought before either spin-off, so it used to be processed first,
+    while BAR was still empty, and took a share of nothing. FOO gives BAR a
+    tenth of £100; BAR, worth the same as the BAZ it spins off, then gives
+    BAZ half of that £10.
+    """
+    calculator = _chain_calculator()
+    get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAZ", 5, 10, 0, -50, "GBP"),
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency="GBP"
+            ),
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency="GBP"
+            ),
+        ],
+    )
+
+    assert calculator.portfolio["FOO"].amount == Decimal(90)
+    assert calculator.portfolio["BAR"].amount == Decimal(5)
+    assert calculator.portfolio["BAZ"].amount == Decimal(55)
+
+
+def test_a_chain_listed_out_of_order_is_refused() -> None:
+    """BAR spinning BAZ off before FOO has spun BAR off cannot be worked out.
+
+    The first pass goes by the order the input lists same-day rows in, and
+    here it would apportion a BAR that has no shares yet.
+    """
+    with pytest.raises(CalculationError, match="List the spin-off that creates BAR"):
+        get_report(
+            _chain_calculator(),
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+                transaction(
+                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency="GBP"
+                ),
+                transaction(
+                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency="GBP"
+                ),
+            ],
+        )
