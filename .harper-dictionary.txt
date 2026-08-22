@@ -7,6 +7,7 @@ arg
 ARG003
 ARG004
 argparse
+argparse's
 args
 ArgumentParser
 ArgumentTypeError
@@ -97,6 +98,7 @@ png
 prek
 presplit
 py
+pyproject
 pytest
 python3
 rata
@@ -131,6 +133,7 @@ str
 subrow
 tablefinder
 TCGA
+toml
 tranche's
 TransactionDetails
 transferor
@@ -147,5 +150,6 @@ v2
 ValueError
 VanguardTransaction
 VTI
+worktree
 xtrackers
 yfinance

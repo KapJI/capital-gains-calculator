@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import importlib.metadata
 import logging
 
 import shtab
 
 from .args_validators import (
     DeprecatedAction,
+    VersionAction,
     date_type,
     existing_file_type,
     optional_file_type,
@@ -196,8 +196,10 @@ Environment variables:
     )
     general_group.add_argument(
         "--version",
-        action="version",
-        version=f"cgt-calc {importlib.metadata.version(__package__)}",
+        action=VersionAction,
+        nargs=0,
+        dest=argparse.SUPPRESS,
+        default=argparse.SUPPRESS,
         help="show version and exit",
     )
     shtab.add_argument_to(
