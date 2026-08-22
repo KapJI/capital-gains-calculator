@@ -14,7 +14,7 @@ from cgt_calc.exceptions import (
     UnsupportedBrokerActionError,
     UnsupportedBrokerCurrencyError,
 )
-from cgt_calc.model import ActionType, BrokerTransaction, Isin
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 
 from .base_parsers import BaseSingleFileParser
 
@@ -131,26 +131,26 @@ class FreetradeTransaction(BrokerTransaction):
             quantity = _parse_decimal(row, FreetradeColumn.QUANTITY)
             price = _parse_decimal(row, FreetradeColumn.PRICE_PER_SHARE)
             amount = _parse_decimal(row, FreetradeColumn.TOTAL_SHARES_AMOUNT)
-            currency = row[FreetradeColumn.INSTRUMENT_CURRENCY]
+            currency = CurrencyCode(row[FreetradeColumn.INSTRUMENT_CURRENCY])
             if currency != "GBP":
                 fx_rate = _parse_decimal(row, FreetradeColumn.FX_RATE)
                 price /= fx_rate
                 amount /= fx_rate
-            currency = "GBP"
+            currency = CurrencyCode("GBP")
         elif action == ActionType.DIVIDEND:
             # Total amount before US tax withholding
             amount = _parse_decimal(row, FreetradeColumn.DIVIDEND_GROSS_AMOUNT)
             quantity, price = None, None
-            currency = row[FreetradeColumn.INSTRUMENT_CURRENCY]
+            currency = CurrencyCode(row[FreetradeColumn.INSTRUMENT_CURRENCY])
             if currency != "GBP":
                 # FX Rate is not defined for dividends,
                 # but we can use base one as there's no fee
                 amount /= _parse_decimal(row, FreetradeColumn.BASE_FX_RATE)
-            currency = "GBP"
+            currency = CurrencyCode("GBP")
         elif action in [ActionType.TRANSFER, ActionType.INTEREST]:
             amount = _parse_decimal(row, FreetradeColumn.TOTAL_AMOUNT)
             quantity, price = None, None
-            currency = "GBP"
+            currency = CurrencyCode("GBP")
         else:
             raise UnsupportedBrokerActionError(
                 file, BROKER_NAME, row[FreetradeColumn.TYPE]

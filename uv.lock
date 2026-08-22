@@ -163,7 +163,6 @@ source = { editable = "." }
 dependencies = [
     { name = "colorama" },
     { name = "defusedxml" },
-    { name = "iso4217parse" },
     { name = "jinja2" },
     { name = "openpyxl" },
     { name = "pandas" },
@@ -203,7 +202,6 @@ docs = [
 requires-dist = [
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "defusedxml", specifier = ">=0.7.1,<1.0.0" },
-    { name = "iso4217parse", specifier = ">=0.6.2" },
     { name = "jinja2", specifier = ">=2.11.3,<4.0.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=3.0.5" },
@@ -570,12 +568,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/f2/97/ebf4da567aa6827c9
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/e1/e6716421ea10d38022b952c159d5161ca1193197fb744506875fbb87ea7b/iniconfig-2.1.0-py3-none-any.whl", hash = "sha256:9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760", size = 6050, upload-time = "2025-03-19T20:10:01.071Z" },
 ]
-
-[[package]]
-name = "iso4217parse"
-version = "0.6.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/8f/98/71102b74a81436e7f653f9702549556314308944663a6dab7ec9f9a5d0b1/iso4217parse-0.6.2.tar.gz", hash = "sha256:a7fe41fcd192c66731f584e24b5391b518d9e332edd35cde1cc05beeebf6c620", size = 22511, upload-time = "2025-03-31T11:50:27.365Z" }
 
 [[package]]
 name = "jinja2"

@@ -12,7 +12,7 @@ from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
-from cgt_calc.model import ActionType, BrokerTransaction, Isin, RuleType
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin, RuleType
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ US_WITHHOLDING_RATE = Decimal("0.15")
 
 
 def _dividend_pair(
-    currency: str,
+    currency: CurrencyCode,
     isin: Isin | None,
     withholding_rate: Decimal = US_WITHHOLDING_RATE,
 ) -> list[BrokerTransaction]:
@@ -58,7 +58,9 @@ def _dividend_pair(
 
 def _treaty_country(transactions: list[BrokerTransaction]) -> str | None:
     """Run the calculation and return the treaty applied to the dividend."""
-    gbp_prices = {DATE: {t.currency: Decimal(1) for t in transactions}}
+    gbp_prices: dict[datetime.date, dict[str, Decimal]] = {
+        DATE: {t.currency: Decimal(1) for t in transactions}
+    }
     currency_converter = CurrencyConverter(None, gbp_prices)
     calculator = CapitalGainsCalculator(
         TAX_YEAR,
@@ -88,17 +90,17 @@ def _treaty_country(transactions: list[BrokerTransaction]) -> str | None:
 
 def test_treaty_from_isin_when_currency_is_not_the_source_country() -> None:
     """A US dividend converted to GBP by the broker still gets treaty relief."""
-    assert _treaty_country(_dividend_pair("GBP", US_ISIN)) == "USA"
+    assert _treaty_country(_dividend_pair(CurrencyCode("GBP"), US_ISIN)) == "USA"
 
 
 def test_treaty_from_currency_when_no_isin_is_available() -> None:
     """Brokers that supply no ISIN keep the behaviour they had before."""
-    assert _treaty_country(_dividend_pair("USD", None)) == "USA"
+    assert _treaty_country(_dividend_pair(CurrencyCode("USD"), None)) == "USA"
 
 
 def test_isin_wins_over_the_currency_guess() -> None:
     """A US security paying in USD resolves the same way through either path."""
-    assert _treaty_country(_dividend_pair("USD", US_ISIN)) == "USA"
+    assert _treaty_country(_dividend_pair(CurrencyCode("USD"), US_ISIN)) == "USA"
 
 
 def test_no_treaty_when_the_source_country_cannot_be_determined(
@@ -106,7 +108,7 @@ def test_no_treaty_when_the_source_country_cannot_be_determined(
 ) -> None:
     """Without an ISIN, GBP says nothing about where the income came from."""
     with caplog.at_level(logging.WARNING, logger="cgt_calc.main"):
-        assert _treaty_country(_dividend_pair("GBP", None)) is None
+        assert _treaty_country(_dividend_pair(CurrencyCode("GBP"), None)) is None
     assert "Source country of the GBP dividend is unknown" in caplog.text
 
 
@@ -115,5 +117,10 @@ def test_no_treaty_when_withholding_does_not_match_the_treaty_rate(
 ) -> None:
     """Relief is refused when the rate deducted is not the treaty rate."""
     with caplog.at_level(logging.WARNING, logger="cgt_calc.main"):
-        assert _treaty_country(_dividend_pair("GBP", US_ISIN, Decimal("0.30"))) is None
+        assert (
+            _treaty_country(
+                _dividend_pair(CurrencyCode("GBP"), US_ISIN, Decimal("0.30"))
+            )
+            is None
+        )
     assert "does not match the base taxation rules" in caplog.text

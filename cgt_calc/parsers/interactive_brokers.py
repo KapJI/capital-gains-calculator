@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.model import ActionType, BrokerTransaction, Isin
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 
 from .base_parsers import StandardCSVParser
 
@@ -143,7 +143,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         price = _parse_decimal(row, InteractiveBrokersColumn.PRICE)
         amount = _parse_decimal(row, InteractiveBrokersColumn.NET_AMOUNT)
         fees = _parse_decimal(row, InteractiveBrokersColumn.COMMISSION) or Decimal(0)
-        price_currency = (
+        price_currency = CurrencyCode(
             _parse_str(row, InteractiveBrokersColumn.PRICE_CURRENCY) or "GBP"
         )
         exchange_rate = (
@@ -157,7 +157,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         # that the internal validation (quantity x price + fees ≈ |amount|) holds.
         if price is not None and price_currency != "GBP" and exchange_rate is not None:
             price = price * exchange_rate
-            price_currency = "GBP"
+            price_currency = CurrencyCode("GBP")
 
         super().__init__(
             date=date,

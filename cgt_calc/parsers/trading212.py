@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
-from cgt_calc.model import ActionType, BrokerTransaction, Isin
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 
 from .base_parsers import BaseDirParser
 
@@ -254,10 +254,10 @@ class Trading212Transaction(BrokerTransaction):
 
         if Trading212Column.TOTAL in row:
             amount = decimal_or_none(row, Trading212Column.TOTAL)
-            currency = row[Trading212Column.CURRENCY_TOTAL]
+            currency = CurrencyCode(row[Trading212Column.CURRENCY_TOTAL])
         else:
             amount = decimal_or_none(row, Trading212Column.TOTAL_GBP)
-            currency = "GBP"
+            currency = CurrencyCode("GBP")
 
         if (
             amount is not None
@@ -270,13 +270,14 @@ class Trading212Transaction(BrokerTransaction):
         self.finra_fee = Decimal(0)
         self.stamp_duty = Decimal(0)
         self.conversion_fee = Decimal(0)
-        foreign_fees: dict[str, Decimal] = {}
+        foreign_fees: dict[CurrencyCode, Decimal] = {}
         for attr, fee_amount, fee_currency in self._read_fees(row):
             if fee_currency is None or fee_currency == currency:
                 setattr(self, attr, getattr(self, attr) + fee_amount)
             else:
-                foreign_fees[fee_currency] = (
-                    foreign_fees.get(fee_currency, Decimal(0)) + fee_amount
+                fee_code = CurrencyCode(fee_currency)
+                foreign_fees[fee_code] = (
+                    foreign_fees.get(fee_code, Decimal(0)) + fee_amount
                 )
 
         fees = (
@@ -338,7 +339,7 @@ class Trading212Transaction(BrokerTransaction):
     def _checkable_fees(
         self,
         fees: Decimal,
-        foreign_fees: dict[str, Decimal],
+        foreign_fees: dict[CurrencyCode, Decimal],
         exchange_rate: Decimal,
     ) -> Decimal | None:
         """Total fees for the price consistency check.

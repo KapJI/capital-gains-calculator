@@ -23,6 +23,7 @@ from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
     CapitalGainsReport,
+    CurrencyCode,
     Isin,
     RuleType,
 )
@@ -99,7 +100,9 @@ def test_main_prints_help_when_no_arguments() -> None:
 def test_interest_tax_totals_are_positive() -> None:
     """Ensure interest tax totals are reported as positive amounts."""
     date = datetime.date(2024, 5, 1)
-    currency_converter = CurrencyConverter(None, {date: {"USD": Decimal(1)}})
+    currency_converter = CurrencyConverter(
+        None, {date: {CurrencyCode("USD"): Decimal(1)}}
+    )
     calculator = CapitalGainsCalculator(
         2024,
         currency_converter,
@@ -120,7 +123,7 @@ def test_interest_tax_totals_are_positive() -> None:
             price=None,
             fees=Decimal(0),
             amount=Decimal("-20.31"),
-            currency="USD",
+            currency=CurrencyCode("USD"),
             broker="Charles Schwab",
         )
     ]
@@ -133,7 +136,11 @@ def test_interest_tax_reversals_cancel_across_months() -> None:
     march = datetime.date(2025, 3, 1)
     april = datetime.date(2025, 4, 1)
     currency_converter = CurrencyConverter(
-        None, {march: {"USD": Decimal(1)}, april: {"USD": Decimal(1)}}
+        None,
+        {
+            march: {CurrencyCode("USD"): Decimal(1)},
+            april: {CurrencyCode("USD"): Decimal(1)},
+        },
     )
     calculator = CapitalGainsCalculator(
         2024,
@@ -155,7 +162,7 @@ def test_interest_tax_reversals_cancel_across_months() -> None:
             price=None,
             fees=Decimal(0),
             amount=Decimal("-5.00"),
-            currency="USD",
+            currency=CurrencyCode("USD"),
             broker="Charles Schwab",
         ),
         BrokerTransaction(
@@ -167,7 +174,7 @@ def test_interest_tax_reversals_cancel_across_months() -> None:
             price=None,
             fees=Decimal(0),
             amount=Decimal("5.00"),
-            currency="USD",
+            currency=CurrencyCode("USD"),
             broker="Charles Schwab",
         ),
     ]
@@ -194,10 +201,16 @@ def test_eri_duplicate_report_within_tolerance_is_skipped(
 
     transactions: list[BrokerTransaction] = [
         ERITransaction(
-            date=date, isin=ERI_ISIN, price=Decimal("1.00000"), currency="GBP"
+            date=date,
+            isin=ERI_ISIN,
+            price=Decimal("1.00000"),
+            currency=CurrencyCode("GBP"),
         ),
         ERITransaction(
-            date=date, isin=ERI_ISIN, price=Decimal("1.00005"), currency="GBP"
+            date=date,
+            isin=ERI_ISIN,
+            price=Decimal("1.00005"),
+            currency=CurrencyCode("GBP"),
         ),
     ]
 
@@ -226,10 +239,16 @@ def test_eri_conflicting_report_raises_invalid_transaction_error() -> None:
 
     transactions: list[BrokerTransaction] = [
         ERITransaction(
-            date=date, isin=ERI_ISIN, price=Decimal("1.0000"), currency="GBP"
+            date=date,
+            isin=ERI_ISIN,
+            price=Decimal("1.0000"),
+            currency=CurrencyCode("GBP"),
         ),
         ERITransaction(
-            date=date, isin=ERI_ISIN, price=Decimal("1.0050"), currency="GBP"
+            date=date,
+            isin=ERI_ISIN,
+            price=Decimal("1.0050"),
+            currency=CurrencyCode("GBP"),
         ),
     ]
 
@@ -270,7 +289,9 @@ def test_basic(
 ) -> None:
     """Generate basic tests for test data."""
     if gbp_prices is None:
-        gbp_prices = {t.date: {"USD": Decimal(1)} for t in broker_transactions}
+        gbp_prices = {
+            t.date: {CurrencyCode("USD"): Decimal(1)} for t in broker_transactions
+        }
     currency_converter = CurrencyConverter(None, gbp_prices)
     isin_converter = IsinConverter()
     historical_prices = {
@@ -399,7 +420,7 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
             price=None,
             fees=Decimal(0),
             amount=Decimal(500),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         BrokerTransaction(
@@ -411,7 +432,7 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
             price=Decimal(10),
             fees=Decimal(0),
             amount=Decimal(-100),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         BrokerTransaction(
@@ -423,7 +444,7 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
             price=Decimal(12),
             fees=Decimal(0),
             amount=Decimal(60),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         BrokerTransaction(
@@ -435,7 +456,7 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
             price=Decimal(11),
             fees=Decimal(0),
             amount=Decimal(-55),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         BrokerTransaction(
@@ -447,7 +468,7 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
             price=Decimal(9),
             fees=Decimal(0),
             amount=Decimal(-27),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
     ]
@@ -491,7 +512,7 @@ def test_proportional_disposal_no_rounding_error() -> None:
             price=Decimal("3.33"),
             fees=Decimal("0.01"),
             amount=Decimal("-10.00"),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         BrokerTransaction(
@@ -503,7 +524,7 @@ def test_proportional_disposal_no_rounding_error() -> None:
             price=Decimal("5.00"),
             fees=Decimal(0),
             amount=Decimal("15.00"),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
     ]
@@ -551,7 +572,7 @@ def test_high_precision_amount_no_rounding_error() -> None:
             price=Decimal("50.00") * USD_TO_GBP,
             fees=Decimal(0),
             amount=-gbp_from_usd("50.00", 10000),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         # Acquisition 2
@@ -564,7 +585,7 @@ def test_high_precision_amount_no_rounding_error() -> None:
             price=Decimal("60.00") * USD_TO_GBP,
             fees=Decimal(0),
             amount=-gbp_from_usd("60.00", 10000),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         # Sell all - triggers disposal with high-precision amounts
@@ -577,7 +598,7 @@ def test_high_precision_amount_no_rounding_error() -> None:
             price=Decimal("70.00") * USD_TO_GBP,
             fees=Decimal(0),
             amount=gbp_from_usd("70.00", 20000),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
     ]
@@ -614,7 +635,7 @@ def test_same_day_rule_all_shares_disposed_no_rounding_error() -> None:
             price=Decimal("100.00") * USD_TO_GBP,
             fees=Decimal(0),
             amount=buy_amount_gbp,
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         BrokerTransaction(
@@ -626,7 +647,7 @@ def test_same_day_rule_all_shares_disposed_no_rounding_error() -> None:
             price=Decimal("120.00") * USD_TO_GBP,
             fees=Decimal(0),
             amount=sell_amount_gbp,
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
     ]
@@ -657,7 +678,7 @@ def _rename_transaction(date: datetime.date, old: str, new: str) -> BrokerTransa
         price=None,
         fees=Decimal(0),
         amount=Decimal(0),
-        currency="GBP",
+        currency=CurrencyCode("GBP"),
         broker="Test",
     )
 
@@ -676,7 +697,7 @@ def test_rename_transfers_pool_to_new_ticker() -> None:
             price=Decimal(10),
             fees=Decimal(0),
             amount=Decimal(-1000),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         _rename_transaction(rename_date, "OLD", "NEW"),
@@ -714,7 +735,7 @@ def test_section_104_disposal_uses_renamed_pool_cost() -> None:
             price=Decimal(10),
             fees=Decimal(0),
             amount=Decimal(-1000),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         BrokerTransaction(
@@ -726,7 +747,7 @@ def test_section_104_disposal_uses_renamed_pool_cost() -> None:
             price=Decimal(20),
             fees=Decimal(0),
             amount=Decimal(-1000),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         _rename_transaction(datetime.date(2024, 5, 15), "OLD", "NEW"),
@@ -739,7 +760,7 @@ def test_section_104_disposal_uses_renamed_pool_cost() -> None:
             price=Decimal(20),
             fees=Decimal(0),
             amount=Decimal(1500),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
     ]
@@ -776,7 +797,7 @@ def test_bed_and_breakfast_matches_across_rename() -> None:
             price=Decimal(10),
             fees=Decimal(0),
             amount=Decimal(-1000),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         BrokerTransaction(
@@ -788,7 +809,7 @@ def test_bed_and_breakfast_matches_across_rename() -> None:
             price=Decimal(8),
             fees=Decimal(0),
             amount=Decimal(800),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
         _rename_transaction(datetime.date(2024, 5, 15), "OLD", "NEW"),
@@ -801,7 +822,7 @@ def test_bed_and_breakfast_matches_across_rename() -> None:
             price=Decimal(9),
             fees=Decimal(0),
             amount=Decimal(-900),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Test",
         ),
     ]
@@ -831,10 +852,21 @@ def test_same_day_vest_ordered_before_sale() -> None:
     """
     day = datetime.date(2024, 6, 3)
     vest = transaction(
-        day, ActionType.STOCK_ACTIVITY, "SYM", quantity=10, price=10, currency="GBP"
+        day,
+        ActionType.STOCK_ACTIVITY,
+        "SYM",
+        quantity=10,
+        price=10,
+        currency=CurrencyCode("GBP"),
     )
     sale = transaction(
-        day, ActionType.SELL, "SYM", quantity=5, price=20, amount=100, currency="GBP"
+        day,
+        ActionType.SELL,
+        "SYM",
+        quantity=5,
+        price=20,
+        amount=100,
+        currency=CurrencyCode("GBP"),
     )
 
     # Raw order (sale before vest) fails the ownership check.
@@ -858,7 +890,7 @@ def test_same_day_sale_funding_purchase_survives_sort() -> None:
     day0 = datetime.date(2024, 6, 1)
     day1 = datetime.date(2024, 6, 2)
     transactions = [
-        transaction(day0, ActionType.TRANSFER, amount=50, currency="GBP"),
+        transaction(day0, ActionType.TRANSFER, amount=50, currency=CurrencyCode("GBP")),
         transaction(
             day0,
             ActionType.BUY,
@@ -866,7 +898,7 @@ def test_same_day_sale_funding_purchase_survives_sort() -> None:
             quantity=5,
             price=10,
             amount=-50,
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
         ),
         transaction(
             day1,
@@ -875,7 +907,7 @@ def test_same_day_sale_funding_purchase_survives_sort() -> None:
             quantity=5,
             price=20,
             amount=100,
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
         ),
         transaction(
             day1,
@@ -884,7 +916,7 @@ def test_same_day_sale_funding_purchase_survives_sort() -> None:
             quantity=10,
             price=10,
             amount=-100,
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
         ),
     ]
 
@@ -914,7 +946,7 @@ def test_disposal_debug_log_keeps_fractional_quantity(
             quantity=5,
             price=10,
             amount=-50,
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
         ),
         transaction(
             sell_day,
@@ -923,7 +955,7 @@ def test_disposal_debug_log_keeps_fractional_quantity(
             quantity=2.5,
             price=20,
             amount=50,
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
         ),
     ]
 
@@ -1059,7 +1091,7 @@ def test_negative_balance_error_shows_only_relevant_transactions() -> None:
             day + datetime.timedelta(days=3),
             ActionType.TRANSFER,
             amount=5.0,
-            currency="EUR",
+            currency=CurrencyCode("EUR"),
         ),
         transfer_transaction(day + datetime.timedelta(days=4), -91.0),
     ]
@@ -1148,7 +1180,9 @@ def test_report_labels_full_tax_year() -> None:
 def test_foreign_fees_folded_into_gbp_transaction() -> None:
     """Convert foreign fees to the transaction currency and re-derive price."""
     date = datetime.date(2024, 5, 1)
-    currency_converter = CurrencyConverter(None, {date: {"USD": Decimal("1.25")}})
+    currency_converter = CurrencyConverter(
+        None, {date: {CurrencyCode("USD"): Decimal("1.25")}}
+    )
     calculator = CapitalGainsCalculator(
         2024,
         currency_converter,
@@ -1168,9 +1202,9 @@ def test_foreign_fees_folded_into_gbp_transaction() -> None:
         price=Decimal(10),
         fees=Decimal(0),
         amount=Decimal(-100),
-        currency="GBP",
+        currency=CurrencyCode("GBP"),
         broker="Trading212",
-        foreign_fees={"USD": Decimal("1.25")},
+        foreign_fees={CurrencyCode("USD"): Decimal("1.25")},
     )
 
     calculator.convert_to_hmrc_transactions([buy])
@@ -1183,7 +1217,9 @@ def test_foreign_fees_folded_into_gbp_transaction() -> None:
 def test_foreign_fees_folded_into_non_gbp_transaction() -> None:
     """Convert GBP fees into a non-GBP transaction currency."""
     date = datetime.date(2024, 5, 1)
-    currency_converter = CurrencyConverter(None, {date: {"USD": Decimal("1.25")}})
+    currency_converter = CurrencyConverter(
+        None, {date: {CurrencyCode("USD"): Decimal("1.25")}}
+    )
     calculator = CapitalGainsCalculator(
         2024,
         currency_converter,
@@ -1203,9 +1239,9 @@ def test_foreign_fees_folded_into_non_gbp_transaction() -> None:
         price=Decimal("12.5"),
         fees=Decimal(0),
         amount=Decimal(-125),
-        currency="USD",
+        currency=CurrencyCode("USD"),
         broker="Trading212",
-        foreign_fees={"GBP": Decimal(1)},
+        foreign_fees={CurrencyCode("GBP"): Decimal(1)},
     )
 
     calculator.convert_to_hmrc_transactions([buy])
@@ -1219,7 +1255,13 @@ def test_multiple_foreign_fee_currencies_on_sell() -> None:
     """Convert each foreign fee currency and re-derive the sell price."""
     date = datetime.date(2024, 5, 1)
     currency_converter = CurrencyConverter(
-        None, {date: {"USD": Decimal("1.25"), "EUR": Decimal("1.10")}}
+        None,
+        {
+            date: {
+                CurrencyCode("USD"): Decimal("1.25"),
+                CurrencyCode("EUR"): Decimal("1.10"),
+            }
+        },
     )
     calculator = CapitalGainsCalculator(
         2024,
@@ -1240,7 +1282,7 @@ def test_multiple_foreign_fee_currencies_on_sell() -> None:
         price=Decimal(9),
         fees=Decimal(0),
         amount=Decimal(-90),
-        currency="GBP",
+        currency=CurrencyCode("GBP"),
         broker="Trading212",
     )
     sell = BrokerTransaction(
@@ -1252,9 +1294,12 @@ def test_multiple_foreign_fee_currencies_on_sell() -> None:
         price=Decimal("9.93"),
         fees=Decimal(0),
         amount=Decimal("99.30"),
-        currency="GBP",
+        currency=CurrencyCode("GBP"),
         broker="Trading212",
-        foreign_fees={"USD": Decimal("0.25"), "EUR": Decimal("0.55")},
+        foreign_fees={
+            CurrencyCode("USD"): Decimal("0.25"),
+            CurrencyCode("EUR"): Decimal("0.55"),
+        },
     )
 
     calculator.convert_to_hmrc_transactions([buy, sell])

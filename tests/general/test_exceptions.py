@@ -34,7 +34,7 @@ from cgt_calc.exceptions import (
     UnsupportedBrokerActionError,
     UnsupportedBrokerCurrencyError,
 )
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 
 DATE = datetime.date(2023, 1, 1)
 
@@ -47,7 +47,7 @@ TRANSACTION = BrokerTransaction(
     price=Decimal(1),
     fees=Decimal(0),
     amount=Decimal(-1),
-    currency="USD",
+    currency=CurrencyCode("USD"),
     broker="Test",
 )
 

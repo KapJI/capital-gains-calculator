@@ -10,8 +10,8 @@ import dateutil.parser as date_parser
 import pandas as pd
 
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.model import Isin
-from cgt_calc.util import is_currency, round_decimal
+from cgt_calc.model import CurrencyCode, Isin
+from cgt_calc.util import round_decimal
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -110,12 +110,14 @@ class VanguardImporter(ERIImporter):
             if isin is None:
                 raise ParsingError(file, f"Not valid ISIN {isin_raw}")
 
-            currency = row[CURRENCY_COLUMN]
-            if not isinstance(currency, str):
-                raise ParsingError(file, f"Not valid Currency {currency}")
-            if not is_currency(currency):
-                raise ParsingError(file, f"Not valid Currency {currency}")
-            currency = currency.upper()
+            currency_raw = row[CURRENCY_COLUMN]
+            currency = (
+                CurrencyCode.parse(currency_raw.upper())
+                if isinstance(currency_raw, str)
+                else None
+            )
+            if currency is None:
+                raise ParsingError(file, f"Not valid Currency {currency_raw}")
 
             reporting_date_str = row[REPORTING_PERIOD_COLUMN]
             try:

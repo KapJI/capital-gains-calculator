@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 
 from .base_parsers import BaseDirParser, StandardCSVParser
 
@@ -175,7 +175,7 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
             price=price,
             fees=Decimal(0),
             amount=amount,
-            currency="USD",
+            currency=CurrencyCode("USD"),
             broker=BROKER_NAME,
         )
 
@@ -237,7 +237,7 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
             price=price,
             fees=fees,
             amount=amount,
-            currency="USD",
+            currency=CurrencyCode("USD"),
             broker=BROKER_NAME,
         )
 

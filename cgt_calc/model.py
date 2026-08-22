@@ -16,7 +16,6 @@ from .logging import bullet, style_text
 from .util import (
     approx_equal,
     exact_str,
-    is_currency,
     luhn_check_digit,
     normalize_amount,
     round_decimal,
@@ -29,6 +28,7 @@ if TYPE_CHECKING:
 
 _ISIN_REGEX: Final = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 _ISIN_CHARS: Final = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+_CURRENCY_CODE_REGEX: Final = re.compile(r"^[A-Z]{3}$")
 
 
 class Isin(str):
@@ -53,6 +53,33 @@ class Isin(str):
     @classmethod
     def parse(cls, value: str) -> Self | None:
         """Return the identifier, or None when the value is not an ISIN."""
+        try:
+            return cls(value)
+        except ValueError:
+            return None
+
+
+class CurrencyCode(str):
+    """ISO 4217 alpha-3 currency code.
+
+    Only the shape is validated here: whether a code is a real, current
+    currency is decided by the HMRC exchange rate table when it is used.
+    Case is not folded because it can carry meaning: "GBp" is pence, not
+    pounds, and quietly upper-casing it would misstate amounts a hundredfold.
+    """
+
+    __slots__ = ()
+
+    def __new__(cls, value: str) -> Self:
+        """Validate the code, tolerating surrounding whitespace."""
+        normalised = value.strip()
+        if not _CURRENCY_CODE_REGEX.match(normalised):
+            raise ValueError(f"Invalid currency code: {value!r}")
+        return super().__new__(cls, normalised)
+
+    @classmethod
+    def parse(cls, value: str) -> Self | None:
+        """Return the code, or None when the value is not a currency code."""
         try:
             return cls(value)
         except ValueError:
@@ -148,7 +175,7 @@ class ForeignCurrencyAmount:
     """Represent a decimal amount in foreign currency."""
 
     amount: Decimal = Decimal(0)
-    currency: str = ""
+    currency: CurrencyCode | None = None
 
     def __add__(self, amount: ForeignCurrencyAmount) -> ForeignCurrencyAmount:
         """Add two amounts."""
@@ -226,12 +253,12 @@ class BrokerTransaction:
     price: Decimal | None
     fees: Decimal
     amount: Decimal | None
-    currency: str
+    currency: CurrencyCode
     broker: str
     isin: Isin | None = None
     # Fees paid in currencies other than `currency`, keyed by their own
     # currency. Converted and folded into `fees` by the calculation engine.
-    foreign_fees: dict[str, Decimal] = field(default_factory=dict)
+    foreign_fees: dict[CurrencyCode, Decimal] = field(default_factory=dict)
     # The other count this row could be stating, where an export does not say
     # whether a share count predating a split was restated for it. Set only
     # when the two cannot be told apart, so that whichever the user confirms
@@ -240,11 +267,10 @@ class BrokerTransaction:
 
     def __post_init__(self) -> None:
         """Validate BrokerTransaction data."""
-        assert is_currency(self.currency), (
-            f"Invalid Currency {self.currency} for transaction {self}"
-        )
-        # Callers that bypass the type checker still get a validated value;
-        # to mypy the annotation already rules this out.
+        # Callers that bypass the type checker still get validated values;
+        # to mypy the annotations already rule this out.
+        if not isinstance(self.currency, CurrencyCode):
+            self.currency = CurrencyCode(self.currency)  # type: ignore[unreachable]
         if self.isin is not None and not isinstance(self.isin, Isin):
             self.isin = Isin(self.isin)  # type: ignore[unreachable]
 

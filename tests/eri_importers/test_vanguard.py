@@ -152,10 +152,10 @@ def test_invalid_isin(tmp_path: Path) -> None:
 
 
 def test_invalid_currency(tmp_path: Path) -> None:
-    """Raise on rows with an unknown currency code."""
+    """Raise on rows with a malformed currency code."""
     file = write_xlsx(
         tmp_path / "vanguard-eri-2024.xlsx",
-        [HEADER, ["IE00B3RBWM25", PERIOD, "QQQ", "1.23456"]],
+        [HEADER, ["IE00B3RBWM25", PERIOD, "QQ", "1.23456"]],
     )
 
     with pytest.raises(ParsingError, match="Not valid Currency"):

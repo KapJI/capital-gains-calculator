@@ -19,6 +19,7 @@ from cgt_calc.currency_converter import (
     TestCurrencyConverter as RecordingCurrencyConverter,
 )
 from cgt_calc.exceptions import ExchangeRateMissingError, ExternalApiError, ParsingError
+from cgt_calc.model import CurrencyCode
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -144,7 +145,7 @@ def test_hmrc_fetch_announces_itself(
     monkeypatch.setattr(converter, "session", OfflineSession())
 
     with caplog.at_level(logging.INFO), pytest.raises(ExternalApiError):
-        converter.currency_to_gbp_rate("USD", datetime.date(2021, 5, 10))
+        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
 
     assert "Fetching HMRC exchange rates for 2021-05..." in caplog.text
 
@@ -184,7 +185,7 @@ def test_hmrc_response_missing_rate_element_raises_api_error(
     monkeypatch.setattr(converter, "session", CannedSession(CannedResponse(xml)))
 
     with pytest.raises(ExternalApiError, match="missing expected currency data"):
-        converter.currency_to_gbp_rate("USD", datetime.date(2021, 5, 10))
+        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
 
 
 def test_hmrc_response_invalid_rate_value_raises_api_error(
@@ -203,7 +204,7 @@ def test_hmrc_response_invalid_rate_value_raises_api_error(
     monkeypatch.setattr(converter, "session", CannedSession(CannedResponse(xml)))
 
     with pytest.raises(ExternalApiError, match="contains invalid rate"):
-        converter.currency_to_gbp_rate("USD", datetime.date(2021, 5, 10))
+        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
 
 
 DATE = datetime.date(2024, 1, 1)
@@ -295,7 +296,7 @@ def test_query_hmrc_api_old_endpoint_error_names_rates_file(
     converter.session = FailingSession()  # type: ignore[assignment]
 
     with pytest.raises(ExternalApiError, match=r"rates\.csv") as excinfo:
-        converter.currency_to_gbp_rate("USD", datetime.date(2019, 5, 1))
+        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2019, 5, 1))
 
     assert "exrates-monthly-0519" in str(excinfo.value)
 
@@ -307,7 +308,7 @@ def test_query_hmrc_api_http_error_includes_snippet() -> None:
     converter.session = FakeSession(response)  # type: ignore[assignment]
 
     with pytest.raises(ExternalApiError, match="HTTP 500") as excinfo:
-        converter.currency_to_gbp_rate("USD", DATE)
+        converter.currency_to_gbp_rate(CurrencyCode("USD"), DATE)
 
     message = str(excinfo.value)
     assert "xxx" in message
@@ -320,7 +321,7 @@ def test_cnh_is_treated_as_cny() -> None:
     """Convert offshore yuan using the CNY rate."""
     converter = CurrencyConverter(initial_data={DATE: {"CNY": Decimal(9)}})
 
-    assert converter.currency_to_gbp_rate("CNH", DATE) == Decimal(9)
+    assert converter.currency_to_gbp_rate(CurrencyCode("CNH"), DATE) == Decimal(9)
 
 
 def test_missing_currency_for_known_date() -> None:
@@ -328,7 +329,7 @@ def test_missing_currency_for_known_date() -> None:
     converter = CurrencyConverter(initial_data={DATE: {"USD": Decimal(1)}})
 
     with pytest.raises(ExchangeRateMissingError):
-        converter.currency_to_gbp_rate("EUR", DATE)
+        converter.currency_to_gbp_rate(CurrencyCode("EUR"), DATE)
 
 
 def test_test_converter_records_new_rates(tmp_path: Path) -> None:
@@ -342,12 +343,12 @@ def test_test_converter_records_new_rates(tmp_path: Path) -> None:
 
     converter._query_hmrc_api = fake_query  # type: ignore[method-assign]  # noqa: SLF001
 
-    assert converter.currency_to_gbp_rate("USD", DATE) == Decimal("1.25")
+    assert converter.currency_to_gbp_rate(CurrencyCode("USD"), DATE) == Decimal("1.25")
     assert "2024-01-01,USD,1.25" in rates_file.read_text()
 
     # Appending the same rate again is a no-op.
     RecordingCurrencyConverter._append_exchange_rates_file(  # noqa: SLF001
-        rates_file, DATE, "USD", Decimal("1.25")
+        rates_file, DATE, CurrencyCode("USD"), Decimal("1.25")
     )
     assert rates_file.read_text().count("USD") == 1
 
@@ -357,4 +358,4 @@ def test_strict_converter_refuses_to_fetch() -> None:
     converter = StrictTestCurrencyConverter()
 
     with pytest.raises(RuntimeError, match="provided for tests"):
-        converter.currency_to_gbp_rate("USD", DATE)
+        converter.currency_to_gbp_rate(CurrencyCode("USD"), DATE)

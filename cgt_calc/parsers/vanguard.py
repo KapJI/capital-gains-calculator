@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, ClassVar, Final, TextIO, cast, override
 
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 
 from .base_parsers import BaseSingleFileParser
 
@@ -109,9 +109,9 @@ def _parse_decimal(value: str, context: str) -> Decimal:
 
 def _parse_details(
     details: str, action: ActionType, amount: Decimal
-) -> tuple[str | None, Decimal | None, Decimal | None, str]:
+) -> tuple[str | None, Decimal | None, Decimal | None, CurrencyCode]:
     """Extract symbol, quantity, price, currency from a Details string."""
-    currency = "GBP"
+    currency = CurrencyCode("GBP")
     quantity = None
     price = None
     symbol = None
@@ -131,7 +131,7 @@ def _parse_details(
         match = DIV_RE.match(details)
         assert match
         symbol = match.group(1)
-        currency = match.group(2)
+        currency = CurrencyCode(match.group(2))
         price = _parse_decimal(match.group(3), "Details price")
         quantity = Decimal(round(amount / price))
     return symbol, quantity, price, currency
@@ -200,7 +200,7 @@ class VanguardTransaction(BrokerTransaction):
             price=self.price,
             fees=Decimal(0),
             amount=self.amount,
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Vanguard",
             isin=None,
         )
@@ -227,7 +227,7 @@ class VanguardTransaction(BrokerTransaction):
         quantity: Decimal | None,
         price: Decimal | None,
         amount: Decimal | None,
-        currency: str,
+        currency: CurrencyCode,
         *,
         is_reversal: bool,
         description: str = "",
@@ -283,7 +283,7 @@ def _make_transaction_from_investment(
                 quantity=Decimal(0),
                 price=None,
                 amount=Decimal(0),
-                currency="GBP",
+                currency=CurrencyCode("GBP"),
                 is_reversal=False,
                 description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}",
             )
@@ -297,7 +297,7 @@ def _make_transaction_from_investment(
         quantity=abs(quantity),
         price=_parse_decimal(row[InvestmentColumn.PRICE], InvestmentColumn.PRICE.value),
         amount=_parse_decimal(row[InvestmentColumn.COST], InvestmentColumn.COST.value),
-        currency="GBP",
+        currency=CurrencyCode("GBP"),
         is_reversal=is_reversal,
     )
 

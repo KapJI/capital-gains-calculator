@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, ClassVar, Final, Literal, TextIO, overload, ov
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 
 from .base_parsers import BaseSingleFileParser
 
@@ -152,7 +152,7 @@ class RawTransaction(BrokerTransaction):
         else:
             amount = None
 
-        currency = row_values[RawColumn.CURRENCY]
+        currency = CurrencyCode(row_values[RawColumn.CURRENCY])
         broker = "Unknown"
         super().__init__(
             date,

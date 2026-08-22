@@ -20,6 +20,7 @@ from requests.adapters import HTTPAdapter, Retry
 from .const import CGT_MODE, RuntimeMode
 from .dates import is_date
 from .exceptions import ExchangeRateMissingError, ExternalApiError, ParsingError
+from .model import CurrencyCode
 from .util import open_with_parents
 
 if TYPE_CHECKING:
@@ -239,12 +240,14 @@ class CurrencyConverter:
         self.cache[date] = rates
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
 
-    def currency_to_gbp_rate(self, currency: str, date: datetime.date) -> Decimal:
+    def currency_to_gbp_rate(
+        self, currency: CurrencyCode, date: datetime.date
+    ) -> Decimal:
         """Get the number of currency units per GBP at the given date."""
         assert is_date(date)
         # offshore (Hong Kong) Chinese Yuan handling
         if currency == "CNH":
-            currency = "CNY"
+            currency = CurrencyCode("CNY")
         if date not in self.cache:
             self._query_hmrc_api(date)
         if currency not in self.cache[date]:
@@ -252,11 +255,13 @@ class CurrencyConverter:
 
         return self.cache[date][currency]
 
-    def to_gbp(self, amount: Decimal, currency: str, date: datetime.date) -> Decimal:
+    def to_gbp(
+        self, amount: Decimal, currency: CurrencyCode, date: datetime.date
+    ) -> Decimal:
         """Convert amount from given currency to GBP."""
         if currency == "GBP":
             return amount
-        return amount / self.currency_to_gbp_rate(currency.upper(), date)
+        return amount / self.currency_to_gbp_rate(currency, date)
 
     def to_gbp_for(self, amount: Decimal, transaction: BrokerTransaction) -> Decimal:
         """Convert amount from transaction currency to GBP."""
@@ -283,7 +288,9 @@ class TestCurrencyConverter(CurrencyConverter):
         self._test_file_cache = deepcopy(self.cache)
 
     @override
-    def currency_to_gbp_rate(self, currency: str, date: datetime.date) -> Decimal:
+    def currency_to_gbp_rate(
+        self, currency: CurrencyCode, date: datetime.date
+    ) -> Decimal:
         """Get the number of currency units per GBP at the given date.
 
         When the value is missing from the view of the test_file_cache, append it
@@ -305,7 +312,10 @@ class TestCurrencyConverter(CurrencyConverter):
 
     @staticmethod
     def _append_exchange_rates_file(
-        exchange_rates_file: Path, date: datetime.date, currency: str, value: Decimal
+        exchange_rates_file: Path,
+        date: datetime.date,
+        currency: CurrencyCode,
+        value: Decimal,
     ) -> None:
         with open_with_parents(exchange_rates_file, clear_content=False) as fout:
             fcntl.flock(fout.fileno(), fcntl.LOCK_EX)

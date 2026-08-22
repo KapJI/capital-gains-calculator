@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 from cgt_calc.const import ERI_RESOURCE_FOLDER
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
-from cgt_calc.model import Isin
+from cgt_calc.model import CurrencyCode, Isin
 from cgt_calc.parsers.base_parsers import BaseSingleFileParser
 from cgt_calc.resources import RESOURCES_PACKAGE
 
@@ -53,7 +53,12 @@ class ERIRaw(ERITransaction):
             date = datetime.datetime.strptime(date_str, RAW_DATE_FORMAT).date()
         except ValueError as err:
             raise ParsingError(file, f"Invalid date '{date_str}' in ERI data") from err
-        currency = row["Currency"]
+        currency_raw = row["Currency"]
+        currency = CurrencyCode.parse(currency_raw)
+        if currency is None:
+            raise ParsingError(
+                file, f"Invalid currency value '{currency_raw}' in ERI data"
+            )
         price_str = row["Excess of reporting income over distribution"]
         try:
             price = Decimal(price_str)

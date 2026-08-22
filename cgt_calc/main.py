@@ -54,6 +54,7 @@ from .model import (
     CalculationLog,
     CalculationType,
     CapitalGainsReport,
+    CurrencyCode,
     Dividend,
     ExcessReportedIncome,
     ExcessReportedIncomeDistribution,
@@ -237,10 +238,10 @@ class CapitalGainsCalculator:
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.interest_list: dict[
-            tuple[str, str, datetime.date], ForeignCurrencyAmount
+            tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
         ] = defaultdict(ForeignCurrencyAmount)
         self.interest_tax_list: dict[
-            tuple[str, str, datetime.date], ForeignCurrencyAmount
+            tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
         ] = defaultdict(ForeignCurrencyAmount)
 
         # Log for the report section related only to interests and dividends
@@ -721,11 +722,13 @@ class CapitalGainsCalculator:
     ) -> None:
         """Convert broker transactions to HMRC transactions."""
         # We keep a balance per broker,currency pair
-        balance: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal(0))
-        dividends: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
-        dividends_tax: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
-        interests: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
-        interest_taxes: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+        balance: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(
+            lambda: Decimal(0)
+        )
+        dividends: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
+        dividends_tax: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
+        interests: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
+        interest_taxes: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
         balance_history: list[Decimal] = []
 
         for transaction in transactions:
@@ -890,11 +893,11 @@ class CapitalGainsCalculator:
 
     def first_pass_report(
         self,
-        balance: dict[tuple[str, str], Decimal],
-        dividends: dict[tuple[str, str], Decimal],
-        dividends_tax: dict[tuple[str, str], Decimal],
-        interests: dict[tuple[str, str], Decimal],
-        interest_taxes: dict[tuple[str, str], Decimal],
+        balance: dict[tuple[str, CurrencyCode], Decimal],
+        dividends: dict[tuple[str, CurrencyCode], Decimal],
+        dividends_tax: dict[tuple[str, CurrencyCode], Decimal],
+        interests: dict[tuple[str, CurrencyCode], Decimal],
+        interest_taxes: dict[tuple[str, CurrencyCode], Decimal],
     ) -> None:
         """Print the results of the first pass."""
         LOGGER.info(
@@ -1641,15 +1644,15 @@ class CapitalGainsCalculator:
 
     def _group_by_month(
         self,
-        entries: dict[tuple[str, str, datetime.date], ForeignCurrencyAmount],
-    ) -> dict[tuple[str, str, datetime.date], ForeignCurrencyAmount]:
+        entries: dict[tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount],
+    ) -> dict[tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount]:
         """Group in-tax-year amounts by month, keyed by the month's last date."""
-        monthly: dict[tuple[str, str, datetime.date], ForeignCurrencyAmount] = (
-            defaultdict(ForeignCurrencyAmount)
-        )
+        monthly: dict[
+            tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
         last_date: datetime.date = datetime.date.min
         last_broker: str | None = None
-        last_currency: str | None = None
+        last_currency: CurrencyCode | None = None
 
         for (broker, currency, date), foreign_amount in sorted(entries.items()):
             if not self.date_in_tax_year(date):
@@ -1678,14 +1681,14 @@ class CapitalGainsCalculator:
 
         for (broker, currency, date), foreign_amount in monthly_interests.items():
             gbp_amount = self.currency_converter.to_gbp(
-                foreign_amount.amount, foreign_amount.currency, date
+                foreign_amount.amount, currency, date
             )
-            if foreign_amount.currency == UK_CURRENCY:
+            if currency == UK_CURRENCY:
                 self.total_uk_interest += gbp_amount
                 rule_prefix = "interestUK"
             else:
                 self.total_foreign_interest += gbp_amount
-                rule_prefix = f"interest{currency.upper()}"
+                rule_prefix = f"interest{currency}"
 
             self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
                 CalculationEntry(
@@ -1702,12 +1705,12 @@ class CapitalGainsCalculator:
 
         for (broker, currency, date), foreign_amount in monthly_interest_taxes.items():
             gbp_amount = self.currency_converter.to_gbp(
-                foreign_amount.amount, foreign_amount.currency, date
+                foreign_amount.amount, currency, date
             )
             # Withholding rows are negative, so negate rather than abs():
             # positive reversal rows then cancel out across months.
             tax_amount = -gbp_amount
-            rule_prefix = f"interestTax{currency.upper()}"
+            rule_prefix = f"interestTax{currency}"
             self.total_interest_tax += tax_amount
 
             self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
@@ -1721,7 +1724,9 @@ class CapitalGainsCalculator:
                 )
             ]
 
-    def dividend_source_country(self, symbol: str, currency: str) -> str | None:
+    def dividend_source_country(
+        self, symbol: str, currency: CurrencyCode
+    ) -> str | None:
         """Return the country a dividend was paid from, or None if unknown.
 
         The ISIN a security is registered under is the authority. Where no
@@ -1745,6 +1750,8 @@ class CapitalGainsCalculator:
                 continue
 
             tax = self.dividend_tax_list[(symbol, date)]
+            currency = foreign_amount.currency
+            assert currency is not None, f"Dividend for {symbol} has no currency"
 
             treaty = None
             is_interest_fund = symbol in self.interest_fund_tickers
@@ -1758,14 +1765,12 @@ class CapitalGainsCalculator:
                         f"Not matching currency for dividend {foreign_amount.currency} "
                         f"and its tax {tax.currency}"
                     )
-                    country = self.dividend_source_country(
-                        symbol, foreign_amount.currency
-                    )
+                    country = self.dividend_source_country(symbol, currency)
                     if country is None:
                         LOGGER.warning(
                             "Source country of the %s dividend is unknown (ticker: %s), "
                             "double taxation rules cannot be determined!",
-                            foreign_amount.currency,
+                            currency,
                             symbol,
                         )
                     elif country not in DIVIDEND_DOUBLE_TAXATION_RULES:
@@ -1791,11 +1796,9 @@ class CapitalGainsCalculator:
                             treaty = None
 
             amount = self.currency_converter.to_gbp(
-                foreign_amount.amount, foreign_amount.currency, date
+                foreign_amount.amount, currency, date
             )
-            tax_amount = self.currency_converter.to_gbp(
-                tax.amount, foreign_amount.currency, date
-            )
+            tax_amount = self.currency_converter.to_gbp(tax.amount, currency, date)
 
             dividend = Dividend(
                 date=date,
