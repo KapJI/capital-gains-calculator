@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from .const import INTERNAL_START_DATE
+from .version import get_version
 
 STDIN_PATH = Path("-")
 
@@ -164,3 +165,24 @@ class DeprecatedAction(argparse.Action):
             replacements[option_string],
         )
         setattr(namespace, self.dest, values)
+
+
+class VersionAction(argparse.Action):
+    """Print the version and exit.
+
+    Unlike argparse's built-in version action, which needs the string upfront,
+    this resolves the version only when the option is used, keeping the lookup
+    off the startup path of every other run.
+    """
+
+    @override
+    def __call__(  # type: ignore[explicit-any]
+        self,
+        parser: argparse.ArgumentParser,
+        _namespace: argparse.Namespace,
+        _values: str | Sequence[Any] | None,
+        _option_string: str | None = None,
+    ) -> None:
+        """Print the version and exit."""
+        print(f"cgt-calc {get_version()}")
+        parser.exit()

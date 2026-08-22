@@ -86,6 +86,36 @@ def test_print_completion_zsh_covers_all_path_options(
     assert not missing, f"options without a path completer: {missing}"
 
 
+def test_version_prints_version_and_exits(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that --version prints the version to stdout and exits."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--version"])
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert captured.out.startswith("cgt-calc ")
+    assert captured.out.endswith("\n")
+
+
+def test_version_is_resolved_lazily(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that building the parser does not resolve the version."""
+
+    def explode() -> str:
+        raise AssertionError("version resolved without --version")
+
+    monkeypatch.setattr("cgt_calc.args_validators.get_version", explode)
+
+    parser = create_parser()
+    args = parser.parse_args([])
+
+    # --version is also kept out of the parsed arguments.
+    assert not hasattr(args, "version")
+
+
 def test_output_and_no_report_mutually_exclusive() -> None:
     """Test that --output and --no-report are mutually exclusive."""
     parser = create_parser()
