@@ -194,6 +194,22 @@ def test_hl_blank_reference_skipped(tmp_path: Path) -> None:
     assert transactions == []
 
 
+def test_load_from_dir_accepts_uppercase_csv_extension(tmp_path: Path) -> None:
+    """Discover an HL transaction report whose CSV extension is uppercase."""
+    csv_file = tmp_path / "hl-transaction-summary.CSV"
+    csv_file.write_text(
+        HL_CSV_HEADER
+        + '"01/03/2026","01/03/2026","Interest","Gross interest","n/a","n/a","12.34"\n',
+        encoding="windows-1252",
+    )
+
+    transactions = HargreavesLansdownParser.load_from_dir(tmp_path)
+
+    assert len(transactions) == 1
+    assert transactions[0].action == ActionType.INTEREST
+    assert transactions[0].amount == Decimal("12.34")
+
+
 # The tests below call the parser directly: the end-to-end tests above
 # run in a subprocess, which is invisible to coverage.
 
@@ -252,9 +268,9 @@ def test_read_row_invalid_date() -> None:
         HargreavesLansdownParser.read_row(row, Path("statement.csv"))
 
 
-def test_read_row_buy_with_contract_note(tmp_path: Path) -> None:
-    """Cross-reference a buy row with its contract note PDF."""
-    _create_buy_pdf(str(tmp_path / "B123_contract.pdf"))
+def test_read_row_buy_with_uppercase_contract_note_extension(tmp_path: Path) -> None:
+    """Cross-reference a buy row with an uppercase PDF extension."""
+    _create_buy_pdf(str(tmp_path / "B123_contract.PDF"))
     row = {
         "Reference": "B123",
         "Description": "Buy VHVG",

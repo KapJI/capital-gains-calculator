@@ -127,6 +127,30 @@ def _prepare_file(tmp_path: Path, rows: list[list[str]]) -> Path:
     return folder
 
 
+def test_load_from_dir_accepts_uppercase_csv_extension(tmp_path: Path) -> None:
+    """Discover a Trading 212 export whose CSV extension is uppercase."""
+    rows = [
+        HEADER_2024,
+        _make_row(
+            HEADER_2024,
+            {
+                Trading212Column.ACTION: "Deposit",
+                Trading212Column.TIME: "2024-01-01 00:15:20.149",
+                Trading212Column.TOTAL: "100.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "uppercase-extension",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+    (folder / "trading212.csv").rename(folder / "trading212.CSV")
+
+    transactions = Trading212Parser.load_from_dir(folder)
+
+    assert len(transactions) == 1
+    assert transactions[0].amount == Decimal("100.00")
+
+
 def test_read_trading212_transactions_supports_2020_export(tmp_path: Path) -> None:
     """Parse transactions using the legacy 2020 column set."""
 

@@ -36,8 +36,8 @@ trading212/
 └── from_2024-04-06_to_2025-04-05.csv
 ```
 
-The filenames do not matter. cgt-calc reads every `.csv` file directly inside the directory, but it
-does not search subdirectories. Do not add unrelated CSV files, and make sure there are no gaps
+The base filenames do not matter. cgt-calc reads every CSV file directly inside the directory, but
+it does not search subdirectories. Do not add unrelated CSV files, and make sure there are no gaps
 between date ranges. Overlaps are safe: exact repeated transactions are removed using their Trading
 212 transaction ID.
 
@@ -100,9 +100,9 @@ information.
 
 ### No transactions are detected
 
-Check that the directory contains files ending in lower-case `.csv` directly, rather than `.CSV`
-files or files inside another directory. Also check that you passed the directory itself to
-`--trading212-dir`, not the path to one CSV file.
+Check that the directory contains CSV files directly, rather than inside another directory. The file
+extension is matched case-insensitively, so `.csv`, `.CSV` and mixed-case variants all work. Also
+check that you passed the directory itself to `--trading212-dir`, not the path to one CSV file.
 
 ### The balance or portfolio looks wrong
 
