@@ -1529,28 +1529,50 @@ class CapitalGainsCalculator:
         already put them in its pool.
         """
         renames = self.rename_list.get(date_index, {})
-        came_from = {new: old for old, new in renames.items()}
-        if len(came_from) != len(renames):
-            raise CalculationError(
-                f"Cannot compute the spin-off of {dest} from {source} on "
-                f"{date_index}: more than one symbol was renamed to the same "
-                "name that day, so there is no single pool to apportion. Work "
-                f"{source} and {dest} out by hand (consider professional advice)."
-            )
-        # Follow the day's renames back to wherever the pool still sits: a
-        # holding renamed twice in a morning is two hops from its pool.
+        # Follow the day's renames back from the source, a holding renamed
+        # twice in a morning being two hops from its pool. Only renames on
+        # this chain matter; what happened to other symbols that day does not.
         names = [source]
-        while names[-1] in came_from:
-            if came_from[names[-1]] in names:
+        while True:
+            previous = sorted(old for old, new in renames.items() if new == names[-1])
+            if not previous:
+                break
+            if len(previous) > 1:
+                raise CalculationError(
+                    f"Cannot compute the spin-off of {dest} from {source} on "
+                    f"{date_index}: {' and '.join(previous)} were both renamed to "
+                    f"{names[-1]} that day, so there is no single pool to "
+                    f"apportion. Work {source} and {dest} out by hand (consider "
+                    "professional advice)."
+                )
+            if previous[0] in names:
                 raise CalculationError(
                     f"Cannot compute the spin-off of {dest} from {source} on "
                     f"{date_index}: the day's renames go round in a circle "
-                    f"({' -> '.join([*names, came_from[names[-1]]])}), so there "
-                    f"is no telling where the pool is. Work {source} and {dest} "
-                    "out by hand (consider professional advice)."
+                    f"({' -> '.join([*names, previous[0]])}), so there is no "
+                    f"telling where the pool is. Work {source} and {dest} out "
+                    "by hand (consider professional advice)."
                 )
-            names.append(came_from[names[-1]])
-        pool = names[-1]
+            names.append(previous[0])
+        # The pool sits under whichever name on the chain still holds shares
+        # here, since the day's renames are applied after its acquisitions.
+        # Two of them means two holdings became one that day, and whether the
+        # spin-off applied to both or to one cannot be told from the input.
+        holding = [
+            name
+            for name in names
+            if name in self.portfolio and self.portfolio[name].quantity > 0
+        ]
+        if len(holding) > 1:
+            raise CalculationError(
+                f"Cannot compute the spin-off of {dest} from {source} on "
+                f"{date_index}: {holding[0]} already held shares when "
+                f"{holding[1]} was renamed to it that day, so two holdings "
+                "became one, and whether the spin-off applied to both or just "
+                f"one cannot be told from the input. Work {source} and {dest} "
+                "out by hand (consider professional advice)."
+            )
+        pool = holding[0] if holding else names[-1]
         activity = []
         for name in names:
             spun_in = sum(

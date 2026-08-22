@@ -723,7 +723,7 @@ def test_a_source_renamed_twice_on_the_day_is_still_apportioned() -> None:
     ("renames", "reason"),
     [
         pytest.param(
-            [("A", "NEW"), ("B", "NEW")], "renamed to the same name", id="two-into-one"
+            [("A", "NEW"), ("B", "NEW")], "were both renamed to NEW", id="two-into-one"
         ),
         pytest.param([("NEW", "B"), ("B", "NEW")], "round in a circle", id="circle"),
     ],
@@ -764,3 +764,87 @@ def test_a_rename_graph_with_no_single_pool_is_refused(
                 ),
             ],
         )
+
+
+def _renaming_calculator(cache: dict[str, str]) -> CapitalGainsCalculator:
+    converter = CurrencyConverter(None, {})
+    handler = SpinOffHandler()
+    handler.cache = cache
+    return CapitalGainsCalculator(
+        2024,
+        converter,
+        IsinConverter(),
+        CurrentPriceFetcher(
+            converter,
+            {},
+            {
+                "FOO": {SPIN_OFF_DAY: Decimal(90)},
+                "NEW": {SPIN_OFF_DAY: Decimal(90)},
+                "BAR": {SPIN_OFF_DAY: Decimal(10)},
+            },
+        ),
+        handler,
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+
+
+def test_a_rename_into_a_holding_already_held_is_refused() -> None:
+    """OLD renamed to a NEW that already has shares: two holdings became one.
+
+    Apportioning OLD's pool alone gave NEW £181.82 and BAR £18.18 where the
+    combined pool would give £180 and £20, and which the spin-off applied to
+    depends on an order the input does not carry.
+    """
+    with pytest.raises(CalculationError, match="already held shares"):
+        get_report(
+            _renaming_calculator({"BAR": "NEW"}),
+            [
+                transaction(BUY_DAY, ActionType.BUY, "OLD", 10, 10, 0, -100, GBP),
+                transaction(BUY_DAY, ActionType.BUY, "NEW", 10, 10, 0, -100, GBP),
+                _rename("OLD", "NEW"),
+                transaction(
+                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 20, 10, 0, currency=GBP
+                ),
+            ],
+        )
+
+
+def test_a_rename_whose_origin_holds_nothing_uses_the_target_pool() -> None:
+    """The pool is wherever the shares are, not necessarily the first name."""
+    calculator = _renaming_calculator({"BAR": "NEW"})
+    get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "NEW", 10, 10, 0, -100, GBP),
+            _rename("OLD", "NEW"),
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
+            ),
+        ],
+    )
+
+    assert calculator.portfolio["NEW"].amount == Decimal(90)
+    assert calculator.portfolio["BAR"].amount == Decimal(10)
+
+
+def test_renames_of_unrelated_symbols_into_one_name_do_not_block_a_spin_off() -> None:
+    """A and B both renamed to X that day has nothing to do with FOO."""
+    calculator = _renaming_calculator({"BAR": "FOO"})
+    get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(BUY_DAY, ActionType.BUY, "A", 1, 1, 0, -1, GBP),
+            transaction(BUY_DAY, ActionType.BUY, "B", 1, 1, 0, -1, GBP),
+            _rename("A", "X"),
+            _rename("B", "X"),
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
+            ),
+        ],
+    )
+
+    assert calculator.portfolio["FOO"].amount == Decimal(90)
+    assert calculator.portfolio["BAR"].amount == Decimal(10)
