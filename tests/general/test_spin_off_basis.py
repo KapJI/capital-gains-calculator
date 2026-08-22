@@ -349,6 +349,12 @@ def test_a_spin_off_before_the_period_is_applied_but_not_reported() -> None:
             [transfer_to_spouse_transaction(SPIN_OFF_DAY, "FOO", 5)],
             id="transferred-to-a-spouse",
         ),
+        pytest.param(
+            # A fee adds cost with no shares, so it slipped past a check on
+            # quantity, and the pool was apportioned with the fee in it.
+            [transaction(SPIN_OFF_DAY, ActionType.FEE, "FOO", None, None, 0, -10, GBP)],
+            id="charged-a-fee",
+        ),
     ],
 )
 def test_source_traded_on_the_spin_off_day_is_refused(
@@ -657,3 +663,57 @@ def test_a_rename_of_another_symbol_on_the_day_is_ignored() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(90)
     assert calculator.portfolio["BAR"].amount == Decimal(10)
     assert calculator.portfolio["NEW"].amount == Decimal(21)
+
+
+def _rename(old: str, new: str) -> BrokerTransaction:
+    return BrokerTransaction(
+        date=SPIN_OFF_DAY,
+        action=ActionType.RENAME,
+        symbol=new,
+        description=f"{RENAME_DESCRIPTION_PREFIX}{old}",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=None,
+        currency=GBP,
+        broker="Testing",
+    )
+
+
+def test_a_source_renamed_twice_on_the_day_is_still_apportioned() -> None:
+    """OLD to MID to NEW in one morning: the pool is two renames back.
+
+    Following only one rename found MID's pool, which is empty, and BAR got
+    a cost of nothing.
+    """
+    converter = CurrencyConverter(None, {})
+    handler = SpinOffHandler()
+    handler.cache = {"BAR": "NEW"}
+    calculator = CapitalGainsCalculator(
+        2024,
+        converter,
+        IsinConverter(),
+        CurrentPriceFetcher(
+            converter,
+            {},
+            {"NEW": {SPIN_OFF_DAY: Decimal(90)}, "BAR": {SPIN_OFF_DAY: Decimal(10)}},
+        ),
+        handler,
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "OLD", 10, 10, 0, -100, GBP),
+            _rename("OLD", "MID"),
+            _rename("MID", "NEW"),
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
+            ),
+        ],
+    )
+
+    assert calculator.portfolio["NEW"].amount == Decimal(90)
+    assert calculator.portfolio["BAR"].amount == Decimal(10)

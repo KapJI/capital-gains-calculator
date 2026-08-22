@@ -255,6 +255,10 @@ class CapitalGainsCalculator:
         self.spin_off_estimates: dict[tuple[datetime.date, str], Decimal] = defaultdict(
             Decimal
         )
+        # Days on which a symbol was charged a management fee. A fee adds to
+        # the pool's cost with no shares, so it cannot be told from the pool
+        # itself once it is in.
+        self.fee_days: set[tuple[datetime.date, str]] = set()
         # The source side of each spin-off, recorded when it is applied and
         # collected into the calculation log by date.
         self.spin_off_entries: dict[
@@ -815,6 +819,7 @@ class CapitalGainsCalculator:
                     transaction.fees, transaction
                 )
                 symbol = get_symbol_or_fail(transaction)
+                self.fee_days.add((transaction.date, symbol))
                 add_to_list(
                     self.acquisition_list,
                     transaction.date,
@@ -1523,12 +1528,25 @@ class CapitalGainsCalculator:
         received by spin-off that day are not a trade; dependency order has
         already put them in its pool.
         """
-        pool = source
-        for old, new in self.rename_list.get(date_index, {}).items():
-            if new == source:
-                pool = old
+        renames = self.rename_list.get(date_index, {})
+        came_from = {new: old for old, new in renames.items()}
+        if len(came_from) != len(renames):
+            raise CalculationError(
+                f"Cannot compute the spin-off of {dest} from {source} on "
+                f"{date_index}: more than one symbol was renamed to the same "
+                "name that day, so there is no single pool to apportion. Work "
+                f"{source} and {dest} out by hand (consider professional advice)."
+            )
+        # Follow the day's renames back to wherever the pool still sits: a
+        # holding renamed twice in a morning is two hops from its pool.
+        names = [source]
+        while names[-1] in came_from:
+            if came_from[names[-1]] in names:
+                break
+            names.append(came_from[names[-1]])
+        pool = names[-1]
         activity = []
-        for name in {source, pool}:
+        for name in names:
             spun_in = sum(
                 (
                     spin_off.quantity
@@ -1546,6 +1564,8 @@ class CapitalGainsCalculator:
                 activity.append("sold")
             if has_key(self.transfer_to_spouse_list, date_index, name):
                 activity.append("transferred to a spouse")
+            if (date_index, name) in self.fee_days:
+                activity.append("charged a fee")
         if activity:
             raise CalculationError(
                 f"Cannot compute the spin-off of {dest} from {source} on "
