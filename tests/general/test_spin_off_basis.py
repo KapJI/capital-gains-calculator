@@ -19,11 +19,16 @@ from cgt_calc.exceptions import CalculationError
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
-from cgt_calc.model import ActionType, BrokerTransaction, CapitalGainsReport
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CapitalGainsReport,
+    CurrencyCode,
+)
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.spin_off_handler import SpinOffHandler
 
-from .calc_test_data import transaction, transfer_to_spouse_transaction
+from .calc_test_data import GBP, USD, transaction, transfer_to_spouse_transaction
 from .test_calc import get_report
 
 BUY_DAY = datetime.date(2024, 6, 1)
@@ -40,8 +45,8 @@ FLAT = Decimal(1)
 def spin_off(
     transactions: list[BrokerTransaction],
     foo_units: int,
-    rates: dict[datetime.date, dict[str, Decimal]],
-    currency: str = "GBP",
+    rates: dict[datetime.date, dict[CurrencyCode, Decimal]],
+    currency: CurrencyCode = GBP,
 ) -> tuple[CapitalGainsCalculator, CapitalGainsReport]:
     """Run `transactions` then spin `foo_units` of BAR out of FOO."""
     converter = CurrencyConverter(None, rates)
@@ -83,9 +88,9 @@ def spin_off(
 def test_baseline_without_a_prior_sale() -> None:
     """Sanity check of the harness: 10 units costing £100, a tenth goes to BAR."""
     calculator, _ = spin_off(
-        [transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP")],
+        [transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP)],
         10,
-        {BUY_DAY: {"GBP": FLAT}, SPIN_OFF_DAY: {"GBP": FLAT}},
+        {BUY_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
     )
 
     assert calculator.portfolio["BAR"].amount == Decimal(10)
@@ -99,11 +104,11 @@ def test_after_a_profitable_sale() -> None:
     """
     calculator, _ = spin_off(
         [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
-            transaction(SALE_DAY, ActionType.SELL, "FOO", 5, 20, 0, 100, "GBP"),
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(SALE_DAY, ActionType.SELL, "FOO", 5, 20, 0, 100, GBP),
         ],
         5,
-        {BUY_DAY: {"GBP": FLAT}, SALE_DAY: {"GBP": FLAT}, SPIN_OFF_DAY: {"GBP": FLAT}},
+        {BUY_DAY: {GBP: FLAT}, SALE_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
     )
 
     assert calculator.portfolio["BAR"].amount == Decimal(5)
@@ -117,10 +122,10 @@ def test_cost_is_not_revalued_at_the_spin_off_days_rate() -> None:
     into pounds at the spin-off day's $1.00/£, handing BAR £10.
     """
     calculator, _ = spin_off(
-        [transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "USD")],
+        [transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, USD)],
         10,
-        {BUY_DAY: {"USD": Decimal("0.5")}, SPIN_OFF_DAY: {"USD": Decimal("1.0")}},
-        currency="USD",
+        {BUY_DAY: {USD: Decimal("0.5")}, SPIN_OFF_DAY: {USD: Decimal("1.0")}},
+        currency=USD,
     )
 
     assert calculator.portfolio["FOO"].amount == Decimal(180)
@@ -136,12 +141,12 @@ def test_after_a_transfer_to_spouse_matched_on_its_day() -> None:
     """
     calculator, _ = spin_off(
         [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
-            transaction(SALE_DAY, ActionType.BUY, "FOO", 5, 20, 0, -100, "GBP"),
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(SALE_DAY, ActionType.BUY, "FOO", 5, 20, 0, -100, GBP),
             transfer_to_spouse_transaction(SALE_DAY, "FOO", 5),
         ],
         10,
-        {BUY_DAY: {"GBP": FLAT}, SALE_DAY: {"GBP": FLAT}, SPIN_OFF_DAY: {"GBP": FLAT}},
+        {BUY_DAY: {GBP: FLAT}, SALE_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
     )
 
     assert calculator.portfolio["BAR"].amount == Decimal(10)
@@ -156,16 +161,16 @@ def test_cost_is_conserved_across_both_holdings() -> None:
     """
     calculator, report = spin_off(
         [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
-            transaction(SALE_DAY, ActionType.SELL, "FOO", 5, 20, 0, 100, "GBP"),
-            transaction(LATER, ActionType.SELL, "FOO", 5, 30, 0, 150, "GBP"),
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(SALE_DAY, ActionType.SELL, "FOO", 5, 20, 0, 100, GBP),
+            transaction(LATER, ActionType.SELL, "FOO", 5, 30, 0, 150, GBP),
         ],
         5,
         {
-            BUY_DAY: {"GBP": FLAT},
-            SALE_DAY: {"GBP": FLAT},
-            SPIN_OFF_DAY: {"GBP": FLAT},
-            LATER: {"GBP": FLAT},
+            BUY_DAY: {GBP: FLAT},
+            SALE_DAY: {GBP: FLAT},
+            SPIN_OFF_DAY: {GBP: FLAT},
+            LATER: {GBP: FLAT},
         },
     )
 
@@ -184,9 +189,9 @@ def test_source_gives_up_its_share_on_the_day() -> None:
     a share of shares that had nothing to do with the spin-off.
     """
     calculator, _ = spin_off(
-        [transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP")],
+        [transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP)],
         10,
-        {BUY_DAY: {"GBP": FLAT}, SPIN_OFF_DAY: {"GBP": FLAT}},
+        {BUY_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
     )
 
     assert calculator.portfolio["FOO"].amount == Decimal(90)
@@ -197,8 +202,8 @@ def test_a_later_purchase_of_the_source_is_untouched() -> None:
     """£200 of FOO bought after the spin-off keeps all £200 of its cost."""
     _, report = spin_off(
         [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
-            transaction(LATER, ActionType.BUY, "FOO", 20, 10, 0, -200, "GBP"),
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(LATER, ActionType.BUY, "FOO", 20, 10, 0, -200, GBP),
             transaction(
                 datetime.date(2024, 10, 1),
                 ActionType.SELL,
@@ -207,15 +212,15 @@ def test_a_later_purchase_of_the_source_is_untouched() -> None:
                 20,
                 0,
                 600,
-                "GBP",
+                GBP,
             ),
         ],
         10,
         {
-            BUY_DAY: {"GBP": FLAT},
-            SPIN_OFF_DAY: {"GBP": FLAT},
-            LATER: {"GBP": FLAT},
-            datetime.date(2024, 10, 1): {"GBP": FLAT},
+            BUY_DAY: {GBP: FLAT},
+            SPIN_OFF_DAY: {GBP: FLAT},
+            LATER: {GBP: FLAT},
+            datetime.date(2024, 10, 1): {GBP: FLAT},
         },
     )
 
@@ -231,11 +236,11 @@ def test_a_purchase_of_the_new_holding_on_the_day_keeps_its_cost() -> None:
     """
     calculator, _ = spin_off(
         [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
-            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAR", 5, 10, 0, -50, "GBP"),
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAR", 5, 10, 0, -50, GBP),
         ],
         10,
-        {BUY_DAY: {"GBP": FLAT}, SPIN_OFF_DAY: {"GBP": FLAT}},
+        {BUY_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
     )
 
     assert calculator.portfolio["BAR"].quantity == Decimal(15)
@@ -253,9 +258,9 @@ def test_selling_the_new_holding_just_before_the_spin_off_is_refused() -> None:
     with pytest.raises(CalculationError, match="run again with this one disposal"):
         spin_off(
             [
-                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
-                transaction(BUY_DAY, ActionType.BUY, "BAR", 2, 1, 0, -2, "GBP"),
-                transaction(SALE_DAY, ActionType.SELL, "FOO", 5, 20, 0, 100, "GBP"),
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                transaction(BUY_DAY, ActionType.BUY, "BAR", 2, 1, 0, -2, GBP),
+                transaction(SALE_DAY, ActionType.SELL, "FOO", 5, 20, 0, 100, GBP),
                 transaction(
                     datetime.date(2024, 6, 25),
                     ActionType.SELL,
@@ -264,15 +269,15 @@ def test_selling_the_new_holding_just_before_the_spin_off_is_refused() -> None:
                     3,
                     0,
                     6,
-                    "GBP",
+                    GBP,
                 ),
             ],
             5,
             {
-                BUY_DAY: {"GBP": FLAT},
-                SALE_DAY: {"GBP": FLAT},
-                datetime.date(2024, 6, 25): {"GBP": FLAT},
-                SPIN_OFF_DAY: {"GBP": FLAT},
+                BUY_DAY: {GBP: FLAT},
+                SALE_DAY: {GBP: FLAT},
+                datetime.date(2024, 6, 25): {GBP: FLAT},
+                SPIN_OFF_DAY: {GBP: FLAT},
             },
         )
 
@@ -308,11 +313,11 @@ def test_a_spin_off_before_the_period_is_applied_but_not_reported() -> None:
     report = get_report(
         calculator,
         [
-            transaction(earlier_buy, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(earlier_buy, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
             transaction(
-                earlier_spin_off, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency="GBP"
+                earlier_spin_off, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
             ),
-            transaction(LATER, ActionType.SELL, "FOO", 10, 20, 0, 200, "GBP"),
+            transaction(LATER, ActionType.SELL, "FOO", 10, 20, 0, 200, GBP),
         ],
     )
 
@@ -330,12 +335,12 @@ def test_the_days_purchases_of_the_source_are_in_the_pool_whatever_the_order() -
     """
     calculator, _ = spin_off(
         [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
-            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAR", 5, 10, 0, -50, "GBP"),
-            transaction(SPIN_OFF_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAR", 5, 10, 0, -50, GBP),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
         ],
         20,
-        {BUY_DAY: {"GBP": FLAT}, SPIN_OFF_DAY: {"GBP": FLAT}},
+        {BUY_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
     )
 
     assert calculator.portfolio["FOO"].amount == Decimal(180)
@@ -368,12 +373,12 @@ def test_two_spin_offs_from_one_source_on_one_day_are_both_recorded() -> None:
     report = get_report(
         calculator,
         [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
             transaction(
-                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency="GBP"
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
             ),
             transaction(
-                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency="GBP"
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency=GBP
             ),
         ],
     )
@@ -423,13 +428,13 @@ def test_a_chain_of_spin_offs_on_one_day_is_applied_in_order() -> None:
     get_report(
         calculator,
         [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
-            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAZ", 5, 10, 0, -50, "GBP"),
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAZ", 5, 10, 0, -50, GBP),
             transaction(
-                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency="GBP"
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
             ),
             transaction(
-                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency="GBP"
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency=GBP
             ),
         ],
     )
@@ -449,12 +454,12 @@ def test_a_chain_listed_out_of_order_is_refused() -> None:
         get_report(
             _chain_calculator(),
             [
-                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
                 transaction(
-                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency="GBP"
+                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency=GBP
                 ),
                 transaction(
-                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency="GBP"
+                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
                 ),
             ],
         )
@@ -492,13 +497,13 @@ def test_sibling_spin_offs_are_applied_in_event_order() -> None:
     get_report(
         calculator,
         [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
-            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAZ", 5, 10, 0, -50, "GBP"),
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAZ", 5, 10, 0, -50, GBP),
             transaction(
-                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency="GBP"
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
             ),
             transaction(
-                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency="GBP"
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency=GBP
             ),
         ],
     )
@@ -517,13 +522,13 @@ def test_rows_for_one_spin_off_from_two_brokers_are_one_event() -> None:
     """
     calculator, report = spin_off(
         [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
             transaction(
-                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 5, 10, 0, currency="GBP"
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 5, 10, 0, currency=GBP
             ),
         ],
         5,
-        {BUY_DAY: {"GBP": FLAT}, SPIN_OFF_DAY: {"GBP": FLAT}},
+        {BUY_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
     )
 
     assert calculator.portfolio["FOO"].amount == Decimal(90)
