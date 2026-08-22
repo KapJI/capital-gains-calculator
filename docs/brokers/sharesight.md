@@ -11,8 +11,8 @@ portfolio value of foreign-exchange trades as GBP.
 
 ### All Trades
 
-Export the portfolio from its first transaction. Earlier acquisitions can still affect disposals in
-the tax year you are reporting; see [Before you start](../usage.md#before-you-start).
+Export all trades from the portfolio's first transaction. Earlier acquisitions can still affect
+disposals in the tax year you are reporting; see [Before you start](../usage.md#before-you-start).
 
 1. Open **Tax** and select **All Trades Report**.
 2. Set the date range to **Since inception**.
@@ -78,7 +78,7 @@ The Sharesight importer currently handles:
 
 ### Equity grants
 
-Sharesight has no native equity-grant transaction for this importer. To identify a vest:
+cgt-calc identifies an equity grant through the trade comment. To record a vest:
 
 1. Record it as a `Buy` in Sharesight.
 2. Enter the market value per share on the vest date as the price.

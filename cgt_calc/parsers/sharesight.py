@@ -126,8 +126,8 @@ REQUIRED_TRADE_COLUMNS: Final[tuple[TradeColumn, ...]] = (
 )
 
 # Sharesight has changed the spreadsheet headings over time. Keep one internal
-# vocabulary so that both the legacy report and the newer Combined sheet are
-# interpreted identically.
+# vocabulary so that the legacy and newer export generations are interpreted
+# identically.
 TRADE_COLUMN_ALIASES: Final[dict[str, TradeColumn]] = {
     "Market": TradeColumn.MARKET,
     "Market Code": TradeColumn.MARKET,
