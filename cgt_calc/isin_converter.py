@@ -22,8 +22,9 @@ from .exceptions import (
     ParsingError,
     UnexpectedColumnCountError,
 )
+from .model import Isin
 from .resources import RESOURCES_PACKAGE
-from .util import is_isin, open_with_parents
+from .util import open_with_parents
 
 if TYPE_CHECKING:
     from importlib.resources.abc import Traversable
@@ -39,16 +40,17 @@ LOGGER = logging.getLogger(__name__)
 class IsinTranslationEntry:
     """Entry from ISIN Translation file."""
 
-    isin: str
+    isin: Isin
     symbols: set[str]
 
     def __init__(self, row: list[str], file: Path):
         """Create entry from CSV row."""
         if len(row) < ISIN_TRANSLATION_COLUMNS_NUM:
             raise UnexpectedColumnCountError(row, ISIN_TRANSLATION_COLUMNS_NUM, file)
-        self.isin = row[0]
-        if not is_isin(self.isin):
-            raise ParsingError(file, f"Row contains invalid ISIN '{self.isin}'")
+        isin = Isin.parse(row[0])
+        if isin is None:
+            raise ParsingError(file, f"Row contains invalid ISIN '{row[0]}'")
+        self.isin = isin
         self.symbols = set(row[1:])
 
     @override
@@ -71,20 +73,16 @@ class IsinConverter:
         )
         self.session = RateLimitedRequestsSession(limiter)
         self.isin_translation_file = isin_translation_file
-        self.data: dict[str, set[str]] = {}
-        self.write_data: dict[str, set[str]] = {}
+        self.data: dict[Isin, set[str]] = {}
+        self.write_data: dict[Isin, set[str]] = {}
         self._read_isin_translation_data()
         self.validate_data()
 
     def validate_data(self) -> None:
         """Validate the current ISIN translation data."""
 
-        reverse_cache: dict[str, str] = {}
+        reverse_cache: dict[str, Isin] = {}
         for isin, symbols in self.data.items():
-            if not is_isin(isin):
-                raise IsinTranslationError(
-                    f"Invalid ISIN found in translation data: {isin}"
-                )
             if symbols == {""}:
                 continue
             for symbol in symbols:
@@ -103,11 +101,6 @@ class IsinConverter:
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Add the ISIN to symbol mapping from an existing transaction."""
         if transaction.symbol and transaction.isin:
-            if not is_isin(transaction.isin):
-                raise InvalidTransactionError(
-                    transaction,
-                    f"Transaction uses invalid ISIN {transaction.isin}",
-                )
             current_symbols = self.data.get(transaction.isin)
             if current_symbols and transaction.symbol not in current_symbols:
                 raise InvalidTransactionError(
@@ -123,7 +116,7 @@ class IsinConverter:
                 )
                 self._write_isin_translation_file()
 
-    def get_symbols(self, isin: str) -> set[str]:
+    def get_symbols(self, isin: Isin) -> set[str]:
         """Return the set of symbols associated with the input ISIN (may be empty)."""
         result = self.data.get(isin)
         if result is None:
@@ -134,7 +127,7 @@ class IsinConverter:
                 self._write_isin_translation_file()
         return result
 
-    def get_symbol_to_isin_map(self) -> dict[str, str]:
+    def get_symbol_to_isin_map(self) -> dict[str, Isin]:
         """Return a map from symbols to ISINs."""
         symbol_to_isin = {}
         for isin, symbols in self.data.items():
@@ -145,7 +138,7 @@ class IsinConverter:
     def _read_isin_translation_data(self) -> None:
         """Read ISIN translation data from bundled and user-provided sources."""
 
-        def load(source: Traversable | Path) -> dict[str, set[str]]:
+        def load(source: Traversable | Path) -> dict[Isin, set[str]]:
             """Load ISIN translation data from a CSV source."""
             file_label = (
                 source if isinstance(source, Path) else Path("resources") / source.name
@@ -162,7 +155,7 @@ class IsinConverter:
                     f"expected {ISIN_TRANSLATION_HEADER}, found {header}",
                     row_index=1,
                 )
-            entries: dict[str, set[str]] = {}
+            entries: dict[Isin, set[str]] = {}
             for index, row in enumerate(lines[1:], start=2):
                 try:
                     entry = IsinTranslationEntry(row, file_label)
@@ -195,7 +188,7 @@ class IsinConverter:
             writer = csv.writer(fout)
             writer.writerows([ISIN_TRANSLATION_HEADER, *data_rows])
 
-    def _fetch_live(self, isin: str) -> set[str]:
+    def _fetch_live(self, isin: Isin) -> set[str]:
         LOGGER.info("Looking up ISIN %s via OpenFIGI...", isin)
         url = "https://api.openfigi.com/v3/mapping"
         headers = {"Content-type": "application/json"}

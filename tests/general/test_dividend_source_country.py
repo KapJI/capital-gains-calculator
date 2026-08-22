@@ -12,7 +12,7 @@ from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
-from cgt_calc.model import ActionType, BrokerTransaction, RuleType
+from cgt_calc.model import ActionType, BrokerTransaction, Isin, RuleType
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 if TYPE_CHECKING:
@@ -23,13 +23,13 @@ DATE = datetime.date(2024, 6, 3)
 
 # A US-domiciled security. Interactive Brokers reports its dividends in the
 # account's base currency, GBP for a UK account, while Schwab reports in USD.
-US_ISIN = "US9220427424"
+US_ISIN = Isin("US9220427424")
 US_WITHHOLDING_RATE = Decimal("0.15")
 
 
 def _dividend_pair(
     currency: str,
-    isin: str | None,
+    isin: Isin | None,
     withholding_rate: Decimal = US_WITHHOLDING_RATE,
 ) -> list[BrokerTransaction]:
     """Build a dividend of 100 and the tax withheld at source on it."""

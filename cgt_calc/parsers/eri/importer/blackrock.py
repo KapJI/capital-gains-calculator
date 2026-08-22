@@ -10,7 +10,8 @@ import dateutil.parser as date_parser
 import pandas as pd
 
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.util import is_currency, is_isin, round_decimal
+from cgt_calc.model import Isin
+from cgt_calc.util import is_currency, round_decimal
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -109,10 +110,10 @@ class BlackrockImporter(ERIImporter):
                     )
 
         for _, row in cleaned_df.iterrows():
-            isin = row[ISIN_COLUMN]
-            if not isinstance(isin, str) or not is_isin(isin.upper()):
-                raise ParsingError(file, f"Not valid ISIN {isin}")
-            isin = isin.upper()
+            isin_raw = row[ISIN_COLUMN]
+            isin = Isin.parse(isin_raw) if isinstance(isin_raw, str) else None
+            if isin is None:
+                raise ParsingError(file, f"Not valid ISIN {isin_raw}")
 
             currency = row[CURRENCY_COLUMN]
             if not isinstance(currency, str):

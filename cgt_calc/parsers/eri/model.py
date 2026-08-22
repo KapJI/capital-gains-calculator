@@ -3,7 +3,7 @@
 import datetime
 from decimal import Decimal
 
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, Isin
 
 
 class ERITransaction(BrokerTransaction):
@@ -12,7 +12,7 @@ class ERITransaction(BrokerTransaction):
     def __init__(
         self,
         date: datetime.date,
-        isin: str,
+        isin: Isin,
         price: Decimal,
         currency: str,
     ) -> None:

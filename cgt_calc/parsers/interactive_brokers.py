@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.model import ActionType, BrokerTransaction
-from cgt_calc.util import is_isin
+from cgt_calc.model import ActionType, BrokerTransaction, Isin
 
 from .base_parsers import StandardCSVParser
 
@@ -31,13 +30,12 @@ EXPECTED_COLS_IN_SUMMARY_SECTION: Final[int] = 4
 _ISIN_IN_DESCRIPTION_RE: Final = re.compile(r"^[^\s(]+\((?P<isin>[A-Z0-9]{12})\)")
 
 
-def _isin_from_description(description: str) -> str | None:
+def _isin_from_description(description: str) -> Isin | None:
     """Return the ISIN the description is prefixed with, if it has one."""
     match = _ISIN_IN_DESCRIPTION_RE.match(description)
     if match is None:
         return None
-    isin = match.group("isin")
-    return isin if is_isin(isin) else None
+    return Isin.parse(match.group("isin"))
 
 
 class InteractiveBrokersColumn(StrEnum):

@@ -14,7 +14,7 @@ from cgt_calc.exceptions import (
     UnsupportedBrokerActionError,
     UnsupportedBrokerCurrencyError,
 )
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, Isin
 
 from .base_parsers import BaseSingleFileParser
 
@@ -166,7 +166,8 @@ class FreetradeTransaction(BrokerTransaction):
         if amount_negative:
             amount *= -1
 
-        isin = row.get(FreetradeColumn.ISIN) or None
+        isin_raw = row.get(FreetradeColumn.ISIN)
+        isin = Isin(isin_raw) if isin_raw else None
 
         super().__init__(
             date=datetime.fromisoformat(row[FreetradeColumn.TIMESTAMP]).date(),

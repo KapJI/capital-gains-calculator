@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from cgt_calc.model import ActionType, CalculationEntry, RuleType, SpinOff
+from cgt_calc.model import ActionType, CalculationEntry, Isin, RuleType, SpinOff
 
 from .calc_test_data import (
     buy_transaction,
@@ -462,7 +462,7 @@ calc_basic_data_2 = [
                 price=101.1,
                 fees=1,
                 amount=-50551,
-                isin="USFOO0000006",
+                isin=Isin("USFOO0000006"),
             ),
             buy_transaction(
                 date=datetime.date(day=2, month=6, year=2023),
@@ -471,11 +471,11 @@ calc_basic_data_2 = [
                 price=102.1,
                 fees=1.0,
                 amount=-10211.0,
-                isin="USFOO0000006",
+                isin=Isin("USFOO0000006"),
             ),
             eri_transaction(
                 date=datetime.date(day=1, month=7, year=2023),
-                isin="USFOO0000006",
+                isin=Isin("USFOO0000006"),
                 price=2.1,
             ),
             sell_transaction(
@@ -485,7 +485,7 @@ calc_basic_data_2 = [
                 price=130,
                 fees=1,
                 amount=3899,
-                isin="USFOO0000006",
+                isin=Isin("USFOO0000006"),
             ),
         ],
         797.90,  # Expected capital gain/loss
@@ -584,7 +584,7 @@ calc_basic_data_2 = [
                 price=1.5,
                 fees=0,
                 amount=-14250,
-                isin="USMSP0000000",
+                isin=Isin("USMSP0000000"),
             ),
             sell_transaction(
                 date=datetime.date(day=30, month=8, year=2020),
@@ -593,16 +593,16 @@ calc_basic_data_2 = [
                 price=1.5,
                 fees=0,
                 amount=6000,
-                isin="USMSP0000000",
+                isin=Isin("USMSP0000000"),
             ),
             eri_transaction(
                 date=datetime.date(day=1, month=9, year=2020),
-                isin="USMSP0000000",
+                isin=Isin("USMSP0000000"),
                 price=0.4,
             ),
             eri_transaction(
                 date=datetime.date(day=10, month=9, year=2020),
-                isin="USMSP0000000",
+                isin=Isin("USMSP0000000"),
                 price=0.2,
             ),
             buy_transaction(
@@ -612,7 +612,7 @@ calc_basic_data_2 = [
                 price=1.7,
                 fees=0,
                 amount=-850,
-                isin="USMSP0000000",
+                isin=Isin("USMSP0000000"),
             ),
         ],
         -100.0,  # Expected capital gain/loss

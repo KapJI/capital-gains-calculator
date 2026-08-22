@@ -21,10 +21,10 @@ from cgt_calc.exceptions import (
 )
 import cgt_calc.isin_converter
 from cgt_calc.isin_converter import IsinConverter, IsinTranslationEntry
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, Isin
 
-# Deliberately not a real ISIN so it can't be in the bundled translation data.
-UNKNOWN_ISIN = "ZZ0000000000"
+# Well-formed but unassigned, so it cannot be in the bundled translation data.
+UNKNOWN_ISIN = Isin("ZZ0000000008")
 
 
 class OfflineSession:
@@ -55,8 +55,8 @@ def test_live_isin_lookup_announces_itself(
 
 
 # Real, valid ISINs that are not in the bundled translation data.
-ISIN_A = "US0378331005"
-ISIN_B = "US5949181045"
+ISIN_A = Isin("US0378331005")
+ISIN_B = Isin("US5949181045")
 
 FigiData = list[dict[str, str]]
 
@@ -94,7 +94,7 @@ class FakeSession:
         return FakeResponse(self._payload)
 
 
-def _transaction(isin: str, symbol: str | None) -> BrokerTransaction:
+def _transaction(isin: Isin, symbol: str | None) -> BrokerTransaction:
     """Create a minimal transaction with the given ISIN and symbol."""
     return BrokerTransaction(
         date=datetime.date(2023, 1, 1),
@@ -196,15 +196,6 @@ def test_fetch_live_no_match(monkeypatch: pytest.MonkeyPatch) -> None:
     assert converter.get_symbols(ISIN_A) == set()
 
 
-def test_validate_data_rejects_invalid_isin() -> None:
-    """Reject translation data with an invalid ISIN."""
-    converter = IsinConverter()
-    converter.data = {"NOTANISIN": {"FOO"}}
-
-    with pytest.raises(IsinTranslationError, match="Invalid ISIN"):
-        converter.validate_data()
-
-
 def test_validate_data_rejects_empty_symbol() -> None:
     """Reject ticker lists containing empty values."""
     converter = IsinConverter()
@@ -221,14 +212,6 @@ def test_validate_data_rejects_conflicting_symbols() -> None:
 
     with pytest.raises(IsinTranslationError, match="already linked"):
         converter.validate_data()
-
-
-def test_add_from_transaction_rejects_invalid_isin() -> None:
-    """Reject transactions with an invalid ISIN."""
-    converter = IsinConverter()
-
-    with pytest.raises(InvalidTransactionError, match="invalid ISIN"):
-        converter.add_from_transaction(_transaction("NOTANISIN", "FOO"))
 
 
 def test_add_from_transaction_rejects_mismatched_symbol() -> None:

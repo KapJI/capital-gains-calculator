@@ -3,7 +3,6 @@
 import decimal
 from decimal import Decimal
 from pathlib import Path
-import re
 from typing import TextIO
 
 import iso4217parse
@@ -57,21 +56,6 @@ def luhn_check_digit(payload: str) -> int:
     return (
         10 - (checksum % 10)
     ) % 10  # using mod operator twice ensures the check digit is < 10
-
-
-def is_isin(isin: str) -> bool:
-    """Validate if a string is a valid ISIN."""
-    # https://en.wikipedia.org/wiki/International_Securities_Identification_Number
-    isin_regex = r"^([A-Z]{2})([A-Z0-9]{9})([0-9])$"
-    isin_char_idxs = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-    if not re.match(isin_regex, isin):
-        return False
-    payload = isin[:11]
-    check_digit = int(isin[11])
-
-    payload = "".join(str(isin_char_idxs.index(c)) for c in list(payload))
-    return luhn_check_digit(payload) == check_digit
 
 
 def approx_equal(

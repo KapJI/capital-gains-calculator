@@ -11,7 +11,7 @@ from typing import ClassVar, TextIO, override
 import pdfplumber
 
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, Isin
 from cgt_calc.parsers.base_parsers import BaseDirParser, StandardCSVParser
 
 # PDF parser regexes
@@ -34,7 +34,7 @@ class HLPdfData:
     date: date | None
     action: str | None
     ticker: str | None
-    isin: str | None
+    isin: Isin | None
     quantity: Decimal
     price: Decimal
     consideration: Decimal
@@ -114,12 +114,21 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
             Decimal(fees_match.group(1).replace(",", "")) if fees_match else Decimal(0)
         )
 
+        isin = None
+        if isin_ticker_match:
+            isin = Isin.parse(isin_ticker_match.group(1))
+            if isin is None:
+                raise ParsingError(
+                    pdf_path,
+                    f"Invalid ISIN in contract note: {isin_ticker_match.group(1)!r}",
+                )
+
         return HLPdfData(
             file_name=pdf_path.name,
             date=datetime.strptime(date_str, "%d/%m/%Y").date() if date_str else None,
             action=action_match.group(1).lower() if action_match else None,
             ticker=isin_ticker_match.group(2) if isin_ticker_match else None,
-            isin=isin_ticker_match.group(1) if isin_ticker_match else None,
+            isin=isin,
             quantity=quantity,
             price=price,
             consideration=consideration,

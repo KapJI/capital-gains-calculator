@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, Isin
 
 from .base_parsers import BaseDirParser
 
@@ -315,7 +315,8 @@ class Trading212Transaction(BrokerTransaction):
                         float(discrepancy),
                     )
 
-        isin = row[Trading212Column.ISIN]
+        isin_raw = row[Trading212Column.ISIN]
+        isin = Isin(isin_raw) if isin_raw else None
         self.transaction_id = row.get(Trading212Column.TRANSACTION_ID)
         self.notes = row.get(Trading212Column.NOTES)
         broker = "Trading212"
