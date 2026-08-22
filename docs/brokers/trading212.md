@@ -3,9 +3,10 @@
 cgt-calc reads the CSV account history exported by Trading 212. Give it a directory rather than a
 single file because a complete account history may require several exports.
 
-Before exporting, select the account whose activity belongs in your calculation. Keep Invest and ISA
-exports in separate directories: the CSV does not identify the account type, so cgt-calc cannot
-separate them later.
+Export the Invest account only. Do not include ISA activity: income and capital gains from
+[investments in an ISA do not need to be declared](https://www.gov.uk/individual-savings-accounts/how-isas-work).
+Keep Invest and ISA exports in separate directories. The CSV does not identify the account type, so
+cgt-calc cannot separate them later.
 
 ## Export your account history
 
@@ -36,8 +37,9 @@ trading212/
 ```
 
 The filenames do not matter. cgt-calc reads every `.csv` file directly inside the directory, but it
-does not search subdirectories. Do not add unrelated CSV files, and make sure the date ranges are
-consecutive without gaps or overlaps.
+does not search subdirectories. Do not add unrelated CSV files, and make sure there are no gaps
+between date ranges. Overlaps are safe: exact repeated transactions are removed using their Trading
+212 transaction ID.
 
 You can compare the structure with this
 [sanitised example export](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/trading212/data/2024/inputs/transactions.csv).
@@ -57,23 +59,29 @@ to find and check the output.
 
 The Trading 212 parser currently handles:
 
-| Activity          | Included transactions                                                                                                                                                               |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Orders            | Market, limit, stop and stop-limit buys and sells                                                                                                                                   |
-| Income            | Ordinary, manufactured and property income dividends; dividend adjustments; cash, lending and fund interest                                                                         |
-| Cash activity     | Deposits, withdrawals, card credits, card debits, card refunds, currency conversions, result adjustments and cashback adjustments                                                   |
-| Corporate actions | Transactions labelled `Stock Split` or `Spin off`                                                                                                                                   |
-| Costs and taxes   | Withholding tax; transaction, regulatory and currency-conversion fees; stamp duty, stamp duty reserve tax and French transaction tax, including costs charged in a foreign currency |
+| Activity          | Included transactions                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Orders            | Market, limit, stop and stop-limit buys and sells                                                                                                                  |
+| Income            | Ordinary, manufactured and property income dividends; dividend adjustments; cash, lending and fund interest                                                        |
+| Cash activity     | Deposits, withdrawals, card credits, card debits, card refunds, currency conversions, result adjustments and cashback adjustments                                  |
+| Corporate actions | Transactions labelled `Stock Split` or `Spin off`                                                                                                                  |
+| Costs and taxes   | Transaction, regulatory and currency-conversion fees; stamp duty, stamp duty reserve tax and French transaction tax, including costs charged in a foreign currency |
 
 ### Known limitations
 
+- Dividends are recorded at the CSV `Total`; the `Withholding tax` column is not used and does not
+  appear separately in the report.
 - Share transfers labelled `Transfer in` or `Transfer out` are not supported.
 - Split transactions labelled `Stock split open` or `Stock split close` are not supported. Only the
-  single-row `Stock Split` action is recognised.
-- History from a Trading 212 contract-for-difference account is not supported by this CSV parser.
+  single-row `Stock Split` action is recognised. These transfer and split labels, and why they are
+  not mapped, are documented in
+  [PR #907](https://github.com/KapJI/capital-gains-calculator/pull/907).
+- The
+  [export for a Trading 212 contract for difference account](https://helpcentre.trading212.com/hc/en-us/articles/36243765206301-How-to-export-the-trading-data-from-my-CFD-account)
+  uses a different, record-based CSV format that this parser does not support.
 
-If one of these appears in your history, do not delete it from the export to make the calculation
-run. The missing activity could make the resulting holdings and gains incorrect.
+Do not delete an unsupported transaction from the export to make the calculation run. The missing
+activity could make the resulting holdings and gains incorrect.
 
 ## Troubleshooting
 
@@ -93,18 +101,17 @@ information.
 
 ### No transactions are detected
 
-Check that the directory contains `.csv` files directly, rather than inside another directory. Also
-check that you passed the directory itself to `--trading212-dir`, not the path to one CSV file.
+Check that the directory contains files ending in lower-case `.csv` directly, rather than `.CSV`
+files or files inside another directory. Also check that you passed the directory itself to
+`--trading212-dir`, not the path to one CSV file.
 
 ### The balance or portfolio looks wrong
 
-Re-export the history with all data categories selected. Check for a missing date range, an
-overlapping export, files from the wrong account, or an unsupported action listed above.
+Re-export the history with all data categories selected. Check for a missing date range, files from
+the wrong account, or an unsupported action listed above.
 
 ### A price-per-share warning appears
 
 Review transactions where the price multiplied by the quantity, after currency conversion and fees,
 does not match the total shown in the CSV. cgt-calc continues after this warning, so resolve the
 discrepancy against the transaction in Trading 212 before relying on the report.
-
-Export steps last checked against the Trading 212 Help Centre on 22 August 2026.
