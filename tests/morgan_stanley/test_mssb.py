@@ -108,6 +108,33 @@ def test_read_mssb_withdrawal_skips_notice(tmp_path: Path) -> None:
     assert transaction.fees == Decimal(0)
 
 
+def test_read_mssb_withdrawal_with_uppercase_csv_extension(tmp_path: Path) -> None:
+    """Parse a withdrawals report whose CSV extension is uppercase."""
+    withdrawal_file = tmp_path / WITHDRAWALS_REPORT_FILENAME.replace(".csv", ".CSV")
+    rows = [
+        COLUMNS_WITHDRAWAL,
+        [
+            "02-Apr-2021",
+            "ORDER-UPPERCASE",
+            "Cash",
+            "Sale",
+            "Complete",
+            "$1.00",
+            "-100.00",
+            "$100.00",
+            "0",
+            "N/A",
+        ],
+    ]
+    _write_csv(withdrawal_file, rows)
+
+    transactions = MSSBParser.load_from_dir(tmp_path)
+
+    assert len(transactions) == 1
+    assert transactions[0].action == ActionType.TRANSFER
+    assert transactions[0].amount == Decimal("-100.00")
+
+
 def test_read_mssb_withdrawal_goog_sale_before_split_window(tmp_path: Path) -> None:
     """Ensure a GOOG sale shortly before the July 15, 2022 split is adjusted.
 

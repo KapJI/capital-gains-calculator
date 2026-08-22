@@ -103,20 +103,25 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
     glob_dir = "*.csv"
     deprecated_flags: ClassVar[list[str]] = ["--mssb"]
 
+    @staticmethod
+    def _is_withdrawals_report(file_path: Path) -> bool:
+        """Return whether the path is a withdrawals report."""
+        return file_path.name.casefold() == WITHDRAWALS_REPORT_FILENAME.casefold()
+
     @classmethod
     @override
     def file_path_filter(cls, file_path: Path) -> bool:
         """Choose which files to parse."""
-        return file_path.name in [
-            WITHDRAWALS_REPORT_FILENAME,
-            RELEASES_REPORT_FILENAME,
-        ]
+        return file_path.name.casefold() in {
+            WITHDRAWALS_REPORT_FILENAME.casefold(),
+            RELEASES_REPORT_FILENAME.casefold(),
+        }
 
     @classmethod
     @override
     def pre_reading(cls, file: TextIO, file_path: Path) -> Iterable[str]:
         """Select the expected column set based on the report filename."""
-        if file_path.name == WITHDRAWALS_REPORT_FILENAME:
+        if cls._is_withdrawals_report(file_path):
             cls.columns = set(COLUMNS_WITHDRAWAL)
         else:
             cls.columns = set(COLUMNS_RELEASE)
@@ -126,7 +131,7 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
     @override
     def read_row(cls, row: dict[str, str], file_path: Path) -> BrokerTransaction | None:
         """Read a single transaction from a row in the CSV."""
-        if file_path.name == WITHDRAWALS_REPORT_FILENAME:
+        if cls._is_withdrawals_report(file_path):
             return cls._init_from_withdrawal_report(row, file_path)
         return cls._init_from_release_report(row, file_path)
 

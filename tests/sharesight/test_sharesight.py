@@ -257,10 +257,10 @@ FOREIGN_DIVIDEND_HEADER = [
 ]
 
 
-def test_parse_income_report(tmp_path: Path) -> None:
-    """Parse local and foreign dividends with their taxes."""
+def test_parse_income_report_with_uppercase_csv_extension(tmp_path: Path) -> None:
+    """Parse an income report whose CSV extension is uppercase."""
     _write_csv(
-        tmp_path / "Taxable Income Report.csv",
+        tmp_path / "Taxable Income Report.CSV",
         [
             ["Taxable Income Report"],
             ["Local Income"],

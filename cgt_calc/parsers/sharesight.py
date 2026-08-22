@@ -159,10 +159,10 @@ class SharesightParser(BaseDirParser):
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
         """Parse Sharesight transactions from reports."""
-        if file_path.match("Taxable Income Report*.csv"):
+        if file_path.match("Taxable Income Report*.csv", case_sensitive=False):
             return list(cls._parse_income_report(file, file_path))
 
-        if file_path.match("All Trades Report*.csv"):
+        if file_path.match("All Trades Report*.csv", case_sensitive=False):
             return list(cls._parse_trade_report(file, file_path))
         return []
 
