@@ -93,10 +93,9 @@ these markers.
 - [`Opening Balance`](https://help.sharesight.com/opening-balance/) trades are not supported.
   Sharesight uses them when the original buy and sell records are unavailable, but cgt-calc needs
   the original acquisition dates and costs for UK share matching.
-- `Split`, `Consolidation` and `Bonus` rows are not supported
-  ([#266](https://github.com/KapJI/capital-gains-calculator/issues/266)). They stop the import with
-  an unknown action error. Do not delete such a row to make the calculation run: later quantities
-  and gains could be wrong.
+- `Split`, `Consolidation` and `Bonus` rows are not supported. They stop the import with an unknown
+  action error. Do not delete such a row to make the calculation run: later quantities and gains
+  could be wrong.
 - Cash deposits, withdrawals and balances are not imported, which is why `--no-balance-check` is
   required.
 - Taxable Income sections other than local and foreign dividend payments are not imported.
