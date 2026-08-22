@@ -1015,8 +1015,10 @@ class CapitalGainsCalculator:
             for spin_off in spin_offs_here:
                 events.setdefault(spin_off.source, []).append(spin_off)
             for source_symbol, rows in events.items():
-                source = self.portfolio[source_symbol]
                 first = rows[0]
+                source = self.portfolio[
+                    self._spin_off_pool(date_index, source_symbol, first.dest)
+                ]
                 assert first.source_price is not None
                 assert first.dest_price is not None
                 received = sum((row.quantity for row in rows), Decimal(0))
@@ -1506,6 +1508,55 @@ class CapitalGainsCalculator:
             allowable_cost=pos.amount,
             renamed_to=new,
         )
+
+    def _spin_off_pool(self, date_index: datetime.date, source: str, dest: str) -> str:
+        """Return the symbol whose pool a spin-off from `source` draws on today.
+
+        A rename on the day is applied after the day's acquisitions, so a
+        source renamed that morning still has its pool under the old name
+        here.
+
+        Refuses when the source was also traded on the day. Whether a trade
+        came before or after the reorganisation decides which shares were
+        reorganised and what they cost, and the input carries dates but not
+        times, so there is no right answer to give. Shares the source itself
+        received by spin-off that day are not a trade; dependency order has
+        already put them in its pool.
+        """
+        pool = source
+        for old, new in self.rename_list.get(date_index, {}).items():
+            if new == source:
+                pool = old
+        activity = []
+        for name in {source, pool}:
+            spun_in = sum(
+                (
+                    spin_off.quantity
+                    for spin_off in self.spin_offs.get(date_index, [])
+                    if spin_off.dest == name
+                ),
+                Decimal(0),
+            )
+            if (
+                has_key(self.acquisition_list, date_index, name)
+                and self.acquisition_list[date_index][name].quantity > spun_in
+            ):
+                activity.append("bought")
+            if has_key(self.disposal_list, date_index, name):
+                activity.append("sold")
+            if has_key(self.transfer_to_spouse_list, date_index, name):
+                activity.append("transferred to a spouse")
+        if activity:
+            raise CalculationError(
+                f"Cannot compute the spin-off of {dest} from {source} on "
+                f"{date_index}: {source} was also {' and '.join(activity)} that "
+                "day. Whether that came before or after the reorganisation "
+                "decides which shares were reorganised and what they cost, and "
+                "the input has dates but not times, so this tool cannot tell. "
+                f"Work {source} and {dest} out by hand for this period (consider "
+                "professional advice). Do not change the dates."
+            )
+        return pool
 
     def _acquisition_order(self, date_index: datetime.date) -> list[str]:
         """Return the day's acquired symbols, each spun-off holding after its source.

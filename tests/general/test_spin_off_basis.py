@@ -13,6 +13,7 @@ from decimal import Decimal
 
 import pytest
 
+from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import CalculationError
@@ -326,25 +327,97 @@ def test_a_spin_off_before_the_period_is_applied_but_not_reported() -> None:
     assert earlier_spin_off not in report.calculation_log
 
 
-def test_the_days_purchases_of_the_source_are_in_the_pool_whatever_the_order() -> None:
-    """Same-day acquisitions are one acquisition (s105), so they share the cost.
+@pytest.mark.parametrize(
+    "same_day",
+    [
+        pytest.param(
+            [transaction(SPIN_OFF_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP)],
+            id="bought",
+        ),
+        pytest.param(
+            [
+                transaction(SPIN_OFF_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                transaction(SPIN_OFF_DAY, ActionType.SELL, "FOO", 10, 10, 0, 100, GBP),
+            ],
+            id="bought-and-sold",
+        ),
+        pytest.param(
+            [transaction(SPIN_OFF_DAY, ActionType.SELL, "FOO", 5, 10, 0, 50, GBP)],
+            id="sold",
+        ),
+    ],
+)
+def test_source_traded_on_the_spin_off_day_is_refused(
+    same_day: list[BrokerTransaction],
+) -> None:
+    """The input has dates, not times, so which shares were reorganised is unknown.
 
-    BAR is listed before FOO, so it used to be pooled first and the spin-off
-    read FOO's pool without the day's £100 purchase: FOO £190 and BAR £60
-    instead of £180 and £70.
+    Bought and sold the same day, the shares match under the same-day rule
+    and never enter the pool, so apportioning a pool that held them used a
+    holding that never existed. Bought alone, whether the purchase came
+    before the reorganisation is just as unknowable.
     """
-    calculator, _ = spin_off(
+    with pytest.raises(CalculationError, match="dates but not times"):
+        spin_off(
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                *same_day,
+            ],
+            10,
+            {BUY_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
+        )
+
+
+def test_a_source_renamed_on_the_day_is_still_apportioned() -> None:
+    """OLD becomes NEW in the morning and NEW spins BAR off: a common demerger shape.
+
+    Renames are applied after the day's acquisitions, so NEW's pool is still
+    under OLD when BAR is apportioned; it used to be found empty, and BAR got
+    a cost of nothing.
+    """
+    converter = CurrencyConverter(None, {})
+    handler = SpinOffHandler()
+    handler.cache = {"BAR": "NEW"}
+    calculator = CapitalGainsCalculator(
+        2024,
+        converter,
+        IsinConverter(),
+        CurrentPriceFetcher(
+            converter,
+            {},
+            {"NEW": {SPIN_OFF_DAY: Decimal(90)}, "BAR": {SPIN_OFF_DAY: Decimal(10)}},
+        ),
+        handler,
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    rename = BrokerTransaction(
+        date=SPIN_OFF_DAY,
+        action=ActionType.RENAME,
+        symbol="NEW",
+        description=f"{RENAME_DESCRIPTION_PREFIX}OLD",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=None,
+        currency=GBP,
+        broker="Testing",
+    )
+    report = get_report(
+        calculator,
         [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
-            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAR", 5, 10, 0, -50, GBP),
-            transaction(SPIN_OFF_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(BUY_DAY, ActionType.BUY, "OLD", 10, 10, 0, -100, GBP),
+            rename,
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
+            ),
         ],
-        20,
-        {BUY_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
     )
 
-    assert calculator.portfolio["FOO"].amount == Decimal(180)
-    assert calculator.portfolio["BAR"].amount == Decimal(70)
+    assert calculator.portfolio["NEW"].amount == Decimal(90)
+    assert calculator.portfolio["BAR"].amount == Decimal(10)
+    assert "spin-off$NEW" in report.calculation_log[SPIN_OFF_DAY]
 
 
 def test_two_spin_offs_from_one_source_on_one_day_are_both_recorded() -> None:
