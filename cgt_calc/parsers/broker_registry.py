@@ -46,6 +46,9 @@ def _transaction_sort_key(
     does not move the cash balance, so ordering it first cannot introduce a
     negative balance.
 
+    Shares received from a spouse are written by hand too, and like a vest
+    they cost nothing in cash, so they go first as well.
+
     Transfers to a spouse go last for the same reason from the other end. They
     are recorded by hand in a RAW file while the shares they move were acquired
     through a broker export, and parsers are merged in registry order, so a
@@ -56,7 +59,10 @@ def _transaction_sort_key(
     Everything else keeps its relative order, so the "buys last" ordering that
     some parsers rely on to avoid negative balances is preserved.
     """
-    if transaction.action is ActionType.STOCK_ACTIVITY:
+    if transaction.action in (
+        ActionType.STOCK_ACTIVITY,
+        ActionType.TRANSFER_FROM_SPOUSE,
+    ):
         order = 0
     elif transaction.action is ActionType.TRANSFER_TO_SPOUSE:
         order = 2

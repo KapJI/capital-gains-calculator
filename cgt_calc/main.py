@@ -281,6 +281,13 @@ class CapitalGainsCalculator:
             if price is None:
                 price = self.initial_prices.get(transaction.date, symbol)
             amount = round_decimal(quantity * price, 2)
+        elif transaction.action is ActionType.TRANSFER_FROM_SPOUSE:
+            # Shares received from a spouse arrive at the base cost they left
+            # with (TCGA 1992 s58, CG22200), which the row states as the price.
+            # No money moves, so it is pooled the way a vest is.
+            if price is None:
+                raise PriceMissingError(transaction)
+            amount = round_decimal(quantity * price, 2)
         elif transaction.action is ActionType.SPIN_OFF:
             price, amount = self.handle_spin_off(transaction)
         elif transaction.action is ActionType.STOCK_SPLIT:
@@ -771,6 +778,8 @@ class CapitalGainsCalculator:
             elif transaction.action in [
                 ActionType.STOCK_ACTIVITY,
                 ActionType.SPIN_OFF,
+                # Shares arriving from a spouse: a cost, but no cash paid.
+                ActionType.TRANSFER_FROM_SPOUSE,
             ]:
                 self.add_acquisition(transaction)
             elif transaction.action == ActionType.STOCK_SPLIT:

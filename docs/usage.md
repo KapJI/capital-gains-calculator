@@ -12,10 +12,10 @@ You will need:
   since the account was opened is the safest option.
 - **Excess Reported Income data when applicable.** If you own or have owned funds from outside the
   UK, whether accumulating or distributing, check the [offshore funds guide](offshore-funds.md).
-- **Transfers to a spouse or civil partner, recorded by hand.** No broker export marks these. Add
-  them in a small RAW file using the
-  [`TRANSFER_TO_SPOUSE`](brokers/raw.md#transfers-to-a-spouse-or-civil-partner) action and pass it
-  alongside your export.
+- **Transfers to or from a spouse or civil partner, recorded by hand.** No broker export marks
+  these. Add them in a small RAW file using the
+  [`TRANSFER_TO_SPOUSE` or `TRANSFER_FROM_SPOUSE`](brokers/raw.md#transfers-to-a-spouse-or-civil-partner)
+  action and pass it alongside your export.
 
 Do not include the same transaction in more than one export. cgt-calc can validate the transactions
 it receives, but it cannot detect every missing or duplicated export.

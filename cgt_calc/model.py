@@ -203,6 +203,7 @@ class ActionType(Enum):
     INTEREST_TAX = 20
     TRANSFER_TO_SPOUSE = 21
     GIFT = 22
+    TRANSFER_FROM_SPOUSE = 23
 
 
 class CalculationType(Enum):
@@ -692,6 +693,8 @@ class CapitalGainsReport:
             out += (
                 "  No gain/no loss; the base cost below passes to the recipient"
                 " (TCGA 1992 s58).\n"
+                "  Give them the RAW row shown under each transfer: it records the"
+                " shares arriving at that cost in their own report.\n"
             )
             for date_index, key, entry_list in transfers:
                 symbol = key[len(transfer_prefix) :]
@@ -701,6 +704,9 @@ class CapitalGainsReport:
                     f"{bul}{date_index}: {symbol} "
                     f"{strip_zeros(quantity)} units, base cost "
                     f"£{round_decimal(base_cost, 2):,}\n"
+                    f"    {date_index},TRANSFER_FROM_SPOUSE,{symbol},"
+                    f"{strip_zeros(quantity)},{strip_zeros(base_cost / quantity)},"
+                    "0.00,GBP\n"
                 )
 
         return out

@@ -18,6 +18,7 @@ from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import (
     CalculationError,
     InvalidTransactionError,
+    PriceMissingError,
     QuantityNotPositiveError,
     UnclassifiedGiftError,
 )
@@ -1072,3 +1073,78 @@ def test_transfer_fee_does_not_move_the_cash_balance() -> None:
     # The fee still reaches the recipient's base cost: £40 of pool plus £5.
     entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
     assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(45)
+
+
+def test_transfer_from_spouse_enters_the_pool_at_the_given_cost() -> None:
+    """The shares arrive at the base cost stated, with no cash paid for them.
+
+    The balance check is on and the account is never funded: nothing was
+    bought, so there is nothing for the check to find.
+    """
+    arrival = datetime.date(2024, 6, 15)
+    sale = datetime.date(2024, 9, 1)
+    calculator = create_calculator(balance_check=True)
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                arrival, ActionType.TRANSFER_FROM_SPOUSE, "FOO", 40, 10, 0, None, "GBP"
+            ),
+            transaction(sale, ActionType.SELL, "FOO", 40, 20, 0, 800, "GBP"),
+        ],
+    )
+
+    # £800 proceeds against the £400 the shares arrived with.
+    assert report.disposal_count == 1
+    assert report.allowable_costs == Decimal(400)
+    assert report.total_gain() == Decimal(400)
+
+
+def test_transfer_from_spouse_needs_the_cost() -> None:
+    """The price column is the whole point of the row; it cannot be blank."""
+    with pytest.raises(PriceMissingError):
+        get_report(
+            create_calculator(),
+            [
+                transaction(
+                    datetime.date(2024, 6, 15),
+                    ActionType.TRANSFER_FROM_SPOUSE,
+                    "FOO",
+                    40,
+                    None,
+                    0,
+                    None,
+                    "GBP",
+                ),
+            ],
+        )
+
+
+def test_transfer_from_spouse_sorts_before_a_same_day_sale() -> None:
+    """Shares sold on the day they arrive must be read as arriving first."""
+    day = datetime.date(2024, 6, 15)
+    sale = transaction(day, ActionType.SELL, "FOO", 40, 20, 0, 800, "GBP")
+    arrival = transaction(
+        day, ActionType.TRANSFER_FROM_SPOUSE, "FOO", 40, 10, 0, None, "GBP"
+    )
+
+    report = get_report(
+        create_calculator(), sorted([sale, arrival], key=_transaction_sort_key)
+    )
+
+    assert report.total_gain() == Decimal(400)
+
+
+def test_transferor_report_hands_over_the_recipients_row() -> None:
+    """The text report prints the exact RAW row the recipient needs."""
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    report = get_report(
+        create_calculator(),
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 1000, 10, 0, -10000, "GBP"),
+            transfer_to_spouse_transaction(transfer_day, "FOO", 400),
+        ],
+    )
+
+    assert "2024-06-10,TRANSFER_FROM_SPOUSE,FOO,400,10,0.00,GBP" in str(report)

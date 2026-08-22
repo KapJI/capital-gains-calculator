@@ -50,6 +50,8 @@ def test_transferor_report(request: pytest.FixtureRequest) -> None:
 
     assert "Transferred to spouse" in result.stdout
     assert BASE_COST_PASSED_ON in result.stdout
+    # The row the recipient pastes into their own RAW file.
+    assert "2024-06-15,TRANSFER_FROM_SPOUSE,FOO,40,10,0.00,GBP" in result.stdout
     # Only the later sale of 20 shares is taxable.
     assert "Disposals:                1" in result.stdout
     assert "Total gain:         £100.00" in result.stdout

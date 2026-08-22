@@ -46,8 +46,21 @@ broker export.
 cgt-calc --year 2024 --schwab-file transactions.csv --raw-file transfers.csv
 ```
 
-The report and the PDF show the base cost that passes to the recipient. Pass that figure on to them:
-it is what they will need for their own return when they come to sell.
+The report and the PDF show the base cost that passes to the recipient, and the text report prints
+the exact RAW row to give them.
+
+### If you received the shares
+
+Record them arriving with `TRANSFER_FROM_SPOUSE`, with the base cost per unit as the `price`. The
+transferor's report prints the row ready to use. The shares enter your Section 104 pool at that
+cost, acquired on the transfer date, and no money is added to your cash balance.
+
+```csv
+2024-03-16,TRANSFER_FROM_SPOUSE,META,21.5,95.60,0.00,GBP
+```
+
+Your broker may show the shares arriving, but it does not know what they cost, so leave that row out
+of your export rather than let it be read as a purchase at nothing.
 
 !!! warning "Check that you qualify"
 

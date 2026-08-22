@@ -300,3 +300,22 @@ def test_parse_decimal_missing_value_raises() -> None:
 
     with pytest.raises(ValueError, match="Missing value in column 'quantity'"):
         _parse_decimal(row, RawColumn.QUANTITY, allow_empty=False)
+
+
+def test_read_raw_transactions_transfer_from_spouse(tmp_path: Path) -> None:
+    """Parse a RAW TRANSFER_FROM_SPOUSE row: shares arriving at a stated cost."""
+
+    raw_file = tmp_path / "raw_transfer_from_spouse.csv"
+    rows = [
+        COLUMNS,
+        ["2024-03-16", "TRANSFER_FROM_SPOUSE", "XYZ", "21.5", "95.60", "0.00", "GBP"],
+    ]
+    _write_csv(raw_file, rows)
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action == ActionType.TRANSFER_FROM_SPOUSE
+    assert transaction.quantity == Decimal("21.5")
+    assert transaction.price == Decimal("95.60")

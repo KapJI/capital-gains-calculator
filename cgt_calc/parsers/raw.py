@@ -108,6 +108,7 @@ class RawTransaction(BrokerTransaction):
     2022-07-26,DIVIDEND,OTGLY,305,0.031737,0.0,USD
     2022-06-06,STOCK_SPLIT,AMZN,209,0.00,0.00,USD
     2023-03-16,TRANSFER_TO_SPOUSE,META,21.5,0.00,0.00,USD
+    2023-03-16,TRANSFER_FROM_SPOUSE,META,21.5,95.60,0.00,GBP
 
     See tests/raw/data/test_data.csv for a sample file showing the expected format.
     """
