@@ -93,9 +93,10 @@ these markers.
 - [`Opening Balance`](https://help.sharesight.com/opening-balance/) trades are not supported.
   Sharesight uses them when the original buy and sell records are unavailable, but cgt-calc needs
   the original acquisition dates and costs for UK share matching.
-- `Split`, `Consolidation` and `Bonus` rows are not supported. They stop the import with an unknown
-  action error. Do not delete such a row to make the calculation run: later quantities and gains
-  could be wrong.
+- `Split`, `Consolidation` and `Bonus` rows are not supported
+  ([#266](https://github.com/KapJI/capital-gains-calculator/issues/266)). They stop the import with
+  an unknown action error. Do not delete such a row to make the calculation run: later quantities
+  and gains could be wrong.
 - Cash deposits, withdrawals and balances are not imported, which is why `--no-balance-check` is
   required.
 - Taxable Income sections other than local and foreign dividend payments are not imported.
@@ -114,9 +115,8 @@ case-insensitively; additional text after `Report` and uppercase `.CSV` extensio
 
 ### `Missing expected columns`
 
-For All Trades, make sure you exported **Do not group (Holdings)** and converted the sheet
-containing the All Trades table without editing its headings. For Taxable Income, convert the report
-sheet rather than a summary or chart.
+cgt-calc found the report's header row but not every column it needs. This happens when headings
+were edited during conversion, or when Sharesight has changed the report format.
 
 First upgrade cgt-calc using the same method you used to install it and try again. If the error
 remains, open a [GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with:
