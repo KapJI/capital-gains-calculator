@@ -717,3 +717,50 @@ def test_a_source_renamed_twice_on_the_day_is_still_apportioned() -> None:
 
     assert calculator.portfolio["NEW"].amount == Decimal(90)
     assert calculator.portfolio["BAR"].amount == Decimal(10)
+
+
+@pytest.mark.parametrize(
+    ("renames", "reason"),
+    [
+        pytest.param(
+            [("A", "NEW"), ("B", "NEW")], "renamed to the same name", id="two-into-one"
+        ),
+        pytest.param([("NEW", "B"), ("B", "NEW")], "round in a circle", id="circle"),
+    ],
+)
+def test_a_rename_graph_with_no_single_pool_is_refused(
+    renames: list[tuple[str, str]], reason: str
+) -> None:
+    """Two symbols renamed into one, or renames that loop, leave no pool to apportion."""
+    converter = CurrencyConverter(None, {})
+    handler = SpinOffHandler()
+    handler.cache = {"BAR": "NEW"}
+    calculator = CapitalGainsCalculator(
+        2024,
+        converter,
+        IsinConverter(),
+        CurrentPriceFetcher(
+            converter,
+            {},
+            {"NEW": {SPIN_OFF_DAY: Decimal(90)}, "BAR": {SPIN_OFF_DAY: Decimal(10)}},
+        ),
+        handler,
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    first_names = {old for old, _ in renames} - {new for _, new in renames}
+    with pytest.raises(CalculationError, match=reason):
+        get_report(
+            calculator,
+            [
+                *(
+                    transaction(BUY_DAY, ActionType.BUY, name, 10, 10, 0, -100, GBP)
+                    for name in sorted(first_names or {"NEW"})
+                ),
+                *(_rename(old, new) for old, new in renames),
+                transaction(
+                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
+                ),
+            ],
+        )

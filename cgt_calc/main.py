@@ -1542,7 +1542,13 @@ class CapitalGainsCalculator:
         names = [source]
         while names[-1] in came_from:
             if came_from[names[-1]] in names:
-                break
+                raise CalculationError(
+                    f"Cannot compute the spin-off of {dest} from {source} on "
+                    f"{date_index}: the day's renames go round in a circle "
+                    f"({' -> '.join([*names, came_from[names[-1]]])}), so there "
+                    f"is no telling where the pool is. Work {source} and {dest} "
+                    "out by hand (consider professional advice)."
+                )
             names.append(came_from[names[-1]])
         pool = names[-1]
         activity = []
