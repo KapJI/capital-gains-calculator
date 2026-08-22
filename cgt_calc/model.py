@@ -6,16 +6,55 @@ from dataclasses import dataclass, field
 import datetime
 from decimal import Decimal
 from enum import Enum
+import re
 import sys
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Final, Self, override
 
 from colorama import Style
 
 from .logging import bullet, style_text
-from .util import approx_equal, is_currency, normalize_amount, round_decimal
+from .util import (
+    approx_equal,
+    is_currency,
+    luhn_check_digit,
+    normalize_amount,
+    round_decimal,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+
+_ISIN_REGEX: Final = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
+_ISIN_CHARS: Final = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+class Isin(str):
+    """ISIN (ISO 6166) security identifier.
+
+    Validated and normalised on construction, so every instance is a
+    well-formed identifier with a correct check digit.
+    """
+
+    __slots__ = ()
+
+    def __new__(cls, value: str) -> Self:
+        """Normalise and validate the identifier."""
+        normalised = value.strip().upper()
+        if not _ISIN_REGEX.match(normalised):
+            raise ValueError(f"Invalid ISIN: {value!r}")
+        payload = "".join(str(_ISIN_CHARS.index(char)) for char in normalised[:11])
+        if luhn_check_digit(payload) != int(normalised[11]):
+            raise ValueError(f"Invalid ISIN checksum: {value!r}")
+        return super().__new__(cls, normalised)
+
+    @classmethod
+    def parse(cls, value: str) -> Self | None:
+        """Return the identifier, or None when the value is not an ISIN."""
+        try:
+            return cls(value)
+        except ValueError:
+            return None
 
 
 @dataclass
@@ -184,7 +223,7 @@ class BrokerTransaction:
     amount: Decimal | None
     currency: str
     broker: str
-    isin: str | None = None
+    isin: Isin | None = None
     # Fees paid in currencies other than `currency`, keyed by their own
     # currency. Converted and folded into `fees` by the calculation engine.
     foreign_fees: dict[str, Decimal] = field(default_factory=dict)
@@ -194,6 +233,10 @@ class BrokerTransaction:
         assert is_currency(self.currency), (
             f"Invalid Currency {self.currency} for transaction {self}"
         )
+        # Callers that bypass the type checker still get a validated value;
+        # to mypy the annotation already rules this out.
+        if self.isin is not None and not isinstance(self.isin, Isin):
+            self.isin = Isin(self.isin)  # type: ignore[unreachable]
 
 
 class RuleType(Enum):

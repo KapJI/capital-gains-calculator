@@ -10,8 +10,9 @@ from typing import TYPE_CHECKING, override
 import dateutil.parser as date_parser
 import pdfplumber
 
+from cgt_calc.model import Isin
 from cgt_calc.parsers.eri.model import ERITransaction
-from cgt_calc.util import is_isin, round_decimal
+from cgt_calc.util import round_decimal
 
 from .model import ERIImporter, ERIImporterOutput
 
@@ -159,9 +160,10 @@ class XtrackersImporter(ERIImporter):
             for col, pos in colmap.items():
                 row[col] = (raw_row[pos] or "").strip() if pos < len(raw_row) else ""
 
-            isin = row[ISIN_COLUMN]
-            assert is_isin(isin), (
-                f"Bad ISIN in page {page_num}, row {row_num}: {isin!r}"
+            isin_raw = row[ISIN_COLUMN]
+            isin = Isin.parse(isin_raw)
+            assert isin is not None, (
+                f"Bad ISIN in page {page_num}, row {row_num}: {isin_raw!r}"
             )
             currency = row[CURRENCY_COLUMN].replace("JPN", "JPY")
             assert re.match(CURRENCY_REGEX, currency), (

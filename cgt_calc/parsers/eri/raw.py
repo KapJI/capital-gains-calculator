@@ -17,9 +17,9 @@ if TYPE_CHECKING:
 
 from cgt_calc.const import ERI_RESOURCE_FOLDER
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.model import Isin
 from cgt_calc.parsers.base_parsers import BaseSingleFileParser
 from cgt_calc.resources import RESOURCES_PACKAGE
-from cgt_calc.util import is_isin
 
 from .model import ERITransaction
 
@@ -44,9 +44,10 @@ class ERIRaw(ERITransaction):
 
         row = dict(zip(header, row_raw, strict=True))
 
-        isin = row["ISIN"]
-        if not is_isin(isin):
-            raise ParsingError(file, f"Invalid ISIN value '{isin}' in ERI data")
+        isin_raw = row["ISIN"]
+        isin = Isin.parse(isin_raw)
+        if isin is None:
+            raise ParsingError(file, f"Invalid ISIN value '{isin_raw}' in ERI data")
         date_str = row["Fund Reporting Period End Date"]
         try:
             date = datetime.datetime.strptime(date_str, RAW_DATE_FORMAT).date()

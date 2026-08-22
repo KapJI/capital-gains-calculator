@@ -19,7 +19,13 @@ from cgt_calc.exceptions import CalculationError, InvalidTransactionError
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator, main
-from cgt_calc.model import ActionType, BrokerTransaction, CapitalGainsReport, RuleType
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CapitalGainsReport,
+    Isin,
+    RuleType,
+)
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.spin_off_handler import SpinOffHandler
@@ -169,7 +175,7 @@ def test_interest_tax_reversals_cancel_across_months() -> None:
     assert report.total_interest_tax == Decimal(0)
 
 
-ERI_ISIN = "US5949181045"
+ERI_ISIN = Isin("US5949181045")
 
 
 def test_eri_duplicate_report_within_tolerance_is_skipped(

@@ -147,7 +147,7 @@ def test_read_trading212_transactions_supports_2020_export(tmp_path: Path) -> No
             {
                 Trading212Column.ACTION: "Market buy",
                 Trading212Column.TIME: "2020-06-24 14:33:50",
-                Trading212Column.ISIN: "US0000000001",
+                Trading212Column.ISIN: "US0000000010",
                 Trading212Column.TICKER: "FOO",
                 Trading212Column.NAME: "Foo Inc",
                 Trading212Column.NO_OF_SHARES: "2",
@@ -227,7 +227,7 @@ def test_read_trading212_transactions_supports_2024_export(tmp_path: Path) -> No
             {
                 Trading212Column.ACTION: "Market buy",
                 Trading212Column.TIME: "2024-01-01 16:10:05.175",
-                Trading212Column.ISIN: "US0000000003",
+                Trading212Column.ISIN: "US0000000036",
                 Trading212Column.TICKER: "BAZ",
                 Trading212Column.NAME: "Baz Corp",
                 Trading212Column.NO_OF_SHARES: "2",
@@ -246,7 +246,7 @@ def test_read_trading212_transactions_supports_2024_export(tmp_path: Path) -> No
             {
                 Trading212Column.ACTION: "Dividend (Dividend)",
                 Trading212Column.TIME: "2024-03-23 18:35:26",
-                Trading212Column.ISIN: "US0000000003",
+                Trading212Column.ISIN: "US0000000036",
                 Trading212Column.TICKER: "BAZ",
                 Trading212Column.NAME: "Baz Corp",
                 Trading212Column.NO_OF_SHARES: "2",
@@ -310,7 +310,7 @@ def test_read_trading212_transactions_supports_2026_export(tmp_path: Path) -> No
             {
                 Trading212Column.ACTION: "Market buy",
                 Trading212Column.TIME: "2025-04-08 10:10:05.175",
-                Trading212Column.ISIN: "US0000000004",
+                Trading212Column.ISIN: "US0000000044",
                 Trading212Column.TICKER: "QUX",
                 Trading212Column.NAME: "Qux Ltd",
                 Trading212Column.NO_OF_SHARES: "4",
@@ -335,7 +335,7 @@ def test_read_trading212_transactions_supports_2026_export(tmp_path: Path) -> No
             {
                 Trading212Column.ACTION: "Market sell",
                 Trading212Column.TIME: "2025-04-08 15:05:00",
-                Trading212Column.ISIN: "US0000000004",
+                Trading212Column.ISIN: "US0000000044",
                 Trading212Column.TICKER: "QUX",
                 Trading212Column.NAME: "Qux Ltd",
                 Trading212Column.NO_OF_SHARES: "2",
@@ -524,7 +524,7 @@ def test_read_trading212_transactions_supports_2025_bare_columns(
             {
                 Trading212Column.ACTION: "Market buy",
                 Trading212Column.TIME: "2025-04-02 10:30:00",
-                Trading212Column.ISIN: "GB0000000001",
+                Trading212Column.ISIN: "GB0000000017",
                 Trading212Column.TICKER: "WID",
                 Trading212Column.NAME: "Widget plc",
                 Trading212Column.NO_OF_SHARES: "50",
@@ -573,7 +573,7 @@ def test_read_trading212_transactions_supports_2025_bare_columns(
             {
                 Trading212Column.ACTION: "Dividend (Interest)",
                 Trading212Column.TIME: "2025-04-05 12:00:00",
-                Trading212Column.ISIN: "IE0000000003",
+                Trading212Column.ISIN: "IE0000000038",
                 Trading212Column.TICKER: "BOND",
                 Trading212Column.NAME: "Bond Fund",
                 Trading212Column.TOTAL: "0.08",
@@ -586,7 +586,7 @@ def test_read_trading212_transactions_supports_2025_bare_columns(
             {
                 Trading212Column.ACTION: "Dividend (Property income distribution)",
                 Trading212Column.TIME: "2025-04-06 12:00:00",
-                Trading212Column.ISIN: "GB0000000004",
+                Trading212Column.ISIN: "GB0000000041",
                 Trading212Column.TICKER: "REIT",
                 Trading212Column.NAME: "Property Trust",
                 Trading212Column.TOTAL: "3.20",
@@ -599,7 +599,7 @@ def test_read_trading212_transactions_supports_2025_bare_columns(
             {
                 Trading212Column.ACTION: "Dividend adjustment",
                 Trading212Column.TIME: "2025-04-07 12:00:00",
-                Trading212Column.ISIN: "GB0000000004",
+                Trading212Column.ISIN: "GB0000000041",
                 Trading212Column.TICKER: "REIT",
                 Trading212Column.NAME: "Property Trust",
                 Trading212Column.TOTAL: "-0.02",
@@ -612,7 +612,7 @@ def test_read_trading212_transactions_supports_2025_bare_columns(
             {
                 Trading212Column.ACTION: "Spin off",
                 Trading212Column.TIME: "2025-04-08 06:00:00",
-                Trading212Column.ISIN: "US0000000005",
+                Trading212Column.ISIN: "US0000000051",
                 Trading212Column.TICKER: "NEWCO",
                 Trading212Column.NAME: "NewCo Inc",
                 Trading212Column.NO_OF_SHARES: "5",
@@ -726,7 +726,7 @@ def test_read_trading212_transactions_non_gbp_stamp_duty(tmp_path: Path) -> None
             {
                 Trading212Column.ACTION: "Market buy",
                 Trading212Column.TIME: "2025-04-02 10:30:00",
-                Trading212Column.ISIN: "GB0000000001",
+                Trading212Column.ISIN: "GB0000000017",
                 Trading212Column.TICKER: "WID",
                 Trading212Column.NAME: "Widget plc",
                 Trading212Column.NO_OF_SHARES: "50",
@@ -761,7 +761,7 @@ def test_read_trading212_transactions_mixed_fee_currencies(tmp_path: Path) -> No
             {
                 Trading212Column.ACTION: "Market buy",
                 Trading212Column.TIME: "2024-01-01 16:10:05",
-                Trading212Column.ISIN: "US0000000003",
+                Trading212Column.ISIN: "US0000000036",
                 Trading212Column.TICKER: "BAZ",
                 Trading212Column.NAME: "Baz Corp",
                 Trading212Column.NO_OF_SHARES: "2",
@@ -800,7 +800,7 @@ def test_read_trading212_transactions_missing_fee_currency(tmp_path: Path) -> No
             {
                 Trading212Column.ACTION: "Market buy",
                 Trading212Column.TIME: "2024-01-01 16:10:05",
-                Trading212Column.ISIN: "US0000000003",
+                Trading212Column.ISIN: "US0000000036",
                 Trading212Column.TICKER: "BAZ",
                 Trading212Column.NAME: "Baz Corp",
                 Trading212Column.NO_OF_SHARES: "2",
@@ -834,7 +834,7 @@ def test_read_trading212_transactions_blank_tax_currency(tmp_path: Path) -> None
             {
                 Trading212Column.ACTION: "Market buy",
                 Trading212Column.TIME: "2025-04-02 10:30:00",
-                Trading212Column.ISIN: "IE0000000009",
+                Trading212Column.ISIN: "IE0000000095",
                 Trading212Column.TICKER: "EURX",
                 Trading212Column.NAME: "Euro plc",
                 Trading212Column.NO_OF_SHARES: "50",
@@ -866,7 +866,7 @@ def _make_usd_fee_buy_row(total: str) -> list[str]:
         {
             Trading212Column.ACTION: "Market buy",
             Trading212Column.TIME: "2024-01-01 16:10:05",
-            Trading212Column.ISIN: "US0000000003",
+            Trading212Column.ISIN: "US0000000036",
             Trading212Column.TICKER: "BAZ",
             Trading212Column.NAME: "Baz Corp",
             Trading212Column.NO_OF_SHARES: "2",
@@ -920,7 +920,7 @@ def test_read_trading212_transactions_unconvertible_fee_skips_price_check(
             {
                 Trading212Column.ACTION: "Market buy",
                 Trading212Column.TIME: "2025-04-03 11:00:00",
-                Trading212Column.ISIN: "US0000000003",
+                Trading212Column.ISIN: "US0000000036",
                 Trading212Column.TICKER: "BAZ",
                 Trading212Column.NAME: "Baz Corp",
                 Trading212Column.NO_OF_SHARES: "2",
@@ -953,7 +953,7 @@ def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
             {
                 Trading212Column.ACTION: "Market buy",
                 Trading212Column.TIME: "2024-01-01 10:00:00",
-                Trading212Column.ISIN: "US0000000001",
+                Trading212Column.ISIN: "US0000000010",
                 Trading212Column.TICKER: "FOO",
                 Trading212Column.NAME: "Foo Inc",
                 Trading212Column.NO_OF_SHARES: "2",

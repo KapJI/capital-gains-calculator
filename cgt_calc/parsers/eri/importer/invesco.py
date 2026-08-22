@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING, override
 import dateutil.parser as date_parser
 import pdfplumber
 
-from cgt_calc.util import is_isin, round_decimal
+from cgt_calc.model import Isin
+from cgt_calc.util import round_decimal
 
 if TYPE_CHECKING:
     import datetime
@@ -124,15 +125,16 @@ class InvescoImporter(ERIImporter):
             row = {}
             for col, pos in colmap.items():
                 row[col] = (raw_row[pos] or "").strip()
-            isin = row[ISIN_COLUMN]
-            if not isin:
+            isin_raw = row[ISIN_COLUMN]
+            if not isin_raw:
                 # probably a subrow
                 continue
             if re.match(r"(\*\*? Distribution|Note 1).*", raw_row[0] or ""):
                 # not part of the table
                 continue
-            assert is_isin(isin), (
-                f"Bad ISIN in page {page_num}, row {row_num}: {row[ISIN_COLUMN]}"
+            isin = Isin.parse(isin_raw)
+            assert isin is not None, (
+                f"Bad ISIN in page {page_num}, row {row_num}: {isin_raw}"
             )
             currency = row[CURRENCY_COLUMN].replace("JPN", "JPY")
             assert re.match(CURRENCY_REGEX, currency), (
