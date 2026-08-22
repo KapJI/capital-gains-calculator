@@ -122,7 +122,8 @@ jobs:
             --jq ".[] | select(.body | startswith(\"${COMMENT_MARKER}\")) | .id" | head -1)
           if [ -n "${ID}" ]; then
             UPDATED=$(TZ='Europe/London' date '+%Y-%m-%d %H:%M %Z')
-            BODY=$(printf '%s\n📖 No rendered changes — this PR matches the live docs at https://cgt-calc.uk/\n\n_Last updated: %s_' "${COMMENT_MARKER}" "${UPDATED}")
+            BODY=$(printf '%s\n📖 No rendered changes — this PR matches the live docs at https://cgt-calc.uk/\n\n_Checked `%s` · updated %s_' \
+              "${COMMENT_MARKER}" "${HEAD_SHA:0:7}" "${UPDATED}")
             gh api --method PATCH "repos/${GH_REPO}/issues/comments/${ID}" -f body="${BODY}"
           fi
 
@@ -168,10 +169,14 @@ jobs:
         run: |
           ID=$(gh api "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" --paginate \
             --jq ".[] | select(.body | startswith(\"${COMMENT_MARKER}\")) | .id" | head -1)
-          BODY=$(printf '%s\n📖 **Docs preview:** %s\n\nBuilt from %s' "${COMMENT_MARKER}" "${URL}" "${SHORT_SHA}")
+          FRESHNESS=""
           if [ -n "${ID}" ]; then
             # Editing an existing comment — note when it was refreshed.
-            BODY=$(printf '%s\n_Last updated: %s_' "${BODY}" "${UPDATED}")
+            FRESHNESS=" · updated ${UPDATED}"
+          fi
+          BODY=$(printf '%s\n📖 **Docs preview:** %s\n\n_Built from `%s`%s_' \
+            "${COMMENT_MARKER}" "${URL}" "${SHORT_SHA}" "${FRESHNESS}")
+          if [ -n "${ID}" ]; then
             gh api --method PATCH "repos/${GH_REPO}/issues/comments/${ID}" -f body="${BODY}"
           else
             gh api --method POST "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" -f body="${BODY}"
