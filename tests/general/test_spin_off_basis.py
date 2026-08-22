@@ -458,3 +458,51 @@ def test_a_chain_listed_out_of_order_is_refused() -> None:
                 ),
             ],
         )
+
+
+def test_sibling_spin_offs_are_applied_in_event_order() -> None:
+    """Two spin-offs from FOO take their shares in the order they happened.
+
+    BAR's comes first, so BAR takes a tenth of £100 and BAZ a tenth of the
+    £90 left. BAZ was also bought earlier in the day, which put it first in
+    the day's acquisitions, and it used to take its share first: £9 to BAR
+    and £10 to BAZ, the right total in the wrong holdings.
+    """
+    converter = CurrencyConverter(None, {})
+    handler = SpinOffHandler()
+    handler.cache = {"BAR": "FOO", "BAZ": "FOO"}
+    calculator = CapitalGainsCalculator(
+        2024,
+        converter,
+        IsinConverter(),
+        CurrentPriceFetcher(
+            converter,
+            {},
+            {
+                "FOO": {SPIN_OFF_DAY: Decimal(90)},
+                "BAR": {SPIN_OFF_DAY: Decimal(10)},
+                "BAZ": {SPIN_OFF_DAY: Decimal(10)},
+            },
+        ),
+        handler,
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAZ", 5, 10, 0, -50, "GBP"),
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency="GBP"
+            ),
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency="GBP"
+            ),
+        ],
+    )
+
+    assert calculator.portfolio["FOO"].amount == Decimal(81)
+    assert calculator.portfolio["BAR"].amount == Decimal(10)
+    assert calculator.portfolio["BAZ"].amount == Decimal(59)

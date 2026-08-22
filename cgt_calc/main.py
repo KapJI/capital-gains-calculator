@@ -1493,18 +1493,26 @@ class CapitalGainsCalculator:
         same-day acquisitions form a single acquisition (TCGA 1992 s105). So
         every other symbol is pooled first, and a spun-off holding only after
         whatever it was spun off from, so that a holding spun off and spun off
-        from on the same day is complete before it is apportioned.
+        from on the same day is complete before it is apportioned. Holdings
+        spun off from the same source take their shares one after another, so
+        among themselves they keep the order the spin-offs happened in, which
+        is the order the first pass worked them out in.
         """
         sources: dict[str, list[str]] = defaultdict(list)
-        for spin_off in self.spin_offs.get(date_index, []):
+        first_event: dict[str, int] = {}
+        for index, spin_off in enumerate(self.spin_offs.get(date_index, [])):
             sources[spin_off.dest].append(spin_off.source)
+            first_event.setdefault(spin_off.dest, index)
 
         def depth(symbol: str) -> int:
             # A cycle cannot get here: the first pass refuses a chain that is
             # not in order, and a cycle is never in order.
             return 1 + max((depth(source) for source in sources[symbol]), default=-1)
 
-        return sorted(self.acquisition_list[date_index], key=depth)
+        return sorted(
+            self.acquisition_list[date_index],
+            key=lambda symbol: (depth(symbol), first_event.get(symbol, -1)),
+        )
 
     def _matchable_acquisition(
         self,
