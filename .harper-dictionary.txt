@@ -19,8 +19,11 @@ BrokerTransaction
 BSF
 calc
 Center
+CG15250
 CG22200
+CG22420
 CG51560
+CG51805
 cgt
 CMF5
 codepage
@@ -103,6 +106,8 @@ restval
 roundings
 RowIterator
 RuntimeMode
+s127
+s38
 s58
 SA106
 SalePrice

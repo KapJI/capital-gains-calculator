@@ -67,7 +67,7 @@ An Equity Awards export can contain a `Gift` action: shares that left the accoun
 attached. cgt-calc refuses to calculate until you say who received them, because that decides the
 tax and the export does not record it:
 
-- **A spouse or civil partner you live with.** No gain / no loss — see
+- **A spouse or civil partner, where the transfer qualifies under s58.** No gain / no loss — see
   [transfers to a spouse](raw.md#transfers-to-a-spouse-or-civil-partner). Record the gift as a
   `TRANSFER_TO_SPOUSE` row in a small RAW file, using the same date, symbol and quantity, and pass
   it alongside your Schwab file. The error message prints the exact line to copy.

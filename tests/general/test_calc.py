@@ -1170,10 +1170,10 @@ def test_transfer_to_spouse_of_not_owned_symbol_is_rejected() -> None:
         )
 
 
-def test_transfer_to_spouse_warns_about_ignored_price_and_fees(
+def test_transfer_to_spouse_warns_about_the_ignored_price(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Price and fees on a transfer row are ignored, and the user is told."""
+    """A gift has no consideration, so any price on the row is ignored."""
     buy_day = datetime.date(2024, 6, 1)
     transfer_day = datetime.date(2024, 6, 10)
     calculator = create_calculator()
@@ -1188,17 +1188,54 @@ def test_transfer_to_spouse_warns_about_ignored_price_and_fees(
                     "FOO",
                     4,
                     25,
-                    1,
+                    0,
                     0,
                     "GBP",
                 ),
             ],
         )
 
-    assert "Ignoring price and fees" in caplog.text
-    # The base cost is unaffected by the ignored price and fees.
+    assert "Ignoring the price" in caplog.text
+    # Still the pool average, not the £25 that was in the price column.
     entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
     assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(40)
+
+
+def test_transfer_to_spouse_fee_is_added_to_the_base_cost() -> None:
+    """A fee is an incidental cost of the disposal, so the recipient inherits it.
+
+    s58 fixes the consideration at the amount giving neither gain nor loss, and
+    that amount has to cover the fee, so the fee ends up in the base cost the
+    recipient takes on (TCGA 1992 s38(2), CG15250).
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    transfer_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(
+                transfer_day,
+                ActionType.TRANSFER_TO_SPOUSE,
+                "FOO",
+                4,
+                None,
+                5,
+                -5,
+                "GBP",
+            ),
+        ],
+    )
+
+    entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
+    # £40 of pool cost plus the £5 fee.
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(45)
+    # Still no gain to the transferor.
+    assert sum((e.gain for e in entries), Decimal(0)) == Decimal(0)
+    assert report.total_gain() == Decimal(0)
+    # The fee does not come out of the pool the transferor keeps.
+    assert calculator.portfolio["FOO"].amount == Decimal(60)
 
 
 def test_transfer_to_spouse_shown_in_report() -> None:
@@ -1451,6 +1488,113 @@ def test_transfer_to_spouse_before_the_tax_year_still_reduces_the_pool() -> None
     # The pool lost 4 units at £10, so the later sale has a £60 allowable cost.
     assert report.disposal_count == 1
     assert report.total_gain() == Decimal(60)
+
+
+def test_disposal_is_not_matched_against_a_same_day_split() -> None:
+    """A split is not an acquisition, so it cannot be matched on the same day.
+
+    TCGA 1992 s127 treats the new shares as acquired when the original ones
+    were (CG51805). Matching against them would give the disposal their nil
+    cost and leave the whole pool cost behind on fewer shares.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    split_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            split_transaction(split_day, "FOO", 10),
+            transaction(split_day, ActionType.SELL, "FOO", 4, 12, 0, 48, "GBP"),
+        ],
+    )
+
+    entries = report.calculation_log[split_day]["sell$FOO"]
+    assert all(e.rule_type is RuleType.SECTION_104 for e in entries)
+    # 20 units hold £100, so 4 of them cost £20, not £0.
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(20)
+    assert report.total_gain() == Decimal(28)
+    assert calculator.portfolio["FOO"].amount == Decimal(80)
+
+
+def test_transfer_to_spouse_is_not_matched_against_a_same_day_split() -> None:
+    """The same, for a transfer: the recipient must not inherit a nil base cost."""
+    buy_day = datetime.date(2024, 6, 1)
+    split_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            split_transaction(split_day, "FOO", 10),
+            transfer_to_spouse_transaction(split_day, "FOO", 4),
+        ],
+    )
+
+    entries = report.calculation_log[split_day]["transfer-to-spouse$FOO"]
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(20)
+    assert calculator.portfolio["FOO"].quantity == Decimal(16)
+    assert calculator.portfolio["FOO"].amount == Decimal(80)
+
+
+def test_each_gift_needs_its_own_classification() -> None:
+    """Two gifts of the same shares on one day are not settled by one row."""
+    buy_day = datetime.date(2024, 6, 1)
+    gift_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    with pytest.raises(UnclassifiedGiftError):
+        get_report(
+            calculator,
+            [
+                transaction(buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, "GBP"),
+                transaction(gift_day, ActionType.GIFT, "FOO", 4, currency="GBP"),
+                transaction(gift_day, ActionType.GIFT, "FOO", 4, currency="GBP"),
+                transfer_to_spouse_transaction(gift_day, "FOO", 4),
+            ],
+        )
+
+
+def test_two_gifts_are_settled_by_two_classifications() -> None:
+    """Matching one row per gift accounts for both."""
+    buy_day = datetime.date(2024, 6, 1)
+    gift_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, "GBP"),
+            transaction(gift_day, ActionType.GIFT, "FOO", 4, currency="GBP"),
+            transaction(gift_day, ActionType.GIFT, "FOO", 4, currency="GBP"),
+            transfer_to_spouse_transaction(gift_day, "FOO", 4),
+            transfer_to_spouse_transaction(gift_day, "FOO", 4),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(0)
+    # Both transfers left the pool: 20 - 8.
+    assert calculator.portfolio["FOO"].quantity == Decimal(12)
+    assert calculator.portfolio["FOO"].amount == Decimal(120)
+
+
+def test_transfer_to_spouse_sorts_after_a_same_day_acquisition() -> None:
+    """A hand-written transfer must not be read before the buy it depends on.
+
+    Transfers come from a RAW file while the shares come from a broker export,
+    and parsers merge in registry order, so without this the transfer is
+    validated first and fails as "not owned".
+    """
+    day = datetime.date(2024, 6, 10)
+    buy = transaction(day, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP")
+    transfer = transfer_to_spouse_transaction(day, "FOO", 4)
+
+    # Worst case: the transfer is read first, as a RAW file would give it.
+    report = get_report(
+        create_calculator(),
+        sorted([transfer, buy], key=_transaction_sort_key),
+    )
+
+    entries = report.calculation_log[day]["transfer-to-spouse$FOO"]
+    assert sum((e.quantity for e in entries), Decimal(0)) == Decimal(4)
 
 
 def test_run_with_example_files() -> None:

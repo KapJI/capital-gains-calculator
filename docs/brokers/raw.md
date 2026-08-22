@@ -26,10 +26,22 @@ cgt-calc --year 2024 --raw-file raw_data.csv
 
 ## Transfers to a spouse or civil partner
 
-Use the `TRANSFER_TO_SPOUSE` action to record shares given to a spouse or civil partner you live
-with. These are treated as no gain / no loss (TCGA 1992 s58): the shares leave your Section 104 pool
-at their base cost with a nil gain, and the report shows the base cost that passes to the recipient.
-Set `price` and `fees` to `0`.
+Use the `TRANSFER_TO_SPOUSE` action to record shares given to a spouse or civil partner where the
+transfer qualifies for no gain / no loss treatment under
+[TCGA 1992 s58](https://www.legislation.gov.uk/ukpga/1992/12/section/58): the shares leave your
+Section 104 pool at their base cost with a nil gain, and the report shows the base cost that passes
+to the recipient.
+
+That normally means you were living together at some point in the tax year of the transfer. Since 6
+April 2023 it can also cover transfers made after separating, up to the earlier of the end of the
+third tax year after the year of separation or the date of the final order — see
+[CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420). Check you qualify
+before using this action; if you do not, the transfer is a disposal at market value and cgt-calc
+cannot work it out yet.
+
+Leave `price` at `0` — a gift has no consideration, so it is ignored. Any fee you paid to make the
+transfer belongs in `fees`: it is an incidental cost of the disposal, so it is added to the base
+cost passed to the recipient.
 
 ```csv
 2024-03-16,TRANSFER_TO_SPOUSE,META,21.5,0.00,0.00,USD

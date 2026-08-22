@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 import datetime
 import decimal
 from decimal import Decimal
@@ -438,18 +438,21 @@ class CapitalGainsCalculator:
                 "Tried to transfer to spouse more than the available "
                 f"balance({self.portfolio[symbol].quantity})",
             )
-        # Neither the price nor any fee affects a no gain/no loss transfer, so
-        # both are ignored. Say so rather than dropping them silently.
-        if transaction.price or transaction.fees:
+        # A gift has no consideration, so whatever is in the price column
+        # cannot affect the result. Say so rather than dropping it silently.
+        if transaction.price:
             LOGGER.warning(
-                "Ignoring price and fees on the transfer of %s to spouse on %s: "
-                "a no gain/no loss transfer passes the base cost on unchanged",
+                "Ignoring the price on the transfer of %s to spouse on %s: "
+                "a no gain/no loss transfer has no consideration",
                 symbol,
                 transaction.date,
             )
-        # No cash changes hands. Reduce the first-pass holding so later
-        # same-symbol transactions validate correctly; the actual pool cost is
-        # recomputed in the second pass.
+        # Fees are kept. They are an incidental cost of the disposal (TCGA 1992
+        # s38(2), CG15250), so the consideration that gives neither gain nor
+        # loss has to cover them, which passes them on to the recipient's base
+        # cost. Reduce the first-pass holding so later same-symbol transactions
+        # validate correctly; the actual pool cost is recomputed in the second
+        # pass.
         position = self.portfolio[symbol]
         cost = normalize_amount(position.amount * quantity / position.quantity)
         self.portfolio[symbol] -= Position(quantity, cost)
@@ -461,7 +464,7 @@ class CapitalGainsCalculator:
             symbol,
             quantity,
             Decimal(0),
-            Decimal(0),
+            self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
 
     def _resolve_gifts(
@@ -481,21 +484,21 @@ class CapitalGainsCalculator:
             transaction.action is ActionType.GIFT for transaction in transactions
         ):
             return transactions
-        classified = {
+        # Counted, not a set: two gifts of the same shares on the same day need
+        # two classifications, or one row would silently account for both.
+        classified = Counter(
             (transaction.date, transaction.symbol, transaction.quantity)
             for transaction in transactions
             if transaction.action is ActionType.TRANSFER_TO_SPOUSE
-        }
+        )
         remaining = []
         for transaction in transactions:
             if transaction.action is not ActionType.GIFT:
                 remaining.append(transaction)
                 continue
-            if (
-                transaction.date,
-                transaction.symbol,
-                transaction.quantity,
-            ) in classified:
+            key = (transaction.date, transaction.symbol, transaction.quantity)
+            if classified[key] > 0:
+                classified[key] -= 1
                 LOGGER.debug(
                     "Gift of %s on %s is accounted for by a transfer to spouse",
                     transaction.symbol,
@@ -765,7 +768,9 @@ class CapitalGainsCalculator:
                 self.rename_list[transaction.date][old_symbol] = new_symbol
                 self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
             elif transaction.action is ActionType.TRANSFER_TO_SPOUSE:
-                # No gain/no loss share transfer: no cash impact on the balance.
+                # No consideration changes hands, but a transfer fee is real
+                # money leaving the account.
+                new_balance -= transaction.fees
                 self.add_transfer_to_spouse(transaction)
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
@@ -993,8 +998,15 @@ class CapitalGainsCalculator:
         assert disposal_quantity <= current_quantity
         chargeable_gain = Decimal(0)
         calculation_entries = []
-        # Same day rule is first
-        if has_key(self.acquisition_list, date_index, symbol):
+        # Same day rule is first. A reorganisation such as a split is not an
+        # acquisition (TCGA 1992 s127, CG51805): the new shares are treated as
+        # acquired when the original ones were, so they cannot be matched here.
+        # Without this they would be matched at their nil cost and the disposal
+        # would take a zero allowable cost. The B&B rule below skips them too.
+        if (
+            has_key(self.acquisition_list, date_index, symbol)
+            and self.acquisition_list[date_index][symbol].amount != 0
+        ):
             same_day_acquisition = self.acquisition_list[date_index][symbol]
 
             available_quantity = min(disposal_quantity, same_day_acquisition.quantity)
