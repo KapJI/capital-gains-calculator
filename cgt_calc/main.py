@@ -403,6 +403,10 @@ class CapitalGainsCalculator:
             )
         )
 
+        # What the first pass records for the new holding. It comes from the
+        # first-pass pool, which is only an estimate, so the second pass
+        # replaces it from the real pool (see process_acquisition). The
+        # proportion recorded above is what actually carries the cost across.
         amount = (1 - share_of_original_cost) * original_src_amount
         return amount / quantity, round_decimal(amount, 2)
 
@@ -944,6 +948,26 @@ class CapitalGainsCalculator:
     ) -> list[CalculationEntry]:
         """Process single acquisition."""
         acquisition = self.acquisition_list[date_index][symbol]
+        spin_off = next(
+            (
+                spin_off
+                for spin_off in self.spin_offs[date_index]
+                if spin_off.dest == symbol
+            ),
+            None,
+        )
+        if spin_off is not None:
+            # The cost a spin-off carries across is a share of the source's
+            # pool, and the first pass could only estimate that pool: it takes
+            # sale proceeds off it rather than cost, and keeps it in the
+            # transaction's currency. Here the source pool is authoritative, in
+            # GBP, and still whole, because its own reduction is applied when
+            # it is next disposed of. Written back so that matching against
+            # this acquisition sees the real figure too.
+            acquisition.amount = round_decimal(
+                (1 - spin_off.cost_proportion) * self.portfolio[spin_off.source].amount,
+                2,
+            )
         modified_amount = acquisition.amount
         position = self.portfolio[symbol]
         calculation_entries = []
@@ -988,14 +1012,6 @@ class CapitalGainsCalculator:
             acquisition.quantity - bnb_acquisition.quantity > 0
             or bnb_acquisition.quantity == 0
         ):
-            spin_off = next(
-                (
-                    spin_off
-                    for spin_off in self.spin_offs[date_index]
-                    if spin_off.dest == symbol
-                ),
-                None,
-            )
             calculation_entries.append(
                 CalculationEntry(
                     rule_type=RuleType.SECTION_104,

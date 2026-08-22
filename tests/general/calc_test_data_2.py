@@ -136,7 +136,7 @@ calc_basic_data_2 = [
                 amount=10999,
             ),
         ],
-        2557.10,  # Expected capital gain/loss
+        2565.34,  # Expected capital gain/loss
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
@@ -216,12 +216,12 @@ calc_basic_data_2 = [
                     CalculationEntry(
                         RuleType.SECTION_104,
                         quantity=Decimal(840),
-                        amount=Decimal("-8948.21"),
+                        amount=Decimal("-8939.55"),
                         gain=Decimal(0),
-                        allowable_cost=Decimal("8948.21"),
+                        allowable_cost=Decimal("8939.55"),
                         fees=Decimal(1),
                         new_quantity=Decimal(840),
-                        new_pool_cost=Decimal("8948.21"),
+                        new_pool_cost=Decimal("8939.55"),
                         spin_off=SpinOff(
                             cost_proportion=Decimal("0.1"),
                             source="FOO",
@@ -281,11 +281,11 @@ calc_basic_data_2 = [
                         RuleType.SECTION_104,
                         quantity=Decimal(800),
                         amount=Decimal(7999),
-                        gain=Decimal("-523.1048"),
-                        allowable_cost=Decimal("8522.1048") + Decimal(1),
+                        gain=Decimal("-514.8571"),
+                        allowable_cost=Decimal("8513.8571") + Decimal(1),
                         fees=Decimal(1),
                         new_quantity=Decimal(40),
-                        new_pool_cost=Decimal("426.1052"),
+                        new_pool_cost=Decimal("425.6929"),
                     ),
                 ],
             },
