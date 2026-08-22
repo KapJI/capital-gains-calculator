@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.util import round_decimal
 
 from .base_parsers import BaseSingleFileParser
@@ -800,7 +800,7 @@ class SchwabTransaction(BrokerTransaction):
                 file, f"Parsing for action {row[names.action]} is not implemented!"
             )
 
-        currency = "USD"
+        currency = CurrencyCode("USD")
         broker = "Charles Schwab"
         super().__init__(
             date,

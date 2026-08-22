@@ -23,7 +23,7 @@ from cgt_calc.exceptions import (
     UnexpectedRowCountError,
 )
 from cgt_calc.logging import parsing_msg
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
 
 from .base_parsers import BaseSingleFileParser
@@ -239,7 +239,7 @@ class SchwabTransaction(BrokerTransaction):
         # Handle bonds/notes: CUSIP symbols have price per $100 face value
         price, fees = adjust_cusip_bond_price(symbol, price, quantity, amount, fees)
 
-        currency = "USD"
+        currency = CurrencyCode("USD")
         broker = "Charles Schwab"
         super().__init__(
             date,

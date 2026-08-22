@@ -11,6 +11,7 @@ import pytest
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import MarketDataMissingError
+from cgt_calc.model import CurrencyCode
 
 
 class FakeTicker:
@@ -24,7 +25,13 @@ class FakeTicker:
 def _fetcher() -> CurrentPriceFetcher:
     today = datetime.datetime.now().date()
     converter = CurrencyConverter(
-        None, {today: {"USD": Decimal("1.25"), "EUR": Decimal("1.15")}}
+        None,
+        {
+            today: {
+                CurrencyCode("USD"): Decimal("1.25"),
+                CurrencyCode("EUR"): Decimal("1.15"),
+            }
+        },
     )
     return CurrentPriceFetcher(converter)
 
@@ -170,8 +177,8 @@ def test_closing_price_converted_at_historical_rate(
     converter = CurrencyConverter(
         None,
         {
-            historical_date: {"USD": Decimal("1.25")},
-            today: {"USD": Decimal(2)},
+            historical_date: {CurrencyCode("USD"): Decimal("1.25")},
+            today: {CurrencyCode("USD"): Decimal(2)},
         },
     )
     fetcher = CurrentPriceFetcher(converter)

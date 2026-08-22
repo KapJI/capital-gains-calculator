@@ -5,8 +5,6 @@ from decimal import Decimal
 from pathlib import Path
 from typing import TextIO
 
-import iso4217parse
-
 
 def round_decimal(value: Decimal, digits: int = 0) -> Decimal:
     """Round decimal to given precision."""
@@ -87,8 +85,3 @@ def open_with_parents(path: Path, *, clear_content: bool = True) -> TextIO:
     """Open a file for writing, creating parent directories if they do not exist."""
     path.parent.mkdir(parents=True, exist_ok=True)
     return path.open("w" if clear_content else "r+", encoding="utf8")
-
-
-def is_currency(currency_str: str) -> bool:
-    """Check if the input string is a valid currency."""
-    return bool(iso4217parse.by_alpha3(currency_str))

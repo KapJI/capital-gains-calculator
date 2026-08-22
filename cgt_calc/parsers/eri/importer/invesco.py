@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, override
 import dateutil.parser as date_parser
 import pdfplumber
 
-from cgt_calc.model import Isin
+from cgt_calc.model import CurrencyCode, Isin
 from cgt_calc.util import round_decimal
 
 if TYPE_CHECKING:
@@ -136,8 +136,8 @@ class InvescoImporter(ERIImporter):
             assert isin is not None, (
                 f"Bad ISIN in page {page_num}, row {row_num}: {isin_raw}"
             )
-            currency = row[CURRENCY_COLUMN].replace("JPN", "JPY")
-            assert re.match(CURRENCY_REGEX, currency), (
+            currency = CurrencyCode.parse(row[CURRENCY_COLUMN].replace("JPN", "JPY"))
+            assert currency is not None, (
                 f"Bad currency in page {page_num}, row {row_num}: {row[CURRENCY_COLUMN]}"
             )
             assert re.match(AMOUNT_REGEX, row[ERI_COLUMN]), (

@@ -10,8 +10,8 @@ import dateutil.parser as date_parser
 import pandas as pd
 
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.model import Isin
-from cgt_calc.util import is_currency, round_decimal
+from cgt_calc.model import CurrencyCode, Isin
+from cgt_calc.util import round_decimal
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -115,14 +115,13 @@ class BlackrockImporter(ERIImporter):
             if isin is None:
                 raise ParsingError(file, f"Not valid ISIN {isin_raw}")
 
-            currency = row[CURRENCY_COLUMN]
-            if not isinstance(currency, str):
-                raise ParsingError(file, f"Not valid Currency {currency}")
+            currency_raw = row[CURRENCY_COLUMN]
+            if not isinstance(currency_raw, str):
+                raise ParsingError(file, f"Not valid Currency {currency_raw}")
             # Bugs in the currency codes
-            currency = currency.replace("JPN", "JPY")
-            if not is_currency(currency):
-                raise ParsingError(file, f"Not valid Currency {currency}")
-            currency = currency.upper()
+            currency = CurrencyCode.parse(currency_raw.replace("JPN", "JPY"))
+            if currency is None:
+                raise ParsingError(file, f"Not valid Currency {currency_raw}")
 
             reporting_date_str = row[REPORTING_PERIOD_COLUMN]
             try:

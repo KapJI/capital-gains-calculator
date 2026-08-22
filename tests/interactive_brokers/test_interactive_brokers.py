@@ -7,7 +7,7 @@ import subprocess
 
 import pytest
 
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
 from tests.utils import build_cmd, report_path, stderr_alerts
 
@@ -68,7 +68,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             price=Decimal("1060.3"),
             fees=Decimal("3.0"),
             amount=Decimal("-1063.3"),
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker="Interactive Brokers",
             isin=None,
         )

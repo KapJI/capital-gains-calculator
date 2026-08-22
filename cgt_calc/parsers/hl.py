@@ -11,7 +11,7 @@ from typing import ClassVar, TextIO, override
 import pdfplumber
 
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.model import ActionType, BrokerTransaction, Isin
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 from cgt_calc.parsers.base_parsers import BaseDirParser, StandardCSVParser
 
 # PDF parser regexes
@@ -212,7 +212,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
             price=price,
             fees=fees,
             amount=amount,
-            currency="GBP",
+            currency=CurrencyCode("GBP"),
             broker=cls.pretty_name,
             isin=isin,
         )

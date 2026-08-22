@@ -11,7 +11,8 @@ import yfinance as yf  # type: ignore[import-untyped]
 
 if TYPE_CHECKING:
     from .currency_converter import CurrencyConverter
-from .exceptions import MarketDataMissingError
+from .exceptions import ExchangeRateMissingError, MarketDataMissingError
+from .model import CurrencyCode
 
 
 class CurrentPriceFetcher:
@@ -40,7 +41,10 @@ class CurrentPriceFetcher:
         """
         if currency == "GBp":
             return price / Decimal(100)
-        return self.converter.to_gbp(price, currency or "USD", date)
+        code = CurrencyCode.parse(currency or "USD")
+        if code is None:
+            raise ExchangeRateMissingError(currency or "USD", date)
+        return self.converter.to_gbp(price, code, date)
 
     def get_current_market_price(self, symbol: str) -> Decimal | None:
         """Given a symbol gets the current market price."""

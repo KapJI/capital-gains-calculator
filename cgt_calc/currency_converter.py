@@ -20,6 +20,7 @@ from requests.adapters import HTTPAdapter, Retry
 from .const import CGT_MODE, RuntimeMode
 from .dates import is_date
 from .exceptions import ExchangeRateMissingError, ExternalApiError, ParsingError
+from .model import CurrencyCode
 from .util import open_with_parents
 
 if TYPE_CHECKING:
@@ -39,7 +40,7 @@ class CurrencyConverter:
     def __init__(
         self,
         exchange_rates_file: Path | None = None,
-        initial_data: dict[datetime.date, dict[str, Decimal]] | None = None,
+        initial_data: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
     ):
         """Load data from exchange_rates_file and optionally from initial_data."""
         self.exchange_rates_file = exchange_rates_file
@@ -61,7 +62,7 @@ class CurrencyConverter:
     @staticmethod
     def create(
         exchange_rates_file: Path | None = None,
-        initial_data: dict[datetime.date, dict[str, Decimal]] | None = None,
+        initial_data: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
     ) -> CurrencyConverter:
         """Create the appropriate CurrencyConverter for the current runtime mode."""
         match CGT_MODE:
@@ -78,14 +79,24 @@ class CurrencyConverter:
     @staticmethod
     def _read_exchange_rates_data(
         exchange_rates_file: Path, fin: TextIO
-    ) -> defaultdict[datetime.date, dict[str, Decimal]]:
-        cache: defaultdict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
-        lines = [line for line in fin if not line.lstrip().startswith("#")]
-        csv_reader = csv.DictReader(lines)
+    ) -> defaultdict[datetime.date, dict[CurrencyCode, Decimal]]:
+        cache: defaultdict[datetime.date, dict[CurrencyCode, Decimal]] = defaultdict(
+            dict
+        )
+        # Keep physical line numbers so errors point at the right line even
+        # when comment lines precede the data.
+        kept = [
+            (number, line)
+            for number, line in enumerate(fin, start=1)
+            if not line.lstrip().startswith("#")
+        ]
+        line_numbers = [number for number, _ in kept]
+        csv_reader = csv.DictReader(line for _, line in kept)
         if csv_reader.fieldnames is None:
             # File is empty.
             return cache
-        for row_number, line in enumerate(csv_reader, start=2):
+        for line in csv_reader:
+            row_number = line_numbers[csv_reader.line_num - 1]
             # Guard against schema drift before touching row contents.
             if sorted(EXCHANGE_RATES_HEADER) != sorted(line.keys()):
                 raise ParsingError(
@@ -116,7 +127,7 @@ class CurrencyConverter:
                 )
 
             month = normalized_values["month"]
-            currency = normalized_values["currency"]
+            currency_raw = normalized_values["currency"]
             rate_value = normalized_values["rate"]
 
             try:
@@ -126,6 +137,13 @@ class CurrencyConverter:
                     exchange_rates_file,
                     f"Invalid date '{month}' at line {row_number}",
                 ) from err
+
+            currency = CurrencyCode.parse(currency_raw)
+            if currency is None:
+                raise ParsingError(
+                    exchange_rates_file,
+                    f"Invalid currency code '{currency_raw}' at line {row_number}",
+                )
 
             try:
                 rate = Decimal(rate_value)
@@ -149,7 +167,7 @@ class CurrencyConverter:
     @staticmethod
     def _read_exchange_rates_file(
         exchange_rates_file: Path | None,
-    ) -> defaultdict[datetime.date, dict[str, Decimal]]:
+    ) -> defaultdict[datetime.date, dict[CurrencyCode, Decimal]]:
         if not exchange_rates_file or not exchange_rates_file.is_file():
             return defaultdict(dict)
         with exchange_rates_file.open(encoding="utf8") as fin:
@@ -157,7 +175,8 @@ class CurrencyConverter:
 
     @staticmethod
     def _write_exchange_rates_file(
-        exchange_rates_file: Path | None, data: dict[datetime.date, dict[str, Decimal]]
+        exchange_rates_file: Path | None,
+        data: dict[datetime.date, dict[CurrencyCode, Decimal]],
     ) -> None:
         if not exchange_rates_file:
             return
@@ -215,7 +234,7 @@ class CurrencyConverter:
             )
 
         tree = ET.fromstring(response.text)
-        rates = {}
+        rates: dict[CurrencyCode, Decimal] = {}
         for row in tree:
             currency_code_elem = row.find("currencyCode")
             rate_new_elem = row.find("rateNew")
@@ -229,8 +248,15 @@ class CurrencyConverter:
                     url,
                     f"HMRC API response for {month_str} is missing expected currency data",
                 )
+            currency = CurrencyCode.parse(currency_code_elem.text)
+            if currency is None:
+                raise ExternalApiError(
+                    url,
+                    f"HMRC API response for {month_str} contains invalid currency code: "
+                    f"{currency_code_elem.text!r}",
+                )
             try:
-                rates[currency_code_elem.text.upper()] = Decimal(rate_new_elem.text)
+                rates[currency] = Decimal(rate_new_elem.text)
             except (InvalidOperation, ValueError) as err:
                 raise ExternalApiError(
                     url,
@@ -239,12 +265,14 @@ class CurrencyConverter:
         self.cache[date] = rates
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
 
-    def currency_to_gbp_rate(self, currency: str, date: datetime.date) -> Decimal:
+    def currency_to_gbp_rate(
+        self, currency: CurrencyCode, date: datetime.date
+    ) -> Decimal:
         """Get the number of currency units per GBP at the given date."""
         assert is_date(date)
         # offshore (Hong Kong) Chinese Yuan handling
         if currency == "CNH":
-            currency = "CNY"
+            currency = CurrencyCode("CNY")
         if date not in self.cache:
             self._query_hmrc_api(date)
         if currency not in self.cache[date]:
@@ -252,11 +280,13 @@ class CurrencyConverter:
 
         return self.cache[date][currency]
 
-    def to_gbp(self, amount: Decimal, currency: str, date: datetime.date) -> Decimal:
+    def to_gbp(
+        self, amount: Decimal, currency: CurrencyCode, date: datetime.date
+    ) -> Decimal:
         """Convert amount from given currency to GBP."""
         if currency == "GBP":
             return amount
-        return amount / self.currency_to_gbp_rate(currency.upper(), date)
+        return amount / self.currency_to_gbp_rate(currency, date)
 
     def to_gbp_for(self, amount: Decimal, transaction: BrokerTransaction) -> Decimal:
         """Convert amount from transaction currency to GBP."""
@@ -273,7 +303,7 @@ class TestCurrencyConverter(CurrencyConverter):
     def __init__(
         self,
         exchange_rates_file: Path | None = None,
-        initial_data: dict[datetime.date, dict[str, Decimal]] | None = None,
+        initial_data: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
     ):
         """Load data from exchange_rates_file and optionally from initial_data.
 
@@ -283,7 +313,9 @@ class TestCurrencyConverter(CurrencyConverter):
         self._test_file_cache = deepcopy(self.cache)
 
     @override
-    def currency_to_gbp_rate(self, currency: str, date: datetime.date) -> Decimal:
+    def currency_to_gbp_rate(
+        self, currency: CurrencyCode, date: datetime.date
+    ) -> Decimal:
         """Get the number of currency units per GBP at the given date.
 
         When the value is missing from the view of the test_file_cache, append it
@@ -305,7 +337,10 @@ class TestCurrencyConverter(CurrencyConverter):
 
     @staticmethod
     def _append_exchange_rates_file(
-        exchange_rates_file: Path, date: datetime.date, currency: str, value: Decimal
+        exchange_rates_file: Path,
+        date: datetime.date,
+        currency: CurrencyCode,
+        value: Decimal,
     ) -> None:
         with open_with_parents(exchange_rates_file, clear_content=False) as fout:
             fcntl.flock(fout.fileno(), fcntl.LOCK_EX)
@@ -321,7 +356,7 @@ class TestCurrencyConverter(CurrencyConverter):
     @staticmethod
     @override
     def _write_exchange_rates_file(
-        _: Path | None, __: dict[datetime.date, dict[str, Decimal]]
+        _: Path | None, __: dict[datetime.date, dict[CurrencyCode, Decimal]]
     ) -> None:
         return
 
@@ -339,6 +374,6 @@ class StrictTestCurrencyConverter(CurrencyConverter):
     @staticmethod
     @override
     def _write_exchange_rates_file(
-        _: Path | None, __: dict[datetime.date, dict[str, Decimal]]
+        _: Path | None, __: dict[datetime.date, dict[CurrencyCode, Decimal]]
     ) -> None:
         return

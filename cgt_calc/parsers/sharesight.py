@@ -17,7 +17,7 @@ from cgt_calc.exceptions import (
     ParsingError,
     UnexpectedColumnCountError,
 )
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 
 from .base_parsers import BaseDirParser
 
@@ -55,7 +55,7 @@ class DividendSectionSchema:
     amount_column: DividendColumn
     tax_column: DividendColumn
     currency_column: DividendColumn | None
-    default_currency: str | None = None
+    default_currency: CurrencyCode | None = None
 
 
 LOCAL_DIVIDEND_SCHEMA = DividendSectionSchema(
@@ -73,7 +73,7 @@ LOCAL_DIVIDEND_SCHEMA = DividendSectionSchema(
     amount_column=DividendColumn.GROSS_DIVIDEND,
     tax_column=DividendColumn.TAX_DEDUCTED,
     currency_column=None,
-    default_currency="GBP",
+    default_currency=CurrencyCode("GBP"),
 )
 
 
@@ -268,12 +268,13 @@ class SharesightParser(BaseDirParser):
                         f"Missing currency column definition for {schema.section_name}"
                     )
 
-                currency = row_dict.get(schema.currency_column, "").strip()
-                if not currency:
+                currency_raw = row_dict.get(schema.currency_column, "").strip()
+                if not currency_raw:
                     raise ValueError(
                         "Missing currency in column "
                         f"'{schema.currency_column.value}' for {schema.section_name}"
                     )
+                currency = CurrencyCode(currency_raw)
 
             amount = cls._parse_decimal(row_dict, schema.amount_column)
             tax = cls._maybe_decimal(row_dict, schema.tax_column)
@@ -388,7 +389,7 @@ class SharesightParser(BaseDirParser):
             quantity = cls._parse_decimal(row_dict, TradeColumn.QUANTITY)
             price = cls._parse_decimal(row_dict, TradeColumn.PRICE)
             fees = cls._maybe_decimal(row_dict, TradeColumn.BROKERAGE) or Decimal(0)
-            currency = row_dict[TradeColumn.CURRENCY]
+            currency = CurrencyCode(row_dict[TradeColumn.CURRENCY])
             description = row_dict[TradeColumn.COMMENTS]
             broker = "Sharesight"
             gbp_value = cls._maybe_decimal(row_dict, TradeColumn.VALUE)
@@ -408,7 +409,7 @@ class SharesightParser(BaseDirParser):
                     raise ValueError("Missing Value in FX transaction")
 
                 price = abs(gbp_value / quantity)
-                currency = "GBP"
+                currency = CurrencyCode("GBP")
 
             # Make amount positive on sell and negative on buy
             amount = -(quantity * price) - fees

@@ -7,7 +7,14 @@ from decimal import Decimal
 
 import pytest
 
-from cgt_calc.model import ActionType, CalculationEntry, Isin, RuleType, SpinOff
+from cgt_calc.model import (
+    ActionType,
+    CalculationEntry,
+    CurrencyCode,
+    Isin,
+    RuleType,
+    SpinOff,
+)
 
 from .calc_test_data import (
     buy_transaction,
@@ -325,12 +332,12 @@ calc_basic_data_2 = [
             interest_transaction(
                 date=datetime.date(day=1, month=4, year=2020),
                 amount=2000,
-                currency="GBP",
+                currency=CurrencyCode("GBP"),
             ),
             interest_transaction(
                 date=datetime.date(day=10, month=4, year=2020),
                 amount=1500,
-                currency="GBP",
+                currency=CurrencyCode("GBP"),
             ),
             interest_transaction(
                 date=datetime.date(day=15, month=7, year=2020),

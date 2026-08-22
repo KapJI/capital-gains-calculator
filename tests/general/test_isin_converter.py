@@ -21,7 +21,7 @@ from cgt_calc.exceptions import (
 )
 import cgt_calc.isin_converter
 from cgt_calc.isin_converter import IsinConverter, IsinTranslationEntry
-from cgt_calc.model import ActionType, BrokerTransaction, Isin
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 
 # Well-formed but unassigned, so it cannot be in the bundled translation data.
 UNKNOWN_ISIN = Isin("ZZ0000000008")
@@ -105,7 +105,7 @@ def _transaction(isin: Isin, symbol: str | None) -> BrokerTransaction:
         price=Decimal(1),
         fees=Decimal(0),
         amount=Decimal(-1),
-        currency="USD",
+        currency=CurrencyCode("USD"),
         broker="Test",
         isin=isin,
     )

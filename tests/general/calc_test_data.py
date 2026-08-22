@@ -11,16 +11,20 @@ from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
     CalculationEntry,
+    CurrencyCode,
     Isin,
     RuleType,
 )
 from cgt_calc.util import round_decimal
 
+USD = CurrencyCode("USD")
+GBP = CurrencyCode("GBP")
+
 
 def interest_transaction(
     date: datetime.date,
     amount: float,
-    currency: str = "USD",
+    currency: CurrencyCode = USD,
 ) -> BrokerTransaction:
     """Create interest transaction."""
     return transaction(date, ActionType.INTEREST, None, None, None, 0, amount, currency)
@@ -131,7 +135,7 @@ def transfer_to_spouse_transaction(
     date: datetime.date,
     symbol: str,
     quantity: float,
-    currency: str = "GBP",
+    currency: CurrencyCode = GBP,
 ) -> BrokerTransaction:
     """Create a no gain/no loss transfer to spouse transaction."""
     return transaction(
@@ -151,7 +155,7 @@ def transaction(
     price: float | None = None,
     fees: float = 0.0,
     amount: float | None = None,
-    currency: str = "USD",
+    currency: CurrencyCode = USD,
     isin: Isin | None = None,
 ) -> BrokerTransaction:
     """Create transaction."""
@@ -185,7 +189,7 @@ def split_transaction(
         price=Decimal(0),
         fees=Decimal(0),
         amount=Decimal(0),
-        currency="USD",
+        currency=CurrencyCode("USD"),
         broker="Testing",
     )
 
