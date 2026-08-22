@@ -146,7 +146,9 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert txn.amount == Decimal("-13016.0428084197")
         assert txn.currency == "GBP"
 
-    def test_basic_csv_file(self, request: pytest.FixtureRequest) -> None:
+    def test_run_with_interactive_brokers_file(
+        self, request: pytest.FixtureRequest
+    ) -> None:
         """Runs the script and verifies it doesn't fail."""
         cmd = build_cmd(
             "--year",
