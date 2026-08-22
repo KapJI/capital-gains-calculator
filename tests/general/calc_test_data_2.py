@@ -136,7 +136,7 @@ calc_basic_data_2 = [
                 amount=10999,
             ),
         ],
-        2565.34,  # Expected capital gain/loss
+        2338.91,  # Expected capital gain/loss
         None,  # Expected unrealized gains
         None,  # GBP/USD prices
         None,  # Current prices
@@ -233,13 +233,13 @@ calc_basic_data_2 = [
                 "spin-off$FOO": [
                     CalculationEntry(
                         RuleType.SPIN_OFF,
-                        quantity=Decimal(470),
-                        amount=Decimal("-47517.94"),
+                        quantity=Decimal(420),
+                        amount=Decimal("-42462.84"),
                         gain=Decimal(0),
-                        allowable_cost=Decimal("37514.1632"),
+                        allowable_cost=Decimal("33523.29"),
                         fees=Decimal(0),
-                        new_quantity=Decimal(470),
-                        new_pool_cost=Decimal("37514.1632"),
+                        new_quantity=Decimal(420),
+                        new_pool_cost=Decimal("33523.29"),
                         spin_off=SpinOff(
                             cost_proportion=Decimal("0.1"),
                             source="FOO",
@@ -259,7 +259,7 @@ calc_basic_data_2 = [
                         allowable_cost=Decimal(4951),
                         fees=Decimal(1),
                         new_quantity=Decimal(470),
-                        new_pool_cost=Decimal("47517.94"),
+                        new_pool_cost=Decimal("38578.39"),
                     ),
                 ],
             },
@@ -269,11 +269,11 @@ calc_basic_data_2 = [
                         RuleType.SECTION_104,
                         quantity=Decimal(100),
                         amount=Decimal(10999),
-                        gain=Decimal("3017.2632"),
-                        allowable_cost=Decimal("7981.7368") + Decimal(1),
+                        gain=Decimal("2790.8319"),
+                        allowable_cost=Decimal("8208.1681") + Decimal(1),
                         fees=Decimal(1),
                         new_quantity=Decimal(370),
-                        new_pool_cost=Decimal("29532.4263"),
+                        new_pool_cost=Decimal("30370.2219"),
                     ),
                 ],
                 "sell$BAR": [

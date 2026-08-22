@@ -512,14 +512,14 @@ def test_transfer_to_spouse_reserves_its_share_of_a_same_day_acquisition() -> No
     assert calculator.portfolio["FOO"].amount == Decimal(50)
 
 
-def test_transfer_to_spouse_logs_a_pending_spin_off() -> None:
-    """A spin-off still pending when the transfer happens is recorded.
+def test_transfer_to_spouse_after_a_spin_off_takes_the_apportioned_cost() -> None:
+    """A spin-off before the transfer has already moved part of the cost away.
 
-    The transfer is identified like a disposal, so it is the event that
-    applies the outstanding cost-proportion adjustment and has to report it.
+    FOO keeps 90% of its £1,000 at the spin-off, so the 50 units transferred
+    carry £450, and the spin-off is recorded under its own date.
     """
-    buy_day = datetime.date(2023, 6, 1)
-    spin_off_day = datetime.date(2023, 7, 5)
+    buy_day = datetime.date(2024, 4, 10)
+    spin_off_day = datetime.date(2024, 5, 5)
     transfer_day = datetime.date(2024, 6, 10)
     currency_converter = CurrencyConverter(None, {})
     spin_off_handler = SpinOffHandler()
@@ -561,13 +561,12 @@ def test_transfer_to_spouse_logs_a_pending_spin_off() -> None:
     )
 
     assert report.total_gain() == Decimal(0)
-    # 90/(90+10) of the £1,000 stays with FOO, so 50 of 100 units carry £450.
     entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
     assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(450)
-    # The transfer applied the adjustment, so it reports the spin-off too.
-    spin_off_entries = report.calculation_log[spin_off_day]["spin-off$FOO"]
-    assert len(spin_off_entries) == 1
-    assert spin_off_entries[0].rule_type is RuleType.SPIN_OFF
+    (spin_off_entry,) = report.calculation_log[spin_off_day]["spin-off$FOO"]
+    assert spin_off_entry.rule_type is RuleType.SPIN_OFF
+    assert spin_off_entry.new_pool_cost == Decimal(900)
+    assert calculator.portfolio["BAR"].amount == Decimal(100)
 
 
 def test_transfer_to_spouse_before_the_tax_year_still_reduces_the_pool() -> None:

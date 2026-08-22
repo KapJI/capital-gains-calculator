@@ -11,8 +11,11 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 
+import pytest
+
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
+from cgt_calc.exceptions import CalculationError
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
@@ -120,7 +123,7 @@ def test_cost_is_not_revalued_at_the_spin_off_days_rate() -> None:
         currency="USD",
     )
 
-    assert calculator.portfolio["FOO"].amount == Decimal(200)
+    assert calculator.portfolio["FOO"].amount == Decimal(180)
     assert calculator.portfolio["BAR"].amount == Decimal(20)
 
 
@@ -171,3 +174,104 @@ def test_cost_is_conserved_across_both_holdings() -> None:
     assert foo_cost_given_up == Decimal(45)
     assert calculator.portfolio["BAR"].amount == Decimal(5)
     assert foo_cost_given_up + calculator.portfolio["BAR"].amount == Decimal(50)
+
+
+def test_source_gives_up_its_share_on_the_day() -> None:
+    """The original cost is apportioned at the reorganisation (CG51976).
+
+    Applying it only when FOO is next sold left a holding that was never sold
+    again at its full cost, and one bought into before the sale handing over
+    a share of shares that had nothing to do with the spin-off.
+    """
+    calculator, _ = spin_off(
+        [transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP")],
+        10,
+        {BUY_DAY: {"GBP": FLAT}, SPIN_OFF_DAY: {"GBP": FLAT}},
+    )
+
+    assert calculator.portfolio["FOO"].amount == Decimal(90)
+    assert calculator.portfolio["BAR"].amount == Decimal(10)
+
+
+def test_a_later_purchase_of_the_source_is_untouched() -> None:
+    """£200 of FOO bought after the spin-off keeps all £200 of its cost."""
+    _, report = spin_off(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(LATER, ActionType.BUY, "FOO", 20, 10, 0, -200, "GBP"),
+            transaction(
+                datetime.date(2024, 10, 1),
+                ActionType.SELL,
+                "FOO",
+                30,
+                20,
+                0,
+                600,
+                "GBP",
+            ),
+        ],
+        10,
+        {
+            BUY_DAY: {"GBP": FLAT},
+            SPIN_OFF_DAY: {"GBP": FLAT},
+            LATER: {"GBP": FLAT},
+            datetime.date(2024, 10, 1): {"GBP": FLAT},
+        },
+    )
+
+    # £90 left from the spin-off plus £200 bought later, not 90% of £300.
+    assert report.allowable_costs == Decimal(290)
+
+
+def test_a_purchase_of_the_new_holding_on_the_day_keeps_its_cost() -> None:
+    """Only the spin-off's share of the day's acquisitions is replaced.
+
+    The day's acquisitions of BAR are one entry, so overwriting it with the
+    spin-off's figure threw away the £50 paid for five more.
+    """
+    calculator, _ = spin_off(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAR", 5, 10, 0, -50, "GBP"),
+        ],
+        10,
+        {BUY_DAY: {"GBP": FLAT}, SPIN_OFF_DAY: {"GBP": FLAT}},
+    )
+
+    assert calculator.portfolio["BAR"].quantity == Decimal(15)
+    assert calculator.portfolio["BAR"].amount == Decimal(60)
+
+
+def test_selling_the_new_holding_just_before_the_spin_off_is_refused() -> None:
+    """A sale the B&B rule would match to unpriced spin-off shares is refused.
+
+    BAR was already held and sold ten days before more arrived by spin-off.
+    Their cost is a share of FOO's pool on the spin-off day, which the walk
+    has not reached, and the first-pass figure is £0 here because FOO was
+    sold at a profit first. There is no right number to use, so say so.
+    """
+    with pytest.raises(CalculationError, match="spin-off added BAR"):
+        spin_off(
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+                transaction(BUY_DAY, ActionType.BUY, "BAR", 2, 1, 0, -2, "GBP"),
+                transaction(SALE_DAY, ActionType.SELL, "FOO", 5, 20, 0, 100, "GBP"),
+                transaction(
+                    datetime.date(2024, 6, 25),
+                    ActionType.SELL,
+                    "BAR",
+                    2,
+                    3,
+                    0,
+                    6,
+                    "GBP",
+                ),
+            ],
+            5,
+            {
+                BUY_DAY: {"GBP": FLAT},
+                SALE_DAY: {"GBP": FLAT},
+                datetime.date(2024, 6, 25): {"GBP": FLAT},
+                SPIN_OFF_DAY: {"GBP": FLAT},
+            },
+        )
