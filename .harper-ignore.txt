@@ -12,3 +12,7 @@
 ^schwab\.md:.*FeelFell
 # "Section 106A" - Harper reads the trailing "A" as an indefinite article.
 ^raw\.md:.*AnA
+# An example commit hash in a comment about `git describe` output.
+^version\.py:.*`g3473d67`
+# "a backup tag" is a compound noun; Harper reads it as the verb "back up".
+^version\.py:.*PhrasalVerbAsCompoundNoun

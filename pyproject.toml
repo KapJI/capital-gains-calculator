@@ -63,6 +63,7 @@ dev = [
   "dprint-py>=0.50.2.0",
   "harper-cli>=2.8.0.post1",
   "mypy>=2.3.0",
+  "packaging>=25.0",
   "pandas-stubs>=2.2",
   "pytest>=8.4.2,<10.0.0",
   "pytest-clarity>=1.0.1",
