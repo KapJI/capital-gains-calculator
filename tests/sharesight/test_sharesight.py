@@ -233,6 +233,25 @@ TRADE_HEADER = [
     "Comments",
 ]
 
+# Sharesight's newer Combined worksheet uses these spellings and puts Code
+# before Market Code. Keep this list independent of the parser aliases so a
+# wrong mapping there fails the tests.
+COMBINED_TRADE_HEADER = [
+    "Code",
+    "Market Code",
+    "Name",
+    "Date",
+    "Type",
+    "Qty",
+    "Price",
+    "Instrument Currency",
+    "Brokerage",
+    "Brokerage Currency",
+    "Exch. Rate",
+    "Value",
+    "Comments",
+]
+
 LOCAL_DIVIDEND_HEADER = [
     "Code",
     "Name",
@@ -295,6 +314,42 @@ def test_parse_income_report_with_uppercase_csv_extension(tmp_path: Path) -> Non
         "GBP",
         "USD",
         "USD",
+    ]
+
+
+def test_parse_income_report_with_informational_columns(tmp_path: Path) -> None:
+    """Ignore newer Taxable Income columns not used by the calculation."""
+    _write_csv(
+        tmp_path / "Taxable Income Report.csv",
+        [
+            ["Foreign Income"],
+            [*FOREIGN_DIVIDEND_HEADER, "Country", "Income Type"],
+            [
+                "XYZ",
+                "X Corp",
+                "03/04/2023",
+                "1.2",
+                "USD",
+                "85",
+                "15",
+                "100",
+                "foreign",
+                "United States",
+                "Dividend",
+            ],
+            ["Total"],
+        ],
+    )
+
+    transactions = SharesightParser().load_from_dir(tmp_path)
+
+    assert [transaction.action for transaction in transactions] == [
+        ActionType.DIVIDEND,
+        ActionType.DIVIDEND_TAX,
+    ]
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal(100),
+        Decimal(-15),
     ]
 
 
@@ -424,6 +479,112 @@ def test_parse_trade_report(tmp_path: Path) -> None:
 
     assert grant.action == ActionType.STOCK_ACTIVITY
     assert grant.amount is None
+
+
+def test_parse_trade_report_with_renamed_columns(tmp_path: Path) -> None:
+    """Parse the report generation that renamed three legacy headings."""
+    renamed_header = [
+        "Price" if column == "Price *" else column for column in TRADE_HEADER
+    ]
+    renamed_header[renamed_header.index("Brokerage *")] = "Brokerage"
+    renamed_header[renamed_header.index("Currency")] = "Brokerage Currency"
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            renamed_header,
+            [
+                "LSE",
+                "ABC",
+                "Example",
+                "Buy",
+                "01/02/2023",
+                "2",
+                "10",
+                "1",
+                "GBP",
+                "1",
+                "20",
+                "",
+            ],
+        ],
+    )
+
+    [transaction] = SharesightParser().load_from_dir(tmp_path)
+
+    assert transaction.symbol == "LSE:ABC"
+    assert transaction.currency == "GBP"
+    assert transaction.quantity == Decimal(2)
+    assert transaction.price == Decimal(10)
+    assert transaction.fees == Decimal(1)
+    assert transaction.amount == Decimal(-21)
+
+
+def test_parse_combined_trade_report_with_extra_column(tmp_path: Path) -> None:
+    """Parse the newer Combined worksheet and ignore informational columns."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            [*COMBINED_TRADE_HEADER, "Holding"],
+            [
+                "ABC",
+                "NASDAQ",
+                "Example",
+                "01/02/2023",
+                "Sell",
+                "-2",
+                "10",
+                "USD",
+                "1",
+                "USD",
+                "1.2",
+                "16.67",
+                "",
+                "Example holding",
+            ],
+        ],
+    )
+
+    [transaction] = SharesightParser().load_from_dir(tmp_path)
+
+    assert transaction.symbol == "NASDAQ:ABC"
+    assert transaction.currency == "USD"
+    assert transaction.quantity == Decimal(2)
+    assert transaction.price == Decimal(10)
+    assert transaction.fees == Decimal(1)
+    assert transaction.amount == Decimal(19)
+
+
+def test_parse_combined_trade_report_with_foreign_brokerage(tmp_path: Path) -> None:
+    """Reject brokerage whose currency differs from the instrument currency."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            COMBINED_TRADE_HEADER,
+            [
+                "ABC",
+                "NASDAQ",
+                "Example",
+                "01/02/2023",
+                "Buy",
+                "2",
+                "10",
+                "USD",
+                "1",
+                "GBP",
+                "1.2",
+                "16.67",
+                "",
+            ],
+        ],
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match="Brokerage Currency 'GBP' differs from transaction currency 'USD'",
+    ) as excinfo:
+        SharesightParser().load_from_dir(tmp_path)
+
+    assert excinfo.value.row_index == 2
 
 
 def test_parse_trade_report_unknown_action(tmp_path: Path) -> None:

@@ -109,9 +109,40 @@ class TradeColumn(StrEnum):
     PRICE = "Price *"
     BROKERAGE = "Brokerage *"
     CURRENCY = "Currency"
+    BROKERAGE_CURRENCY = "Brokerage Currency"
     EXCHANGE_RATE = "Exchange Rate"
     VALUE = "Value"
     COMMENTS = "Comments"
+
+
+REQUIRED_TRADE_COLUMNS: Final[tuple[TradeColumn, ...]] = tuple(
+    column for column in TradeColumn if column is not TradeColumn.BROKERAGE_CURRENCY
+)
+
+# Sharesight has changed the spreadsheet headings over time. Keep one internal
+# vocabulary so that both the legacy report and the newer Combined sheet are
+# interpreted identically.
+TRADE_COLUMN_ALIASES: Final[dict[str, TradeColumn]] = {
+    "Market": TradeColumn.MARKET,
+    "Market Code": TradeColumn.MARKET,
+    "Code": TradeColumn.CODE,
+    "Name": TradeColumn.NAME,
+    "Type": TradeColumn.TYPE,
+    "Date": TradeColumn.DATE,
+    "Quantity": TradeColumn.QUANTITY,
+    "Qty": TradeColumn.QUANTITY,
+    "Price *": TradeColumn.PRICE,
+    "Price": TradeColumn.PRICE,
+    "Brokerage *": TradeColumn.BROKERAGE,
+    "Brokerage": TradeColumn.BROKERAGE,
+    "Currency": TradeColumn.CURRENCY,
+    "Instrument Currency": TradeColumn.CURRENCY,
+    "Brokerage Currency": TradeColumn.BROKERAGE_CURRENCY,
+    "Exchange Rate": TradeColumn.EXCHANGE_RATE,
+    "Exch. Rate": TradeColumn.EXCHANGE_RATE,
+    "Value": TradeColumn.VALUE,
+    "Comments": TradeColumn.COMMENTS,
+}
 
 
 class SharesightTransaction(BrokerTransaction):
@@ -221,6 +252,23 @@ class SharesightParser(BaseDirParser):
                 f"Missing expected columns in {section}: {', '.join(sorted(missing))}",
             )
 
+    @staticmethod
+    def _trade_header_columns(header: list[str]) -> list[TradeColumn | None]:
+        """Map the known All Trades headings to their internal columns."""
+        columns = [TRADE_COLUMN_ALIASES.get(column) for column in header]
+
+        # One export generation replaced `Currency` with `Brokerage Currency`.
+        # Treat it as the transaction currency only when the report does not
+        # provide the newer, unambiguous `Instrument Currency` column as well.
+        if (
+            TradeColumn.CURRENCY not in columns
+            and TradeColumn.BROKERAGE_CURRENCY in columns
+        ):
+            columns[columns.index(TradeColumn.BROKERAGE_CURRENCY)] = (
+                TradeColumn.CURRENCY
+            )
+        return columns
+
     @classmethod
     def _parse_dividend_payments(
         cls,
@@ -248,11 +296,17 @@ class SharesightParser(BaseDirParser):
             if len(row) != len(header):
                 raise UnexpectedColumnCountError(row, len(header), file)
 
-            row_dict = {
-                DividendColumn(column): value
-                for column, value in zip(header, row, strict=True)
-                if column
-            }
+            row_dict: dict[DividendColumn, str] = {}
+            for column, value in zip(header, row, strict=True):
+                try:
+                    dividend_column = DividendColumn(column)
+                except ValueError:
+                    # Sharesight may append informational columns such as the
+                    # income country or type. Required calculation fields were
+                    # already checked above, so unrelated additions are safe to
+                    # ignore.
+                    continue
+                row_dict[dividend_column] = value
 
             dividend_date = cls._parse_date(row_dict[DividendColumn.DATE_PAID])
             symbol = row_dict[DividendColumn.CODE]
@@ -354,9 +408,10 @@ class SharesightParser(BaseDirParser):
         cls, header: list[str], rows: Iterator[list[str]], file: Path
     ) -> Iterable[SharesightTransaction]:
         """Parse content in All Trades Report from Sharesight."""
+        header_columns = cls._trade_header_columns(header)
         cls._validate_header(
-            header,
-            TradeColumn,
+            [column.value if column is not None else "" for column in header_columns],
+            REQUIRED_TRADE_COLUMNS,
             file=file,
             section="Sharesight trades header",
         )
@@ -370,9 +425,9 @@ class SharesightParser(BaseDirParser):
                 raise UnexpectedColumnCountError(row, len(header), file)
 
             row_dict = {
-                TradeColumn(column): value
-                for column, value in zip(header, row, strict=True)
-                if column
+                column: value
+                for column, value in zip(header_columns, row, strict=True)
+                if column is not None
             }
 
             trade_type = row_dict[TradeColumn.TYPE]
@@ -390,6 +445,15 @@ class SharesightParser(BaseDirParser):
             price = cls._parse_decimal(row_dict, TradeColumn.PRICE)
             fees = cls._maybe_decimal(row_dict, TradeColumn.BROKERAGE) or Decimal(0)
             currency = CurrencyCode(row_dict[TradeColumn.CURRENCY])
+            brokerage_currency = row_dict.get(
+                TradeColumn.BROKERAGE_CURRENCY, currency
+            ).strip()
+            if fees and brokerage_currency and brokerage_currency != currency:
+                raise ValueError(
+                    "Brokerage Currency "
+                    f"{brokerage_currency!r} differs from transaction currency "
+                    f"{currency!r}; fees in another currency are not supported"
+                )
             description = row_dict[TradeColumn.COMMENTS]
             broker = "Sharesight"
             gbp_value = cls._maybe_decimal(row_dict, TradeColumn.VALUE)
@@ -455,7 +519,11 @@ class SharesightParser(BaseDirParser):
         rows_iter = RowIterator(rows)
         for row in rows_iter:
             # Skip everything until we find the header
-            if row[0] == "Market":
+            if (
+                "Code" in row
+                and "Type" in row
+                and ("Market" in row or "Market Code" in row)
+            ):
                 header = row
                 try:
                     yield from cls._parse_trades(header, rows_iter, file_path)
