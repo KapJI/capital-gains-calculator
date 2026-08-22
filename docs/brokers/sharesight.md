@@ -9,19 +9,17 @@ portfolio value of foreign-exchange trades as GBP.
 
 ## Export the reports
 
-Export enough history to cover the portfolio from its first transaction. Earlier acquisitions can
-still affect disposals in the tax year you are reporting; see
-[Before you start](../usage.md#before-you-start).
-
 ### All Trades
 
-1. Open the portfolio's **All Trades Report**.
-2. Set the date range to **Since Inception**.
+Export the portfolio from its first transaction. Earlier acquisitions can still affect disposals in
+the tax year you are reporting; see [Before you start](../usage.md#before-you-start).
+
+1. Open **Tax** and select **All Trades Report**.
+2. Set the date range to **Since inception**.
 3. Select **Do not group (Holdings)**.
 4. Export the report to a spreadsheet or Google Drive. Do not use the PDF export.
-5. Open the exported workbook and select the worksheet containing all trades without grouping (named
-   **Combined** in current exports).
-6. Save or download that worksheet as a CSV file.
+5. Open the exported spreadsheet and save or download the sheet containing the All Trades table as a
+   CSV file.
 
 See Sharesight's current
 [All Trades Report instructions](https://help.sharesight.com/uk/trades_report/) for the report
@@ -30,9 +28,9 @@ controls.
 ### Taxable Income
 
 1. Open the portfolio's **Taxable Income Report**.
-2. Set a date range that covers the complete history you are importing.
+2. Set the date range to the tax year you are calculating.
 3. Export the report to a spreadsheet or Google Drive. Do not use the PDF export.
-4. Save or download the report worksheet as a CSV file.
+4. Open the exported spreadsheet and save or download the report sheet as a CSV file.
 
 Sharesight recommends checking its income figures against your dividend statements because the
 report relies on third-party data. Its
@@ -49,10 +47,8 @@ sharesight/
 └── Taxable Income Report.csv
 ```
 
-The filenames must start with `All Trades Report` and `Taxable Income Report`, respectively. The
-matching is case-insensitive, including the `.csv` extension, so suffixes added by Sharesight and
-uppercase `.CSV` extensions are accepted. cgt-calc does not read the original `.xlsx` files or
-search subdirectories.
+Use the filenames shown above when saving the CSV files. cgt-calc does not read the original `.xlsx`
+files or search subdirectories.
 
 Do not rename or delete columns when converting the worksheets. In addition to the legacy headings,
 cgt-calc accepts aliases including `Market Code`, `Qty`, `Instrument Currency` and `Exch. Rate`. You
@@ -113,13 +109,14 @@ these markers.
 
 Check that you converted the spreadsheet worksheet to CSV: `.xlsx` files are not read. Confirm that
 both files are directly inside the directory passed to `--sharesight-dir`, and that their filenames
-start with `All Trades Report` and `Taxable Income Report`.
+start with `All Trades Report` and `Taxable Income Report`. Filenames are matched
+case-insensitively; additional text after `Report` and uppercase `.CSV` extensions are accepted.
 
 ### `Missing expected columns`
 
-For All Trades, make sure you exported **Do not group (Holdings)** and converted the worksheet
-containing the combined trades without editing its headings. For Taxable Income, convert the report
-worksheet rather than a summary or chart.
+For All Trades, make sure you exported **Do not group (Holdings)** and converted the sheet
+containing the All Trades table without editing its headings. For Taxable Income, convert the report
+sheet rather than a summary or chart.
 
 First upgrade cgt-calc using the same method you used to install it and try again. If the error
 remains, open a [GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with:
@@ -138,6 +135,7 @@ you replace it with an equivalent supported transaction whose UK tax treatment y
 
 ### The portfolio or dividend totals look wrong
 
-Check that both exports cover the full intended period and came from the same GBP portfolio. Compare
+Check that the All Trades export starts at the portfolio's first transaction, the Taxable Income
+export covers the tax year being calculated, and both came from the same GBP portfolio. Compare
 dividends and deducted tax with your broker statements, and review the terminal's final portfolio
 for missing or excessive holdings before relying on the tax report.
