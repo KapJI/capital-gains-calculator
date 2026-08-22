@@ -275,3 +275,47 @@ def test_selling_the_new_holding_just_before_the_spin_off_is_refused() -> None:
                 SPIN_OFF_DAY: {"GBP": FLAT},
             },
         )
+
+
+def test_a_spin_off_before_the_period_is_applied_but_not_reported() -> None:
+    """Like a purchase before the period: it shapes the pool, not the report.
+
+    It used to appear in the report under its own, earlier date whenever a
+    disposal inside the period happened to be the one that triggered it.
+    """
+    earlier_buy = datetime.date(2023, 6, 1)
+    earlier_spin_off = datetime.date(2023, 7, 5)
+    converter = CurrencyConverter(None, {})
+    handler = SpinOffHandler()
+    handler.cache = {"BAR": "FOO"}
+    calculator = CapitalGainsCalculator(
+        2024,
+        converter,
+        IsinConverter(),
+        CurrentPriceFetcher(
+            converter,
+            {},
+            {
+                "FOO": {earlier_spin_off: Decimal(90)},
+                "BAR": {earlier_spin_off: Decimal(10)},
+            },
+        ),
+        handler,
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    report = get_report(
+        calculator,
+        [
+            transaction(earlier_buy, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(
+                earlier_spin_off, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency="GBP"
+            ),
+            transaction(LATER, ActionType.SELL, "FOO", 10, 20, 0, 200, "GBP"),
+        ],
+    )
+
+    # The 2024/25 sale gets the apportioned £90, and nothing from 2023 is listed.
+    assert report.allowable_costs == Decimal(90)
+    assert earlier_spin_off not in report.calculation_log
