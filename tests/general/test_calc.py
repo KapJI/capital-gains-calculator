@@ -1751,6 +1751,40 @@ def test_transfer_fee_does_not_move_the_cash_balance() -> None:
     assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(45)
 
 
+def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
+    """A settled bed and breakfast match leaves nothing to argue over.
+
+    The 5 June sale takes the whole 15 June purchase, so neither the sale nor
+    the transfer on 10 June can reach it and both fall to the pool.
+    """
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 20, 10, 0, -200, "GBP"
+            ),
+            transaction(
+                datetime.date(2024, 6, 5), ActionType.SELL, "FOO", 4, 15, 0, 60, "GBP"
+            ),
+            transaction(
+                datetime.date(2024, 6, 10), ActionType.SELL, "FOO", 3, 20, 0, 60, "GBP"
+            ),
+            transfer_to_spouse_transaction(datetime.date(2024, 6, 10), "FOO", 2),
+            transaction(
+                datetime.date(2024, 6, 15), ActionType.BUY, "FOO", 4, 30, 0, -120, "GBP"
+            ),
+        ],
+    )
+
+    # £60 loss bed-and-breakfasted on 5 June, £30 gain from the pool on the 10th.
+    assert report.total_gain() == Decimal(-30)
+    entries = report.calculation_log[datetime.date(2024, 6, 10)][
+        "transfer-to-spouse$FOO"
+    ]
+    assert all(e.rule_type is RuleType.TRANSFER_TO_SPOUSE for e in entries)
+
+
 def test_run_with_example_files() -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(

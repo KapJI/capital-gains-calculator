@@ -1388,6 +1388,7 @@ class CapitalGainsCalculator:
         self,
         symbol: str,
         date_index: datetime.date,
+        bnb_claimed_before_today: dict[tuple[datetime.date, str], Decimal],
     ) -> list[datetime.date]:
         """Dates a same-day sale and transfer of ``symbol`` would both claim.
 
@@ -1404,17 +1405,17 @@ class CapitalGainsCalculator:
         def has_shares_going_spare(
             day: datetime.date, ticker: str, *, is_disposal_day: bool
         ) -> bool:
-            # Only what is left over is worth arguing about. Shares from a split
-            # are already excluded, a management fee is recorded as cost with no
-            # shares, and an earlier disposal's bed and breakfast match has
-            # taken what it took.
+            # Only what is left over is worth arguing about. Shares from a
+            # split are already excluded, and a management fee is recorded as
+            # cost with no shares at all.
             acquisition = self._matchable_acquisition(day, ticker)
             if acquisition.quantity <= 0 or acquisition.amount == 0:
                 return False
-            # What the same-day sale has already bed-and-breakfasted is
-            # deliberately not deducted. Those are the very shares in dispute,
-            # and it only got them because it happens to be processed first.
-            taken = Decimal(0)
+            # Claims an earlier disposal already made are settled and leave
+            # that much less to argue over. What the sale we are contending
+            # with took today is deliberately not deducted: those are the very
+            # shares in dispute, and it only got them by going first.
+            taken = bnb_claimed_before_today.get((day, ticker), Decimal(0))
             if not is_disposal_day:
                 # Whatever that later day disposes of under the same-day rule
                 # is spoken for before either of ours can reach it. On the
@@ -1475,6 +1476,7 @@ class CapitalGainsCalculator:
         date_index: datetime.date,
         tax_year_start_index: datetime.date,
         calculation_log: CalculationLog,
+        bnb_claimed_before_today: dict[tuple[datetime.date, str], Decimal],
     ) -> None:
         """Process and log no gain/no loss transfers to spouse for a single day.
 
@@ -1489,7 +1491,9 @@ class CapitalGainsCalculator:
             # loss transfer of the same shares on the same day, so refuse the
             # cases where that identification actually changes the answer.
             if has_key(self.disposal_list, date_index, symbol) and (
-                contended := self._contending_acquisitions(symbol, date_index)
+                contended := self._contending_acquisitions(
+                    symbol, date_index, bnb_claimed_before_today
+                )
             ):
                 raise CalculationError(
                     self._same_day_sale_and_transfer_message(
@@ -1774,6 +1778,18 @@ class CapitalGainsCalculator:
             begin_index + datetime.timedelta(days=x)
             for x in range((end_index - begin_index).days + 1)
         ):
+            # What earlier disposals have already bed-and-breakfasted, captured
+            # before today's own disposals add to it. Only those earlier claims
+            # settle whether a later acquisition is still up for grabs.
+            bnb_claimed_before_today = (
+                {
+                    (day, ticker): data.quantity
+                    for day, tickers in self.bnb_list.items()
+                    for ticker, data in tickers.items()
+                }
+                if date_index in self.transfer_to_spouse_list
+                else {}
+            )
             if date_index in self.acquisition_list:
                 for symbol in self.acquisition_list[date_index]:
                     calculation_entries = self.process_acquisition(
@@ -1854,7 +1870,10 @@ class CapitalGainsCalculator:
                         calculation_log[date_index][f"rename${old}"] = [entry]
 
             self._record_transfers_to_spouse(
-                date_index, tax_year_start_index, calculation_log
+                date_index,
+                tax_year_start_index,
+                calculation_log,
+                bnb_claimed_before_today,
             )
 
             # Excess Reported incomes should be reported at the end of the day
