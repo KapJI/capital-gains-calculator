@@ -41,7 +41,7 @@ generate a report for a tax year:
 
 ```shell
 uv tool install cgt-calc
-cgt-calc --year 2024 --schwab-file schwab_transactions.csv
+cgt-calc --year 2025 --schwab-file schwab_transactions.csv
 ```
 
 `pdflatex` must be on your `PATH` to generate the PDF report. See
