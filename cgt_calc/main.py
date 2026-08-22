@@ -434,8 +434,13 @@ class CapitalGainsCalculator:
             SpinOff(
                 dest=symbol,
                 source=ticker,
+                # For this row alone. The second pass works the split out over
+                # every row of the event together and replaces it.
                 cost_proportion=share_of_original_cost,
                 date=transaction.date,
+                quantity=quantity,
+                source_price=src_price,
+                dest_price=dst_price,
             )
         )
 
@@ -1001,11 +1006,28 @@ class CapitalGainsCalculator:
             # side at the same moment so that what one gives up is what the
             # other receives.
             carried = Decimal(0)
+            # Several rows for one spin-off, as when the holding is split
+            # across brokers, are one reorganisation: the split of value is by
+            # the whole of what was received, and the source gives up its
+            # share once. Rows from different sources stay separate events,
+            # taken in the order they happened.
+            events: dict[str, list[SpinOff]] = {}
             for spin_off in spin_offs_here:
-                source = self.portfolio[spin_off.source]
-                share = round_decimal((1 - spin_off.cost_proportion) * source.amount, 2)
+                events.setdefault(spin_off.source, []).append(spin_off)
+            for source_symbol, rows in events.items():
+                source = self.portfolio[source_symbol]
+                first = rows[0]
+                assert first.source_price is not None
+                assert first.dest_price is not None
+                received = sum((row.quantity for row in rows), Decimal(0))
+                source_value = source.quantity * first.source_price
+                total_value = source_value + received * first.dest_price
+                proportion = source_value / total_value if total_value else Decimal(1)
+                for row in rows:
+                    row.cost_proportion = proportion
+                share = round_decimal((1 - proportion) * source.amount, 2)
                 carried += share
-                self.spin_off_entries[date_index][spin_off.source].append(
+                self.spin_off_entries[date_index][source_symbol].append(
                     CalculationEntry(
                         RuleType.SPIN_OFF,
                         quantity=source.quantity,
@@ -1017,7 +1039,7 @@ class CapitalGainsCalculator:
                         fees=Decimal(0),
                         new_pool_cost=source.amount - share,
                         allowable_cost=source.amount - share,
-                        spin_off=spin_off,
+                        spin_off=first,
                     )
                 )
                 source.amount -= share

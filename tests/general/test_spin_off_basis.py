@@ -506,3 +506,28 @@ def test_sibling_spin_offs_are_applied_in_event_order() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(81)
     assert calculator.portfolio["BAR"].amount == Decimal(10)
     assert calculator.portfolio["BAZ"].amount == Decimal(59)
+
+
+def test_rows_for_one_spin_off_from_two_brokers_are_one_event() -> None:
+    """A holding split across brokers reports one spin-off as one row each.
+
+    Worked out row by row, each row set the whole FOO holding against only
+    its own five BAR, so each took a smaller share and the second took it
+    from what the first had left: £10.25 to BAR instead of £10.
+    """
+    calculator, report = spin_off(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, "GBP"),
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 5, 10, 0, currency="GBP"
+            ),
+        ],
+        5,
+        {BUY_DAY: {"GBP": FLAT}, SPIN_OFF_DAY: {"GBP": FLAT}},
+    )
+
+    assert calculator.portfolio["FOO"].amount == Decimal(90)
+    assert calculator.portfolio["BAR"].amount == Decimal(10)
+    assert calculator.portfolio["BAR"].quantity == Decimal(10)
+    # One reorganisation, one entry.
+    assert len(report.calculation_log[SPIN_OFF_DAY]["spin-off$FOO"]) == 1

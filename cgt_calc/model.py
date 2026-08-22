@@ -99,6 +99,12 @@ class SpinOff:
     dest: str
     # When the spin-off happened
     date: datetime.date
+    # Shares received under this row, and the closing prices on the day. A
+    # holding split across brokers arrives as one row per broker; the split
+    # of value is worked out across all of them together.
+    quantity: Decimal = Decimal(0)
+    source_price: Decimal | None = None
+    dest_price: Decimal | None = None
 
 
 @dataclass
