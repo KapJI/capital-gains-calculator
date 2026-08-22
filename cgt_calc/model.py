@@ -273,6 +273,10 @@ class BrokerTransaction:
             self.currency = CurrencyCode(self.currency)  # type: ignore[unreachable]
         if self.isin is not None and not isinstance(self.isin, Isin):
             self.isin = Isin(self.isin)  # type: ignore[unreachable]
+        if any(not isinstance(key, CurrencyCode) for key in self.foreign_fees):
+            self.foreign_fees = {
+                CurrencyCode(key): fee for key, fee in self.foreign_fees.items()
+            }
 
 
 class RuleType(Enum):

@@ -106,6 +106,18 @@ def test_read_exchange_rates_raises_on_malformed_currency(tmp_path: Path) -> Non
         CurrencyConverter(exchange_rates_file=rates_file)
 
 
+def test_read_exchange_rates_reports_physical_line_numbers(tmp_path: Path) -> None:
+    """Comment lines count towards the reported line number."""
+    rates_file = tmp_path / "rates.csv"
+    rates_file.write_text(
+        "# generated\n# do not edit\nmonth,currency,rate\n2024-01-01,usd,1.25\n",
+        encoding="utf8",
+    )
+
+    with pytest.raises(ParsingError, match="at line 4"):
+        CurrencyConverter(exchange_rates_file=rates_file)
+
+
 def test_read_exchange_rates_raises_on_duplicate_currency(tmp_path: Path) -> None:
     """Duplicate currency entries for the same month raise a parsing error."""
     rates_file = tmp_path / "duplicate.csv"

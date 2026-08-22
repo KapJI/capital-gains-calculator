@@ -83,12 +83,20 @@ class CurrencyConverter:
         cache: defaultdict[datetime.date, dict[CurrencyCode, Decimal]] = defaultdict(
             dict
         )
-        lines = [line for line in fin if not line.lstrip().startswith("#")]
-        csv_reader = csv.DictReader(lines)
+        # Keep physical line numbers so errors point at the right line even
+        # when comment lines precede the data.
+        kept = [
+            (number, line)
+            for number, line in enumerate(fin, start=1)
+            if not line.lstrip().startswith("#")
+        ]
+        line_numbers = [number for number, _ in kept]
+        csv_reader = csv.DictReader(line for _, line in kept)
         if csv_reader.fieldnames is None:
             # File is empty.
             return cache
-        for row_number, line in enumerate(csv_reader, start=2):
+        for line in csv_reader:
+            row_number = line_numbers[csv_reader.line_num - 1]
             # Guard against schema drift before touching row contents.
             if sorted(EXCHANGE_RATES_HEADER) != sorted(line.keys()):
                 raise ParsingError(

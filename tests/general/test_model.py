@@ -188,3 +188,31 @@ def test_broker_transaction_keeps_a_currency_code_instance_as_is() -> None:
     """An already-validated code passes through untouched."""
     currency = CurrencyCode("USD")
     assert _transaction(None, currency=currency).currency is currency
+
+
+def _transaction_with_fees(
+    foreign_fees: dict[CurrencyCode, Decimal],
+) -> BrokerTransaction:
+    transaction = _transaction(None)
+    return BrokerTransaction(
+        **{**vars(transaction), "foreign_fees": foreign_fees},
+    )
+
+
+def test_broker_transaction_rejects_a_bare_invalid_foreign_fee_currency() -> None:
+    """Foreign fee keys are held to the same rule as the transaction currency."""
+    with pytest.raises(ValueError, match="Invalid currency code"):
+        _transaction_with_fees({"GBp": Decimal(1)})  # type: ignore[dict-item]
+
+
+def test_broker_transaction_coerces_bare_valid_foreign_fee_currencies() -> None:
+    """Valid bare keys are normalised into the value type."""
+    transaction = _transaction_with_fees({" USD ": Decimal(1)})  # type: ignore[dict-item]
+    assert list(transaction.foreign_fees) == [CurrencyCode("USD")]
+    assert all(isinstance(key, CurrencyCode) for key in transaction.foreign_fees)
+
+
+def test_broker_transaction_keeps_typed_foreign_fees_as_is() -> None:
+    """An already-typed fee table passes through untouched."""
+    fees = {CurrencyCode("USD"): Decimal(1)}
+    assert _transaction_with_fees(fees).foreign_fees is fees
