@@ -31,6 +31,9 @@ Keep the downloaded CSV unchanged. The filename does not matter.
 Do not substitute an Activity Statement or a Flex Query CSV: their sections and headings are
 different even though they are also available from **Performance & Reports**.
 
+You can compare the file's structure with the
+[synthetic example CSV](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/interactive_brokers/data/test_basic.csv).
+
 ## Generate the report
 
 For the 2025/26 tax year, run:
@@ -50,15 +53,15 @@ check the date range and filters as described in [Troubleshooting](#troubleshoot
 
 The importer recognises these literal values from the CSV's `Transaction Type` column:
 
-| Transaction type                     | How cgt-calc handles it                                    |
-| ------------------------------------ | ---------------------------------------------------------- |
-| `Buy`, `Sell`                        | Share or fund acquisitions and disposals, with commission  |
-| `Dividend`, `Payment in Lieu`        | Dividend income                                            |
-| `Foreign Tax Withholding`            | Tax deducted at source; treated as dividend tax            |
-| `Credit Interest`                    | Interest income                                            |
-| `Deposit`, `Withdrawal`              | Cash movements used by the balance check                   |
-| `Other Fee`, `Forex Trade Component` | Fees and cash effects; they do not create a security trade |
-| `Adjustment`                         | Cash-balance adjustments such as `FX Translations P&L`     |
+| Transaction type                     | How cgt-calc handles it                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `Buy`, `Sell`                        | Share or fund acquisitions and disposals, with commission               |
+| `Dividend`, `Payment in Lieu`        | Dividend income                                                         |
+| `Foreign Tax Withholding`            | Tax deducted at source; treated as dividend tax                         |
+| `Credit Interest`                    | Interest income                                                         |
+| `Deposit`, `Withdrawal`              | Cash movements used by the balance check                                |
+| `Other Fee`, `Forex Trade Component` | Charged against the cash balance as fees; no security is bought or sold |
+| `Adjustment`                         | Cash-balance adjustments such as `FX Translations P&L`                  |
 
 For a GBP-base account, IBKR reports gross amounts, commissions and net amounts in GBP. When the CSV
 also supplies `Price Currency` and `Exchange Rate`, cgt-calc converts a foreign-currency unit price
@@ -79,8 +82,8 @@ treaty applies.
   trades; do not rely on it to calculate options, futures, bonds, contracts for difference or crypto
   assets.
 - Every `Foreign Tax Withholding` row is treated as dividend tax. If IBKR withholds tax from credit
-  interest and does not reverse it, cgt-calc does not currently classify that amount as interest
-  tax.
+  interest and does not reverse it, cgt-calc records that amount against a placeholder symbol. It
+  reduces the cash balance but is not reported as interest tax in the summary.
 - The `Account` column is not used to keep separate ledgers. Rows for multiple taxable IBKR accounts
   in one CSV are combined under one broker balance and portfolio.
 
