@@ -89,7 +89,8 @@ Sharesight has no native equity-grant transaction for this importer. To identify
 3. Include `Stock Activity` anywhere in the trade comment.
 
 cgt-calc then treats the row as stock activity rather than a cash purchase. A `Sell` row carrying
-that marker is rejected.
+that marker is rejected. If the CSV has no `Comments` column, cgt-calc warns that it cannot detect
+these markers.
 
 ## Known limitations
 

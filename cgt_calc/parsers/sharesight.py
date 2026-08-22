@@ -115,8 +115,14 @@ class TradeColumn(StrEnum):
     COMMENTS = "Comments"
 
 
-REQUIRED_TRADE_COLUMNS: Final[tuple[TradeColumn, ...]] = tuple(
-    column for column in TradeColumn if column is not TradeColumn.BROKERAGE_CURRENCY
+REQUIRED_TRADE_COLUMNS: Final[tuple[TradeColumn, ...]] = (
+    TradeColumn.MARKET,
+    TradeColumn.CODE,
+    TradeColumn.TYPE,
+    TradeColumn.DATE,
+    TradeColumn.QUANTITY,
+    TradeColumn.PRICE,
+    TradeColumn.CURRENCY,
 )
 
 # Sharesight has changed the spreadsheet headings over time. Keep one internal
@@ -415,6 +421,11 @@ class SharesightParser(BaseDirParser):
             file=file,
             section="Sharesight trades header",
         )
+        if TradeColumn.COMMENTS not in header_columns:
+            LOGGER.warning(
+                "Sharesight trades report has no Comments column; "
+                "Stock Activity markers cannot be detected"
+            )
 
         for row in rows:
             if not any(row):
@@ -445,7 +456,7 @@ class SharesightParser(BaseDirParser):
             price = cls._parse_decimal(row_dict, TradeColumn.PRICE)
             fees = cls._maybe_decimal(row_dict, TradeColumn.BROKERAGE) or Decimal(0)
             currency = CurrencyCode(row_dict[TradeColumn.CURRENCY])
-            description = row_dict[TradeColumn.COMMENTS]
+            description = row_dict.get(TradeColumn.COMMENTS, "")
             broker = "Sharesight"
             gbp_value = cls._maybe_decimal(row_dict, TradeColumn.VALUE)
 

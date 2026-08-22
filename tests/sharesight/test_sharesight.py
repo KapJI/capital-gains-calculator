@@ -142,10 +142,10 @@ def test_parse_trade_report_missing_column(tmp_path: Path) -> None:
                 "Type",
                 "Date",
                 "Quantity",
-                "Price *",
                 "Brokerage *",
                 "Currency",
                 "Exchange Rate",
+                "Value",
                 "Comments",
             ],
             [
@@ -155,10 +155,10 @@ def test_parse_trade_report_missing_column(tmp_path: Path) -> None:
                 "Buy",
                 "01/01/2020",
                 "1",
-                "100",
                 "0",
                 "USD",
                 "1.2",
+                "100",
                 "Note",
             ],
         ],
@@ -166,7 +166,7 @@ def test_parse_trade_report_missing_column(tmp_path: Path) -> None:
 
     with pytest.raises(
         ParsingError,
-        match="Missing expected columns in Sharesight trades header: Value",
+        match=r"Missing expected columns in Sharesight trades header: Price \*",
     ) as excinfo:
         list(SharesightParser().load_from_dir(tmp_path))
 
@@ -481,6 +481,27 @@ def test_parse_trade_report(tmp_path: Path) -> None:
     assert grant.amount is None
 
 
+def test_parse_trade_report_with_minimal_header(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Parse a trade without unused or conditionally required columns."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            ["Market", "Code", "Type", "Date", "Quantity", "Price *", "Currency"],
+            ["LSE", "ABC", "Buy", "01/02/2023", "2", "10", "GBP"],
+        ],
+    )
+
+    [transaction] = SharesightParser().load_from_dir(tmp_path)
+
+    assert transaction.symbol == "LSE:ABC"
+    assert transaction.description == ""
+    assert transaction.fees == Decimal(0)
+    assert transaction.amount == Decimal(-20)
+    assert "Stock Activity markers cannot be detected" in caplog.text
+
+
 def test_parse_trade_report_with_renamed_columns(tmp_path: Path) -> None:
     """Parse the report generation that renamed three legacy headings."""
     renamed_header = [
@@ -670,6 +691,20 @@ def test_parse_trade_report_fx_without_value(tmp_path: Path) -> None:
                 "",
                 "fx",
             ],
+        ],
+    )
+
+    with pytest.raises(ParsingError, match="Missing Value in FX transaction"):
+        SharesightParser().load_from_dir(tmp_path)
+
+
+def test_parse_trade_report_fx_without_value_column(tmp_path: Path) -> None:
+    """Require the conditionally used Value column for an FX trade."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            ["Market", "Code", "Type", "Date", "Quantity", "Price *", "Currency"],
+            ["FX", "USDGBP", "Sell", "03/02/2023", "-100", "1.25", "USD"],
         ],
     )
 
