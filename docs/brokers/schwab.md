@@ -60,3 +60,17 @@ export becomes a mix of units and has to be downloaded again in full.
 Covered by
 [`tests/schwab/test_schwab_equity_award_nvda.py`](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/schwab/test_schwab_equity_award_nvda.py),
 against a synthetic portfolio with real dates and prices and invented share counts.
+
+## Gifted shares
+
+An Equity Awards export can contain a `Gift` action: shares that left the account with no money
+attached. Who received them decides the tax, and the export does not say, so cgt-calc stops and
+asks:
+
+- **A spouse or civil partner.** Usually no gain / no loss — see
+  [transfers to a spouse](raw.md#transfers-to-a-spouse-or-civil-partner) for who qualifies. Add a
+  `TRANSFER_TO_SPOUSE` row with the same date, symbol and quantity to a small RAW file and pass it
+  alongside your Schwab file; the error prints the exact line to copy. The shares then leave your
+  pool once, not twice.
+- **Anyone else.** A disposal at market value, which is usually chargeable. cgt-calc cannot work
+  that out yet, so it has to be done by hand.

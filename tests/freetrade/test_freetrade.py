@@ -19,7 +19,7 @@ from cgt_calc.parsers.freetrade import (
     FreetradeParser,
     FreetradeTransaction,
 )
-from tests.utils import build_cmd, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts
 
 # Header of a Freetrade export downloaded after the format change reported in
 # issue #800: two columns were renamed and the "Stock Split" ones are new.
@@ -142,7 +142,7 @@ def _write_csv(
     return target
 
 
-def test_run_with_freetrade_file() -> None:
+def test_run_with_freetrade_file(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -150,7 +150,7 @@ def test_run_with_freetrade_file() -> None:
         "--freetrade-file",
         "tests/freetrade/data/transactions.csv",
         "--output",
-        "out/test-freetrade/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

@@ -34,6 +34,19 @@ def strip_zeros(value: Decimal) -> str:
     return f"{value:.10f}".rstrip("0").rstrip(".")
 
 
+def exact_str(value: Decimal) -> str:
+    """Format a Decimal in full, for output that is meant to be read back.
+
+    `strip_zeros` is for display and stops at ten decimal places, which
+    turns a small enough value into "0". A value that will be parsed again
+    has to keep every digit it has, in plain notation so the reader does
+    not need to cope with exponents. Formatting never rounds, unlike
+    `normalize()`, which applies the context precision.
+    """
+    text = format(value, "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
 def luhn_check_digit(payload: str) -> int:
     """Return the check digit for a string of digits using the Luhn algorithm.
 

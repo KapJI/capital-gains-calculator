@@ -134,6 +134,9 @@ ERI_RESOURCE_FOLDER: Final = "eri"
 # Most recent transactions shown when the balance check fails
 BALANCE_CHECK_CONTEXT_ROWS: Final = 10
 
+# Acquisition dates listed when a same-day sale and transfer to spouse clash
+MAX_CONTENDED_DATES_SHOWN: Final = 3
+
 
 # =============================================================================
 # Default output paths

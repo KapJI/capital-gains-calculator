@@ -37,19 +37,38 @@ LOGGER = logging.getLogger(__name__)
 def _transaction_sort_key(
     transaction: BrokerTransaction,
 ) -> tuple[datetime.date, int]:
-    """Sort transactions by date, ordering share vests before same-day sales.
+    """Sort by date, with share vests first and transfers to a spouse last.
 
     A broker export can list the sale of vested shares before the vest itself
     (e.g. Schwab or Morgan Stanley equity awards). A disposal is validated
     against the current holding as soon as it is read, so the unsorted order
     fails with "Tried to sell not owned symbol". Vesting (``STOCK_ACTIVITY``)
     does not move the cash balance, so ordering it first cannot introduce a
-    negative balance. All other transactions keep their relative order, so the
-    "buys last" ordering that some parsers rely on to avoid negative balances is
-    preserved.
+    negative balance.
+
+    Shares received from a spouse are written by hand too, and like a vest
+    they cost nothing in cash, so they go first as well.
+
+    Transfers to a spouse go last for the same reason from the other end. They
+    are recorded by hand in a RAW file while the shares they move were acquired
+    through a broker export, and parsers are merged in registry order, so a
+    transfer would otherwise be validated before the same-day acquisition that
+    makes it possible. No consideration changes hands, so ordering them last
+    cannot introduce a negative balance either.
+
+    Everything else keeps its relative order, so the "buys last" ordering that
+    some parsers rely on to avoid negative balances is preserved.
     """
-    vest_first = 0 if transaction.action is ActionType.STOCK_ACTIVITY else 1
-    return (transaction.date, vest_first)
+    if transaction.action in (
+        ActionType.STOCK_ACTIVITY,
+        ActionType.TRANSFER_FROM_SPOUSE,
+    ):
+        order = 0
+    elif transaction.action is ActionType.TRANSFER_TO_SPOUSE:
+        order = 2
+    else:
+        order = 1
+    return (transaction.date, order)
 
 
 class BrokerRegistry:
