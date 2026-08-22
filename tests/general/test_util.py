@@ -48,6 +48,10 @@ def test_approx_equal_default_tolerance() -> None:
         (Decimal("0.01") / Decimal(1_000_000_000), "0.00000000001"),
         (Decimal("0.00000000001"), "0.00000000001"),
         (Decimal(100) / Decimal(3), "33.33333333333333333333333333"),
+        # More digits than the context holds: kept, not rounded to 28.
+        (Decimal("1.23456789012345678901234567891"), "1.23456789012345678901234567891"),
+        (Decimal("1E+2"), "100"),
+        (Decimal("0E-10"), "0"),
     ],
 )
 def test_exact_str_keeps_every_digit(value: Decimal, expected: str) -> None:
