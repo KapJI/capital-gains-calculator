@@ -5,7 +5,7 @@ build-backend = "uv_build"
 [project]
 name = "cgt-calc"
 version = "0.0.0"
-description = "Calculate UK capital gains tax from broker exports — supports Charles Schwab, Trading 212, Morgan Stanley, Sharesight, Hargreaves Lansdown and Vanguard."
+description = "Calculate UK capital gains from broker exports — supports Charles Schwab, Freetrade, Hargreaves Lansdown, Interactive Brokers, Morgan Stanley, Sharesight, Trading 212, Vanguard and a custom RAW format."
 authors = [{ name = "Ruslan Sayfutdinov", email = "ruslan@sayfutdinov.com" }]
 readme = "README.md"
 license = { text = "MIT" }

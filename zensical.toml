@@ -1,7 +1,7 @@
 [project]
 site_name = "UK Capital Gains Calculator"
 site_url = "https://cgt-calc.uk/"
-site_description = "Calculate UK Capital Gains Tax from your investment transaction history and generate a detailed PDF report."
+site_description = "Calculate UK capital gains from your investment transaction history and generate a detailed PDF report."
 site_author = "Ruslan Sayfutdinov"
 repo_url = "https://github.com/KapJI/capital-gains-calculator"
 repo_name = "KapJI/capital-gains-calculator"

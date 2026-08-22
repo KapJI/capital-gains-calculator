@@ -4,16 +4,26 @@
 
 # <img src="docs/assets/logo.svg" alt="" width="34" valign="middle"> UK Capital Gains Calculator
 
-Easily calculate **UK Capital Gains Tax** from your investment transaction history.
+Calculate your **UK capital gains** from your investment transaction history and generate a detailed
+calculation report. cgt-calc is intended for UK individual investors working from supported broker
+exports.
 
 Supported sources include **Charles Schwab**, **Freetrade**, **Hargreaves Lansdown**, **Interactive
 Brokers**, **Morgan Stanley**, **Sharesight**, **Trading 212**, **Vanguard**, or a custom **RAW**
 format.
 
-The tool generates a detailed **PDF report** with all calculations.
+For supported transactions, the tool converts prices to **GBP** and applies the UK **same-day**,
+**30-day ("bed and breakfast")**, and **Section 104 holding** rules. It prints a summary of disposal
+proceeds, allowable costs, gains, losses, dividends, and interest to the terminal and writes the
+full calculations to a **PDF report**.
 
-All prices are automatically converted to **GBP**, and all **HMRC rules** are applied — including
-the **same-day**, **bed and breakfast**, and **Section 104 holding** rules.
+cgt-calc reports the net gain from the transactions you supply and, for supported tax years,
+estimates the amount remaining after the annual exempt amount. It does **not** account for gains or
+losses outside those inputs, apply tax rates, work out your final tax bill, or submit a tax return.
+Some investment scenarios are not supported; check the relevant
+[broker guide](https://cgt-calc.uk/brokers/) and the
+[offshore funds limitations](https://cgt-calc.uk/offshore-funds/#unsupported-functionality) before
+relying on the result.
 
 ## 📊 Example Report
 
