@@ -212,6 +212,14 @@ def test_broker_transaction_coerces_bare_valid_foreign_fee_currencies() -> None:
     assert all(isinstance(key, CurrencyCode) for key in transaction.foreign_fees)
 
 
+def test_broker_transaction_sums_foreign_fees_that_coerce_to_one_currency() -> None:
+    """Keys that normalise to the same code add up rather than overwrite."""
+    transaction = _transaction_with_fees(
+        {" USD ": Decimal(1), "USD": Decimal(2)}  # type: ignore[dict-item]
+    )
+    assert transaction.foreign_fees == {CurrencyCode("USD"): Decimal(3)}
+
+
 def test_broker_transaction_keeps_typed_foreign_fees_as_is() -> None:
     """An already-typed fee table passes through untouched."""
     fees = {CurrencyCode("USD"): Decimal(1)}

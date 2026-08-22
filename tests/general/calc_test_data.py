@@ -18,6 +18,7 @@ from cgt_calc.model import (
 from cgt_calc.util import round_decimal
 
 USD = CurrencyCode("USD")
+GBP = CurrencyCode("GBP")
 
 
 def interest_transaction(
@@ -134,7 +135,7 @@ def transfer_to_spouse_transaction(
     date: datetime.date,
     symbol: str,
     quantity: float,
-    currency: str = "GBP",
+    currency: CurrencyCode = GBP,
 ) -> BrokerTransaction:
     """Create a no gain/no loss transfer to spouse transaction."""
     return transaction(

@@ -274,9 +274,13 @@ class BrokerTransaction:
         if self.isin is not None and not isinstance(self.isin, Isin):
             self.isin = Isin(self.isin)  # type: ignore[unreachable]
         if any(not isinstance(key, CurrencyCode) for key in self.foreign_fees):
-            self.foreign_fees = {
-                CurrencyCode(key): fee for key, fee in self.foreign_fees.items()
-            }
+            # Keys that normalise to the same code are fees in one currency,
+            # so they add up rather than overwrite each other.
+            coerced: dict[CurrencyCode, Decimal] = {}
+            for key, fee in self.foreign_fees.items():
+                code = CurrencyCode(key)
+                coerced[code] = coerced.get(code, Decimal(0)) + fee
+            self.foreign_fees = coerced
 
 
 class RuleType(Enum):
