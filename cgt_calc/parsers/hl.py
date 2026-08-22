@@ -184,7 +184,12 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
 
         # Live PDF lookup only when needed for buy/sell actions
         if action_type in [ActionType.BUY, ActionType.SELL]:
-            matching_pdfs = list(file_path.parent.glob(f"{reference}_*.pdf"))
+            matching_pdfs = list(
+                file_path.parent.glob(
+                    f"{reference}_*.pdf",
+                    case_sensitive=False,
+                )
+            )
             if matching_pdfs:
                 pdf = cls._parse_pdf(matching_pdfs[0])
                 symbol = pdf.ticker

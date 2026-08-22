@@ -259,7 +259,7 @@ class BaseDirParser(BaseSingleFileParser):
     def load_from_dir(cls, dir_path: Path) -> list[BrokerTransaction]:
         """Load broker data from dir path."""
         transactions: list[BrokerTransaction] = []
-        for file_path in sorted(dir_path.glob(cls.glob_dir)):
+        for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False)):
             if cls.file_path_filter(file_path):
                 transactions += cls.load_from_file(file_path, warn_on_empty=False)
         if not transactions:
