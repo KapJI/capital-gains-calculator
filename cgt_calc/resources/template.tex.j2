@@ -35,6 +35,9 @@
 \BLOCK{ elif symbol.startswith("rename$") }
     \BLOCK{ set symbol = symbol[7:] }
     \BLOCK{ set is_rename = True }
+\BLOCK{ elif symbol.startswith("transfer-to-spouse$") }
+    \BLOCK{ set symbol = symbol[19:] }
+    \BLOCK{ set is_transfer_to_spouse = True }
 \BLOCK{ endif }
 \BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
 \BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
@@ -97,9 +100,21 @@
             : \VAR{ strip_zeros(entries[0].quantity) } units with pool cost £\VAR{ "{:,}".format(round_decimal(entries[0].allowable_cost, 2)) } transferred
         \BLOCK{ endif }
     }
+\BLOCK{ elif is_transfer_to_spouse } % if is_transfer_to_spouse
+    \subsubsection*{
+        Transferred to spouse: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } (no gain/no loss)
+    }
+    Base cost of £\VAR{ "{:,}".format(round_decimal(entries|sum(attribute="allowable_cost"), 2)) } passes to the recipient.
+
+    \BLOCK{ set pool = entries[-1] }
+    Number of units left in the pool: \VAR{ strip_zeros(pool.new_quantity) }%
+    \BLOCK{ if pool.new_quantity > 0 },
+        new pool cost: £\VAR{ "{:,}".format(round_decimal(pool.new_pool_cost, 2)) }
+        (£\VAR{ "{:,}".format(round_decimal(pool.new_pool_cost/pool.new_quantity, 2)) }/unit)%
+    \BLOCK{ endif }.
 \BLOCK{ endif }
 
-\BLOCK{ if not is_rename }
+\BLOCK{ if not is_rename and not is_transfer_to_spouse }
 \begin{enumerate}
 \BLOCK{ for entry in entries }
 \item \textbf{\VAR{ entry.rule_type.name.replace("_", " ") }}. Quantity: \VAR{ strip_zeros(entry.quantity) },

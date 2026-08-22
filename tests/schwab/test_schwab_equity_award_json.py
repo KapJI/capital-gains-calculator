@@ -288,6 +288,7 @@ def test_split_history_demands_a_price_floor_it_can_use() -> None:
         ("Reinvest Shares", ActionType.REINVEST_SHARES),
         ("Reinvest Dividend", ActionType.REINVEST_DIVIDENDS),
         ("Wire Funds Received", ActionType.WIRE_FUNDS_RECEIVED),
+        ("Gift", ActionType.GIFT),
     ],
 )
 def test_action_from_str(label: str, action: ActionType) -> None:
@@ -361,6 +362,94 @@ def test_forced_disbursement_parses_as_transfer() -> None:
     assert transaction.amount == Decimal("-2490.13")
     assert transaction.date == datetime.date(2015, 3, 31)
     assert transaction.quantity is None or transaction.quantity == 0
+
+
+def test_gift_parses_as_gift() -> None:
+    """Parse a gift of shares: quantity moves, no money does."""
+    content = (
+        '{"Transactions": [{"Date": "11/20/2022", "Action": "Gift",'
+        ' "Symbol": "GOOG", "Quantity": "2", "Description": "Share Transfer",'
+        ' "FeesAndCommissions": null, "Amount": null,'
+        ' "TransactionDetails": []}]}'
+    )
+
+    transactions = _read_json(content)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action == ActionType.GIFT
+    assert transaction.symbol == "GOOG"
+    assert transaction.quantity == Decimal(2)
+    assert transaction.date == datetime.date(2022, 11, 20)
+    assert transaction.price is None
+
+
+def test_gift_before_a_split_is_restated_like_a_sale() -> None:
+    """Shares leave in the units of their own day, gift or sale alike.
+
+    NVDA exports restate acquisitions and nothing else, so a 2022 gift is
+    printed in pre-split units and has to be converted like a disposal.
+    """
+    content = (
+        '{"Transactions": [{"Date": "11/20/2022", "Action": "Gift",'
+        ' "Symbol": "NVDA", "Quantity": "2", "Description": "Share Transfer",'
+        ' "FeesAndCommissions": null, "Amount": null,'
+        ' "TransactionDetails": []}]}'
+    )
+
+    transactions = _read_json(content)
+
+    # 4:1 in 2021 is already reflected; the 10:1 of June 2024 is not.
+    assert transactions[0].quantity == Decimal(20)
+
+
+def test_ambiguous_gift_before_a_split_records_both_readings() -> None:
+    """Where only the price can date the units, a gift has nothing to go on.
+
+    GOOG exports restate some records and not others, and a gift carries no
+    price, so the count could be either and guessing is wrong by the whole
+    multiplier. Both readings are kept for the calculator to put to the user.
+    """
+    content = (
+        '{"Transactions": [{"Date": "05/02/2022", "Action": "Gift",'
+        ' "Symbol": "GOOG", "Quantity": "2", "Description": "Share Transfer",'
+        ' "FeesAndCommissions": null, "Amount": null,'
+        ' "TransactionDetails": []}]}'
+    )
+
+    transaction = _read_json(content)[0]
+
+    assert transaction.quantity == Decimal(2)
+    assert transaction.ambiguous_quantity == Decimal(40)
+
+
+def test_gift_after_every_split_is_left_alone() -> None:
+    """Nothing to convert once the counts are already current."""
+    content = (
+        '{"Transactions": [{"Date": "11/20/2024", "Action": "Gift",'
+        ' "Symbol": "GOOG", "Quantity": "2", "Description": "Share Transfer",'
+        ' "FeesAndCommissions": null, "Amount": null,'
+        ' "TransactionDetails": []}]}'
+    )
+
+    transaction = _read_json(content)[0]
+
+    assert transaction.quantity == Decimal(2)
+    # Nothing to be unsure about once the counts are current.
+    assert transaction.ambiguous_quantity is None
+
+
+def test_gift_with_money_raises() -> None:
+    """A gift row carrying money is not the row this parser assumes."""
+    content = (
+        '{"Transactions": [{"Date": "11/20/2022", "Action": "Gift",'
+        ' "Symbol": "GOOG", "Quantity": "2", "Description": "Share Transfer",'
+        ' "FeesAndCommissions": null, "Amount": "$100.00",'
+        ' "TransactionDetails": []}]}'
+    )
+
+    with pytest.raises(ParsingError, match="Unexpected amount or fees"):
+        _read_json(content)
 
 
 def test_v2_sale_quantity_from_lot_shares() -> None:

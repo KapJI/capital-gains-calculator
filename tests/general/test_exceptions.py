@@ -28,6 +28,7 @@ from cgt_calc.exceptions import (
     QuantityMissingError,
     QuantityNotPositiveError,
     SymbolMissingError,
+    UnclassifiedGiftError,
     UnexpectedColumnCountError,
     UnexpectedRowCountError,
     UnsupportedBrokerActionError,
@@ -134,6 +135,25 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
         ["FOO", "2023-01-01", "spin_offs.csv"],
     ),
     (MarketDataMissingError("FOO", DATE), ["FOO", "2023-01-01"]),
+    (
+        UnclassifiedGiftError(TRANSACTION, [Decimal(1)]),
+        # The row to paste, the shares it covers, and the other outcome.
+        [
+            "2023-01-01,TRANSFER_TO_SPOUSE,FOO,1,0.00,0.00,USD",
+            "1 units of FOO",
+            "Test",
+            "disposal at market value",
+        ],
+    ),
+    (
+        # Both readings of a count printed before a split, and why.
+        UnclassifiedGiftError(TRANSACTION, [Decimal(1), Decimal(20)]),
+        [
+            "2023-01-01,TRANSFER_TO_SPOUSE,FOO,1,0.00,0.00,USD",
+            "2023-01-01,TRANSFER_TO_SPOUSE,FOO,20,0.00,0.00,USD",
+            "either 1 or 20 shares",
+        ],
+    ),
 ]
 
 

@@ -15,10 +15,12 @@ from colorama import Style
 from .logging import bullet, style_text
 from .util import (
     approx_equal,
+    exact_str,
     is_currency,
     luhn_check_digit,
     normalize_amount,
     round_decimal,
+    strip_zeros,
 )
 
 if TYPE_CHECKING:
@@ -200,6 +202,9 @@ class ActionType(Enum):
     FULL_REDEMPTION = 18
     RENAME = 19
     INTEREST_TAX = 20
+    TRANSFER_TO_SPOUSE = 21
+    GIFT = 22
+    TRANSFER_FROM_SPOUSE = 23
 
 
 class CalculationType(Enum):
@@ -227,6 +232,11 @@ class BrokerTransaction:
     # Fees paid in currencies other than `currency`, keyed by their own
     # currency. Converted and folded into `fees` by the calculation engine.
     foreign_fees: dict[str, Decimal] = field(default_factory=dict)
+    # The other count this row could be stating, where an export does not say
+    # whether a share count predating a split was restated for it. Set only
+    # when the two cannot be told apart, so that whichever the user confirms
+    # can settle it.
+    ambiguous_quantity: Decimal | None = None
 
     def __post_init__(self) -> None:
         """Validate BrokerTransaction data."""
@@ -252,6 +262,7 @@ class RuleType(Enum):
     EXCESS_REPORTED_INCOME_DISTRIBUTION = 8
     RENAME = 9
     INTEREST_TAX = 10
+    TRANSFER_TO_SPOUSE = 11
 
 
 @dataclass
@@ -665,5 +676,38 @@ class CapitalGainsReport:
                     f"{bul}{item.eris[0].symbol}: £{round_decimal(item.amount, 2):,} "
                 )
                 out += f"(included as {dist_type})\n"
+
+        transfer_prefix = "transfer-to-spouse$"
+        transfers = sorted(
+            (
+                (date_index, key, entry_list)
+                for date_index, symbol_dict in self.calculation_log.items()
+                for key, entry_list in symbol_dict.items()
+                if key.startswith(transfer_prefix)
+            ),
+            key=lambda transfer: (transfer[0], transfer[1]),
+        )
+        if transfers:
+            out += (
+                "\n" + style_text("Transferred to spouse", colour=Style.BRIGHT) + "\n"
+            )
+            out += (
+                "  No gain/no loss; the base cost below passes to the recipient"
+                " (TCGA 1992 s58).\n"
+                "  Give them the RAW row shown under each transfer: it records the"
+                " shares arriving at that cost in their own report.\n"
+            )
+            for date_index, key, entry_list in transfers:
+                symbol = key[len(transfer_prefix) :]
+                quantity = sum((e.quantity for e in entry_list), Decimal(0))
+                base_cost = sum((e.allowable_cost for e in entry_list), Decimal(0))
+                out += (
+                    f"{bul}{date_index}: {symbol} "
+                    f"{strip_zeros(quantity)} units, base cost "
+                    f"£{round_decimal(base_cost, 2):,}\n"
+                    f"    {date_index},TRANSFER_FROM_SPOUSE,{symbol},"
+                    f"{exact_str(quantity)},{exact_str(base_cost / quantity)},"
+                    "0.00,GBP\n"
+                )
 
         return out

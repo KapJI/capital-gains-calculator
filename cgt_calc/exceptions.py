@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING
+
+from .util import strip_zeros
 
 if TYPE_CHECKING:
     import datetime
@@ -72,6 +75,73 @@ class InvalidTransactionError(CgtError):
         """Initialise."""
         self.transaction = transaction
         self.message = f"{message} for the following transaction:\n{transaction}"
+        super().__init__(self.message)
+
+
+class UnclassifiedGiftError(CgtError):
+    """Raised when a broker reports a gift of shares without saying who got them.
+
+    Deliberately not an InvalidTransactionError: the transaction is perfectly
+    valid and the message already names it, so dumping the row on the end only
+    buries the instructions.
+    """
+
+    def __init__(self, transaction: BrokerTransaction, readings: list[Decimal]):
+        """Initialise.
+
+        `readings` holds every share count the row could be stating. There is
+        normally one; a count printed before a stock split can be two, where
+        the export does not say whether it was restated.
+        """
+        self.transaction = transaction
+        rows = "\n".join(
+            f"  {transaction.date},TRANSFER_TO_SPOUSE,{transaction.symbol},"
+            f"{strip_zeros(reading)},0.00,0.00,{transaction.currency}"
+            for reading in readings
+        )
+        gift = (
+            f"{strip_zeros(readings[0])} units of {transaction.symbol}"
+            if len(readings) == 1
+            else f"{transaction.symbol} shares"
+        )
+        spouse = (
+            "If you gave them to a spouse or civil partner and the transfer "
+            "qualifies under TCGA 1992 s58 (normally living together in that "
+            "tax year, or within the window after separating), it is a no "
+            "gain/no loss transfer."
+        )
+        if len(readings) == 1:
+            how = (
+                f"{spouse} Put this line in a CSV and pass it with --raw-file "
+                "alongside the file you already use, and the gift is then taken "
+                f"as accounted for:\n{rows}"
+            )
+        else:
+            options = " or ".join(strip_zeros(reading) for reading in readings)
+            how = (
+                f"{spouse} You record that by putting a line in a CSV and "
+                "passing it with --raw-file alongside the file you already "
+                "use.\n"
+                "\n"
+                f"{transaction.symbol} split after this date and the export does "
+                "not say whether it restated the count, so the gift was either "
+                f"{options} shares. Check a statement to see which, and add that "
+                f"line:\n{rows}"
+            )
+        self.message = (
+            f"{transaction.broker} reported a gift of {gift} on "
+            f"{transaction.date}, but not who received them, and that decides "
+            "the tax.\n"
+            "\n"
+            f"{how}\n"
+            "\n"
+            "If they went to anyone else, it is a disposal at market value and "
+            "may be chargeable. cgt-calc cannot work that out yet, so you have "
+            "to do it by hand (consider professional advice).\n"
+            "\n"
+            "See https://cgt-calc.uk/brokers/raw/"
+            "#transfers-to-a-spouse-or-civil-partner"
+        )
         super().__init__(self.message)
 
 

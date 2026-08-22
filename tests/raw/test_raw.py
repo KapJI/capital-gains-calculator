@@ -13,7 +13,7 @@ import pytest
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.raw import COLUMNS, RawColumn, RawParser, _parse_decimal
-from tests.utils import build_cmd, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts
 
 
 def _write_csv(path: Path, rows: list[list[str]]) -> None:
@@ -24,7 +24,7 @@ def _write_csv(path: Path, rows: list[list[str]]) -> None:
         writer.writerows(rows)
 
 
-def test_run_with_raw_files_no_balance_check() -> None:
+def test_run_with_raw_files_no_balance_check(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -33,7 +33,7 @@ def test_run_with_raw_files_no_balance_check() -> None:
         "tests/raw/data/test_data.csv",
         "--no-balance-check",
         "--output",
-        "out/test-raw/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -53,7 +53,7 @@ def test_run_with_raw_files_no_balance_check() -> None:
     )
 
 
-def test_run_with_raw_files() -> None:
+def test_run_with_raw_files(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -61,7 +61,7 @@ def test_run_with_raw_files() -> None:
         "--raw-file",
         "tests/raw/data/test_data_2.csv",
         "--output",
-        "out/test-raw-2/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -81,7 +81,7 @@ def test_run_with_raw_files() -> None:
     )
 
 
-def test_run_with_raw_files_stdin() -> None:
+def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
     """Runs the script with stdin and verifies it works identically."""
     csv_file = Path("tests") / "raw" / "data" / "test_data.csv"
     csv_content = csv_file.read_text(encoding="utf-8")
@@ -93,7 +93,7 @@ def test_run_with_raw_files_stdin() -> None:
         "-",
         "--no-balance-check",
         "--output",
-        "out/test-raw-stdin/",
+        report_path(request),
     )
     result = subprocess.run(
         cmd, input=csv_content, capture_output=True, text=True, check=False
@@ -159,6 +159,33 @@ def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
     assert transaction.price == Decimal("2.50")
     assert transaction.amount == Decimal("-25.10")
     assert transaction.fees == Decimal("0.10")
+
+
+def test_read_raw_transactions_transfer_to_spouse(tmp_path: Path) -> None:
+    """Parse a RAW TRANSFER_TO_SPOUSE row (no gain/no loss share transfer)."""
+
+    raw_file = tmp_path / "raw_transfer_to_spouse.csv"
+    rows = [
+        COLUMNS,
+        [
+            "2024-03-16",
+            "TRANSFER_TO_SPOUSE",
+            "XYZ",
+            "21.5",
+            "0.00",
+            "0.00",
+            "USD",
+        ],
+    ]
+    _write_csv(raw_file, rows)
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action == ActionType.TRANSFER_TO_SPOUSE
+    assert transaction.symbol == "XYZ"
+    assert transaction.quantity == Decimal("21.5")
 
 
 def test_read_raw_transactions_without_header(
@@ -273,3 +300,22 @@ def test_parse_decimal_missing_value_raises() -> None:
 
     with pytest.raises(ValueError, match="Missing value in column 'quantity'"):
         _parse_decimal(row, RawColumn.QUANTITY, allow_empty=False)
+
+
+def test_read_raw_transactions_transfer_from_spouse(tmp_path: Path) -> None:
+    """Parse a RAW TRANSFER_FROM_SPOUSE row: shares arriving at a stated cost."""
+
+    raw_file = tmp_path / "raw_transfer_from_spouse.csv"
+    rows = [
+        COLUMNS,
+        ["2024-03-16", "TRANSFER_FROM_SPOUSE", "XYZ", "21.5", "95.60", "0.00", "GBP"],
+    ]
+    _write_csv(raw_file, rows)
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action == ActionType.TRANSFER_FROM_SPOUSE
+    assert transaction.quantity == Decimal("21.5")
+    assert transaction.price == Decimal("95.60")

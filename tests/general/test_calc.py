@@ -30,7 +30,7 @@ from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
-from tests.utils import build_cmd
+from tests.utils import build_cmd, report_path
 
 from .calc_test_data import (
     buy_transaction,
@@ -939,7 +939,7 @@ def test_disposal_debug_log_keeps_fractional_quantity(
     assert all("quantity 2.5" in message for message in disposal_logs)
 
 
-def test_run_with_example_files() -> None:
+def test_run_with_example_files(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -951,7 +951,7 @@ def test_run_with_example_files() -> None:
         "--mssb-dir",
         "tests/morgan_stanley/data/",
         "--output",
-        "out/test-general/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

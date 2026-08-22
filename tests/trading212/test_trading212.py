@@ -17,7 +17,7 @@ from cgt_calc.parsers.trading212 import (
     Trading212Parser,
     Trading212Transaction,
 )
-from tests.utils import build_cmd, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -975,7 +975,7 @@ def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
     assert "Invalid decimal in Total" in message
 
 
-def test_run_with_trading212_2026_files() -> None:
+def test_run_with_trading212_2026_files(request: pytest.FixtureRequest) -> None:
     """Run the script on a 2026-format export with foreign fees.
 
     Covers a US sell with a USD Finra fee and a French buy with an EUR
@@ -988,7 +988,7 @@ def test_run_with_trading212_2026_files() -> None:
         "--trading212-dir",
         "tests/trading212/data/2026/inputs/",
         "--output",
-        "out/test-trading212-2026/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -1010,7 +1010,7 @@ def test_run_with_trading212_2026_files() -> None:
     )
 
 
-def test_run_with_trading212_2024_files() -> None:
+def test_run_with_trading212_2024_files(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -1018,7 +1018,7 @@ def test_run_with_trading212_2024_files() -> None:
         "--trading212-dir",
         "tests/trading212/data/2024/inputs/",
         "--output",
-        "out/test-trading212/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

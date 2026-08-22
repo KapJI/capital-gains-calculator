@@ -11,7 +11,7 @@ import pytest
 from cgt_calc.exceptions import ParsingError, SymbolMissingError
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers.schwab import AwardPrices, SchwabParser, action_from_str
-from tests.utils import build_cmd, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts
 
 
 @pytest.fixture(autouse=True)
@@ -59,7 +59,7 @@ def test_award_file_without_the_award_says_so() -> None:
     assert "has no award price for it" in str(exc_info.value)
 
 
-def test_run_with_schwab_example_2023_files() -> None:
+def test_run_with_schwab_example_2023_files(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -67,7 +67,7 @@ def test_run_with_schwab_example_2023_files() -> None:
         "--schwab-file",
         "tests/schwab/data/2023/transactions.csv",
         "--output",
-        "out/test-schwab-2023/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -87,7 +87,7 @@ def test_run_with_schwab_example_2023_files() -> None:
     )
 
 
-def test_run_with_schwab_cash_merger_files() -> None:
+def test_run_with_schwab_cash_merger_files(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -95,7 +95,7 @@ def test_run_with_schwab_cash_merger_files() -> None:
         "--schwab-file",
         "tests/schwab/data/cash_merger/transactions.csv",
         "--output",
-        "out/test-schwab-cash-merger/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -120,7 +120,7 @@ def test_run_with_schwab_cash_merger_files() -> None:
     )
 
 
-def test_run_with_schwab_rsu_settlement_files() -> None:
+def test_run_with_schwab_rsu_settlement_files(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -130,7 +130,7 @@ def test_run_with_schwab_rsu_settlement_files() -> None:
         "--schwab-award-file",
         "tests/schwab/data/rsu_settlement/awards.csv",
         "--output",
-        "out/test-schwab-rsu_settlement/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -152,7 +152,7 @@ def test_run_with_schwab_rsu_settlement_files() -> None:
     )
 
 
-def test_run_with_schwab_bond_interest_files() -> None:
+def test_run_with_schwab_bond_interest_files(request: pytest.FixtureRequest) -> None:
     """Test that Bond Interest and Credit Interest are classified as INTEREST."""
     cmd = build_cmd(
         "--year",
@@ -160,7 +160,7 @@ def test_run_with_schwab_bond_interest_files() -> None:
         "--schwab-file",
         "tests/schwab/data/bond_interest/transactions.csv",
         "--output",
-        "out/test-schwab-bond_interest/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
@@ -182,7 +182,7 @@ def test_run_with_schwab_bond_interest_files() -> None:
     )
 
 
-def test_run_with_schwab_interest_tax_files() -> None:
+def test_run_with_schwab_interest_tax_files(request: pytest.FixtureRequest) -> None:
     """Runs the script on interest withholding data and checks the output."""
     cmd = build_cmd(
         "--year",
@@ -190,7 +190,7 @@ def test_run_with_schwab_interest_tax_files() -> None:
         "--schwab-file",
         "tests/schwab/data/interest_tax/transactions.csv",
         "--output",
-        "out/test-schwab-interest-tax/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:

@@ -12,14 +12,14 @@ from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.vanguard import COLUMNS, VanguardParser
-from tests.utils import build_cmd, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts
 
 
 def _write_csv(path: Path, rows: list[list[str]]) -> None:
     path.write_text("\n".join(",".join(row) for row in rows) + "\n", encoding="utf-8")
 
 
-def test_run_with_vanguard_files() -> None:
+def test_run_with_vanguard_files(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
         "--year",
@@ -29,7 +29,7 @@ def test_run_with_vanguard_files() -> None:
         "--interest-fund-tickers",
         "FOO",
         "--output",
-        "out/test-vanguard/",
+        report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode:
