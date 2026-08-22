@@ -290,7 +290,7 @@ def test_transfer_to_spouse_warns_about_the_ignored_price(
                 transaction(
                     transfer_day,
                     ActionType.TRANSFER_TO_SPOUSE,
-                    CurrencyCode("FOO"),
+                    "FOO",
                     4,
                     25,
                     0,
@@ -325,7 +325,7 @@ def test_transfer_to_spouse_fee_is_added_to_the_base_cost() -> None:
             transaction(
                 transfer_day,
                 ActionType.TRANSFER_TO_SPOUSE,
-                CurrencyCode("FOO"),
+                "FOO",
                 4,
                 None,
                 5,
@@ -465,7 +465,7 @@ def test_gift_without_quantity_is_rejected() -> None:
                 transaction(
                     datetime.date(2024, 6, 10),
                     ActionType.GIFT,
-                    CurrencyCode("FOO"),
+                    "FOO",
                     0,
                     currency=CurrencyCode("GBP"),
                 )
@@ -680,7 +680,7 @@ def test_either_reading_of_an_ambiguous_gift_settles_it(confirmed: Decimal) -> N
             transaction(
                 datetime.date(2024, 6, 1),
                 ActionType.BUY,
-                CurrencyCode("FOO"),
+                "FOO",
                 100,
                 10,
                 0,
@@ -752,7 +752,7 @@ def test_a_certain_gift_is_not_stranded_by_an_uncertain_one() -> None:
             transaction(
                 datetime.date(2024, 6, 1),
                 ActionType.BUY,
-                CurrencyCode("FOO"),
+                "FOO",
                 100,
                 10,
                 0,
@@ -803,7 +803,7 @@ def test_two_uncertain_gifts_are_read_the_way_that_fits_both() -> None:
             transaction(
                 datetime.date(2024, 6, 1),
                 ActionType.BUY,
-                CurrencyCode("FOO"),
+                "FOO",
                 1000,
                 10,
                 0,
@@ -831,7 +831,7 @@ def test_gifts_no_reading_can_satisfy_still_name_the_one_left_out() -> None:
                 transaction(
                     datetime.date(2024, 6, 1),
                     ActionType.BUY,
-                    CurrencyCode("FOO"),
+                    "FOO",
                     1000,
                     10,
                     0,
@@ -1186,7 +1186,7 @@ def test_same_day_sale_and_transfer_message_caps_the_dates_it_lists() -> None:
         transaction(
             event_day + datetime.timedelta(days=offset),
             ActionType.BUY,
-            CurrencyCode("FOO"),
+            "FOO",
             1,
             30,
             0,
@@ -1303,7 +1303,7 @@ def test_transfer_from_spouse_needs_the_cost() -> None:
                 transaction(
                     datetime.date(2024, 6, 15),
                     ActionType.TRANSFER_FROM_SPOUSE,
-                    CurrencyCode("FOO"),
+                    "FOO",
                     40,
                     None,
                     0,
