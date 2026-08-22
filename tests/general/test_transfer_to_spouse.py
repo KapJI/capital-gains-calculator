@@ -640,6 +640,56 @@ def test_ambiguous_gift_error_offers_both_readings() -> None:
     assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,40,0.00,0.00,GBP" in message
 
 
+def test_a_certain_gift_is_not_stranded_by_an_uncertain_one() -> None:
+    """A gift with one possible count must not lose its row to one with two.
+
+    Taking rows in input order let the ambiguous gift claim the 2 that the
+    unambiguous one had no alternative to, and the run failed with both rows
+    present and correct.
+    """
+    gift_day = datetime.date(2024, 6, 10)
+
+    def gift(quantity: int, ambiguous: Decimal | None = None) -> BrokerTransaction:
+        return BrokerTransaction(
+            date=gift_day,
+            action=ActionType.GIFT,
+            symbol="FOO",
+            description="",
+            quantity=Decimal(quantity),
+            price=None,
+            fees=Decimal(0),
+            amount=Decimal(0),
+            currency="GBP",
+            broker="Testing",
+            ambiguous_quantity=ambiguous,
+        )
+
+    calculator = create_calculator()
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                datetime.date(2024, 6, 1),
+                ActionType.BUY,
+                "FOO",
+                100,
+                10,
+                0,
+                -1000,
+                "GBP",
+            ),
+            gift(2, Decimal(40)),
+            gift(2),
+            transfer_to_spouse_transaction(gift_day, "FOO", 40),
+            transfer_to_spouse_transaction(gift_day, "FOO", 2),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(0)
+    # Both gifts accounted for: 40 and 2 left the pool of 100.
+    assert calculator.portfolio["FOO"].quantity == Decimal(58)
+
+
 def test_each_gift_needs_its_own_classification() -> None:
     """Two gifts of the same shares on one day are not settled by one row."""
     buy_day = datetime.date(2024, 6, 1)

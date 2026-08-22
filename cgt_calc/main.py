@@ -499,11 +499,18 @@ class CapitalGainsCalculator:
             for transaction in transactions
             if transaction.action is ActionType.TRANSFER_TO_SPOUSE
         )
-        remaining = []
-        for transaction in transactions:
-            if transaction.action is not ActionType.GIFT:
-                remaining.append(transaction)
-                continue
+        gifts = [
+            (index, transaction)
+            for index, transaction in enumerate(transactions)
+            if transaction.action is ActionType.GIFT
+        ]
+        settled = set()
+        # Gifts with only one possible count go first. They have no choice, so
+        # letting a gift that could go either way take their row would strand
+        # them for no reason.
+        for index, transaction in sorted(
+            gifts, key=lambda gift: gift[1].ambiguous_quantity is not None
+        ):
             get_symbol_or_fail(transaction)
             quantity = transaction.quantity
             if quantity is None or quantity <= 0:
@@ -524,16 +531,20 @@ class CapitalGainsCalculator:
                 ),
                 None,
             )
-            if key is not None:
-                classified[key] -= 1
-                LOGGER.debug(
-                    "Gift of %s on %s is accounted for by a transfer to spouse",
-                    transaction.symbol,
-                    transaction.date,
-                )
-                continue
-            raise UnclassifiedGiftError(transaction, readings)
-        return remaining
+            if key is None:
+                raise UnclassifiedGiftError(transaction, readings)
+            classified[key] -= 1
+            settled.add(index)
+            LOGGER.debug(
+                "Gift of %s on %s is accounted for by a transfer to spouse",
+                transaction.symbol,
+                transaction.date,
+            )
+        return [
+            transaction
+            for index, transaction in enumerate(transactions)
+            if index not in settled
+        ]
 
     def add_eri(
         self,
