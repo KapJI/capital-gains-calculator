@@ -1533,46 +1533,44 @@ class CapitalGainsCalculator:
         # twice in a morning being two hops from its pool. Only renames on
         # this chain matter; what happened to other symbols that day does not.
         names = [source]
-        while True:
-            previous = sorted(old for old, new in renames.items() if new == names[-1])
-            if not previous:
-                break
-            if len(previous) > 1:
-                raise CalculationError(
-                    f"Cannot compute the spin-off of {dest} from {source} on "
-                    f"{date_index}: {' and '.join(previous)} were both renamed to "
-                    f"{names[-1]} that day, so there is no single pool to "
-                    f"apportion. Work {source} and {dest} out by hand (consider "
-                    "professional advice)."
-                )
-            if previous[0] in names:
-                raise CalculationError(
-                    f"Cannot compute the spin-off of {dest} from {source} on "
-                    f"{date_index}: the day's renames go round in a circle "
-                    f"({' -> '.join([*names, previous[0]])}), so there is no "
-                    f"telling where the pool is. Work {source} and {dest} out "
-                    "by hand (consider professional advice)."
-                )
-            names.append(previous[0])
-        # The pool sits under whichever name on the chain still holds shares
-        # here, since the day's renames are applied after its acquisitions.
-        # Two of them means two holdings became one that day, and whether the
+        frontier = [source]
+        while frontier:
+            current = frontier.pop()
+            for old, new in renames.items():
+                if new != current:
+                    continue
+                if old in names:
+                    raise CalculationError(
+                        f"Cannot compute the spin-off of {dest} from {source} on "
+                        f"{date_index}: the day's renames go round in a circle "
+                        f"({' -> '.join([*names, old])}), so there is no telling "
+                        f"where the pool is. Work {source} and {dest} out by "
+                        "hand (consider professional advice)."
+                    )
+                names.append(old)
+                frontier.append(old)
+        # The pool sits under whichever of these names holds anything here,
+        # since the day's renames are applied after its acquisitions. Cost
+        # with no shares counts: a fee charged after a holding was sold out
+        # leaves exactly that, and the rename merges it in all the same. Two
+        # of them means two holdings became one that day, and whether the
         # spin-off applied to both or to one cannot be told from the input.
-        holding = [
+        holding = sorted(
             name
             for name in names
-            if name in self.portfolio and self.portfolio[name].quantity > 0
-        ]
+            if name in self.portfolio
+            and (self.portfolio[name].quantity > 0 or self.portfolio[name].amount != 0)
+        )
         if len(holding) > 1:
             raise CalculationError(
                 f"Cannot compute the spin-off of {dest} from {source} on "
-                f"{date_index}: {holding[0]} already held shares when "
-                f"{holding[1]} was renamed to it that day, so two holdings "
-                "became one, and whether the spin-off applied to both or just "
-                f"one cannot be told from the input. Work {source} and {dest} "
-                "out by hand (consider professional advice)."
+                f"{date_index}: {' and '.join(holding)} were separate holdings "
+                "until renamed into one that day, and whether the spin-off "
+                "applied to both or just one cannot be told from the input. "
+                f"Work {source} and {dest} out by hand (consider professional "
+                "advice)."
             )
-        pool = holding[0] if holding else names[-1]
+        pool = holding[0] if holding else source
         activity = []
         for name in names:
             spun_in = sum(

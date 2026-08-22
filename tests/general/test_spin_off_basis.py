@@ -723,7 +723,7 @@ def test_a_source_renamed_twice_on_the_day_is_still_apportioned() -> None:
     ("renames", "reason"),
     [
         pytest.param(
-            [("A", "NEW"), ("B", "NEW")], "were both renamed to NEW", id="two-into-one"
+            [("A", "NEW"), ("B", "NEW")], "separate holdings", id="two-into-one"
         ),
         pytest.param([("NEW", "B"), ("B", "NEW")], "round in a circle", id="circle"),
     ],
@@ -790,18 +790,50 @@ def _renaming_calculator(cache: dict[str, str]) -> CapitalGainsCalculator:
     )
 
 
-def test_a_rename_into_a_holding_already_held_is_refused() -> None:
-    """OLD renamed to a NEW that already has shares: two holdings became one.
+@pytest.mark.parametrize(
+    "old_holding",
+    [
+        pytest.param(
+            [transaction(BUY_DAY, ActionType.BUY, "OLD", 10, 10, 0, -100, GBP)],
+            id="shares",
+        ),
+        pytest.param(
+            # Sold out, then charged a fee: cost with no shares, which the
+            # rename merges into NEW all the same.
+            [
+                transaction(BUY_DAY, ActionType.BUY, "OLD", 1, 10, 0, -10, GBP),
+                transaction(BUY_DAY, ActionType.SELL, "OLD", 1, 10, 0, 10, GBP),
+                transaction(
+                    datetime.date(2024, 6, 2),
+                    ActionType.FEE,
+                    "OLD",
+                    None,
+                    None,
+                    0,
+                    -10,
+                    GBP,
+                ),
+            ],
+            id="cost-only-origin",
+        ),
+    ],
+)
+def test_a_rename_into_a_holding_already_held_is_refused(
+    old_holding: list[BrokerTransaction],
+) -> None:
+    """OLD renamed to a NEW that already has a pool: two holdings became one.
 
-    Apportioning OLD's pool alone gave NEW £181.82 and BAR £18.18 where the
-    combined pool would give £180 and £20, and which the spin-off applied to
-    depends on an order the input does not carry.
+    Apportioning NEW's pool alone assumes the spin-off came before the
+    rename, and the input carries no order. With shares in OLD that gave
+    NEW £181.82 and BAR £18.18 where the combined pool gives £180 and £20;
+    with only a fee's cost in OLD it gave £100 and £10 where the combined
+    pool gives £99 and £11.
     """
-    with pytest.raises(CalculationError, match="already held shares"):
+    with pytest.raises(CalculationError, match="separate holdings"):
         get_report(
             _renaming_calculator({"BAR": "NEW"}),
             [
-                transaction(BUY_DAY, ActionType.BUY, "OLD", 10, 10, 0, -100, GBP),
+                *old_holding,
                 transaction(BUY_DAY, ActionType.BUY, "NEW", 10, 10, 0, -100, GBP),
                 _rename("OLD", "NEW"),
                 transaction(
@@ -847,4 +879,27 @@ def test_renames_of_unrelated_symbols_into_one_name_do_not_block_a_spin_off() ->
     )
 
     assert calculator.portfolio["FOO"].amount == Decimal(90)
+    assert calculator.portfolio["BAR"].amount == Decimal(10)
+
+
+def test_a_rename_from_an_origin_never_held_is_no_merge() -> None:
+    """A and EMPTY both renamed to NEW, but only A ever held anything.
+
+    One real pool, so nothing is ambiguous; refusing it was safe but
+    needless.
+    """
+    calculator = _renaming_calculator({"BAR": "NEW"})
+    get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "A", 10, 10, 0, -100, GBP),
+            _rename("A", "NEW"),
+            _rename("EMPTY", "NEW"),
+            transaction(
+                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
+            ),
+        ],
+    )
+
+    assert calculator.portfolio["NEW"].amount == Decimal(90)
     assert calculator.portfolio["BAR"].amount == Decimal(10)
