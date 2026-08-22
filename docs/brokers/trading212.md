@@ -71,11 +71,10 @@ The Trading 212 parser currently handles:
 
 - Dividends are recorded at the CSV `Total`; the `Withholding tax` column is not used and does not
   appear separately in the report.
-- Share transfers labelled `Transfer in` or `Transfer out` are not supported.
+- Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
+  supported.
 - Split transactions labelled `Stock split open` or `Stock split close` are not supported. Only the
-  single-row `Stock Split` action is recognised. These transfer and split labels, and why they are
-  not mapped, are documented in
-  [PR #907](https://github.com/KapJI/capital-gains-calculator/pull/907).
+  single-row `Stock Split` action is recognised.
 - The
   [export for a Trading 212 contract for difference account](https://helpcentre.trading212.com/hc/en-us/articles/36243765206301-How-to-export-the-trading-data-from-my-CFD-account)
   uses a different, record-based CSV format that this parser does not support.
