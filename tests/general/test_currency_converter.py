@@ -38,8 +38,8 @@ def test_read_exchange_rates_successfully(tmp_path: Path) -> None:
 
     january_rates = cache[datetime.date(2024, 1, 1)]
     february_rates = cache[datetime.date(2024, 2, 1)]
-    assert january_rates == {"USD": Decimal("1.25")}
-    assert february_rates == {"EUR": Decimal("1.10")}
+    assert january_rates == {CurrencyCode("USD"): Decimal("1.25")}
+    assert february_rates == {CurrencyCode("EUR"): Decimal("1.10")}
 
 
 def test_read_exchange_rates_handles_empty_file(tmp_path: Path) -> None:
@@ -66,8 +66,8 @@ def test_read_exchange_rates_skips_blank_rows(tmp_path: Path) -> None:
 
     january = datetime.date(2024, 1, 1)
     february = datetime.date(2024, 2, 1)
-    assert cache[january] == {"USD": Decimal("1.25")}
-    assert cache[february] == {"EUR": Decimal("1.10")}
+    assert cache[january] == {CurrencyCode("USD"): Decimal("1.25")}
+    assert cache[february] == {CurrencyCode("EUR"): Decimal("1.10")}
 
 
 def test_read_exchange_rates_raises_on_invalid_date(tmp_path: Path) -> None:
@@ -94,6 +94,15 @@ def test_read_exchange_rates_raises_on_invalid_rate(tmp_path: Path) -> None:
         ParsingError,
         match=re.escape("Invalid rate 'one.two'"),
     ):
+        CurrencyConverter(exchange_rates_file=rates_file)
+
+
+def test_read_exchange_rates_raises_on_malformed_currency(tmp_path: Path) -> None:
+    """A malformed code in the rate file is reported there, not as a missing rate."""
+    rates_file = tmp_path / "rates.csv"
+    rates_file.write_text("month,currency,rate\n2024-01-01,usd,1.25\n", encoding="utf8")
+
+    with pytest.raises(ParsingError, match="Invalid currency code 'usd' at line 2"):
         CurrencyConverter(exchange_rates_file=rates_file)
 
 
@@ -125,8 +134,8 @@ def test_read_exchange_rates_skips_comment_lines(tmp_path: Path) -> None:
 
     january = datetime.date(2024, 1, 1)
     february = datetime.date(2024, 2, 1)
-    assert cache[january] == {"USD": Decimal("1.25")}
-    assert cache[february] == {"EUR": Decimal("1.10")}
+    assert cache[january] == {CurrencyCode("USD"): Decimal("1.25")}
+    assert cache[february] == {CurrencyCode("EUR"): Decimal("1.10")}
 
 
 class OfflineSession:
@@ -207,6 +216,25 @@ def test_hmrc_response_invalid_rate_value_raises_api_error(
         converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
 
 
+def test_hmrc_response_malformed_currency_code_raises_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A currency code that is not three uppercase letters raises ExternalApiError."""
+    xml = (
+        "<exchangeRateMonthList>"
+        "<exchangeRate>"
+        "<currencyCode>usd</currencyCode>"
+        "<rateNew>1.25</rateNew>"
+        "</exchangeRate>"
+        "</exchangeRateMonthList>"
+    )
+    converter = CurrencyConverter()
+    monkeypatch.setattr(converter, "session", CannedSession(CannedResponse(xml)))
+
+    with pytest.raises(ExternalApiError, match="invalid currency code"):
+        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
+
+
 DATE = datetime.date(2024, 1, 1)
 
 
@@ -273,7 +301,13 @@ def test_write_exchange_rates_file(tmp_path: Path) -> None:
     rates_file = tmp_path / "rates.csv"
 
     CurrencyConverter._write_exchange_rates_file(  # noqa: SLF001
-        rates_file, {DATE: {"USD": Decimal("1.25"), "EUR": Decimal("1.10")}}
+        rates_file,
+        {
+            DATE: {
+                CurrencyCode("USD"): Decimal("1.25"),
+                CurrencyCode("EUR"): Decimal("1.10"),
+            }
+        },
     )
 
     assert rates_file.read_text() == (
@@ -319,14 +353,18 @@ def test_query_hmrc_api_http_error_includes_snippet() -> None:
 
 def test_cnh_is_treated_as_cny() -> None:
     """Convert offshore yuan using the CNY rate."""
-    converter = CurrencyConverter(initial_data={DATE: {"CNY": Decimal(9)}})
+    converter = CurrencyConverter(
+        initial_data={DATE: {CurrencyCode("CNY"): Decimal(9)}}
+    )
 
     assert converter.currency_to_gbp_rate(CurrencyCode("CNH"), DATE) == Decimal(9)
 
 
 def test_missing_currency_for_known_date() -> None:
     """Raise when the date is cached but the currency is missing."""
-    converter = CurrencyConverter(initial_data={DATE: {"USD": Decimal(1)}})
+    converter = CurrencyConverter(
+        initial_data={DATE: {CurrencyCode("USD"): Decimal(1)}}
+    )
 
     with pytest.raises(ExchangeRateMissingError):
         converter.currency_to_gbp_rate(CurrencyCode("EUR"), DATE)
@@ -339,7 +377,7 @@ def test_test_converter_records_new_rates(tmp_path: Path) -> None:
     converter = RecordingCurrencyConverter(exchange_rates_file=rates_file)
 
     def fake_query(date: datetime.date) -> None:
-        converter.cache[date] = {"USD": Decimal("1.25")}
+        converter.cache[date] = {CurrencyCode("USD"): Decimal("1.25")}
 
     converter._query_hmrc_api = fake_query  # type: ignore[method-assign]  # noqa: SLF001
 

@@ -11,7 +11,7 @@ from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
-from cgt_calc.model import ActionType
+from cgt_calc.model import ActionType, CurrencyCode
 from cgt_calc.parsers.schwab import SchwabParser
 from cgt_calc.spin_off_handler import SpinOffHandler
 
@@ -25,7 +25,9 @@ def test_schwab_interest_tax_without_symbol_is_account_level() -> None:
     assert any(t.action is ActionType.INTEREST_TAX for t in transactions)
 
     date = datetime.date(2024, 6, 27)
-    currency_converter = CurrencyConverter(None, {date: {"USD": Decimal(1)}})
+    currency_converter = CurrencyConverter(
+        None, {date: {CurrencyCode("USD"): Decimal(1)}}
+    )
     calculator = CapitalGainsCalculator(
         2024,
         currency_converter,

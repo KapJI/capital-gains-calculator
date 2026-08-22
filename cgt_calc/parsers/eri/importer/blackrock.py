@@ -119,7 +119,7 @@ class BlackrockImporter(ERIImporter):
             if not isinstance(currency_raw, str):
                 raise ParsingError(file, f"Not valid Currency {currency_raw}")
             # Bugs in the currency codes
-            currency = CurrencyCode.parse(currency_raw.replace("JPN", "JPY").upper())
+            currency = CurrencyCode.parse(currency_raw.replace("JPN", "JPY"))
             if currency is None:
                 raise ParsingError(file, f"Not valid Currency {currency_raw}")
 

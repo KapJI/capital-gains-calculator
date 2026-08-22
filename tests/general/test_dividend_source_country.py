@@ -58,9 +58,7 @@ def _dividend_pair(
 
 def _treaty_country(transactions: list[BrokerTransaction]) -> str | None:
     """Run the calculation and return the treaty applied to the dividend."""
-    gbp_prices: dict[datetime.date, dict[str, Decimal]] = {
-        DATE: {t.currency: Decimal(1) for t in transactions}
-    }
+    gbp_prices = {DATE: {t.currency: Decimal(1) for t in transactions}}
     currency_converter = CurrencyConverter(None, gbp_prices)
     calculator = CapitalGainsCalculator(
         TAX_YEAR,

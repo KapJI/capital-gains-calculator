@@ -14,6 +14,7 @@ from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
+from cgt_calc.model import CurrencyCode
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 from .calc_test_data import (
@@ -37,7 +38,7 @@ def _calculator(
     transactions: list[BrokerTransaction],
 ) -> CapitalGainsCalculator:
     """Create a calculator with a flat 1:1 USD rate for the dates in use."""
-    gbp_prices = {t.date: {"USD": Decimal(1)} for t in transactions}
+    gbp_prices = {t.date: {CurrencyCode("USD"): Decimal(1)} for t in transactions}
     currency_converter = CurrencyConverter(None, gbp_prices)
     return CapitalGainsCalculator(
         TAX_YEAR,

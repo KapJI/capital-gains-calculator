@@ -40,7 +40,7 @@ class CurrencyConverter:
     def __init__(
         self,
         exchange_rates_file: Path | None = None,
-        initial_data: dict[datetime.date, dict[str, Decimal]] | None = None,
+        initial_data: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
     ):
         """Load data from exchange_rates_file and optionally from initial_data."""
         self.exchange_rates_file = exchange_rates_file
@@ -62,7 +62,7 @@ class CurrencyConverter:
     @staticmethod
     def create(
         exchange_rates_file: Path | None = None,
-        initial_data: dict[datetime.date, dict[str, Decimal]] | None = None,
+        initial_data: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
     ) -> CurrencyConverter:
         """Create the appropriate CurrencyConverter for the current runtime mode."""
         match CGT_MODE:
@@ -79,8 +79,10 @@ class CurrencyConverter:
     @staticmethod
     def _read_exchange_rates_data(
         exchange_rates_file: Path, fin: TextIO
-    ) -> defaultdict[datetime.date, dict[str, Decimal]]:
-        cache: defaultdict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
+    ) -> defaultdict[datetime.date, dict[CurrencyCode, Decimal]]:
+        cache: defaultdict[datetime.date, dict[CurrencyCode, Decimal]] = defaultdict(
+            dict
+        )
         lines = [line for line in fin if not line.lstrip().startswith("#")]
         csv_reader = csv.DictReader(lines)
         if csv_reader.fieldnames is None:
@@ -117,7 +119,7 @@ class CurrencyConverter:
                 )
 
             month = normalized_values["month"]
-            currency = normalized_values["currency"]
+            currency_raw = normalized_values["currency"]
             rate_value = normalized_values["rate"]
 
             try:
@@ -127,6 +129,13 @@ class CurrencyConverter:
                     exchange_rates_file,
                     f"Invalid date '{month}' at line {row_number}",
                 ) from err
+
+            currency = CurrencyCode.parse(currency_raw)
+            if currency is None:
+                raise ParsingError(
+                    exchange_rates_file,
+                    f"Invalid currency code '{currency_raw}' at line {row_number}",
+                )
 
             try:
                 rate = Decimal(rate_value)
@@ -150,7 +159,7 @@ class CurrencyConverter:
     @staticmethod
     def _read_exchange_rates_file(
         exchange_rates_file: Path | None,
-    ) -> defaultdict[datetime.date, dict[str, Decimal]]:
+    ) -> defaultdict[datetime.date, dict[CurrencyCode, Decimal]]:
         if not exchange_rates_file or not exchange_rates_file.is_file():
             return defaultdict(dict)
         with exchange_rates_file.open(encoding="utf8") as fin:
@@ -158,7 +167,8 @@ class CurrencyConverter:
 
     @staticmethod
     def _write_exchange_rates_file(
-        exchange_rates_file: Path | None, data: dict[datetime.date, dict[str, Decimal]]
+        exchange_rates_file: Path | None,
+        data: dict[datetime.date, dict[CurrencyCode, Decimal]],
     ) -> None:
         if not exchange_rates_file:
             return
@@ -216,7 +226,7 @@ class CurrencyConverter:
             )
 
         tree = ET.fromstring(response.text)
-        rates = {}
+        rates: dict[CurrencyCode, Decimal] = {}
         for row in tree:
             currency_code_elem = row.find("currencyCode")
             rate_new_elem = row.find("rateNew")
@@ -230,8 +240,15 @@ class CurrencyConverter:
                     url,
                     f"HMRC API response for {month_str} is missing expected currency data",
                 )
+            currency = CurrencyCode.parse(currency_code_elem.text)
+            if currency is None:
+                raise ExternalApiError(
+                    url,
+                    f"HMRC API response for {month_str} contains invalid currency code: "
+                    f"{currency_code_elem.text!r}",
+                )
             try:
-                rates[currency_code_elem.text.upper()] = Decimal(rate_new_elem.text)
+                rates[currency] = Decimal(rate_new_elem.text)
             except (InvalidOperation, ValueError) as err:
                 raise ExternalApiError(
                     url,
@@ -278,7 +295,7 @@ class TestCurrencyConverter(CurrencyConverter):
     def __init__(
         self,
         exchange_rates_file: Path | None = None,
-        initial_data: dict[datetime.date, dict[str, Decimal]] | None = None,
+        initial_data: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
     ):
         """Load data from exchange_rates_file and optionally from initial_data.
 
@@ -331,7 +348,7 @@ class TestCurrencyConverter(CurrencyConverter):
     @staticmethod
     @override
     def _write_exchange_rates_file(
-        _: Path | None, __: dict[datetime.date, dict[str, Decimal]]
+        _: Path | None, __: dict[datetime.date, dict[CurrencyCode, Decimal]]
     ) -> None:
         return
 
@@ -349,6 +366,6 @@ class StrictTestCurrencyConverter(CurrencyConverter):
     @staticmethod
     @override
     def _write_exchange_rates_file(
-        _: Path | None, __: dict[datetime.date, dict[str, Decimal]]
+        _: Path | None, __: dict[datetime.date, dict[CurrencyCode, Decimal]]
     ) -> None:
         return

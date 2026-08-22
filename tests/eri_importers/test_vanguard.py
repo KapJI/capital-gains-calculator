@@ -162,6 +162,17 @@ def test_invalid_currency(tmp_path: Path) -> None:
         VanguardImporter().parse(file)
 
 
+def test_pence_currency_code_is_not_read_as_pounds(tmp_path: Path) -> None:
+    """A pence code such as GBp is refused, not upper-cased into pounds."""
+    file = write_xlsx(
+        tmp_path / "vanguard-eri-2024.xlsx",
+        [HEADER, ["IE00B3RBWM25", PERIOD, "GBp", "1.23456"]],
+    )
+
+    with pytest.raises(ParsingError, match="Not valid Currency"):
+        VanguardImporter().parse(file)
+
+
 def test_invalid_reporting_period(tmp_path: Path) -> None:
     """Raise on rows with an unparsable reporting period."""
     file = write_xlsx(

@@ -112,7 +112,7 @@ class VanguardImporter(ERIImporter):
 
             currency_raw = row[CURRENCY_COLUMN]
             currency = (
-                CurrencyCode.parse(currency_raw.upper())
+                CurrencyCode.parse(currency_raw)
                 if isinstance(currency_raw, str)
                 else None
             )

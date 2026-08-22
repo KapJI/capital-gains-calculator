@@ -153,6 +153,17 @@ def test_invalid_currency(tmp_path: Path) -> None:
         BlackrockImporter().parse(file)
 
 
+def test_pence_currency_code_is_not_read_as_pounds(tmp_path: Path) -> None:
+    """A pence code such as GBp is refused, not upper-cased into pounds."""
+    file = write_xlsx(
+        tmp_path / "blackrock-eri-2023.xlsx",
+        [HEADER, ["IE00B3RBWM25", PERIOD, "GBp", "1.23456"]],
+    )
+
+    with pytest.raises(ParsingError, match="Not valid Currency"):
+        BlackrockImporter().parse(file)
+
+
 def test_non_string_currency(tmp_path: Path) -> None:
     """Raise on rows where the currency is not text."""
     file = write_xlsx(

@@ -278,7 +278,7 @@ def test_basic(
     broker_transactions: list[BrokerTransaction],
     expected: float,
     expected_unrealized: float | None,
-    gbp_prices: dict[datetime.date, dict[str, Decimal]] | None,
+    gbp_prices: dict[datetime.date, dict[CurrencyCode, Decimal]] | None,
     current_prices: dict[str, Decimal | None] | None,
     expected_uk_interest: float,
     expected_foreign_interest: float,
