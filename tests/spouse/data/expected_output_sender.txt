@@ -1,0 +1,33 @@
+Final portfolio
+  FOO: 40.00
+
+Final balance
+  Unknown: 800.00 (GBP)
+
+Portfolio at the end of 2024/2025 tax year
+  FOO: 40.00, £400.00
+
+Tax summary for 2024/2025
+
+Capital gains
+  Disposals:                1
+  Disposal proceeds:  £300.00
+  Allowable costs:    £200.00
+  Gain:               £100.00
+  Loss:                 £0.00
+  Total gain:         £100.00
+  Taxable gain:         £0.00
+
+Dividends
+  Proceeds:             £0.00
+  Tax-free allowance: £500.00
+  Taxable proceeds:     £0.00
+
+Interest
+  UK proceeds:          £0.00
+  Foreign proceeds:     £0.00
+  Tax paid:             £0.00
+
+Transferred to spouse
+  No gain/no loss; the base cost below passes to the recipient (TCGA 1992 s58).
+  2024-06-15: FOO 40 units, base cost £400.00

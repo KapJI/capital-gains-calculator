@@ -183,3 +183,6 @@ jobs:
         with:
           name: test-outputs
           path: out/test-*
+          # Long enough to look into a failed run, short of the 90-day default
+          # that keeps every push's reports for a quarter.
+          retention-days: 14

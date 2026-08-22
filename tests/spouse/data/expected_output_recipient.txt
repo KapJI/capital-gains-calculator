@@ -1,0 +1,29 @@
+Final portfolio
+  (none)
+
+Final balance
+  Unknown: 800.00 (GBP)
+
+Portfolio at the end of 2024/2025 tax year
+  (none)
+
+Tax summary for 2024/2025
+
+Capital gains
+  Disposals:                1
+  Disposal proceeds:  £800.00
+  Allowable costs:    £400.00
+  Gain:               £400.00
+  Loss:                 £0.00
+  Total gain:         £400.00
+  Taxable gain:         £0.00
+
+Dividends
+  Proceeds:             £0.00
+  Tax-free allowance: £500.00
+  Taxable proceeds:     £0.00
+
+Interest
+  UK proceeds:          £0.00
+  Foreign proceeds:     £0.00
+  Tax paid:             £0.00

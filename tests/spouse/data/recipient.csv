@@ -1,0 +1,4 @@
+date,action,symbol,quantity,price,fees,currency
+2024-06-15,TRANSFER,,1,400.00,0.00,GBP
+2024-06-15,BUY,FOO,40,10.00,0.00,GBP
+2024-09-01,SELL,FOO,40,20.00,0.00,GBP
