@@ -17,8 +17,8 @@ identify the account type, so cgt-calc cannot separate the accounts later.
 4. Select every available data category so that orders, cash transactions, dividends and interest
    are included.
 5. Download the CSV file.
-6. If the history is longer than one year, repeat the export with consecutive date ranges of no more
-   than one year.
+6. If your complete history requires multiple exports, repeat the process with consecutive date
+   ranges, making sure there are no gaps.
 
 The official
 [Trading 212 export instructions](https://helpcentre.trading212.com/hc/en-us/articles/360016898917-Can-I-export-the-trading-data-from-my-account)
