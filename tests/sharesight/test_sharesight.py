@@ -587,6 +587,40 @@ def test_parse_combined_trade_report_with_foreign_brokerage(tmp_path: Path) -> N
     assert excinfo.value.row_index == 2
 
 
+def test_parse_combined_fx_trade_with_gbp_brokerage(tmp_path: Path) -> None:
+    """Accept an FX row whose brokerage is in GBP, the currency FX rows use."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            COMBINED_TRADE_HEADER,
+            [
+                "USDGBP",
+                "FX",
+                "FX trade",
+                "03/02/2023",
+                "Sell",
+                "-100",
+                "1.25",
+                "USD",
+                "1",
+                "GBP",
+                "1.25",
+                "80",
+                "fx",
+            ],
+        ],
+    )
+
+    [transaction] = SharesightParser().load_from_dir(tmp_path)
+
+    assert transaction.symbol == "FX:USDGBP"
+    assert transaction.currency == "GBP"
+    assert transaction.quantity == Decimal(100)
+    assert transaction.price == Decimal("0.8")
+    assert transaction.fees == Decimal(1)
+    assert transaction.amount == Decimal(79)
+
+
 def test_parse_trade_report_unknown_action(tmp_path: Path) -> None:
     """Raise on unknown trade types with row context."""
     _write_csv(

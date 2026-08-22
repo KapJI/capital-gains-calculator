@@ -74,11 +74,10 @@ reports do not contain the complete cash activity required to reconcile a broker
 
 The Sharesight importer currently handles:
 
-| Report         | Included activity                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------ |
-| All Trades     | `Buy` and `Sell` rows, including Sharesight foreign-exchange rows                                |
-| Taxable Income | Local and foreign dividend payments, including `Tax Deducted` and `Foreign Tax Deducted` amounts |
-| All Trades     | Equity grants entered as described below                                                         |
+| Report         | Included activity                                                                                               |
+| -------------- | --------------------------------------------------------------------------------------------------------------- |
+| All Trades     | `Buy` and `Sell` rows, including Sharesight foreign-exchange rows, and equity grants entered as described below |
+| Taxable Income | Local and foreign dividend payments, including `Tax Deducted` and `Foreign Tax Deducted` amounts                |
 
 ### Equity grants
 
@@ -100,8 +99,8 @@ that marker is rejected.
   required.
 - Taxable Income sections other than local and foreign dividend payments are not imported.
 - If a newer All Trades report gives a non-zero brokerage charge in a currency different from the
-  instrument currency, the import stops. That fee cannot yet be represented exactly from this report
-  without risking an incorrect allowable cost.
+  trade currency (GBP for foreign-exchange rows), the import stops. That fee cannot yet be
+  represented exactly from this report without risking an incorrect allowable cost.
 
 ## Troubleshooting
 

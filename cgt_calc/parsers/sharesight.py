@@ -445,15 +445,6 @@ class SharesightParser(BaseDirParser):
             price = cls._parse_decimal(row_dict, TradeColumn.PRICE)
             fees = cls._maybe_decimal(row_dict, TradeColumn.BROKERAGE) or Decimal(0)
             currency = CurrencyCode(row_dict[TradeColumn.CURRENCY])
-            brokerage_currency = row_dict.get(
-                TradeColumn.BROKERAGE_CURRENCY, currency
-            ).strip()
-            if fees and brokerage_currency and brokerage_currency != currency:
-                raise ValueError(
-                    "Brokerage Currency "
-                    f"{brokerage_currency!r} differs from transaction currency "
-                    f"{currency!r}; fees in another currency are not supported"
-                )
             description = row_dict[TradeColumn.COMMENTS]
             broker = "Sharesight"
             gbp_value = cls._maybe_decimal(row_dict, TradeColumn.VALUE)
@@ -474,6 +465,18 @@ class SharesightParser(BaseDirParser):
 
                 price = abs(gbp_value / quantity)
                 currency = CurrencyCode("GBP")
+
+            # Checked after the FX override so the fee is compared with the
+            # currency the transaction is actually recorded in.
+            brokerage_currency = row_dict.get(
+                TradeColumn.BROKERAGE_CURRENCY, currency
+            ).strip()
+            if fees and brokerage_currency and brokerage_currency != currency:
+                raise ValueError(
+                    "Brokerage Currency "
+                    f"{brokerage_currency!r} differs from transaction currency "
+                    f"{currency!r}; fees in another currency are not supported"
+                )
 
             # Make amount positive on sell and negative on buy
             amount = -(quantity * price) - fees
