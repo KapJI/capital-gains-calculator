@@ -80,7 +80,9 @@ the error says what to do instead.
 Shares given to anyone other than a spouse or civil partner are a **disposal at market value**
 ([TCGA 1992 s17](https://www.legislation.gov.uk/ukpga/1992/12/section/17)): you are taxed as if you
 had sold them for what they were worth on the day, although no money changed hands. Record them with
-the `GIFT` action, with the market value per share on that day as the `price`.
+the `GIFT` action. The `price` is the market value of the gift divided by its units: the share price
+on that day, unless the count has been restated for a later split (Schwab's export does this), in
+which case divide the value of the whole gift by the restated count.
 
 ```csv
 2024-03-16,GIFT,META,21.5,480.00,0.00,USD
@@ -93,14 +95,19 @@ recognised stock exchange, or in your personal company, may qualify for
 [Gift Hold-over Relief](https://www.gov.uk/gift-holdover-relief), which defers the gain. That is a
 claim you and the recipient make on your returns; the report shows the gain in full.
 
-!!! warning "A loss on a gift is reported on its own"
+!!! warning "A loss on a gift is kept separate"
 
     Most people you would give shares to are connected persons
     ([s286](https://www.legislation.gov.uk/ukpga/1992/12/section/286)) — family, mainly — and a loss
     on a disposal to a connected person can only be set against gains on disposals to the same
-    person ([s18(3)](https://www.legislation.gov.uk/ukpga/1992/12/section/18)). cgt-calc cannot
-    know who is connected, so a loss on a gift is listed separately and left out of the loss total.
-    If the recipient is not a connected person, add the loss to your losses yourself.
+    person while you are still connected
+    ([s18(3)](https://www.legislation.gov.uk/ukpga/1992/12/section/18),
+    [CG14561](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14561)). HMRC calls
+    this a clogged loss. cgt-calc cannot know who is connected, so a loss on a gift is shown as
+    "Losses on gifts" rather than in "Loss", and does not reduce the gain. It is still a loss: keep
+    a separate record of it and carry it forward with your other losses — the SA108 notes cover
+    this under "Transferring assets between connected people". If the recipient is not a connected
+    person, add it to your losses yourself.
 
 Gifts to charity ([s257](https://www.legislation.gov.uk/ukpga/1992/12/section/257)) are no gain / no
 loss, as are the other transfers listed in

@@ -7,6 +7,7 @@
 
 \BLOCK{ set total_gain = namespace(value=Decimal(0)) }
 \BLOCK{ set total_loss = namespace(value=Decimal(0)) }
+\BLOCK{ set gift_loss = namespace(value=Decimal(0)) }
 \BLOCK{ set acquisition_count = namespace(value=0) }
 \BLOCK{ set disposal_count = namespace(value=0) }
 \BLOCK{ set dividend_count = namespace(value=0) }
@@ -66,8 +67,11 @@
     \BLOCK{ elif overall_gain == 0 }
         Neither a gain nor a loss.
     \BLOCK{ elif is_gift }
-        \textbf{Loss} of £\VAR{ "{:,}".format(-overall_gain) } on a gift, not included in the totals:
-        a loss on a gift to a connected person can only be set against gains on disposals to the same person (TCGA 1992 s18(3)).
+        \textbf{Clogged loss} of £\VAR{ "{:,}".format(-overall_gain) } on a gift, kept out of the loss total:
+        a loss on a gift to a connected person can only be set against gains on disposals to the same person while still connected (TCGA 1992 s18(3)).
+
+        \BLOCK{ set gift_loss.value = gift_loss.value - overall_gain }
+        Losses on gifts to date are £\VAR{ "{:,}".format(gift_loss.value) }
     \BLOCK{ else }
         Chargeable \textbf{loss} is £\VAR{ "{:,}".format(-overall_gain) }
 
@@ -260,6 +264,9 @@
 \subsection*{Total disposal proceeds: £\VAR{ "{:,}".format(report.disposal_proceeds) }}
 \subsection*{Total capital gain before loss: £\VAR{ "{:,}".format(total_gain.value) }}
 \subsection*{Total capital loss: £\VAR{ "{:,}".format(total_loss.value) }}
+\BLOCK{ if gift_loss.value > 0 }
+\subsection*{Losses on gifts, kept separate: £\VAR{ "{:,}".format(gift_loss.value) }}
+\BLOCK{ endif }
 \subsection*{Total capital gain after loss: £\VAR{ "{:,}".format(total_gain.value - total_loss.value) }}
 \vspace{1em}
 Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.

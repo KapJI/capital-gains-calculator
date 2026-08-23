@@ -491,6 +491,9 @@ class CapitalGainsReport:
     # Custom reporting period within the tax year, if one was requested.
     period_start: datetime.date | None = None
     period_end: datetime.date | None = None
+    # Losses on gifts, kept out of capital_loss: a loss on a disposal to a
+    # connected person is a clogged loss (TCGA 1992 s18(3)). Negative or zero.
+    gift_loss: Decimal = Decimal(0)
 
     def period_label(self) -> str | None:
         """Label for a custom reporting period, None for a full tax year."""
@@ -634,6 +637,7 @@ class CapitalGainsReport:
             ("Allowable costs", f"£{self.allowable_costs:,}"),
             ("Gain", f"£{self.capital_gain:,}"),
             ("Loss", f"£{-self.capital_loss:,}"),
+            *([("Losses on gifts", f"£{-self.gift_loss:,}")] if self.gift_loss else []),
             ("Total gain", f"£{self.total_gain():,}"),
         ]
         capital_notes: list[str] = []
@@ -767,10 +771,11 @@ class CapitalGainsReport:
             )
             out += (
                 "  Disposals at market value (TCGA 1992 s17), before any relief."
-                " A loss is left out of the totals\n"
-                "  above: a loss on a gift to a connected person can only be set"
-                " against gains on disposals to\n"
-                "  the same person (s18(3)).\n"
+                " A loss is kept out of Loss and\n"
+                "  Total gain: a loss on a gift to a connected person is a clogged"
+                " loss, usable only against gains\n"
+                "  on disposals to the same person while still connected"
+                " (s18(3)). Keep a separate record of it.\n"
             )
             for date_index, key, entry_list in gifts:
                 symbol = key[len(gift_prefix) :]
@@ -778,7 +783,7 @@ class CapitalGainsReport:
                 market_value = sum((e.amount + e.fees for e in entry_list), Decimal(0))
                 gain = sum((e.gain for e in entry_list), Decimal(0))
                 outcome = (
-                    f"loss £{round_decimal(-gain, 2):,} (not in totals)"
+                    f"loss £{round_decimal(-gain, 2):,} (clogged)"
                     if gain < 0
                     else f"gain £{round_decimal(gain, 2):,}"
                 )

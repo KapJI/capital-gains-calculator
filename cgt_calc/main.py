@@ -2161,6 +2161,7 @@ class CapitalGainsCalculator:
         allowable_costs = Decimal(0)
         capital_gain = Decimal(0)
         capital_loss = Decimal(0)
+        gift_loss = Decimal(0)
 
         # The first pass left its estimates in the portfolio; the walk rebuilds
         # it from nothing.
@@ -2247,12 +2248,15 @@ class CapitalGainsCalculator:
                         ] = calculation_entries
                         if transaction_capital_gain > 0:
                             capital_gain += transaction_capital_gain
-                        elif not is_gift:
+                        elif is_gift:
+                            # Kept out of the loss total. The recipient is
+                            # usually a connected person, and then this is a
+                            # clogged loss: usable only against gains on
+                            # disposals to that person while still connected
+                            # (TCGA 1992 s18(3)). Reported as its own total.
+                            gift_loss += transaction_capital_gain
+                        else:
                             capital_loss += transaction_capital_gain
-                        # A loss on a gift stays out of the total. The recipient
-                        # is usually a connected person, and then the loss can
-                        # only be set against gains on disposals to that person
-                        # (TCGA 1992 s18(3)); the report lists it on its own.
 
             if date_index in self.rename_list:
                 for old, new in self.rename_list[date_index].items():
@@ -2343,6 +2347,7 @@ class CapitalGainsCalculator:
             round_decimal(self.total_foreign_interest, 2),
             round_decimal(self.total_interest_tax, 2),
             show_unrealized_gains=self.calc_unrealized_gains,
+            gift_loss=round_decimal(gift_loss, 2),
             period_start=self.period_start,
             period_end=self.period_end,
         )

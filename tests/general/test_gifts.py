@@ -8,6 +8,7 @@ only be set against gains on disposals to that person (s18(3)).
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 from decimal import Decimal
 import re
@@ -19,12 +20,18 @@ from cgt_calc.exceptions import (
     CalculationError,
     InvalidTransactionError,
     PriceMissingError,
+    QuantityNotPositiveError,
     UnclassifiedGiftError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction, RuleType
 from cgt_calc.render_latex import render_pdf
 
-from .calc_test_data import GBP, transaction, transfer_to_spouse_transaction
+from .calc_test_data import (
+    GBP,
+    split_transaction,
+    transaction,
+    transfer_to_spouse_transaction,
+)
 from .test_calc import create_calculator, get_report
 
 if TYPE_CHECKING:
@@ -76,9 +83,12 @@ def test_a_loss_on_a_gift_is_reported_but_not_totalled() -> None:
     # But the loss does not reduce anything.
     assert report.capital_loss == Decimal(0)
     assert report.total_gain() == Decimal(0)
+    # It is reported as its own total instead.
+    assert report.gift_loss == Decimal(-20)
     text = str(report)
+    assert "Losses on gifts" in text
     assert "Gifts at market value" in text
-    assert "loss £20.00 (not in totals)" in text
+    assert "loss £20.00 (clogged)" in text
 
 
 def test_a_gift_is_identified_like_a_sale() -> None:
@@ -136,10 +146,10 @@ def test_a_fee_on_a_gift_is_allowed_as_a_cost() -> None:
 
 @pytest.mark.parametrize(
     ("price", "error"),
-    [(None, PriceMissingError), (0, InvalidTransactionError)],
+    [(None, PriceMissingError), (Decimal(0), InvalidTransactionError)],
 )
 def test_a_gift_needs_the_market_value(
-    price: float | None, error: type[Exception]
+    price: Decimal | None, error: type[Exception]
 ) -> None:
     """The price column is the whole point of the row."""
     with pytest.raises(error):
@@ -147,9 +157,77 @@ def test_a_gift_needs_the_market_value(
             create_calculator(tax_year=2024, balance_check=False),
             [
                 transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
-                _gift(4, price),
+                dataclasses.replace(_gift(4, 30), price=price),
             ],
         )
+
+
+def test_a_gift_of_shares_not_held_is_refused() -> None:
+    """The row names a symbol the holding never had."""
+    with pytest.raises(InvalidTransactionError, match="not owned"):
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                transaction(GIFT_DAY, ActionType.GIFT, "BAR", 4, 30, 0, None, GBP),
+            ],
+        )
+
+
+@pytest.mark.parametrize("quantity", [0, -1])
+def test_a_gift_needs_a_positive_quantity(quantity: int) -> None:
+    """Nothing, or less than nothing, cannot be given away."""
+    with pytest.raises(QuantityNotPositiveError):
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                _gift(quantity, 30),
+            ],
+        )
+
+
+def test_a_gift_of_more_than_held_is_refused() -> None:
+    """Ten held, eleven given away: the history is wrong somewhere."""
+    with pytest.raises(InvalidTransactionError, match="more than the available"):
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                _gift(11, 30),
+            ],
+        )
+
+
+def test_giving_away_the_whole_holding_closes_it() -> None:
+    """All ten shares go, and nothing of the symbol is left."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            _gift(10, 30),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(200)
+    assert calculator.portfolio["FOO"].quantity == Decimal(0)
+
+
+def test_a_gift_before_a_split_is_valued_in_the_units_of_its_day() -> None:
+    """Two shares at £30 each are worth £60, whatever the later split does."""
+    split_day = datetime.date(2024, 7, 1)
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            _gift(2, 30),
+            split_transaction(split_day, "FOO", 8),
+        ],
+    )
+
+    assert report.disposal_proceeds == Decimal(60)
+    assert report.total_gain() == Decimal(40)
 
 
 @pytest.mark.parametrize("gift_first", [True, False])
@@ -249,7 +327,8 @@ def test_the_refusal_offers_the_gift_row_too() -> None:
 
     message = str(err.value)
     assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,4,0.00,0.00,GBP" in message
-    assert "2024-06-10,GIFT,FOO,4,<market value per share>,0.00,GBP" in message
+    assert "2024-06-10,GIFT,FOO,4,<value per unit>,0.00,GBP" in message
+    assert "divide the value of the whole gift by the restated count" in message
 
 
 def test_a_gift_and_a_transfer_to_spouse_on_one_day_are_kept_apart() -> None:
@@ -312,7 +391,8 @@ def test_the_pdf_keeps_a_loss_on_a_gift_out_of_the_total(tmp_path: Path) -> None
     """A £20 loss is shown with the s18(3) note and no running loss total."""
     source = _latex(tmp_path, 5)
 
-    assert "\\textbf{Loss} of £20.00 on a gift, not included in the totals" in source
+    assert "\\textbf{Clogged loss} of £20.00 on a gift, kept out of the loss" in source
+    assert "Losses on gifts, kept separate: £20.00" in source
     assert "Capital loss to date" not in source
 
 
