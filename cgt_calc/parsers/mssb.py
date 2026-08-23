@@ -1,7 +1,8 @@
-"""Morgan Stanley parser.
+"""Parse the Morgan Stanley at Work report format used for Alphabet awards.
 
-Note: I only had access to an Alphabet export. I have no idea what it looks like
-for another company, or for a full profile.
+The importer has only been validated against an Alphabet ``GSU Class C``
+export. It is not a general parser for other employers or Morgan Stanley
+brokerage accounts.
 """
 
 from __future__ import annotations
@@ -69,10 +70,16 @@ KNOWN_SYMBOL_DICT: Final[dict[str, str]] = {
 
 @dataclass
 class StockSplit:
-    """Info about stock split."""
+    """A split whose earlier sales the withdrawal report leaves in old units."""
 
     symbol: str
     date: datetime.date
+    """Last day on which the report prints sales in pre-split units.
+
+    Morgan Stanley's notice puts sales "on or prior to" the split date in
+    pre-split values, so this is the split date itself rather than the first
+    date treated as post-split by the Schwab parser's ``SPLITS`` table.
+    """
     factor: int
 
 
@@ -226,12 +233,13 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
         else:
             action = ActionType.SELL
 
+        symbol = KNOWN_SYMBOL_DICT[plan]
         transaction = BrokerTransaction(
             date=datetime.datetime.strptime(
                 row[WithdrawalColumn.EXECUTION_DATE], "%d-%b-%Y"
             ).date(),
             action=action,
-            symbol=KNOWN_SYMBOL_DICT[plan],
+            symbol=symbol,
             description=plan,
             quantity=quantity,
             price=price,
@@ -241,7 +249,10 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
             broker=BROKER_NAME,
         )
 
-        return MSSBParser._handle_stock_split(transaction)
+        # Splits are keyed by the symbol the report uses, so rename afterwards.
+        transaction = MSSBParser._handle_stock_split(transaction)
+        transaction.symbol = TICKER_RENAMES.get(symbol, symbol)
+        return transaction
 
     @staticmethod
     def _handle_stock_split(transaction: BrokerTransaction) -> BrokerTransaction:
@@ -249,7 +260,7 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
             if (
                 transaction.symbol == split.symbol
                 and transaction.action == ActionType.SELL
-                and transaction.date < split.date
+                and transaction.date <= split.date
             ):
                 if transaction.quantity:
                     transaction.quantity *= split.factor
