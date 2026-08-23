@@ -59,7 +59,9 @@ def money(text: str) -> Decimal:
 
 def render(tmp_path: Path) -> str:
     """Render the scenario to LaTeX source, flattened to one line per block."""
-    report = get_report(create_calculator(), TRANSACTIONS)
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
+    )
     render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
     source = (tmp_path / "report.tex").read_text(encoding="utf-8")
     # Line breaks and \mbox{} only shape the typesetting.
