@@ -89,11 +89,19 @@ containing only the ignored reports will not load any transactions.
 ### `Non-zero Net Cash Proceeds`
 
 This is a known Autosale pattern, but the releases report alone does not provide enough information
-to reconstruct both the vest and the later sale safely. Do not delete the row or change its proceeds
-to zero. Reconcile it with the separate Autosale report and your award confirmation, then add the
-missing transactions through the [RAW format](raw.md), or open a
-[GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with sanitised examples
-if you want the importer extended.
+to reconstruct both the vest and the later sale safely. This history is not currently supported.
+Keep the downloaded reports unchanged: do not delete the row, change its proceeds to zero or add
+guessed RAW transactions.
+
+First upgrade cgt-calc using the same method you used to install it. If the error remains, open a
+[GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with your cgt-calc
+version, the complete error, and sanitised copies of the failing release row and its corresponding
+Autosale record.
+
+If you can independently reconstruct and verify every Morgan Stanley acquisition, sale, fee and cash
+movement, you can instead convert the complete history to the [RAW format](raw.md) and omit
+`--mssb-dir`. Do not combine a partial RAW replacement with the failing report: cgt-calc will still
+reject the report, and overlapping inputs can duplicate transactions.
 
 ### `Unknown plan`, `Unknown type`, `Unknown status` or `Unknown price currency`
 
