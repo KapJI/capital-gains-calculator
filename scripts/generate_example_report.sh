@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Generate example CGT report.
+# Generate the compact 2025/26 example CGT report.
 # Usage: run with no arguments.
 
 set -euo pipefail
@@ -12,8 +12,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 uv sync
 
 uv run cgt-calc \
-    --year 2020 \
-    --schwab-file tests/schwab/data/schwab_transactions.csv \
-    --trading212-dir tests/trading212/data/2020/ \
-    --mssb-dir tests/morgan_stanley/data/ \
+    --year 2025 \
+    --schwab-file scripts/example_data/schwab_transactions.csv \
+    --exchange-rates-file scripts/example_data/exchange_rates.csv \
     --output docs/assets/example_report.pdf
