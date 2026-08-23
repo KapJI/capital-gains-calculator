@@ -99,6 +99,12 @@ class UnclassifiedGiftError(CgtError):
             f"{strip_zeros(reading)},0.00,0.00,{transaction.currency}"
             for reading in readings
         )
+        gift_rows = "\n".join(
+            f"  {transaction.date},GIFT,{transaction.symbol},"
+            f"{strip_zeros(reading)},<value per unit>,0.00,"
+            f"{transaction.currency}"
+            for reading in readings
+        )
         gift = (
             f"{strip_zeros(readings[0])} units of {transaction.symbol}"
             if len(readings) == 1
@@ -135,9 +141,19 @@ class UnclassifiedGiftError(CgtError):
             "\n"
             f"{how}\n"
             "\n"
-            "If they went to anyone else, it is a disposal at market value and "
-            "may be chargeable. cgt-calc cannot work that out yet, so you have "
-            "to do it by hand (consider professional advice).\n"
+            "If they went to anyone else, it is a disposal at market value. Put "
+            "this line in the CSV instead, with the market value of the gift "
+            f"divided by its units as the price:\n{gift_rows}\n"
+            "Market value has its own rules (TCGA 1992 s272): for quoted "
+            "shares it follows the day's quoted prices, and unquoted shares "
+            "need an open-market valuation of the holding given away. If the "
+            "count has been restated for a later split, as Schwab's export "
+            "does, divide the value of the whole gift by the restated count.\n"
+            "A loss on it is clogged, since a loss on a gift to a connected "
+            "person can only be set against gains on disposals to the same "
+            "person while still connected (TCGA 1992 s18(3)). If the recipient "
+            "is not a connected person, write GIFT_UNCONNECTED instead and the "
+            "loss counts like any other.\n"
             "\n"
             "See https://cgt-calc.uk/brokers/raw/"
             "#transfers-to-a-spouse-or-civil-partner"

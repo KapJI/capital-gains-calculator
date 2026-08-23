@@ -233,8 +233,15 @@ class ActionType(Enum):
     RENAME = 19
     INTEREST_TAX = 20
     TRANSFER_TO_SPOUSE = 21
-    GIFT = 22
+    # A broker reported shares leaving as a gift without saying who received
+    # them. The user classifies it with a TRANSFER_TO_SPOUSE or GIFT row.
+    UNCLASSIFIED_GIFT = 22
     TRANSFER_FROM_SPOUSE = 23
+    # Shares given to a connected person other than a spouse: a disposal at
+    # market value, with a loss clogged under TCGA 1992 s18(3).
+    GIFT = 24
+    # The same, to someone who is not a connected person: a loss is ordinary.
+    GIFT_UNCONNECTED = 25
 
 
 class CalculationType(Enum):
@@ -487,6 +494,9 @@ class CapitalGainsReport:
     # Custom reporting period within the tax year, if one was requested.
     period_start: datetime.date | None = None
     period_end: datetime.date | None = None
+    # Losses on gifts, kept out of capital_loss: a loss on a disposal to a
+    # connected person is a clogged loss (TCGA 1992 s18(3)). Negative or zero.
+    gift_loss: Decimal = Decimal(0)
 
     def period_label(self) -> str | None:
         """Label for a custom reporting period, None for a full tax year."""
@@ -630,6 +640,7 @@ class CapitalGainsReport:
             ("Allowable costs", f"£{self.allowable_costs:,}"),
             ("Gain", f"£{self.capital_gain:,}"),
             ("Loss", f"£{-self.capital_loss:,}"),
+            *([("Losses on gifts", f"£{-self.gift_loss:,}")] if self.gift_loss else []),
             ("Total gain", f"£{self.total_gain():,}"),
         ]
         capital_notes: list[str] = []
@@ -745,6 +756,46 @@ class CapitalGainsReport:
                     f"    {date_index},TRANSFER_FROM_SPOUSE,{symbol},"
                     f"{exact_str(quantity)},{exact_str(base_cost / quantity)},"
                     "0.00,GBP\n"
+                )
+
+        gift_prefixes = ("gift$", "gift-unconnected$")
+        gifts = sorted(
+            (
+                (date_index, key, entry_list)
+                for date_index, symbol_dict in self.calculation_log.items()
+                for key, entry_list in symbol_dict.items()
+                if key.startswith(gift_prefixes)
+            ),
+            key=lambda gift: (gift[0], gift[1]),
+        )
+        if gifts:
+            out += (
+                "\n" + style_text("Gifts at market value", colour=Style.BRIGHT) + "\n"
+            )
+            out += (
+                "  Disposals at market value (TCGA 1992 s17), before any relief."
+                " A loss on a gift to a connected\n"
+                "  person (GIFT) is clogged: kept out of Loss and Total gain, usable"
+                " only against gains on disposals\n"
+                "  to the same person while still connected (s18(3)). Keep a"
+                " separate record of it. A loss on a gift\n"
+                "  to anyone else (GIFT_UNCONNECTED) counts in Loss.\n"
+            )
+            for date_index, key, entry_list in gifts:
+                clogged = key.startswith("gift$")
+                symbol = key.split("$", 1)[1]
+                quantity = sum((e.quantity for e in entry_list), Decimal(0))
+                market_value = sum((e.amount + e.fees for e in entry_list), Decimal(0))
+                gain = sum((e.gain for e in entry_list), Decimal(0))
+                if gain < 0:
+                    outcome = f"loss £{round_decimal(-gain, 2):,}"
+                    if clogged:
+                        outcome += " (clogged)"
+                else:
+                    outcome = f"gain £{round_decimal(gain, 2):,}"
+                out += (
+                    f"{bul}{date_index}: {symbol} {strip_zeros(quantity)} units, "
+                    f"market value £{round_decimal(market_value, 2):,}, {outcome}\n"
                 )
 
         return out

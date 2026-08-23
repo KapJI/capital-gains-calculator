@@ -380,7 +380,11 @@ def test_unclassified_gift_is_rejected_with_instructions() -> None:
                     buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
                 ),
                 transaction(
-                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
+                    gift_day,
+                    ActionType.UNCLASSIFIED_GIFT,
+                    "FOO",
+                    4,
+                    currency=CurrencyCode(GBP),
                 ),
             ],
         )
@@ -405,7 +409,11 @@ def test_gift_matched_by_transfer_to_spouse_is_accounted_for() -> None:
                 buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transaction(
-                gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
+                gift_day,
+                ActionType.UNCLASSIFIED_GIFT,
+                "FOO",
+                4,
+                currency=CurrencyCode(GBP),
             ),
             transfer_to_spouse_transaction(gift_day, "FOO", 4),
         ],
@@ -432,7 +440,11 @@ def test_gift_with_mismatched_transfer_is_rejected() -> None:
                     buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
                 ),
                 transaction(
-                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
+                    gift_day,
+                    ActionType.UNCLASSIFIED_GIFT,
+                    "FOO",
+                    4,
+                    currency=CurrencyCode(GBP),
                 ),
                 # Same day and symbol, different quantity.
                 transfer_to_spouse_transaction(gift_day, "FOO", 3),
@@ -465,7 +477,7 @@ def test_gift_without_quantity_is_rejected() -> None:
             [
                 transaction(
                     datetime.date(2024, 6, 10),
-                    ActionType.GIFT,
+                    ActionType.UNCLASSIFIED_GIFT,
                     "FOO",
                     0,
                     currency=CurrencyCode(GBP),
@@ -662,7 +674,7 @@ def test_either_reading_of_an_ambiguous_gift_settles_it(confirmed: Decimal) -> N
     gift_day = datetime.date(2024, 6, 10)
     gift = BrokerTransaction(
         date=gift_day,
-        action=ActionType.GIFT,
+        action=ActionType.UNCLASSIFIED_GIFT,
         symbol="FOO",
         description="",
         quantity=Decimal(2),
@@ -702,7 +714,7 @@ def test_ambiguous_gift_error_offers_both_readings() -> None:
     gift_day = datetime.date(2024, 6, 10)
     gift = BrokerTransaction(
         date=gift_day,
-        action=ActionType.GIFT,
+        action=ActionType.UNCLASSIFIED_GIFT,
         symbol="FOO",
         description="",
         quantity=Decimal(2),
@@ -733,7 +745,7 @@ def test_a_certain_gift_is_not_stranded_by_an_uncertain_one() -> None:
     def gift(quantity: int, ambiguous: Decimal | None = None) -> BrokerTransaction:
         return BrokerTransaction(
             date=gift_day,
-            action=ActionType.GIFT,
+            action=ActionType.UNCLASSIFIED_GIFT,
             symbol="FOO",
             description="",
             quantity=Decimal(quantity),
@@ -776,7 +788,7 @@ def _gift(
 ) -> BrokerTransaction:
     return BrokerTransaction(
         date=day,
-        action=ActionType.GIFT,
+        action=ActionType.UNCLASSIFIED_GIFT,
         symbol="FOO",
         description="",
         quantity=Decimal(quantity),
@@ -863,10 +875,18 @@ def test_each_gift_needs_its_own_classification() -> None:
                     buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, CurrencyCode(GBP)
                 ),
                 transaction(
-                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
+                    gift_day,
+                    ActionType.UNCLASSIFIED_GIFT,
+                    "FOO",
+                    4,
+                    currency=CurrencyCode(GBP),
                 ),
                 transaction(
-                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
+                    gift_day,
+                    ActionType.UNCLASSIFIED_GIFT,
+                    "FOO",
+                    4,
+                    currency=CurrencyCode(GBP),
                 ),
                 transfer_to_spouse_transaction(gift_day, "FOO", 4),
             ],
@@ -885,10 +905,18 @@ def test_two_gifts_are_settled_by_two_classifications() -> None:
                 buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, CurrencyCode(GBP)
             ),
             transaction(
-                gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
+                gift_day,
+                ActionType.UNCLASSIFIED_GIFT,
+                "FOO",
+                4,
+                currency=CurrencyCode(GBP),
             ),
             transaction(
-                gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
+                gift_day,
+                ActionType.UNCLASSIFIED_GIFT,
+                "FOO",
+                4,
+                currency=CurrencyCode(GBP),
             ),
             transfer_to_spouse_transaction(gift_day, "FOO", 4),
             transfer_to_spouse_transaction(gift_day, "FOO", 4),

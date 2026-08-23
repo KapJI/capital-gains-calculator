@@ -319,3 +319,22 @@ def test_read_raw_transactions_transfer_from_spouse(tmp_path: Path) -> None:
     assert transaction.action == ActionType.TRANSFER_FROM_SPOUSE
     assert transaction.quantity == Decimal("21.5")
     assert transaction.price == Decimal("95.60")
+
+
+def test_read_raw_transactions_gift(tmp_path: Path) -> None:
+    """Parse a RAW GIFT row: shares given away, priced at market value."""
+
+    raw_file = tmp_path / "raw_gift.csv"
+    rows = [
+        COLUMNS,
+        ["2024-03-16", "GIFT", "XYZ", "21.5", "480.00", "0.00", "USD"],
+    ]
+    _write_csv(raw_file, rows)
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action == ActionType.GIFT
+    assert transaction.quantity == Decimal("21.5")
+    assert transaction.price == Decimal("480.00")

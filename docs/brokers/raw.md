@@ -67,11 +67,84 @@ of your export rather than let it be read as a purchase at nothing.
     No gain / no loss applies if you were living together at some point in the tax year of the
     transfer, and since 6 April 2023 for a period after separating as well — see
     [CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420). If you do not
-    qualify, or the shares went to anyone else, the transfer is a disposal at market value, which
-    cgt-calc cannot work out yet.
+    qualify, or the shares went to anyone else, record a [gift](#gifts-to-anyone-else) instead.
 
 Buying the same shares within 30 days of a transfer changes the figure. The transfer is matched
 against that purchase in the same way a sale would be, so the recipient inherits the cost of those
 shares rather than your pool average. Selling and transferring the same shares on the same day is
 refused when there is such a purchase, because there is no rule for splitting it between the two;
 the error says what to do instead.
+
+## Gifts to anyone else
+
+Shares given to anyone other than a spouse or civil partner are a **disposal at market value**
+([TCGA 1992 s17](https://www.legislation.gov.uk/ukpga/1992/12/section/17)): you are taxed as if you
+had sold them for what they were worth on the day, although no money changed hands. Record them with
+the `GIFT` action. The `price` is the market value of the gift divided by its units. Market value
+has its own rules ([s272](https://www.legislation.gov.uk/ukpga/1992/12/section/272)): for shares
+quoted on an exchange it follows the day's quoted prices, while unquoted shares need a defensible
+open-market valuation of the holding you gave away — the size of the holding changes the value per
+share ([CG59562](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg59562)), and HMRC
+can check a valuation after the disposal (form CG34). If the count has been restated for a later
+split (Schwab's export does this), divide the value of the whole gift by the restated count. A
+holding that has become worthless can be given away at a market value of `0`, and the whole cost
+becomes a loss.
+
+Gifts to connected persons made within six years of each other are valued as a series
+([s19](https://www.legislation.gov.uk/ukpga/1992/12/section/19),
+[CG14650](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14650)): when the pieces
+are worth more together than apart, each gift's consideration becomes its share of the value of
+everything given, and each later gift enlarges the series, which can revise the earlier gifts —
+already-filed years included. A typical holding of quoted shares is unaffected, since every share
+has the same price, but for unquoted shares given in stages enter the s19-apportioned value as the
+`price`, and amend the earlier years yourself when a later gift revises them. A transfer to your
+spouse stays no gain / no loss, but it still counts towards the series when the same holding is
+split between a spouse and someone else
+([CG14710](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14710)).
+
+```csv
+2024-03-16,GIFT,META,21.5,480.00,0.00,USD
+```
+
+The same identification rules as a sale apply, and a gain counts like any other.
+
+`GIFT` is for a connected person, which
+[s286](https://www.legislation.gov.uk/ukpga/1992/12/section/286) defines at some length: your
+relatives (brothers, sisters, parents, grandparents, children, grandchildren) and their spouses,
+your spouse's relatives and their spouses, your business partners and their spouses and relatives,
+trustees of a settlement you or a connected person set up, companies you control alone or with
+connected persons, and people acting together to control a company — among others, so read the
+section if in doubt. If the recipient is not a connected person, a friend say, use
+`GIFT_UNCONNECTED` instead; the only difference is what happens to a loss, and when unsure `GIFT` is
+the safe choice, since it can only overstate. A sale and a `GIFT` of the same shares on one day
+cannot be computed (they are one disposal under s105(1), and a loss on it could not be split), while
+a sale and a `GIFT_UNCONNECTED` are one ordinary disposal, reported as a sale. Several `GIFT` rows
+for one symbol on one day must state the same value per unit, and they mean one gift to one person:
+their fees and their gain or loss merge into one result, which is right for one recipient and wrong
+for several, since a clogged loss to one person cannot net a gain to another. If a day's gifts went
+to different people, leave that symbol out of the input and work it out by hand, as with any day
+cgt-calc refuses.
+
+cgt-calc works out the gain before any relief. Shares in a trading company that is not listed on a
+recognised stock exchange, or in your personal company, may qualify for
+[Gift Hold-over Relief](https://www.gov.uk/gift-holdover-relief), which defers the gain. That is a
+claim you and the recipient make on your returns; the report shows the gain in full.
+
+!!! warning "A loss on a `GIFT` is clogged"
+
+    A loss on a disposal to a connected person can only be set against gains on disposals to the
+    same person while you are still connected
+    ([s18(3)](https://www.legislation.gov.uk/ukpga/1992/12/section/18),
+    [CG14561](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14561)). HMRC calls
+    this a clogged loss. cgt-calc shows it as "Losses on gifts" rather than in "Loss", and it does
+    not reduce the gain. It is still a loss: keep a separate record of it and carry it forward with
+    your other losses — the SA108 notes cover this under "Transferring assets between connected
+    people". cgt-calc does not know who received which gift, so it never sets a clogged loss
+    against a gain on another gift to the same person; if that applies to you, do that part by
+    hand.
+
+Gifts to charity ([s257](https://www.legislation.gov.uk/ukpga/1992/12/section/257)) are no gain / no
+loss, as are the other transfers listed in
+[CG12920](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg12920): to employee
+trusts, housing associations and the nation. They are not disposals at market value, and cgt-calc
+has no way to record them yet.

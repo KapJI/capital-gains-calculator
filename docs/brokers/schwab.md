@@ -72,5 +72,9 @@ asks:
   `TRANSFER_TO_SPOUSE` row with the same date, symbol and quantity to a small RAW file and pass it
   alongside your Schwab file; the error prints the exact line to copy. The shares then leave your
   pool once, not twice.
-- **Anyone else.** A disposal at market value, which is usually chargeable. cgt-calc cannot work
-  that out yet, so it has to be done by hand.
+- **Anyone else.** A disposal at market value — see
+  [gifts to anyone else](raw.md#gifts-to-anyone-else). Add a `GIFT` row (or `GIFT_UNCONNECTED` if
+  the recipient is not a connected person) with the same date, symbol and quantity, and the market
+  value of the gift divided by that quantity as the price. Schwab restates counts for later splits,
+  so for a gift before a split that is not the share price of the day. The error prints the line to
+  copy.

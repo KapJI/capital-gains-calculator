@@ -7,6 +7,7 @@
 
 \BLOCK{ set total_gain = namespace(value=Decimal(0)) }
 \BLOCK{ set total_loss = namespace(value=Decimal(0)) }
+\BLOCK{ set gift_loss = namespace(value=Decimal(0)) }
 \BLOCK{ set acquisition_count = namespace(value=0) }
 \BLOCK{ set disposal_count = namespace(value=0) }
 \BLOCK{ set dividend_count = namespace(value=0) }
@@ -38,6 +39,15 @@
 \BLOCK{ elif symbol.startswith("transfer-to-spouse$") }
     \BLOCK{ set symbol = symbol[19:] }
     \BLOCK{ set is_transfer_to_spouse = True }
+\BLOCK{ elif symbol.startswith("gift$") }
+    \BLOCK{ set symbol = symbol[5:] }
+    \BLOCK{ set is_disposal = True }
+    \BLOCK{ set is_gift = True }
+    \BLOCK{ set is_clogged = True }
+\BLOCK{ elif symbol.startswith("gift-unconnected$") }
+    \BLOCK{ set symbol = symbol[17:] }
+    \BLOCK{ set is_disposal = True }
+    \BLOCK{ set is_gift = True }
 \BLOCK{ endif }
 \BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
 \BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
@@ -46,17 +56,27 @@
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
     \subsubsection*{
-        Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }
+        Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol }
+        \BLOCK{ if is_gift }given away at a market value of\BLOCK{ else }for\BLOCK{ endif } £\VAR{ "{:,}".format(overall_disposed) }
         (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
         \BLOCK{ if overall_fees > 0 }
             , £\VAR{ "{:,}".format(overall_fees) } fees allowed as cost
         \BLOCK{ endif }
     }
     \BLOCK{ if overall_gain > 0 -}
-        Chargeable \textbf{gain} is £\VAR{ "{:,}".format(overall_gain) }
+        Chargeable \textbf{gain} is £\VAR{ "{:,}".format(overall_gain) }\BLOCK{ if is_gift }, before any relief:
+        a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns\BLOCK{ endif }
 
         \BLOCK{ set total_gain.value = total_gain.value + overall_gain }
         Capital gain to date is £\VAR{ "{:,}".format(total_gain.value) }
+    \BLOCK{ elif overall_gain == 0 }
+        Neither a gain nor a loss.
+    \BLOCK{ elif is_clogged }
+        \textbf{Clogged loss} of £\VAR{ "{:,}".format(-overall_gain) } on a gift, kept out of the loss total:
+        a loss on a gift to a connected person can only be set against gains on disposals to the same person while still connected (TCGA 1992 s18(3)).
+
+        \BLOCK{ set gift_loss.value = gift_loss.value - overall_gain }
+        Losses on gifts to date are £\VAR{ "{:,}".format(gift_loss.value) }
     \BLOCK{ else }
         Chargeable \textbf{loss} is £\VAR{ "{:,}".format(-overall_gain) }
 
@@ -249,6 +269,9 @@
 \subsection*{Total disposal proceeds: £\VAR{ "{:,}".format(report.disposal_proceeds) }}
 \subsection*{Total capital gain before loss: £\VAR{ "{:,}".format(total_gain.value) }}
 \subsection*{Total capital loss: £\VAR{ "{:,}".format(total_loss.value) }}
+\BLOCK{ if gift_loss.value > 0 }
+\subsection*{Losses on gifts, kept separate: £\VAR{ "{:,}".format(gift_loss.value) }}
+\BLOCK{ endif }
 \subsection*{Total capital gain after loss: £\VAR{ "{:,}".format(total_gain.value - total_loss.value) }}
 \vspace{1em}
 Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.

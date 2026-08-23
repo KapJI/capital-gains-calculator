@@ -49,12 +49,12 @@ def _transaction_sort_key(
     Shares received from a spouse are written by hand too, and like a vest
     they cost nothing in cash, so they go first as well.
 
-    Transfers to a spouse go last for the same reason from the other end. They
-    are recorded by hand in a RAW file while the shares they move were acquired
-    through a broker export, and parsers are merged in registry order, so a
-    transfer would otherwise be validated before the same-day acquisition that
-    makes it possible. No consideration changes hands, so ordering them last
-    cannot introduce a negative balance either.
+    Transfers to a spouse and gifts go last for the same reason from the
+    other end. They are recorded by hand in a RAW file while the shares they
+    move were acquired through a broker export, and parsers are merged in
+    registry order, so such a row would otherwise be validated before the
+    same-day acquisition that makes it possible. No consideration changes
+    hands, so ordering them last cannot introduce a negative balance either.
 
     Everything else keeps its relative order, so the "buys last" ordering that
     some parsers rely on to avoid negative balances is preserved.
@@ -64,7 +64,11 @@ def _transaction_sort_key(
         ActionType.TRANSFER_FROM_SPOUSE,
     ):
         order = 0
-    elif transaction.action is ActionType.TRANSFER_TO_SPOUSE:
+    elif transaction.action in (
+        ActionType.TRANSFER_TO_SPOUSE,
+        ActionType.GIFT,
+        ActionType.GIFT_UNCONNECTED,
+    ):
         order = 2
     else:
         order = 1

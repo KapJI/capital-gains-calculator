@@ -288,7 +288,7 @@ def test_split_history_demands_a_price_floor_it_can_use() -> None:
         ("Reinvest Shares", ActionType.REINVEST_SHARES),
         ("Reinvest Dividend", ActionType.REINVEST_DIVIDENDS),
         ("Wire Funds Received", ActionType.WIRE_FUNDS_RECEIVED),
-        ("Gift", ActionType.GIFT),
+        ("Gift", ActionType.UNCLASSIFIED_GIFT),
     ],
 )
 def test_action_from_str(label: str, action: ActionType) -> None:
@@ -377,7 +377,7 @@ def test_gift_parses_as_gift() -> None:
 
     assert len(transactions) == 1
     transaction = transactions[0]
-    assert transaction.action == ActionType.GIFT
+    assert transaction.action == ActionType.UNCLASSIFIED_GIFT
     assert transaction.symbol == "GOOG"
     assert transaction.quantity == Decimal(2)
     assert transaction.date == datetime.date(2022, 11, 20)
