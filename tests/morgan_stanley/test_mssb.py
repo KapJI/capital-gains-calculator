@@ -176,10 +176,10 @@ def test_read_mssb_withdrawal_goog_sale_before_split_window(tmp_path: Path) -> N
     assert transaction.price == Decimal("112.00")
 
 
-def test_read_mssb_withdrawal_goog_sale_after_split_not_adjusted(
+def test_read_mssb_withdrawal_goog_sale_on_split_date_is_adjusted(
     tmp_path: Path,
 ) -> None:
-    """Ensure a GOOG sale on the split date itself is treated as post-split."""
+    """Adjust a GOOG sale on July 15 because the report uses pre-split values."""
 
     withdrawal_file = tmp_path / WITHDRAWALS_REPORT_FILENAME
     rows = [
@@ -187,6 +187,38 @@ def test_read_mssb_withdrawal_goog_sale_after_split_not_adjusted(
         [
             "15-Jul-2022",
             "ORDER-5",
+            "GSU Class C",
+            "Sale",
+            "Complete",
+            "$2,240.00",
+            "-2.00",
+            "$4,479.90",
+            "0",
+            "N/A",
+        ],
+    ]
+    _write_csv(withdrawal_file, rows)
+
+    transactions = MSSBParser().load_from_dir(tmp_path)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    # The report notice says activity "on or prior to" July 15 is pre-split.
+    assert transaction.quantity == Decimal("40.00")
+    assert transaction.price == Decimal("112.00")
+
+
+def test_read_mssb_withdrawal_goog_sale_after_split_not_adjusted(
+    tmp_path: Path,
+) -> None:
+    """Leave a GOOG sale after July 15 in its exported post-split values."""
+
+    withdrawal_file = tmp_path / WITHDRAWALS_REPORT_FILENAME
+    rows = [
+        COLUMNS_WITHDRAWAL,
+        [
+            "18-Jul-2022",
+            "ORDER-6",
             "GSU Class C",
             "Sale",
             "Complete",
@@ -203,7 +235,6 @@ def test_read_mssb_withdrawal_goog_sale_after_split_not_adjusted(
 
     assert len(transactions) == 1
     transaction = transactions[0]
-    # No adjustment should be applied on/after the split date.
     assert transaction.quantity == Decimal("40.00")
     assert transaction.price == Decimal("112.00")
 

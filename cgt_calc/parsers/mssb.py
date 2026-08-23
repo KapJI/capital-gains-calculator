@@ -1,7 +1,8 @@
-"""Morgan Stanley parser.
+"""Parse the Morgan Stanley at Work report format used for Alphabet awards.
 
-Note: I only had access to an Alphabet export. I have no idea what it looks like
-for another company, or for a full profile.
+The importer has only been validated against an Alphabet ``GSU Class C``
+export. It is not a general parser for other employers or Morgan Stanley
+brokerage accounts.
 """
 
 from __future__ import annotations
@@ -249,7 +250,7 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
             if (
                 transaction.symbol == split.symbol
                 and transaction.action == ActionType.SELL
-                and transaction.date < split.date
+                and transaction.date <= split.date
             ):
                 if transaction.quantity:
                     transaction.quantity *= split.factor
