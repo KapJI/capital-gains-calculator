@@ -42,14 +42,14 @@
 \BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
 \BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
 \BLOCK{ if is_disposal }
-    \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount"), 2) }
+    \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount") + entries|sum(attribute="fees"), 2) }
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
     \subsubsection*{
         Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }
         (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
         \BLOCK{ if overall_fees > 0 }
-            , after £\VAR{ "{:,}".format(overall_fees) } fees
+            , £\VAR{ "{:,}".format(overall_fees) } fees allowed as cost
         \BLOCK{ endif }
     }
     \BLOCK{ if overall_gain > 0 -}
@@ -120,7 +120,7 @@
 \item \textbf{\VAR{ entry.rule_type.name.replace("_", " ") }}. Quantity: \VAR{ strip_zeros(entry.quantity) },
 \BLOCK{ if is_disposal }
     \BLOCK{ if entry.quantity < overall_quantity }
-        disposal proceeds: £\VAR{ "{:,}".format(round_decimal(entry.amount, 2)) },
+        disposal proceeds: £\VAR{ "{:,}".format(round_decimal(entry.amount + entry.fees, 2)) },
     \BLOCK{ endif }
     allowable
     \BLOCK{ if entry.rule_type.name == "BED_AND_BREAKFAST" }
@@ -250,6 +250,8 @@
 \subsection*{Total capital gain before loss: £\VAR{ "{:,}".format(total_gain.value) }}
 \subsection*{Total capital loss: £\VAR{ "{:,}".format(total_loss.value) }}
 \subsection*{Total capital gain after loss: £\VAR{ "{:,}".format(total_gain.value - total_loss.value) }}
+\vspace{1em}
+Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.
 \vspace{2em}
 \section*{Overall - Dividends and Interests}
 \subsection*{Number of dividend distributions: \VAR{ dividend_count.value }}
