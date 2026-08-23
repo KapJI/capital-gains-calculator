@@ -204,22 +204,50 @@ def test_a_gift_is_identified_like_a_sale() -> None:
 
 
 def test_two_gifts_on_one_day_are_one_disposal() -> None:
-    """Everything given away on a day is a single disposal (s105(1))."""
+    """Everything given away on a day at one value is a single disposal."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
         [
             transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
             _gift(2, 30),
-            _gift(2, 40),
+            _gift(2, 30),
         ],
     )
 
     assert report.disposal_count == 1
-    assert report.disposal_proceeds == Decimal(140)
+    assert report.disposal_proceeds == Decimal(120)
     assert report.allowable_costs == Decimal(40)
-    assert report.total_gain() == Decimal(100)
+    assert report.total_gain() == Decimal(80)
     assert calculator.portfolio["FOO"].quantity == Decimal(6)
+
+
+def test_gifts_at_different_values_on_one_day_are_refused() -> None:
+    """A gain to one person cannot net a clogged loss to another."""
+    with pytest.raises(CalculationError, match="different values per unit"):
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                _gift(2, 30),
+                _gift(2, 5),
+            ],
+        )
+
+
+def test_unconnected_gifts_at_different_values_still_add_up() -> None:
+    """No ring-fence, so the aggregate equals the sum of its parts."""
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            _unconnected_gift(2, 30),
+            _unconnected_gift(2, 5),
+        ],
+    )
+
+    assert report.disposal_proceeds == Decimal(70)
+    assert report.total_gain() == Decimal(30)
 
 
 def test_a_fee_on_a_gift_is_allowed_as_a_cost() -> None:

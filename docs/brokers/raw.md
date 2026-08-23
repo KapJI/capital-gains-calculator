@@ -106,7 +106,10 @@ section if in doubt. If the recipient is not a connected person, a friend say, u
 `GIFT_UNCONNECTED` instead; the only difference is what happens to a loss, and when unsure `GIFT` is
 the safe choice, since it can only overstate. A sale and a `GIFT` of the same shares on one day
 cannot be computed (they are one disposal under s105(1), and a loss on it could not be split), while
-a sale and a `GIFT_UNCONNECTED` are one ordinary disposal, reported as a sale.
+a sale and a `GIFT_UNCONNECTED` are one ordinary disposal, reported as a sale. Several `GIFT` rows
+for one symbol on one day must state the same value per unit and are treated as one gift to one
+person; if a day's gifts went to different people, any split of its gain or loss between them for
+the s18(3) record is yours to check.
 
 cgt-calc works out the gain before any relief. Shares in a trading company that is not listed on a
 recognised stock exchange, or in your personal company, may qualify for

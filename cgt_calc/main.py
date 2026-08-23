@@ -262,6 +262,11 @@ class CapitalGainsCalculator:
         self.gift_disposals: dict[tuple[datetime.date, str], bool] = {}
         # Days on which a symbol was sold, redeemed or cashed out.
         self.sale_days: set[tuple[datetime.date, str]] = set()
+        # The value per unit each day's gifts to a connected person stated,
+        # to refuse a second value: one holding has one market value on a day.
+        self.gift_prices: dict[
+            tuple[datetime.date, str], tuple[Decimal, CurrencyCode]
+        ] = {}
         # Days on which a symbol was charged a management fee. A fee adds to
         # the pool's cost with no shares, so it cannot be told from the pool
         # itself once it is in.
@@ -633,6 +638,17 @@ class CapitalGainsCalculator:
             )
         if self.gift_disposals.get(key, connected) != connected:
             raise CalculationError(self._mixed_gifts_message(symbol, transaction.date))
+        # Connected gifts must also agree on the value per unit. One holding
+        # of one class has one market value on a day, so a second value means
+        # separately valued gifts to different recipients (CG59562), and the
+        # day's gain or loss could not be split between them for s18(3).
+        # Everything at one value is treated as one gift to one person.
+        if connected:
+            value = (transaction.price, transaction.currency)
+            if self.gift_prices.setdefault(key, value) != value:
+                raise CalculationError(
+                    self._gift_values_differ_message(symbol, transaction.date)
+                )
         # Reduce the first-pass holding so later same-symbol transactions
         # validate; the pool cost is recomputed in the second pass.
         position = self.portfolio[symbol]
@@ -679,6 +695,18 @@ class CapitalGainsCalculator:
             self.add_transfer_to_spouse(transaction)
         else:
             self.add_gift(transaction)
+
+    @staticmethod
+    def _gift_values_differ_message(symbol: str, date_index: datetime.date) -> str:
+        return (
+            f"Cannot compute gifts of {symbol} at different values per unit on "
+            f"the same day ({date_index}): one holding has one market value on "
+            "a day, so different values mean separately valued gifts to "
+            "different recipients (CG59562), while TCGA 1992 s105(1) makes the "
+            "day a single disposal whose gain or loss could not be split "
+            "between them for the s18(3) restriction. Work this day out by "
+            "hand (consider professional advice). Do not change the dates."
+        )
 
     @staticmethod
     def _mixed_gifts_message(symbol: str, date_index: datetime.date) -> str:
