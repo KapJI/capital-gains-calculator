@@ -88,6 +88,11 @@ the `GIFT` action, with the market value per share on that day as the `price`.
 
 The same identification rules as a sale apply, and a gain counts like any other.
 
+cgt-calc works out the gain before any relief. Shares in a trading company that is not listed on a
+recognised stock exchange, or in your personal company, may qualify for
+[Gift Hold-over Relief](https://www.gov.uk/gift-holdover-relief), which defers the gain. That is a
+claim you and the recipient make on your returns; the report shows the gain in full.
+
 !!! warning "A loss on a gift is reported on its own"
 
     Most people you would give shares to are connected persons
@@ -97,6 +102,8 @@ The same identification rules as a sale apply, and a gain counts like any other.
     know who is connected, so a loss on a gift is listed separately and left out of the loss total.
     If the recipient is not a connected person, add the loss to your losses yourself.
 
-Gifts to charity are no gain / no loss
-([s257](https://www.legislation.gov.uk/ukpga/1992/12/section/257)) and should not be recorded this
-way.
+Gifts to charity ([s257](https://www.legislation.gov.uk/ukpga/1992/12/section/257)) are no gain / no
+loss, as are the other transfers listed in
+[CG12920](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg12920): to employee
+trusts, housing associations and the nation. They are not disposals at market value, and cgt-calc
+has no way to record them yet.

@@ -766,9 +766,10 @@ class CapitalGainsReport:
                 "\n" + style_text("Gifts at market value", colour=Style.BRIGHT) + "\n"
             )
             out += (
-                "  Disposals at market value (TCGA 1992 s17). A loss is left out of"
-                " the totals above: a loss on a\n"
-                "  gift to a connected person can only be set against gains on"
+                "  Disposals at market value (TCGA 1992 s17), before any relief. A"
+                " loss is left out of the totals above:\n"
+                "  a loss on a\n"
+                "gift to a connected person can only be set against gains on"
                 " disposals to the same person (s18(3)).\n"
             )
             for date_index, key, entry_list in gifts:

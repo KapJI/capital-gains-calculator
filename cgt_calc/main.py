@@ -607,7 +607,12 @@ class CapitalGainsCalculator:
                 transaction,
                 "A gift needs the market value per share on the day as its price",
             )
-        if has_key(self.disposal_list, transaction.date, symbol):
+        # Two gifts of the same shares on one day are one disposal (TCGA 1992
+        # s105(1)) and accumulate; a sale on the same day is refused.
+        if (
+            has_key(self.disposal_list, transaction.date, symbol)
+            and (transaction.date, symbol) not in self.gift_disposals
+        ):
             raise CalculationError(
                 self._sale_and_gift_message(symbol, transaction.date)
             )
@@ -1831,11 +1836,13 @@ class CapitalGainsCalculator:
         shown = ", ".join(str(date) for date in contended[:MAX_CONTENDED_DATES_SHOWN])
         if len(contended) > MAX_CONTENDED_DATES_SHOWN:
             shown += f" and {len(contended) - MAX_CONTENDED_DATES_SHOWN} more"
+        is_gift = (date_index, symbol) in self.gift_disposals
+        verb, noun = ("gave away", "gift") if is_gift else ("sold", "sale")
         return (
-            f"On {date_index} you sold {strip_zeros(sold)} units of {symbol} and "
-            f"transferred {strip_zeros(transferred)} to a spouse, and you also "
-            f"acquired {symbol} on {shown}.\n"
-            "Both the sale and the transfer have to be identified against those "
+            f"On {date_index} you {verb} {strip_zeros(sold)} units of {symbol} "
+            f"and transferred {strip_zeros(transferred)} to a spouse, and you "
+            f"also acquired {symbol} on {shown}.\n"
+            f"Both the {noun} and the transfer have to be identified against those "
             "acquisitions under the same-day and 30-day rules, but they cannot "
             "share them: TCGA 1992 s105(1) treats everything disposed of on one "
             "day as a single transaction, and here one part is chargeable while "

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+import re
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -20,9 +22,13 @@ from cgt_calc.exceptions import (
     UnclassifiedGiftError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction, RuleType
+from cgt_calc.render_latex import render_pdf
 
 from .calc_test_data import GBP, transaction, transfer_to_spouse_transaction
 from .test_calc import create_calculator, get_report
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 BUY_DAY = datetime.date(2024, 6, 1)
 GIFT_DAY = datetime.date(2024, 6, 10)
@@ -92,6 +98,25 @@ def test_a_gift_is_identified_like_a_sale() -> None:
     # Matched to the £25 repurchase, not the £10 pool.
     assert report.allowable_costs == Decimal(100)
     assert report.total_gain() == Decimal(20)
+
+
+def test_two_gifts_on_one_day_are_one_disposal() -> None:
+    """Everything given away on a day is a single disposal (s105(1))."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            _gift(2, 30),
+            _gift(2, 40),
+        ],
+    )
+
+    assert report.disposal_count == 1
+    assert report.disposal_proceeds == Decimal(140)
+    assert report.allowable_costs == Decimal(40)
+    assert report.total_gain() == Decimal(100)
+    assert calculator.portfolio["FOO"].quantity == Decimal(6)
 
 
 def test_a_fee_on_a_gift_is_allowed_as_a_cost() -> None:
@@ -175,6 +200,24 @@ def test_a_gift_row_classifies_a_broker_gift() -> None:
     assert calculator.portfolio["FOO"].quantity == Decimal(6)
 
 
+def test_two_broker_gifts_on_one_day_need_two_gift_rows() -> None:
+    """Counted, not a set: each broker row is accounted for by its own row."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            _unclassified(2),
+            _unclassified(2),
+            _gift(2, 30),
+            _gift(2, 30),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(80)
+    assert calculator.portfolio["FOO"].quantity == Decimal(6)
+
+
 @pytest.mark.parametrize("confirmed", [2, 40])
 def test_either_reading_of_an_ambiguous_broker_gift_can_be_a_gift(
     confirmed: int,
@@ -223,3 +266,59 @@ def test_a_gift_and_a_transfer_to_spouse_on_one_day_are_kept_apart() -> None:
 
     assert report.total_gain() == Decimal(40)
     assert calculator.portfolio["FOO"].quantity == Decimal(6)
+
+
+def test_a_gift_and_a_transfer_contending_for_a_purchase_are_refused() -> None:
+    """The same clash as for a sale, and the message calls the gift a gift."""
+    with pytest.raises(CalculationError) as err:
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                transaction(GIFT_DAY, ActionType.BUY, "FOO", 2, 20, 0, -40, GBP),
+                _gift(2, 30),
+                transfer_to_spouse_transaction(GIFT_DAY, "FOO", 2),
+            ],
+        )
+
+    message = str(err.value)
+    assert "gave away 2 units of FOO and transferred 2" in message
+    assert "Both the gift and the transfer" in message
+
+
+def _latex(tmp_path: Path, price: int) -> str:
+    """Render one gift to LaTeX source, flattened to one line per block."""
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            _gift(4, price),
+        ],
+    )
+    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
+    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
+    return re.sub(r"\s+", " ", source)
+
+
+def test_the_pdf_shows_a_gain_on_a_gift_like_any_other(tmp_path: Path) -> None:
+    """Worth £120, costing £40: a chargeable gain of £80, in the total."""
+    source = _latex(tmp_path, 30)
+
+    assert "4 units of FOO given away at a market value of £120.00" in source
+    assert "Chargeable \\textbf{gain} is £80.00" in source
+
+
+def test_the_pdf_keeps_a_loss_on_a_gift_out_of_the_total(tmp_path: Path) -> None:
+    """A £20 loss is shown with the s18(3) note and no running loss total."""
+    source = _latex(tmp_path, 5)
+
+    assert "\\textbf{Loss} of £20.00 on a gift, not included in the totals" in source
+    assert "Capital loss to date" not in source
+
+
+def test_the_pdf_does_not_call_a_gift_at_cost_a_loss(tmp_path: Path) -> None:
+    """Given away at exactly its cost, a gift is a nil result, not a loss."""
+    source = _latex(tmp_path, 10)
+
+    assert "on a gift" not in source
+    assert "Chargeable \\textbf{loss}" in source

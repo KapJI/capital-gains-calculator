@@ -62,7 +62,7 @@
 
         \BLOCK{ set total_gain.value = total_gain.value + overall_gain }
         Capital gain to date is £\VAR{ "{:,}".format(total_gain.value) }
-    \BLOCK{ elif is_gift }
+    \BLOCK{ elif is_gift and overall_gain < 0 }
         \textbf{Loss} of £\VAR{ "{:,}".format(-overall_gain) } on a gift, not included in the totals:
         a loss on a gift to a connected person can only be set against gains on disposals to the same person (TCGA 1992 s18(3)).
     \BLOCK{ else }
