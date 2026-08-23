@@ -194,6 +194,10 @@ def test_nonzero_foreign_amount_requires_a_currency() -> None:
     with pytest.raises(CalculationError, match="Currency missing"):
         ForeignCurrencyAmount() + invalid
 
+    # The left operand is validated by the same rule as the right one.
+    with pytest.raises(CalculationError, match="Currency missing"):
+        invalid + ForeignCurrencyAmount()
+
 
 def test_broker_transaction_rejects_a_bare_invalid_currency() -> None:
     """A caller that skips the type still cannot smuggle in a bad currency."""

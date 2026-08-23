@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from reportlab.lib import colors
@@ -30,6 +30,8 @@ from tests.eri_importers.helpers import check_transaction
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import pdfplumber
 
     from cgt_calc.parsers.eri.model import ERITransaction
 
@@ -86,18 +88,26 @@ DATA_ROWS: list[list[str]] = [
 ]
 
 
-def _build_pdf(path: Path, preamble: list[str], with_table: bool = True) -> Path:
+def _build_pdf(
+    path: Path,
+    preamble: list[str],
+    with_table: bool = True,
+    data_rows: list[list[str]] | None = None,
+    header: list[str] | None = None,
+) -> Path:
     """Build a PDF with preamble text lines and optionally a data table."""
     styles = getSampleStyleSheet()
     doc = SimpleDocTemplate(str(path), pagesize=PAGESIZE)
     story: list[Flowable] = [Paragraph(line, styles["Normal"]) for line in preamble]
     if with_table:
+        header = header if header is not None else HEADER
+        data_rows = data_rows if data_rows is not None else DATA_ROWS
         story.append(Spacer(1, 20))
         # The third column is wide enough for its long header to stay
         # within the cell boundaries.
-        col_widths = [180.0] * len(HEADER)
+        col_widths = [180.0] * len(header)
         col_widths[2] = 340.0
-        table = Table([HEADER, *DATA_ROWS], colWidths=col_widths)
+        table = Table([header, *data_rows], colWidths=col_widths)
         table.setStyle(
             TableStyle(
                 [
@@ -236,6 +246,132 @@ def test_v2_unparseable_reporting_date(tmp_path: Path) -> None:
 
     assert result is not None
     assert result.transactions == []
+
+
+V1_PREAMBLE = [
+    (
+        "STATEMENT OF REPORTABLE INCOME FOR INVESCO MARKETS II PLC "
+        "FOR THE PERIOD ENDED 30 June 2022"
+    ),
+]
+
+_ROW_TAIL = ["Fund A", "Acc", "B3RBWM2", "0.1", "a", "b", "0.2", "n1"]
+
+
+@pytest.mark.parametrize(
+    ("row_head", "error_match"),
+    [
+        (["not-an-isin", "USD", "1.23456"], "Invalid ISIN"),
+        (["IE00B3RBWM25", "not-a-currency", "1.23456"], "Invalid currency"),
+        (["IE00B3RBWM25", "USD", "not-a-number"], "Invalid amount"),
+    ],
+)
+def test_bad_data_row_fails_loudly(
+    tmp_path: Path, row_head: list[str], error_match: str
+) -> None:
+    """Raise on rows with unparsable content instead of skipping them."""
+    file = _build_pdf(
+        tmp_path / "invesco-excess-reportable-income-2022.pdf",
+        V1_PREAMBLE,
+        data_rows=[row_head + _ROW_TAIL],
+    )
+
+    with pytest.raises(ParsingError, match=error_match) as exc_info:
+        InvescoImporter().parse(file)
+
+    assert str(file) in str(exc_info.value)
+    assert "page 1" in str(exc_info.value)
+
+
+def test_report_without_a_table_fails_loudly(tmp_path: Path) -> None:
+    """A recognised report page with no table at all is invalid input."""
+    file = _build_pdf(
+        tmp_path / "invesco-excess-reportable-income-2022.pdf",
+        V1_PREAMBLE,
+        with_table=False,
+    )
+
+    with pytest.raises(ParsingError, match="Could not find table headers on page 1"):
+        InvescoImporter().parse(file)
+
+
+def test_header_only_table_fails_loudly(tmp_path: Path) -> None:
+    """A table with headers but no data rows is invalid input."""
+    file = _build_pdf(
+        tmp_path / "invesco-excess-reportable-income-2022.pdf",
+        V1_PREAMBLE,
+        data_rows=[],
+    )
+
+    with pytest.raises(ParsingError, match="Could not extract data table on page 1"):
+        InvescoImporter().parse(file)
+
+
+def test_duplicate_header_columns_fail_loudly(tmp_path: Path) -> None:
+    """Two columns claiming the same field make the table ambiguous."""
+    file = _build_pdf(
+        tmp_path / "invesco-excess-reportable-income-2022.pdf",
+        V1_PREAMBLE,
+        header=[*HEADER[:-1], "ISIN again"],
+        data_rows=[],
+    )
+
+    with pytest.raises(ParsingError, match=r"Multiple columns match .* on page 1"):
+        InvescoImporter().parse(file)
+
+
+def test_missing_header_column_fails_loudly(tmp_path: Path) -> None:
+    """A table without one of the required columns is invalid input."""
+    file = _build_pdf(
+        tmp_path / "invesco-excess-reportable-income-2022.pdf",
+        V1_PREAMBLE,
+        header=["Currency" if h == "CURRENCY OF SHARE CLASS" else h for h in HEADER],
+        data_rows=[],
+    )
+
+    with pytest.raises(ParsingError, match=r"No column matching .* on page 1"):
+        InvescoImporter().parse(file)
+
+
+def test_too_few_header_columns_fail_loudly(tmp_path: Path) -> None:
+    """A table narrower than the known report layout is invalid input."""
+    file = _build_pdf(
+        tmp_path / "invesco-excess-reportable-income-2022.pdf",
+        V1_PREAMBLE,
+        header=HEADER[:3],
+        data_rows=[],
+    )
+
+    with pytest.raises(
+        ParsingError, match="Expected at least 11 columns on page 1, found 3"
+    ):
+        InvescoImporter().parse(file)
+
+
+class _HeaderlessTable:
+    """Table stub whose extraction yields no rows."""
+
+    @staticmethod
+    def extract() -> list[list[str]]:
+        return []
+
+
+class _HeaderlessPage:
+    """Page stub with a detectable but empty table."""
+
+    @staticmethod
+    def find_table() -> _HeaderlessTable:
+        return _HeaderlessTable()
+
+
+def test_empty_extracted_header_fails_loudly(tmp_path: Path) -> None:
+    """A detected table that extracts to nothing is reported, not indexed."""
+    page = cast("pdfplumber.page.Page", _HeaderlessPage())
+
+    with pytest.raises(ParsingError, match="Table header is empty on page 1"):
+        InvescoImporter._extract_header(  # noqa: SLF001
+            page, tmp_path / "report.pdf", 1
+        )
 
 
 def test_short_data_row_fails_loudly(tmp_path: Path) -> None:
