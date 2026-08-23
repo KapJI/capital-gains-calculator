@@ -260,6 +260,8 @@ class CapitalGainsCalculator:
         # whether the recipient is a connected person. A loss on a gift to a
         # connected person is clogged (TCGA 1992 s18(3)) and reported on its own.
         self.gift_disposals: dict[tuple[datetime.date, str], bool] = {}
+        # Days on which a symbol was sold, redeemed or cashed out.
+        self.sale_days: set[tuple[datetime.date, str]] = set()
         # Days on which a symbol was charged a management fee. A fee adds to
         # the pool's cost with no shares, so it cannot be told from the pool
         # itself once it is in.
@@ -499,7 +501,9 @@ class CapitalGainsCalculator:
 
         if price is None:
             raise PriceMissingError(transaction)
-        if (transaction.date, symbol) in self.gift_disposals:
+        # A gift to a connected person on the same day is refused (see
+        # add_gift); a gift to anyone else folds into this ordinary disposal.
+        if self.gift_disposals.get((transaction.date, symbol)):
             raise CalculationError(
                 self._sale_and_gift_message(symbol, transaction.date)
             )
@@ -520,6 +524,7 @@ class CapitalGainsCalculator:
             self.currency_converter.to_gbp_for(amount, transaction),
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
+        self.sale_days.add((transaction.date, symbol))
 
     def add_transfer_to_spouse(
         self,
@@ -612,17 +617,19 @@ class CapitalGainsCalculator:
                 transaction,
                 "A gift needs its market value divided by its units as the price",
             )
-        # Two gifts of the same shares on one day are one disposal (TCGA 1992
-        # s105(1)) and accumulate; a sale on the same day is refused.
-        if (
-            has_key(self.disposal_list, transaction.date, symbol)
-            and (transaction.date, symbol) not in self.gift_disposals
-        ):
+        connected = transaction.action is ActionType.GIFT
+        key = (transaction.date, symbol)
+        # Everything disposed of on one day is one disposal (TCGA 1992
+        # s105(1)). Gifts to the same kind of recipient accumulate, and a sale
+        # folds into a gift to someone unconnected as one ordinary disposal. A
+        # sale, or such a gift, alongside a gift to a connected person is
+        # refused: a loss on the single disposal could not then be split for
+        # the s18(3) restriction.
+        if connected and key in self.sale_days:
             raise CalculationError(
                 self._sale_and_gift_message(symbol, transaction.date)
             )
-        connected = transaction.action is ActionType.GIFT
-        if self.gift_disposals.get((transaction.date, symbol), connected) != connected:
+        if self.gift_disposals.get(key, connected) != connected:
             raise CalculationError(self._mixed_gifts_message(symbol, transaction.date))
         # Reduce the first-pass holding so later same-symbol transactions
         # validate; the pool cost is recomputed in the second pass.
@@ -647,11 +654,18 @@ class CapitalGainsCalculator:
         self.gift_disposals[transaction.date, symbol] = connected
 
     def _disposal_log_prefix(self, date_index: datetime.date, symbol: str) -> str:
-        """Name the kind of disposal recorded for a symbol on a day."""
-        connected = self.gift_disposals.get((date_index, symbol))
-        if connected is None:
+        """Name the kind of disposal recorded for a symbol on a day.
+
+        A sale with a gift to someone unconnected is one ordinary disposal,
+        reported as a sale.
+        """
+        key = (date_index, symbol)
+        connected = self.gift_disposals.get(key)
+        if connected:
+            return "gift"
+        if connected is None or key in self.sale_days:
             return "sell"
-        return "gift" if connected else "gift-unconnected"
+        return "gift-unconnected"
 
     def add_shares_given_away(self, transaction: BrokerTransaction) -> None:
         """Record shares handed to someone for nothing.
@@ -678,8 +692,8 @@ class CapitalGainsCalculator:
     @staticmethod
     def _sale_and_gift_message(symbol: str, date_index: datetime.date) -> str:
         return (
-            f"Cannot compute a sale and a gift of {symbol} on the same day "
-            f"({date_index}): TCGA 1992 s105(1) treats everything disposed of "
+            f"Cannot compute a sale and a gift to a connected person of {symbol} "
+            f"on the same day ({date_index}): TCGA 1992 s105(1) treats everything disposed of "
             "on one day as a single disposal, and a loss on it could not then "
             "be attributed to the gift for the s18(3) restriction. Work this "
             "day out by hand (consider professional advice). Do not change the "
@@ -1868,7 +1882,7 @@ class CapitalGainsCalculator:
         shown = ", ".join(str(date) for date in contended[:MAX_CONTENDED_DATES_SHOWN])
         if len(contended) > MAX_CONTENDED_DATES_SHOWN:
             shown += f" and {len(contended) - MAX_CONTENDED_DATES_SHOWN} more"
-        is_gift = (date_index, symbol) in self.gift_disposals
+        is_gift = self._disposal_log_prefix(date_index, symbol) != "sell"
         verb, noun = ("gave away", "gift") if is_gift else ("sold", "sale")
         return (
             f"On {date_index} you {verb} {strip_zeros(sold)} units of {symbol} "

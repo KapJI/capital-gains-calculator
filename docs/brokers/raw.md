@@ -90,11 +90,17 @@ which case divide the value of the whole gift by the restated count.
 
 The same identification rules as a sale apply, and a gain counts like any other.
 
-`GIFT` is for a connected person ([s286](https://www.legislation.gov.uk/ukpga/1992/12/section/286)):
-your relatives — brothers, sisters, parents, grandparents, children, grandchildren — and their
-spouses, your spouse's relatives, your business partners, and companies you control. If the
-recipient is not a connected person, a friend say, use `GIFT_UNCONNECTED` instead. The only
-difference is what happens to a loss.
+`GIFT` is for a connected person, which
+[s286](https://www.legislation.gov.uk/ukpga/1992/12/section/286) defines at some length: your
+relatives (brothers, sisters, parents, grandparents, children, grandchildren) and their spouses,
+your spouse's relatives and their spouses, your business partners and their spouses and relatives,
+trustees of a settlement you or a connected person set up, companies you control alone or with
+connected persons, and people acting together to control a company — among others, so read the
+section if in doubt. If the recipient is not a connected person, a friend say, use
+`GIFT_UNCONNECTED` instead; the only difference is what happens to a loss, and when unsure `GIFT` is
+the safe choice, since it can only overstate. A sale and a `GIFT` of the same shares on one day
+cannot be computed (they are one disposal under s105(1), and a loss on it could not be split), while
+a sale and a `GIFT_UNCONNECTED` are one ordinary disposal, reported as a sale.
 
 cgt-calc works out the gain before any relief. Shares in a trading company that is not listed on a
 recognised stock exchange, or in your personal company, may qualify for

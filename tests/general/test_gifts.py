@@ -294,8 +294,46 @@ def test_a_raw_gift_before_a_split_is_in_the_units_of_its_day() -> None:
 
 
 @pytest.mark.parametrize("gift_first", [True, False])
+def test_a_sale_and_a_gift_to_an_unconnected_person_are_one_disposal(
+    gift_first: bool,
+) -> None:
+    """Nothing to ring-fence, so s105(1) simply adds them up, as a sale."""
+    sale = transaction(GIFT_DAY, ActionType.SELL, "FOO", 2, 30, 0, 60, GBP)
+    gift = _unconnected_gift(2, 30)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            *([gift, sale] if gift_first else [sale, gift]),
+        ],
+    )
+
+    assert report.disposal_count == 1
+    assert report.disposal_proceeds == Decimal(120)
+    assert report.total_gain() == Decimal(80)
+    assert "sell$FOO" in report.calculation_log[GIFT_DAY]
+    assert "gift-unconnected$FOO" not in report.calculation_log[GIFT_DAY]
+    assert calculator.portfolio["FOO"].quantity == Decimal(6)
+
+
+def test_a_connected_gift_after_a_sale_and_an_unconnected_gift_is_refused() -> None:
+    """The ordinary disposal is already there; a clogged part cannot join it."""
+    with pytest.raises(CalculationError, match="sale and a gift to a connected"):
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                transaction(GIFT_DAY, ActionType.SELL, "FOO", 2, 30, 0, 60, GBP),
+                _unconnected_gift(2, 30),
+                _gift(2, 30),
+            ],
+        )
+
+
+@pytest.mark.parametrize("gift_first", [True, False])
 def test_a_sale_and_a_gift_on_one_day_are_refused(gift_first: bool) -> None:
-    """One disposal under s105, but a loss on it cannot be split for s18(3)."""
+    """One disposal under s105(1), but a loss on it cannot be split for s18(3)."""
     sale = transaction(GIFT_DAY, ActionType.SELL, "FOO", 2, 30, 0, 60, GBP)
     gift = _gift(2, 30)
     with pytest.raises(CalculationError, match="sale and a gift"):
