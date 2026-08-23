@@ -27,8 +27,11 @@ relying on the result.
 
 ## 📊 Example Report
 
+This compact 2025/26 example shows foreign-currency transactions, same-day and 30-day matching,
+Section 104 pooling, gains and losses, a dividend with overseas tax, and cash interest.
+
 <a href="docs/assets/example_report.pdf">
-  <img src="docs/assets/example_report_preview.png" alt="Preview of example report" width="600">
+  <img src="docs/assets/example_report_preview.png" alt="Preview of the 2025/26 example report" width="600">
 </a>
 
 ## 🚀 Quick Start
@@ -38,7 +41,7 @@ generate a report for a tax year:
 
 ```shell
 uv tool install cgt-calc
-cgt-calc --year 2024 --schwab-file schwab_transactions.csv
+cgt-calc --year 2025 --schwab-file schwab_transactions.csv
 ```
 
 `pdflatex` must be on your `PATH` to generate the PDF report. See

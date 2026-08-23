@@ -26,9 +26,10 @@ brokers that pay daily interest.
 
 ## Example report
 
-Here's what a generated PDF report looks like:
+This compact 2025/26 example shows foreign-currency transactions, same-day and 30-day matching,
+Section 104 pooling, gains and losses, a dividend with overseas tax, and cash interest:
 
-[![Preview of example report](assets/example_report_preview.png){ width="600" }](assets/example_report.pdf)
+[![Preview of the 2025/26 example report](assets/example_report_preview.png){ width="600" }](assets/example_report.pdf)
 
 [View full example report (PDF)](assets/example_report.pdf)
 

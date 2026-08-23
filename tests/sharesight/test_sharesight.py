@@ -142,10 +142,10 @@ def test_parse_trade_report_missing_column(tmp_path: Path) -> None:
                 "Type",
                 "Date",
                 "Quantity",
-                "Price *",
                 "Brokerage *",
                 "Currency",
                 "Exchange Rate",
+                "Value",
                 "Comments",
             ],
             [
@@ -155,10 +155,10 @@ def test_parse_trade_report_missing_column(tmp_path: Path) -> None:
                 "Buy",
                 "01/01/2020",
                 "1",
-                "100",
                 "0",
                 "USD",
                 "1.2",
+                "100",
                 "Note",
             ],
         ],
@@ -166,7 +166,7 @@ def test_parse_trade_report_missing_column(tmp_path: Path) -> None:
 
     with pytest.raises(
         ParsingError,
-        match="Missing expected columns in Sharesight trades header: Value",
+        match=r"Missing expected columns in Sharesight trades header: Price \*",
     ) as excinfo:
         list(SharesightParser().load_from_dir(tmp_path))
 
@@ -233,6 +233,25 @@ TRADE_HEADER = [
     "Comments",
 ]
 
+# Exercise the newer header aliases together. This is deliberately not labelled
+# as a verbatim export fixture; keep it independent of the parser mapping so a
+# wrong alias there fails the tests.
+ALIASED_TRADE_HEADER = [
+    "Code",
+    "Market Code",
+    "Name",
+    "Date",
+    "Type",
+    "Qty",
+    "Price",
+    "Instrument Currency",
+    "Brokerage",
+    "Brokerage Currency",
+    "Exch. Rate",
+    "Value",
+    "Comments",
+]
+
 LOCAL_DIVIDEND_HEADER = [
     "Code",
     "Name",
@@ -295,6 +314,42 @@ def test_parse_income_report_with_uppercase_csv_extension(tmp_path: Path) -> Non
         "GBP",
         "USD",
         "USD",
+    ]
+
+
+def test_parse_income_report_with_informational_columns(tmp_path: Path) -> None:
+    """Ignore newer Taxable Income columns not used by the calculation."""
+    _write_csv(
+        tmp_path / "Taxable Income Report.csv",
+        [
+            ["Foreign Income"],
+            [*FOREIGN_DIVIDEND_HEADER, "Country", "Income Type"],
+            [
+                "XYZ",
+                "X Corp",
+                "03/04/2023",
+                "1.2",
+                "USD",
+                "85",
+                "15",
+                "100",
+                "foreign",
+                "United States",
+                "Dividend",
+            ],
+            ["Total"],
+        ],
+    )
+
+    transactions = SharesightParser().load_from_dir(tmp_path)
+
+    assert [transaction.action for transaction in transactions] == [
+        ActionType.DIVIDEND,
+        ActionType.DIVIDEND_TAX,
+    ]
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal(100),
+        Decimal(-15),
     ]
 
 
@@ -426,6 +481,167 @@ def test_parse_trade_report(tmp_path: Path) -> None:
     assert grant.amount is None
 
 
+def test_parse_trade_report_with_minimal_header(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Parse a trade without unused or conditionally required columns."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            ["Market", "Code", "Type", "Date", "Quantity", "Price *", "Currency"],
+            ["LSE", "ABC", "Buy", "01/02/2023", "2", "10", "GBP"],
+        ],
+    )
+
+    [transaction] = SharesightParser().load_from_dir(tmp_path)
+
+    assert transaction.symbol == "LSE:ABC"
+    assert transaction.description == ""
+    assert transaction.fees == Decimal(0)
+    assert transaction.amount == Decimal(-20)
+    assert "Stock Activity markers cannot be detected" in caplog.text
+
+
+def test_parse_trade_report_with_renamed_columns(tmp_path: Path) -> None:
+    """Parse the report generation that renamed three legacy headings."""
+    renamed_header = [
+        "Price" if column == "Price *" else column for column in TRADE_HEADER
+    ]
+    renamed_header[renamed_header.index("Brokerage *")] = "Brokerage"
+    renamed_header[renamed_header.index("Currency")] = "Brokerage Currency"
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            renamed_header,
+            [
+                "LSE",
+                "ABC",
+                "Example",
+                "Buy",
+                "01/02/2023",
+                "2",
+                "10",
+                "1",
+                "GBP",
+                "1",
+                "20",
+                "",
+            ],
+        ],
+    )
+
+    [transaction] = SharesightParser().load_from_dir(tmp_path)
+
+    assert transaction.symbol == "LSE:ABC"
+    assert transaction.currency == "GBP"
+    assert transaction.quantity == Decimal(2)
+    assert transaction.price == Decimal(10)
+    assert transaction.fees == Decimal(1)
+    assert transaction.amount == Decimal(-21)
+
+
+def test_parse_trade_report_with_newer_aliases(tmp_path: Path) -> None:
+    """Parse the newer aliases and ignore an unrelated report column."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            [*ALIASED_TRADE_HEADER, "Unused report column"],
+            [
+                "ABC",
+                "NASDAQ",
+                "Example",
+                "01/02/2023",
+                "Sell",
+                "-2",
+                "10",
+                "USD",
+                "1",
+                "USD",
+                "1.2",
+                "16.67",
+                "",
+                "not used",
+            ],
+        ],
+    )
+
+    [transaction] = SharesightParser().load_from_dir(tmp_path)
+
+    assert transaction.symbol == "NASDAQ:ABC"
+    assert transaction.currency == "USD"
+    assert transaction.quantity == Decimal(2)
+    assert transaction.price == Decimal(10)
+    assert transaction.fees == Decimal(1)
+    assert transaction.amount == Decimal(19)
+
+
+def test_parse_trade_report_with_foreign_brokerage(tmp_path: Path) -> None:
+    """Reject brokerage whose currency differs from the instrument currency."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            ALIASED_TRADE_HEADER,
+            [
+                "ABC",
+                "NASDAQ",
+                "Example",
+                "01/02/2023",
+                "Buy",
+                "2",
+                "10",
+                "USD",
+                "1",
+                "GBP",
+                "1.2",
+                "16.67",
+                "",
+            ],
+        ],
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match="Brokerage Currency 'GBP' differs from transaction currency 'USD'",
+    ) as excinfo:
+        SharesightParser().load_from_dir(tmp_path)
+
+    assert excinfo.value.row_index == 2
+
+
+def test_parse_fx_trade_with_gbp_brokerage(tmp_path: Path) -> None:
+    """Accept an FX row whose brokerage is in GBP, the currency FX rows use."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            ALIASED_TRADE_HEADER,
+            [
+                "USDGBP",
+                "FX",
+                "FX trade",
+                "03/02/2023",
+                "Sell",
+                "-100",
+                "1.25",
+                "USD",
+                "1",
+                "GBP",
+                "1.25",
+                "80",
+                "fx",
+            ],
+        ],
+    )
+
+    [transaction] = SharesightParser().load_from_dir(tmp_path)
+
+    assert transaction.symbol == "FX:USDGBP"
+    assert transaction.currency == "GBP"
+    assert transaction.quantity == Decimal(100)
+    assert transaction.price == Decimal("0.8")
+    assert transaction.fees == Decimal(1)
+    assert transaction.amount == Decimal(79)
+
+
 def test_parse_trade_report_unknown_action(tmp_path: Path) -> None:
     """Raise on unknown trade types with row context."""
     _write_csv(
@@ -475,6 +691,20 @@ def test_parse_trade_report_fx_without_value(tmp_path: Path) -> None:
                 "",
                 "fx",
             ],
+        ],
+    )
+
+    with pytest.raises(ParsingError, match="Missing Value in FX transaction"):
+        SharesightParser().load_from_dir(tmp_path)
+
+
+def test_parse_trade_report_fx_without_value_column(tmp_path: Path) -> None:
+    """Require the conditionally used Value column for an FX trade."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            ["Market", "Code", "Type", "Date", "Quantity", "Price *", "Currency"],
+            ["FX", "USDGBP", "Sell", "03/02/2023", "-100", "1.25", "USD"],
         ],
     )
 
