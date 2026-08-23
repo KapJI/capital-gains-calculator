@@ -78,8 +78,7 @@ class StockSplit:
 
     Morgan Stanley's notice puts sales "on or prior to" the split date in
     pre-split values, so this is the split date itself rather than the first
-    day of split-adjusted trading that the Schwab parser's ``SPLITS`` table
-    uses.
+    date treated as post-split by the Schwab parser's ``SPLITS`` table.
     """
     factor: int
 
