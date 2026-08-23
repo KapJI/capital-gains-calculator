@@ -90,9 +90,6 @@ class CurrencyCode(str):
 class SpinOff:
     """Class representing spin-off event on a share."""
 
-    # Cost proportion to be applied to the cost of original shares from which
-    # Spin-off originated
-    cost_proportion: Decimal
     # Source of the Spin-off, e.g. MMM for SOLV
     source: str
     # Destination ticker to which SpinOff happened, e.g. SOLV for MMM

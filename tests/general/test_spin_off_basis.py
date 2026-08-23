@@ -533,7 +533,9 @@ def test_a_chain_listed_out_of_order_is_refused() -> None:
     The first pass goes by the order the input lists same-day rows in, and
     here it would apportion a BAR that has no shares yet.
     """
-    with pytest.raises(CalculationError, match="List the spin-off that creates BAR"):
+    with pytest.raises(
+        CalculationError, match=r"(?i)list the spin-off that creates BAR"
+    ):
         get_report(
             _chain_calculator(),
             [
@@ -903,3 +905,61 @@ def test_a_rename_from_an_origin_never_held_is_no_merge() -> None:
 
     assert calculator.portfolio["NEW"].amount == Decimal(90)
     assert calculator.portfolio["BAR"].amount == Decimal(10)
+
+
+def test_a_chain_out_of_order_is_refused_before_prices_are_needed() -> None:
+    """The clear refusal, not a missing-price error, when both would apply."""
+    converter = CurrencyConverter(None, {})
+    handler = SpinOffHandler()
+    handler.cache = {"BAR": "FOO", "BAZ": "BAR"}
+    # No BAZ price at all: a chain in the right order would fail on that.
+    calculator = CapitalGainsCalculator(
+        2024,
+        converter,
+        IsinConverter(),
+        CurrentPriceFetcher(converter, {}, PRICES),
+        handler,
+        InitialPrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    with pytest.raises(
+        CalculationError, match=r"(?i)list the spin-off that creates BAR"
+    ):
+        get_report(
+            calculator,
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                transaction(
+                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency=GBP
+                ),
+                transaction(
+                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
+                ),
+            ],
+        )
+
+
+def test_a_chain_out_of_order_from_a_holding_already_held_is_refused() -> None:
+    """BAR held from before, so its own row passes; the later row catches it.
+
+    With shares already in BAR, the first row is worked out on them as if
+    that were the whole holding, and only when FOO's spin-off into BAR is
+    read does it show the two were out of order.
+    """
+    with pytest.raises(
+        CalculationError, match=r"(?i)list the spin-off that creates BAR"
+    ):
+        get_report(
+            _chain_calculator(),
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                transaction(BUY_DAY, ActionType.BUY, "BAR", 2, 10, 0, -20, GBP),
+                transaction(
+                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency=GBP
+                ),
+                transaction(
+                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
+                ),
+            ],
+        )

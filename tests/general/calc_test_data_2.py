@@ -223,7 +223,6 @@ calc_basic_data_2 = [
                         new_quantity=Decimal(840),
                         new_pool_cost=Decimal("8939.55"),
                         spin_off=SpinOff(
-                            cost_proportion=Decimal("0.1"),
                             source="FOO",
                             dest="BAR",
                             date=datetime.date(day=5, month=7, year=2023),
@@ -241,7 +240,6 @@ calc_basic_data_2 = [
                         new_quantity=Decimal(420),
                         new_pool_cost=Decimal("33523.29"),
                         spin_off=SpinOff(
-                            cost_proportion=Decimal("0.1"),
                             source="FOO",
                             dest="BAR",
                             date=datetime.date(day=5, month=7, year=2023),

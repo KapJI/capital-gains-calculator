@@ -255,6 +255,7 @@ class CapitalGainsCalculator:
         self.spin_off_estimates: dict[tuple[datetime.date, str], Decimal] = defaultdict(
             Decimal
         )
+        self.calculated = False
         # Days on which a symbol was charged a management fee. A fee adds to
         # the pool's cost with no shares, so it cannot be told from the pool
         # itself once it is in.
@@ -405,13 +406,18 @@ class CapitalGainsCalculator:
         ticker = self.spin_off_handler.get_spin_off_source(
             symbol, transaction.date, self.portfolio
         )
-        dst_price = self.price_fetcher.get_closing_price(symbol, transaction.date)
-        src_price = self.price_fetcher.get_closing_price(ticker, transaction.date)
-        dst_amount = quantity * dst_price
-        src_amount = self.portfolio[ticker].quantity * src_price
-        original_src_amount = self.portfolio[ticker].amount
-
-        share_of_original_cost = src_amount / (dst_amount + src_amount)
+        # Nothing to apportion from an empty holding, and no proportion of
+        # value to work out either. On a day the source is itself created by
+        # a spin-off, this is the first sign the rows are out of order, and
+        # it comes before any price is asked for.
+        if self.portfolio[ticker].quantity == 0:
+            raise CalculationError(
+                f"{ticker} holds no shares on {transaction.date} when {symbol} "
+                f"is spun off from it. If {ticker} is itself spun off that day, "
+                f"the input lists the rows out of order: list the spin-off that "
+                f"creates {ticker} first. Otherwise the history is missing "
+                f"{ticker}'s shares. Do not change the dates."
+            )
         # If this holding has already spun something off today, that spin-off
         # was worked out on it before it received these shares, so both its
         # split of value and its estimate are wrong. The order the input
@@ -434,13 +440,17 @@ class CapitalGainsCalculator:
                 f"{symbol} before the one it makes, or work this day out by "
                 "hand (consider professional advice). Do not change the dates."
             )
+        dst_price = self.price_fetcher.get_closing_price(symbol, transaction.date)
+        src_price = self.price_fetcher.get_closing_price(ticker, transaction.date)
+        dst_amount = quantity * dst_price
+        src_amount = self.portfolio[ticker].quantity * src_price
+        original_src_amount = self.portfolio[ticker].amount
+
+        share_of_original_cost = src_amount / (dst_amount + src_amount)
         self.spin_offs[transaction.date].append(
             SpinOff(
                 dest=symbol,
                 source=ticker,
-                # For this row alone. The second pass works the split out over
-                # every row of the event together and replaces it.
-                cost_proportion=share_of_original_cost,
                 date=transaction.date,
                 quantity=quantity,
                 source_price=src_price,
@@ -1017,8 +1027,8 @@ class CapitalGainsCalculator:
             # share once. Rows from different sources stay separate events,
             # taken in the order they happened.
             events: dict[str, list[SpinOff]] = {}
-            for spin_off in spin_offs_here:
-                events.setdefault(spin_off.source, []).append(spin_off)
+            for row in spin_offs_here:
+                events.setdefault(row.source, []).append(row)
             for source_symbol, rows in events.items():
                 first = rows[0]
                 source = self.portfolio[
@@ -1030,8 +1040,6 @@ class CapitalGainsCalculator:
                 source_value = source.quantity * first.source_price
                 total_value = source_value + received * first.dest_price
                 proportion = source_value / total_value if total_value else Decimal(1)
-                for row in rows:
-                    row.cost_proportion = proportion
                 share = round_decimal((1 - proportion) * source.amount, 2)
                 carried += share
                 self.spin_off_entries[date_index][source_symbol].append(
@@ -2029,7 +2037,18 @@ class CapitalGainsCalculator:
     def calculate_capital_gain(
         self,
     ) -> CapitalGainsReport:
-        """Calculate capital gain and return generated report."""
+        """Calculate capital gain and return generated report.
+
+        Runs once per calculator. The walk consumes the first pass's
+        estimates as it replaces them and accumulates bed and breakfast
+        claims as it makes them, so a second run would count both twice.
+        """
+        if self.calculated:
+            raise RuntimeError(
+                "calculate_capital_gain() runs once per calculator; build a "
+                "new one to calculate again"
+            )
+        self.calculated = True
         begin_index = INTERNAL_START_DATE
         tax_year_start_index = self.tax_year_start_date
         end_index = self.tax_year_end_date
@@ -2038,9 +2057,11 @@ class CapitalGainsCalculator:
         allowable_costs = Decimal(0)
         capital_gain = Decimal(0)
         capital_loss = Decimal(0)
+
+        # The first pass left its estimates in the portfolio; the walk rebuilds
+        # it from nothing.
         self.portfolio.clear()
         self.spin_off_entries.clear()
-
         calculation_log: CalculationLog = defaultdict(dict)
 
         for date_index in (
