@@ -73,6 +73,12 @@ COLUMN_ALIASES: Final[dict[str, str]] = {
 # fails as an unknown type.
 STOCK_SPLIT_PREFIX: Final = "Stock Split "
 
+# These Activity Feed rows point to documents rather than cash or security
+# transactions. Freetrade includes them in an All Activity export.
+IGNORED_TYPES: Final[frozenset[str]] = frozenset(
+    {"MONTHLY_STATEMENT", "TAX_CERTIFICATE"}
+)
+
 
 def _parse_decimal(row: dict[str, str], column: FreetradeColumn) -> Decimal:
     """Parse Decimal value for column, raising ValueError with context on failure."""
@@ -83,6 +89,25 @@ def _parse_decimal(row: dict[str, str], column: FreetradeColumn) -> Decimal:
         raise ValueError(
             f"Invalid decimal in column '{column.value}': {value!r}"
         ) from err
+
+
+def _parse_optional_decimal(row: dict[str, str], column: FreetradeColumn) -> Decimal:
+    """Parse a decimal that Freetrade leaves blank when it does not apply."""
+    if row[column] == "":
+        return Decimal(0)
+    return _parse_decimal(row, column)
+
+
+def _dividend_amount_in_gbp(row: dict[str, str], column: FreetradeColumn) -> Decimal:
+    """Convert a dividend field from instrument currency to account currency."""
+    amount = _parse_decimal(row, column)
+    if amount != 0:
+        instrument_currency = CurrencyCode(row[FreetradeColumn.INSTRUMENT_CURRENCY])
+        if instrument_currency != "GBP":
+            # Dividend exports express Base FX Rate as GBP per unit of the
+            # instrument currency (unlike the trade-only FX Rate column).
+            amount *= _parse_decimal(row, FreetradeColumn.BASE_FX_RATE)
+    return amount
 
 
 def _action_from_str(action_type: str, buy_sell: str, file: Path) -> ActionType:
@@ -120,32 +145,30 @@ class FreetradeTransaction(BrokerTransaction):
         if symbol is None and action not in [ActionType.TRANSFER, ActionType.INTEREST]:
             raise ParsingError(file, f"No symbol for action: {action}")
 
-        # I believe GIA account at Freetrade can be only in GBP
+        # The importer and calculation path below use the exported GBP account
+        # currency fields. Reject another account currency rather than
+        # silently treating it as sterling.
         if row[FreetradeColumn.ACCOUNT_CURRENCY] != "GBP":
             raise UnsupportedBrokerCurrencyError(
                 file, BROKER_NAME, row[FreetradeColumn.ACCOUNT_CURRENCY]
             )
 
-        # Convert all numbers to GBP using Freetrade rates
+        fees = Decimal(0)
         if action in [ActionType.SELL, ActionType.BUY]:
             quantity = _parse_decimal(row, FreetradeColumn.QUANTITY)
-            price = _parse_decimal(row, FreetradeColumn.PRICE_PER_SHARE)
-            amount = _parse_decimal(row, FreetradeColumn.TOTAL_SHARES_AMOUNT)
-            currency = CurrencyCode(row[FreetradeColumn.INSTRUMENT_CURRENCY])
-            if currency != "GBP":
-                fx_rate = _parse_decimal(row, FreetradeColumn.FX_RATE)
-                price /= fx_rate
-                amount /= fx_rate
+            # These two fields are already in account currency. Total Amount
+            # is the cash movement after fees, while the account-currency unit
+            # price excludes them, so retaining the exported fee fields keeps
+            # all three values mutually consistent.
+            price = _parse_decimal(row, FreetradeColumn.PRICE_PER_SHARE_ACCOUNT)
+            amount = _parse_decimal(row, FreetradeColumn.TOTAL_AMOUNT)
+            fees = _parse_optional_decimal(
+                row, FreetradeColumn.STAMP_DUTY
+            ) + _parse_optional_decimal(row, FreetradeColumn.FX_FEE_AMOUNT)
             currency = CurrencyCode("GBP")
         elif action == ActionType.DIVIDEND:
-            # Total amount before US tax withholding
-            amount = _parse_decimal(row, FreetradeColumn.DIVIDEND_GROSS_AMOUNT)
+            amount = _dividend_amount_in_gbp(row, FreetradeColumn.DIVIDEND_GROSS_AMOUNT)
             quantity, price = None, None
-            currency = CurrencyCode(row[FreetradeColumn.INSTRUMENT_CURRENCY])
-            if currency != "GBP":
-                # FX Rate is not defined for dividends,
-                # but we can use base one as there's no fee
-                amount /= _parse_decimal(row, FreetradeColumn.BASE_FX_RATE)
             currency = CurrencyCode("GBP")
         elif action in [ActionType.TRANSFER, ActionType.INTEREST]:
             amount = _parse_decimal(row, FreetradeColumn.TOTAL_AMOUNT)
@@ -159,6 +182,7 @@ class FreetradeTransaction(BrokerTransaction):
         if row[FreetradeColumn.TYPE] == "FREESHARE_ORDER":
             price = Decimal(0)
             amount = Decimal(0)
+            fees = Decimal(0)
 
         amount_negative = (
             action == ActionType.BUY or row[FreetradeColumn.TYPE] == "WITHDRAWAL"
@@ -176,12 +200,43 @@ class FreetradeTransaction(BrokerTransaction):
             description=f"{row[FreetradeColumn.TITLE]} {action}",
             quantity=quantity,
             price=price,
-            fees=Decimal(0),  # not implemented
+            fees=fees,
             amount=amount,
             currency=currency,
             broker=BROKER_NAME,
             isin=isin,
         )
+
+
+def _dividend_tax_transaction(
+    transaction: FreetradeTransaction,
+    header: list[str],
+    row_raw: list[str],
+) -> BrokerTransaction | None:
+    """Create the tax-at-source cash movement carried on a dividend row."""
+    if transaction.action is not ActionType.DIVIDEND:
+        return None
+
+    row = dict(zip(header, row_raw, strict=False))
+    if row[FreetradeColumn.DIVIDEND_WITHHELD_AMOUNT] == "":
+        return None
+    amount = _dividend_amount_in_gbp(row, FreetradeColumn.DIVIDEND_WITHHELD_AMOUNT)
+    if amount == 0:
+        return None
+
+    return BrokerTransaction(
+        date=transaction.date,
+        action=ActionType.DIVIDEND_TAX,
+        symbol=transaction.symbol,
+        description=f"{row[FreetradeColumn.TITLE]} {ActionType.DIVIDEND_TAX}",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=-amount,
+        currency=CurrencyCode("GBP"),
+        broker=BROKER_NAME,
+        isin=transaction.isin,
+    )
 
 
 class FreetradeParser(BaseSingleFileParser):
@@ -210,8 +265,21 @@ class FreetradeParser(BaseSingleFileParser):
         indexed_rows.reverse()
         transactions: list[BrokerTransaction] = []
         for index, row in indexed_rows:
+            row_values = dict(zip(header, row, strict=False))
+            action_type = row_values.get(FreetradeColumn.TYPE)
+            if action_type in IGNORED_TYPES:
+                LOGGER.debug(
+                    "Skipping non-transaction Freetrade row %d (%s)",
+                    index,
+                    action_type,
+                )
+                continue
             try:
-                transactions.append(FreetradeTransaction(header, row, file_path))
+                transaction = FreetradeTransaction(header, row, file_path)
+                transactions.append(transaction)
+                dividend_tax = _dividend_tax_transaction(transaction, header, row)
+                if dividend_tax is not None:
+                    transactions.append(dividend_tax)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise

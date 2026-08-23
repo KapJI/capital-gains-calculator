@@ -2,6 +2,7 @@
 
 import csv
 from decimal import Decimal
+import logging
 from pathlib import Path
 import subprocess
 
@@ -233,9 +234,110 @@ def test_read_freetrade_transactions_success(tmp_path: Path) -> None:
     assert transaction.symbol == "AAPL"
     assert transaction.quantity == Decimal(1)
     assert transaction.price == Decimal(100)
+    assert transaction.fees == Decimal(0)
     assert transaction.amount == Decimal(-100)
     assert transaction.currency == "GBP"
     assert transaction.isin == "US0378331005"
+
+
+@pytest.mark.parametrize("document_type", ["MONTHLY_STATEMENT", "TAX_CERTIFICATE"])
+def test_read_freetrade_ignores_document_rows(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    document_type: str,
+) -> None:
+    """Document links in an All Activity export are not transactions."""
+    values = dict.fromkeys(COLUMNS, "")
+    values.update(
+        {
+            FreetradeColumn.TITLE.value: "Account document",
+            FreetradeColumn.TYPE.value: document_type,
+            FreetradeColumn.TIMESTAMP.value: "2024-01-02T10:00:00",
+        }
+    )
+    document_row = [values[column] for column in COLUMNS]
+    path = _write_csv(tmp_path, COLUMNS, [_default_row(), document_row])
+    caplog.set_level(logging.DEBUG, logger="cgt_calc.parsers.freetrade")
+
+    transactions = FreetradeParser().load_from_file(path)
+
+    assert len(transactions) == 1
+    assert transactions[0].action is ActionType.BUY
+    assert (
+        f"Skipping non-transaction Freetrade row 3 ({document_type})" in caplog.messages
+    )
+
+
+@pytest.mark.parametrize(
+    ("buy_sell", "total_amount", "expected_amount"),
+    [
+        ("BUY", "100.75", Decimal("-100.75")),
+        ("SELL", "99.25", Decimal("99.25")),
+    ],
+)
+def test_read_freetrade_trade_uses_account_amount_and_fees(
+    tmp_path: Path,
+    buy_sell: str,
+    total_amount: str,
+    expected_amount: Decimal,
+) -> None:
+    """GBP cash, price, stamp duty and FX fees come from their direct fields."""
+    overrides = {
+        FreetradeColumn.TOTAL_AMOUNT.value: total_amount,
+        FreetradeColumn.BUY_SELL.value: buy_sell,
+        FreetradeColumn.PRICE_PER_SHARE_ACCOUNT.value: "100",
+        FreetradeColumn.STAMP_DUTY.value: "0.50",
+        FreetradeColumn.INSTRUMENT_CURRENCY.value: "USD",
+        FreetradeColumn.TOTAL_SHARES_AMOUNT.value: "125",
+        FreetradeColumn.PRICE_PER_SHARE.value: "125",
+        FreetradeColumn.FX_RATE.value: "1.25",
+        FreetradeColumn.FX_FEE_AMOUNT.value: "0.25",
+    }
+    path = _write_csv(tmp_path, COLUMNS, [_default_row(overrides)])
+
+    transactions = FreetradeParser().load_from_file(path)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.action is (
+        ActionType.BUY if buy_sell == "BUY" else ActionType.SELL
+    )
+    assert transaction.price == Decimal(100)
+    assert transaction.fees == Decimal("0.75")
+    assert transaction.amount == expected_amount
+    assert transaction.currency == "GBP"
+
+
+def test_read_freetrade_foreign_dividend_and_withholding_tax(
+    tmp_path: Path,
+) -> None:
+    """Foreign dividend gross income and withholding use GBP-per-unit base FX."""
+    overrides = {
+        FreetradeColumn.TITLE.value: "Nasdaq",
+        FreetradeColumn.TYPE.value: "DIVIDEND",
+        FreetradeColumn.TOTAL_AMOUNT.value: "0.93",
+        FreetradeColumn.BUY_SELL.value: "",
+        FreetradeColumn.TICKER.value: "NDAQ",
+        FreetradeColumn.ISIN.value: "US6311031081",
+        FreetradeColumn.INSTRUMENT_CURRENCY.value: "USD",
+        FreetradeColumn.BASE_FX_RATE.value: "0.78491703",
+        FreetradeColumn.DIVIDEND_GROSS_AMOUNT.value: "1.40",
+        FreetradeColumn.DIVIDEND_NET_AMOUNT.value: "1.19",
+        FreetradeColumn.DIVIDEND_WITHHELD_PERCENTAGE.value: "15",
+        FreetradeColumn.DIVIDEND_WITHHELD_AMOUNT.value: "0.21",
+    }
+    path = _write_csv(tmp_path, COLUMNS, [_default_row(overrides)])
+
+    dividend, tax = FreetradeParser().load_from_file(path)
+
+    assert dividend.action is ActionType.DIVIDEND
+    assert dividend.amount == Decimal("1.40") * Decimal("0.78491703")
+    assert dividend.currency == "GBP"
+    assert tax.action is ActionType.DIVIDEND_TAX
+    assert tax.amount == Decimal("-0.21") * Decimal("0.78491703")
+    assert tax.currency == "GBP"
+    assert tax.symbol == dividend.symbol
+    assert tax.isin == dividend.isin
 
 
 def test_read_freetrade_transactions_new_header_success(tmp_path: Path) -> None:
