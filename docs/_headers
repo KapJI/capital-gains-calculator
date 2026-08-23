@@ -1,0 +1,12 @@
+# Cloudflare Pages caches everything but HTML for four hours by default. Zensical
+# content-hashes its own bundles, but extra.css, the images and the example
+# report keep stable names, so a deploy would stay invisible until the browser's
+# copy expired. Revalidate those instead: with an ETag that is a 304 unless the
+# file really changed. Matching rules are merged and same-name headers joined
+# with a comma, so these patterns must not overlap.
+
+/stylesheets/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/assets/*
+  Cache-Control: public, max-age=0, must-revalidate
