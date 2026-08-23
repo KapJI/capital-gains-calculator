@@ -67,9 +67,13 @@ def get_report(
 
 
 def create_calculator(
-    tax_year: int = 2024, balance_check: bool = False
+    *, tax_year: int, balance_check: bool = True
 ) -> CapitalGainsCalculator:
-    """Create a calculator with standard test configuration."""
+    """Create a calculator with standard test configuration.
+
+    Mirrors the command line: the tax year has to be given, by name, and
+    the balance check is on unless a test turns it off.
+    """
     currency_converter = CurrencyConverter(None, {})
     price_fetcher = CurrentPriceFetcher(currency_converter, {}, {})
     return CapitalGainsCalculator(
@@ -197,7 +201,7 @@ def test_eri_duplicate_report_within_tolerance_is_skipped(
     overlapping input files) and simply skipped with a warning.
     """
     date = datetime.date(2024, 6, 30)
-    calculator = create_calculator()
+    calculator = create_calculator(tax_year=2024, balance_check=False)
     calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
 
     transactions: list[BrokerTransaction] = [
@@ -235,7 +239,7 @@ def test_eri_conflicting_report_raises_invalid_transaction_error() -> None:
     one.
     """
     date = datetime.date(2024, 6, 30)
-    calculator = create_calculator()
+    calculator = create_calculator(tax_year=2024, balance_check=False)
     calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
 
     transactions: list[BrokerTransaction] = [
@@ -497,7 +501,7 @@ def test_proportional_disposal_no_rounding_error() -> None:
     (quantity * amount) / total, which ensures exact cancellation when
     disposing all shares: (total * amount) / total = amount.
     """
-    calculator = create_calculator()
+    calculator = create_calculator(tax_year=2024, balance_check=False)
     symbol = "TEST"
 
     # Create scenario that would trigger rounding errors:
@@ -559,7 +563,7 @@ def test_high_precision_amount_no_rounding_error() -> None:
     Without the fix (28-digit precision), this fails with:
     AssertionError: current amount 2E-23
     """
-    calculator = create_calculator()
+    calculator = create_calculator(tax_year=2024, balance_check=False)
     symbol = "ACME"
 
     transactions: list[BrokerTransaction] = [
@@ -616,7 +620,7 @@ def test_high_precision_amount_no_rounding_error() -> None:
 
 def test_same_day_rule_all_shares_disposed_no_rounding_error() -> None:
     """Test that same day rule disposing ALL shares doesn't cause rounding errors."""
-    calculator = create_calculator()
+    calculator = create_calculator(tax_year=2024, balance_check=False)
     symbol = "TEST"
     same_day = datetime.date(2024, 5, 1)
 
@@ -686,7 +690,7 @@ def _rename_transaction(date: datetime.date, old: str, new: str) -> BrokerTransa
 
 def test_rename_transfers_pool_to_new_ticker() -> None:
     """RENAME moves pool cost and quantity from old to new ticker; logs a RENAME entry."""
-    calculator = create_calculator()
+    calculator = create_calculator(tax_year=2024, balance_check=False)
     rename_date = datetime.date(2024, 5, 10)
     transactions: list[BrokerTransaction] = [
         BrokerTransaction(
@@ -724,7 +728,7 @@ def test_rename_transfers_pool_to_new_ticker() -> None:
 
 def test_section_104_disposal_uses_renamed_pool_cost() -> None:
     """After a rename, S104 disposal under NEW uses the pool cost carried from OLD."""
-    calculator = create_calculator()
+    calculator = create_calculator(tax_year=2024, balance_check=False)
     sell_date = datetime.date(2024, 6, 1)
     transactions: list[BrokerTransaction] = [
         BrokerTransaction(
@@ -787,7 +791,7 @@ def test_section_104_disposal_uses_renamed_pool_cost() -> None:
 
 def test_bed_and_breakfast_matches_across_rename() -> None:
     """Sell of OLD is B&B-matched against a buy of NEW after a rename within 30 days."""
-    calculator = create_calculator()
+    calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions: list[BrokerTransaction] = [
         BrokerTransaction(
             date=datetime.date(2024, 5, 1),
@@ -872,11 +876,12 @@ def test_same_day_vest_ordered_before_sale() -> None:
 
     # Raw order (sale before vest) fails the ownership check.
     with pytest.raises(InvalidTransactionError):
-        get_report(create_calculator(), [sale, vest])
+        get_report(create_calculator(tax_year=2024, balance_check=False), [sale, vest])
 
     # The registry sort orders the vest first, so the sale succeeds.
     report = get_report(
-        create_calculator(), sorted([sale, vest], key=_transaction_sort_key)
+        create_calculator(tax_year=2024, balance_check=False),
+        sorted([sale, vest], key=_transaction_sort_key),
     )
     assert report.total_gain() == Decimal(50)  # 5 * (20 - 10)
 
@@ -922,7 +927,7 @@ def test_same_day_sale_funding_purchase_survives_sort() -> None:
     ]
 
     report = get_report(
-        create_calculator(balance_check=True),
+        create_calculator(tax_year=2024),
         sorted(transactions, key=_transaction_sort_key),
     )
     assert report.total_gain() == Decimal(50)  # 5 * (20 - 10)
@@ -961,7 +966,7 @@ def test_disposal_debug_log_keeps_fractional_quantity(
     ]
 
     with caplog.at_level(logging.DEBUG, logger="cgt_calc.main"):
-        get_report(create_calculator(), transactions)
+        get_report(create_calculator(tax_year=2024, balance_check=False), transactions)
 
     disposal_logs = [
         record.getMessage()
@@ -1048,7 +1053,7 @@ def test_negative_balance_error_trims_long_history() -> None:
         transfer_transaction(start + datetime.timedelta(days=day), -1.0)
         for day in range(1, 15)
     ]
-    calculator = create_calculator(balance_check=True)
+    calculator = create_calculator(tax_year=2024)
 
     with pytest.raises(CalculationError) as excinfo:
         calculator.convert_to_hmrc_transactions(transactions)
@@ -1062,7 +1067,7 @@ def test_negative_balance_error_trims_long_history() -> None:
 def test_negative_balance_error_shows_short_history_in_full() -> None:
     """A dump that fits within the limit is shown without omissions."""
     transactions = [transfer_transaction(datetime.date(2024, 5, 1), -1.0)]
-    calculator = create_calculator(balance_check=True)
+    calculator = create_calculator(tax_year=2024)
 
     with pytest.raises(CalculationError) as excinfo:
         calculator.convert_to_hmrc_transactions(transactions)
@@ -1096,7 +1101,7 @@ def test_negative_balance_error_shows_only_relevant_transactions() -> None:
         ),
         transfer_transaction(day + datetime.timedelta(days=4), -91.0),
     ]
-    calculator = create_calculator(balance_check=True)
+    calculator = create_calculator(tax_year=2024)
 
     with pytest.raises(CalculationError) as excinfo:
         calculator.convert_to_hmrc_transactions(transactions)
@@ -1312,7 +1317,7 @@ def test_multiple_foreign_fee_currencies_on_sell() -> None:
 
 def test_calculate_capital_gain_runs_once() -> None:
     """A second run would count the first pass's estimates and B&B claims twice."""
-    calculator = create_calculator()
+    calculator = create_calculator(tax_year=2024, balance_check=False)
     get_report(
         calculator,
         [
