@@ -103,7 +103,8 @@ The Activity Feed can contain queued orders and other items as well as executed 
 cgt-calc ignores the two document types described under [Supported activity](#supported-activity).
 Identify any other named row in Freetrade before deciding what to do with it:
 
-- a queued order should be replaced by its executed contract note, if it later executed; and
+- a queued order should be replaced by its executed contract note if it later executed, or removed
+  if it was cancelled; and
 - a transfer or corporate action may need the extra records described in
   [Check for missing activity](#check-for-missing-activity).
 
