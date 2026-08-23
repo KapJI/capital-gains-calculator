@@ -402,4 +402,4 @@ def test_freetrade_transaction_unsupported_action(
         UnsupportedBrokerActionError,
         match="Unsupported Freetrade action 'ADJUSTMENT'",
     ):
-        FreetradeTransaction(COLUMNS, row, dummy_file)
+        FreetradeTransaction(dict(zip(COLUMNS, row, strict=True)), dummy_file)

@@ -132,9 +132,8 @@ def _action_from_str(action_type: str, buy_sell: str, file: Path) -> ActionType:
 class FreetradeTransaction(BrokerTransaction):
     """Represents a single Freetrade transaction."""
 
-    def __init__(self, header: list[str], row_raw: list[str], file: Path) -> None:
-        """Create transaction from CSV row."""
-        row = dict(zip(header, row_raw, strict=False))
+    def __init__(self, row: dict[str, str], file: Path) -> None:
+        """Create transaction from a CSV row keyed by column name."""
         action = _action_from_str(
             row[FreetradeColumn.TYPE], row[FreetradeColumn.BUY_SELL], file
         )
@@ -209,15 +208,12 @@ class FreetradeTransaction(BrokerTransaction):
 
 
 def _dividend_tax_transaction(
-    transaction: FreetradeTransaction,
-    header: list[str],
-    row_raw: list[str],
+    transaction: FreetradeTransaction, row: dict[str, str]
 ) -> BrokerTransaction | None:
     """Create the tax-at-source cash movement carried on a dividend row."""
     if transaction.action is not ActionType.DIVIDEND:
         return None
 
-    row = dict(zip(header, row_raw, strict=False))
     if row[FreetradeColumn.DIVIDEND_WITHHELD_AMOUNT] == "":
         return None
     amount = _dividend_amount_in_gbp(row, FreetradeColumn.DIVIDEND_WITHHELD_AMOUNT)
@@ -264,9 +260,9 @@ class FreetradeParser(BaseSingleFileParser):
         # the proper fix would be to use datetime in BrokerTransaction
         indexed_rows.reverse()
         transactions: list[BrokerTransaction] = []
-        for index, row in indexed_rows:
-            row_values = dict(zip(header, row, strict=False))
-            action_type = row_values.get(FreetradeColumn.TYPE)
+        for index, row_raw in indexed_rows:
+            row = dict(zip(header, row_raw, strict=False))
+            action_type = row.get(FreetradeColumn.TYPE)
             if action_type in IGNORED_TYPES:
                 LOGGER.debug(
                     "Skipping non-transaction Freetrade row %d (%s)",
@@ -275,9 +271,9 @@ class FreetradeParser(BaseSingleFileParser):
                 )
                 continue
             try:
-                transaction = FreetradeTransaction(header, row, file_path)
+                transaction = FreetradeTransaction(row, file_path)
                 transactions.append(transaction)
-                dividend_tax = _dividend_tax_transaction(transaction, header, row)
+                dividend_tax = _dividend_tax_transaction(transaction, row)
                 if dividend_tax is not None:
                     transactions.append(dividend_tax)
             except ParsingError as err:
