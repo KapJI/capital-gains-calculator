@@ -122,6 +122,7 @@ Schwab
 SchwabTransaction
 Sharesight
 Sharesight's
+Shareworks
 shfmt
 shtab
 SOLV
@@ -132,6 +133,7 @@ sqrt
 stderr
 stdin
 stdout
+StockPlan
 str
 subrow
 tablefinder
