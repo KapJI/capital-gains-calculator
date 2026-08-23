@@ -6,7 +6,7 @@ Final balance
 
 Dividends
   IBKR: 1.00, excluding 0.15 taxed at source (GBP)
-  VT: 20.00, excluding 3.0 taxed at source (GBP)
+  VT: 20.00, excluding 3.00 taxed at source (GBP)
 
 Portfolio at the end of 2025/2026 tax year
   CNX1: 2.00, £2,007.77

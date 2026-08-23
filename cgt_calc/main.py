@@ -981,7 +981,11 @@ class CapitalGainsCalculator:
             print(style_text("Dividends", colour=Style.BRIGHT, emoji="💵"))
             for (symbol, currency), amount in dividends.items():
                 tax = dividends_tax[(symbol, currency)]
-                tax_str = f", excluding {-tax} taxed at source" if tax < 0 else ""
+                tax_str = (
+                    f", excluding {round_decimal(-tax, 2)} taxed at source"
+                    if tax < 0
+                    else ""
+                )
                 print(
                     f"{bul}{symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})"
                 )
