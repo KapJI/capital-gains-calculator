@@ -582,9 +582,11 @@ class CapitalGainsCalculator:
 
         A gift is a disposal otherwise than by way of a bargain at arm's
         length, so its consideration is the market value of the shares on the
-        day (TCGA 1992 s17, CG14530). The row states that value per share as
-        its price, and the disposal is then identified exactly like a sale. No
-        money changes hands, so the balance is left alone.
+        day (TCGA 1992 s17, CG14530). The row states that value divided by its
+        units as the price, which is the share price of the day unless the
+        count has been restated for a later split. The disposal is then
+        identified exactly like a sale. No money changes hands, so the balance
+        is left alone.
         """
         symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
@@ -605,7 +607,7 @@ class CapitalGainsCalculator:
         if transaction.price <= 0:
             raise InvalidTransactionError(
                 transaction,
-                "A gift needs the market value per share on the day as its price",
+                "A gift needs its market value divided by its units as the price",
             )
         # Two gifts of the same shares on one day are one disposal (TCGA 1992
         # s105(1)) and accumulate; a sale on the same day is refused.

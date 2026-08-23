@@ -214,15 +214,22 @@ def test_giving_away_the_whole_holding_closes_it() -> None:
     assert calculator.portfolio["FOO"].quantity == Decimal(0)
 
 
-def test_a_gift_before_a_split_is_valued_in_the_units_of_its_day() -> None:
-    """Two shares at £30 each are worth £60, whatever the later split does."""
+def test_a_raw_gift_before_a_split_is_in_the_units_of_its_day() -> None:
+    """A RAW history keeps each day's units, so the price is the day's.
+
+    This is the convention the docs describe; a Schwab export instead
+    restates counts for later splits, and there the price on the row must
+    be the value of the whole gift divided by the restated count. That
+    case is a matter of what the user enters, so it is covered by the
+    wording of the refusal rather than by a calculation.
+    """
     split_day = datetime.date(2024, 7, 1)
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False),
         [
             transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
             _gift(2, 30),
-            split_transaction(split_day, "FOO", 8),
+            dataclasses.replace(split_transaction(split_day, "FOO", 8), currency=GBP),
         ],
     )
 
