@@ -234,12 +234,13 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
         else:
             action = ActionType.SELL
 
+        symbol = KNOWN_SYMBOL_DICT[plan]
         transaction = BrokerTransaction(
             date=datetime.datetime.strptime(
                 row[WithdrawalColumn.EXECUTION_DATE], "%d-%b-%Y"
             ).date(),
             action=action,
-            symbol=KNOWN_SYMBOL_DICT[plan],
+            symbol=symbol,
             description=plan,
             quantity=quantity,
             price=price,
@@ -249,7 +250,10 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
             broker=BROKER_NAME,
         )
 
-        return MSSBParser._handle_stock_split(transaction)
+        # Splits are keyed by the symbol the report uses, so rename afterwards.
+        transaction = MSSBParser._handle_stock_split(transaction)
+        transaction.symbol = TICKER_RENAMES.get(symbol, symbol)
+        return transaction
 
     @staticmethod
     def _handle_stock_split(transaction: BrokerTransaction) -> BrokerTransaction:
