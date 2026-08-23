@@ -58,11 +58,14 @@
         \BLOCK{ endif }
     }
     \BLOCK{ if overall_gain > 0 -}
-        Chargeable \textbf{gain} is £\VAR{ "{:,}".format(overall_gain) }
+        Chargeable \textbf{gain} is £\VAR{ "{:,}".format(overall_gain) }\BLOCK{ if is_gift }, before any relief:
+        a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns\BLOCK{ endif }
 
         \BLOCK{ set total_gain.value = total_gain.value + overall_gain }
         Capital gain to date is £\VAR{ "{:,}".format(total_gain.value) }
-    \BLOCK{ elif is_gift and overall_gain < 0 }
+    \BLOCK{ elif overall_gain == 0 }
+        Neither a gain nor a loss.
+    \BLOCK{ elif is_gift }
         \textbf{Loss} of £\VAR{ "{:,}".format(-overall_gain) } on a gift, not included in the totals:
         a loss on a gift to a connected person can only be set against gains on disposals to the same person (TCGA 1992 s18(3)).
     \BLOCK{ else }

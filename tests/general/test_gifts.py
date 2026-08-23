@@ -305,7 +305,7 @@ def test_the_pdf_shows_a_gain_on_a_gift_like_any_other(tmp_path: Path) -> None:
     source = _latex(tmp_path, 30)
 
     assert "4 units of FOO given away at a market value of £120.00" in source
-    assert "Chargeable \\textbf{gain} is £80.00" in source
+    assert "Chargeable \\textbf{gain} is £80.00, before any relief" in source
 
 
 def test_the_pdf_keeps_a_loss_on_a_gift_out_of_the_total(tmp_path: Path) -> None:
@@ -320,5 +320,5 @@ def test_the_pdf_does_not_call_a_gift_at_cost_a_loss(tmp_path: Path) -> None:
     """Given away at exactly its cost, a gift is a nil result, not a loss."""
     source = _latex(tmp_path, 10)
 
-    assert "on a gift" not in source
-    assert "Chargeable \\textbf{loss}" in source
+    assert "Neither a gain nor a loss." in source
+    assert "loss} " not in source.lower()
