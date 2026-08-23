@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-# Generate cropped PNG preview for README from the first page of the example PDF.
+# Generate the example report images: a cropped PNG teaser for the README and one
+# full-page WebP per page for the docs site.
 # Requires: ImageMagick (with Ghostscript).
 # Usage: run with no arguments.
 
@@ -24,6 +25,12 @@ BORDER=20
 
 # Resize after cropping
 FINAL_WIDTH=1200
+
+# Full-page images for the docs site: prefix, resolution and width.
+PAGE_PREFIX="docs/assets/example_report_page"
+PAGE_DPI=200
+PAGE_WIDTH=1400
+PAGE_QUALITY=82
 
 ### ---------------------------------------------------------------------------
 
@@ -55,3 +62,29 @@ magick -density "$DPI" "$PDF_PATH[0]" -units PixelsPerInch -strip miff:- |
 
 echo "✅ Preview generated: $OUTPUT_PATH"
 echo "👀 Check if it looks good or adjust CROP_HEIGHT in the script."
+
+echo
+echo "Generating full-page images from '$PDF_PATH' → '${PAGE_PREFIX}N.webp'"
+echo "Density: ${PAGE_DPI} DPI, Width: ${PAGE_WIDTH}, Quality: ${PAGE_QUALITY}"
+
+# Drop images from a previous run so a shorter report leaves no stale pages behind.
+rm -f "${PAGE_PREFIX}"*.webp
+
+# Render every page: flatten onto white, resize to a fixed width, write WebP.
+magick -density "$PAGE_DPI" "$PDF_PATH" \
+    -background white -alpha remove -alpha off \
+    -resize "$PAGE_WIDTH" \
+    -quality "$PAGE_QUALITY" \
+    -strip "${PAGE_PREFIX}%d.webp"
+
+# ImageMagick numbers pages from zero; the docs refer to them from one.
+for image in "${PAGE_PREFIX}"*.webp; do
+    number="${image#"${PAGE_PREFIX}"}"
+    number="${number%.webp}"
+    mv "$image" "${PAGE_PREFIX}$((number + 1)).webp.tmp"
+done
+for image in "${PAGE_PREFIX}"*.webp.tmp; do
+    mv "$image" "${image%.tmp}"
+done
+
+echo "✅ Page images generated: $(ls "${PAGE_PREFIX}"*.webp | wc -l | tr -d ' ') pages"
