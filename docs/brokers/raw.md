@@ -80,9 +80,13 @@ the error says what to do instead.
 Shares given to anyone other than a spouse or civil partner are a **disposal at market value**
 ([TCGA 1992 s17](https://www.legislation.gov.uk/ukpga/1992/12/section/17)): you are taxed as if you
 had sold them for what they were worth on the day, although no money changed hands. Record them with
-the `GIFT` action. The `price` is the market value of the gift divided by its units: the share price
-on that day, unless the count has been restated for a later split (Schwab's export does this), in
-which case divide the value of the whole gift by the restated count.
+the `GIFT` action. The `price` is the market value of the gift divided by its units. Market value
+has its own rules ([s272](https://www.legislation.gov.uk/ukpga/1992/12/section/272)): for shares
+quoted on an exchange it follows the day's quoted prices, while unquoted shares need a defensible
+open-market valuation of the holding you gave away — the size of the holding changes the value per
+share ([CG59562](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg59562)), and HMRC
+can check a valuation after the disposal (form CG34). If the count has been restated for a later
+split (Schwab's export does this), divide the value of the whole gift by the restated count.
 
 ```csv
 2024-03-16,GIFT,META,21.5,480.00,0.00,USD

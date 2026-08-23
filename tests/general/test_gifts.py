@@ -24,6 +24,7 @@ from cgt_calc.exceptions import (
     UnclassifiedGiftError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction, RuleType
+from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.render_latex import render_pdf
 
 from .calc_test_data import (
@@ -517,3 +518,24 @@ def test_the_pdf_does_not_call_a_gift_at_cost_a_loss(tmp_path: Path) -> None:
 
     assert "Neither a gain nor a loss." in source
     assert "loss} " not in source.lower()
+
+
+@pytest.mark.parametrize("action", [ActionType.GIFT, ActionType.GIFT_UNCONNECTED])
+def test_a_gift_sorts_after_a_same_day_acquisition(action: ActionType) -> None:
+    """A hand-written gift must not be read before the buy it depends on.
+
+    Gift rows come from a RAW file while the shares come from a broker
+    export, and parsers merge in registry order, so without this the gift
+    is validated first and fails as "not owned".
+    """
+    gift = _gift(4, 30, action=action)
+    buy = transaction(GIFT_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP)
+
+    # Worst case: the gift is read first, as a RAW file would give it.
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        sorted([gift, buy], key=_transaction_sort_key),
+    )
+
+    assert report.disposal_count == 1
+    assert report.disposal_proceeds == Decimal(120)
