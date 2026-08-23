@@ -2,7 +2,7 @@
 [![CI](https://github.com/KapJI/capital-gains-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/KapJI/capital-gains-calculator/actions)
 [![codecov](https://codecov.io/gh/KapJI/capital-gains-calculator/graph/badge.svg)](https://app.codecov.io/gh/KapJI/capital-gains-calculator)
 
-# <img src="docs/assets/logo.svg" alt="" width="34" valign="middle"> UK Capital Gains Calculator
+# <img src="https://cgt-calc.uk/assets/logo.svg" alt="" width="34" valign="middle"> UK Capital Gains Calculator
 
 Calculate your **UK capital gains** from your investment transaction history and generate a detailed
 calculation report. cgt-calc is intended for UK individual investors working from supported broker
@@ -30,8 +30,8 @@ relying on the result.
 This compact 2025/26 example shows foreign-currency transactions, same-day and 30-day matching,
 Section 104 pooling, gains and losses, a dividend with overseas tax, and cash interest.
 
-<a href="docs/assets/example_report.pdf">
-  <img src="docs/assets/example_report_preview.png" alt="Preview of the 2025/26 example report" width="600">
+<a href="https://cgt-calc.uk/assets/example_report.pdf">
+  <img src="https://cgt-calc.uk/assets/example_report_preview.webp" alt="Preview of the 2025/26 example report" width="600">
 </a>
 
 ## 🚀 Quick Start
