@@ -70,10 +70,17 @@ KNOWN_SYMBOL_DICT: Final[dict[str, str]] = {
 
 @dataclass
 class StockSplit:
-    """Info about stock split."""
+    """A split whose earlier sales the withdrawal report leaves in old units."""
 
     symbol: str
     date: datetime.date
+    """Last day on which the report prints sales in pre-split units.
+
+    Morgan Stanley's notice puts sales "on or prior to" the split date in
+    pre-split values, so this is the split date itself rather than the first
+    day of split-adjusted trading that the Schwab parser's ``SPLITS`` table
+    uses.
+    """
     factor: int
 
 
