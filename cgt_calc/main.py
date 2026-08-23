@@ -256,9 +256,10 @@ class CapitalGainsCalculator:
             Decimal
         )
         self.calculated = False
-        # Disposals that are gifts at market value rather than sales. A loss on
-        # one is reported on its own and kept out of the loss total.
-        self.gift_disposals: set[tuple[datetime.date, str]] = set()
+        # Disposals that are gifts at market value rather than sales, and
+        # whether the recipient is a connected person. A loss on a gift to a
+        # connected person is clogged (TCGA 1992 s18(3)) and reported on its own.
+        self.gift_disposals: dict[tuple[datetime.date, str], bool] = {}
         # Days on which a symbol was charged a management fee. A fee adds to
         # the pool's cost with no shares, so it cannot be told from the pool
         # itself once it is in.
@@ -582,7 +583,9 @@ class CapitalGainsCalculator:
 
         A gift is a disposal otherwise than by way of a bargain at arm's
         length, so its consideration is the market value of the shares on the
-        day (TCGA 1992 s17, CG14530). The row states that value divided by its
+        day (TCGA 1992 s17, CG14530). GIFT says the recipient is a connected
+        person, GIFT_UNCONNECTED that they are not; that only matters to a
+        loss. The row states that value divided by its
         units as the price, which is the share price of the day unless the
         count has been restated for a later split. The disposal is then
         identified exactly like a sale. No money changes hands, so the balance
@@ -618,6 +621,9 @@ class CapitalGainsCalculator:
             raise CalculationError(
                 self._sale_and_gift_message(symbol, transaction.date)
             )
+        connected = transaction.action is ActionType.GIFT
+        if self.gift_disposals.get((transaction.date, symbol), connected) != connected:
+            raise CalculationError(self._mixed_gifts_message(symbol, transaction.date))
         # Reduce the first-pass holding so later same-symbol transactions
         # validate; the pool cost is recomputed in the second pass.
         position = self.portfolio[symbol]
@@ -638,7 +644,14 @@ class CapitalGainsCalculator:
             ),
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
-        self.gift_disposals.add((transaction.date, symbol))
+        self.gift_disposals[transaction.date, symbol] = connected
+
+    def _disposal_log_prefix(self, date_index: datetime.date, symbol: str) -> str:
+        """Name the kind of disposal recorded for a symbol on a day."""
+        connected = self.gift_disposals.get((date_index, symbol))
+        if connected is None:
+            return "sell"
+        return "gift" if connected else "gift-unconnected"
 
     def add_shares_given_away(self, transaction: BrokerTransaction) -> None:
         """Record shares handed to someone for nothing.
@@ -650,6 +663,17 @@ class CapitalGainsCalculator:
             self.add_transfer_to_spouse(transaction)
         else:
             self.add_gift(transaction)
+
+    @staticmethod
+    def _mixed_gifts_message(symbol: str, date_index: datetime.date) -> str:
+        return (
+            f"Cannot compute a gift to a connected person and a gift to someone "
+            f"unconnected of {symbol} on the same day ({date_index}): TCGA 1992 "
+            "s105(1) treats everything disposed of on one day as a single "
+            "disposal, and a loss on it could not then be split between the two "
+            "for the s18(3) restriction. Work this day out by hand (consider "
+            "professional advice). Do not change the dates."
+        )
 
     @staticmethod
     def _sale_and_gift_message(symbol: str, date_index: datetime.date) -> str:
@@ -671,9 +695,9 @@ class CapitalGainsCalculator:
         A gift to a spouse or civil partner is no gain/no loss; a gift to
         anyone else is a disposal at market value. Broker exports record only
         that the shares left, so the user says which it was by adding a RAW
-        ``TRANSFER_TO_SPOUSE`` or ``GIFT`` row for the same date, symbol and
-        quantity. That row carries everything needed, so the broker's own row
-        is then redundant and is dropped here.
+        ``TRANSFER_TO_SPOUSE``, ``GIFT`` or ``GIFT_UNCONNECTED`` row for the
+        same date, symbol and quantity. That row carries everything needed, so
+        the broker's own row is then redundant and is dropped here.
         """
         if not any(
             transaction.action is ActionType.UNCLASSIFIED_GIFT
@@ -685,7 +709,12 @@ class CapitalGainsCalculator:
         classified = Counter(
             (transaction.date, transaction.symbol, transaction.quantity)
             for transaction in transactions
-            if transaction.action in (ActionType.TRANSFER_TO_SPOUSE, ActionType.GIFT)
+            if transaction.action
+            in (
+                ActionType.TRANSFER_TO_SPOUSE,
+                ActionType.GIFT,
+                ActionType.GIFT_UNCONNECTED,
+            )
         )
         # Gifts of one symbol on one day all draw on the same rows, and a gift
         # printed before a split can state either of two counts, so which row
@@ -1001,6 +1030,7 @@ class CapitalGainsCalculator:
             elif transaction.action in [
                 ActionType.TRANSFER_TO_SPOUSE,
                 ActionType.GIFT,
+                ActionType.GIFT_UNCONNECTED,
             ]:
                 # Shares leave for no money, so the balance is left alone. A fee
                 # on the row is real money, but these rows are written by hand
@@ -2244,18 +2274,17 @@ class CapitalGainsCalculator:
                         assert transaction_capital_gain == round_decimal(
                             calculated_gain, 2
                         )
-                        is_gift = (date_index, symbol) in self.gift_disposals
-                        calculation_log[date_index][
-                            f"{'gift' if is_gift else 'sell'}${symbol}"
-                        ] = calculation_entries
+                        prefix = self._disposal_log_prefix(date_index, symbol)
+                        calculation_log[date_index][f"{prefix}${symbol}"] = (
+                            calculation_entries
+                        )
                         if transaction_capital_gain > 0:
                             capital_gain += transaction_capital_gain
-                        elif is_gift:
-                            # Kept out of the loss total. The recipient is
-                            # usually a connected person, and then this is a
-                            # clogged loss: usable only against gains on
-                            # disposals to that person while still connected
-                            # (TCGA 1992 s18(3)). Reported as its own total.
+                        elif prefix == "gift":
+                            # A clogged loss: usable only against gains on
+                            # disposals to the same connected person while
+                            # still connected (TCGA 1992 s18(3)). Kept out of
+                            # the loss total and reported as its own.
                             gift_loss += transaction_capital_gain
                         else:
                             capital_loss += transaction_capital_gain

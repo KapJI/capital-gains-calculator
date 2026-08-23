@@ -43,6 +43,11 @@
     \BLOCK{ set symbol = symbol[5:] }
     \BLOCK{ set is_disposal = True }
     \BLOCK{ set is_gift = True }
+    \BLOCK{ set is_clogged = True }
+\BLOCK{ elif symbol.startswith("gift-unconnected$") }
+    \BLOCK{ set symbol = symbol[17:] }
+    \BLOCK{ set is_disposal = True }
+    \BLOCK{ set is_gift = True }
 \BLOCK{ endif }
 \BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
 \BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
@@ -66,7 +71,7 @@
         Capital gain to date is £\VAR{ "{:,}".format(total_gain.value) }
     \BLOCK{ elif overall_gain == 0 }
         Neither a gain nor a loss.
-    \BLOCK{ elif is_gift }
+    \BLOCK{ elif is_clogged }
         \textbf{Clogged loss} of £\VAR{ "{:,}".format(-overall_gain) } on a gift, kept out of the loss total:
         a loss on a gift to a connected person can only be set against gains on disposals to the same person while still connected (TCGA 1992 s18(3)).
 

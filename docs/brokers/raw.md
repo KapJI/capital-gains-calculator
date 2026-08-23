@@ -90,24 +90,29 @@ which case divide the value of the whole gift by the restated count.
 
 The same identification rules as a sale apply, and a gain counts like any other.
 
+`GIFT` is for a connected person ([s286](https://www.legislation.gov.uk/ukpga/1992/12/section/286)):
+your relatives — brothers, sisters, parents, grandparents, children, grandchildren — and their
+spouses, your spouse's relatives, your business partners, and companies you control. If the
+recipient is not a connected person, a friend say, use `GIFT_UNCONNECTED` instead. The only
+difference is what happens to a loss.
+
 cgt-calc works out the gain before any relief. Shares in a trading company that is not listed on a
 recognised stock exchange, or in your personal company, may qualify for
 [Gift Hold-over Relief](https://www.gov.uk/gift-holdover-relief), which defers the gain. That is a
 claim you and the recipient make on your returns; the report shows the gain in full.
 
-!!! warning "A loss on a gift is kept separate"
+!!! warning "A loss on a `GIFT` is clogged"
 
-    Most people you would give shares to are connected persons
-    ([s286](https://www.legislation.gov.uk/ukpga/1992/12/section/286)) — family, mainly — and a loss
-    on a disposal to a connected person can only be set against gains on disposals to the same
-    person while you are still connected
+    A loss on a disposal to a connected person can only be set against gains on disposals to the
+    same person while you are still connected
     ([s18(3)](https://www.legislation.gov.uk/ukpga/1992/12/section/18),
     [CG14561](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14561)). HMRC calls
-    this a clogged loss. cgt-calc cannot know who is connected, so a loss on a gift is shown as
-    "Losses on gifts" rather than in "Loss", and does not reduce the gain. It is still a loss: keep
-    a separate record of it and carry it forward with your other losses — the SA108 notes cover
-    this under "Transferring assets between connected people". If the recipient is not a connected
-    person, add it to your losses yourself.
+    this a clogged loss. cgt-calc shows it as "Losses on gifts" rather than in "Loss", and it does
+    not reduce the gain. It is still a loss: keep a separate record of it and carry it forward with
+    your other losses — the SA108 notes cover this under "Transferring assets between connected
+    people". cgt-calc does not know who received which gift, so it never sets a clogged loss
+    against a gain on another gift to the same person; if that applies to you, do that part by
+    hand.
 
 Gifts to charity ([s257](https://www.legislation.gov.uk/ukpga/1992/12/section/257)) are no gain / no
 loss, as are the other transfers listed in

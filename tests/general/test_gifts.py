@@ -41,10 +41,17 @@ BUY_DAY = datetime.date(2024, 6, 1)
 GIFT_DAY = datetime.date(2024, 6, 10)
 
 
-def _gift(quantity: int, price: float | None, fees: float = 0) -> BrokerTransaction:
-    return transaction(
-        GIFT_DAY, ActionType.GIFT, "FOO", quantity, price, fees, None, GBP
-    )
+def _gift(
+    quantity: int,
+    price: float | None,
+    fees: float = 0,
+    action: ActionType = ActionType.GIFT,
+) -> BrokerTransaction:
+    return transaction(GIFT_DAY, action, "FOO", quantity, price, fees, None, GBP)
+
+
+def _unconnected_gift(quantity: int, price: float | None) -> BrokerTransaction:
+    return _gift(quantity, price, action=ActionType.GIFT_UNCONNECTED)
 
 
 def test_a_gift_with_a_gain_counts_like_a_sale() -> None:
@@ -89,6 +96,55 @@ def test_a_loss_on_a_gift_is_reported_but_not_totalled() -> None:
     assert "Losses on gifts" in text
     assert "Gifts at market value" in text
     assert "loss £20.00 (clogged)" in text
+
+
+def test_a_loss_on_a_gift_to_an_unconnected_person_is_an_ordinary_loss() -> None:
+    """No connected person, no clog: the £20 goes into Loss like a sale's."""
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            _unconnected_gift(4, 5),
+        ],
+    )
+
+    assert report.capital_loss == Decimal(-20)
+    assert report.gift_loss == Decimal(0)
+    assert report.total_gain() == Decimal(-20)
+    assert "gift-unconnected$FOO" in report.calculation_log[GIFT_DAY]
+    text = str(report)
+    assert "loss £20.00" in text
+    assert "clogged)" not in text
+    assert "Losses on gifts" not in text
+
+
+def test_a_gain_on_a_gift_to_an_unconnected_person_counts_like_any_other() -> None:
+    """Connection only matters to a loss."""
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            _unconnected_gift(4, 30),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(80)
+
+
+@pytest.mark.parametrize("connected_first", [True, False])
+def test_gifts_to_a_connected_and_an_unconnected_person_on_one_day_are_refused(
+    connected_first: bool,
+) -> None:
+    """One disposal under s105(1); a loss on it could not be split for s18(3)."""
+    gifts = [_gift(2, 30), _unconnected_gift(2, 30)]
+    with pytest.raises(CalculationError, match="connected person and a gift"):
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                *(gifts if connected_first else gifts[::-1]),
+            ],
+        )
 
 
 def test_a_gift_is_identified_like_a_sale() -> None:
@@ -268,15 +324,16 @@ def _unclassified(quantity: int, ambiguous: Decimal | None = None) -> BrokerTran
     )
 
 
-def test_a_gift_row_classifies_a_broker_gift() -> None:
-    """The broker's row is accounted for by the GIFT row, and dropped."""
+@pytest.mark.parametrize("action", [ActionType.GIFT, ActionType.GIFT_UNCONNECTED])
+def test_a_gift_row_classifies_a_broker_gift(action: ActionType) -> None:
+    """The broker's row is accounted for by the user's row, and dropped."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
         [
             transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
             _unclassified(4),
-            _gift(4, 30),
+            _gift(4, 30, action=action),
         ],
     )
 
@@ -336,6 +393,7 @@ def test_the_refusal_offers_the_gift_row_too() -> None:
     assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,4,0.00,0.00,GBP" in message
     assert "2024-06-10,GIFT,FOO,4,<value per unit>,0.00,GBP" in message
     assert "divide the value of the whole gift by the restated count" in message
+    assert "write GIFT_UNCONNECTED instead" in message
 
 
 def test_a_gift_and_a_transfer_to_spouse_on_one_day_are_kept_apart() -> None:
@@ -372,13 +430,13 @@ def test_a_gift_and_a_transfer_contending_for_a_purchase_are_refused() -> None:
     assert "Both the gift and the transfer" in message
 
 
-def _latex(tmp_path: Path, price: int) -> str:
+def _latex(tmp_path: Path, price: int, action: ActionType = ActionType.GIFT) -> str:
     """Render one gift to LaTeX source, flattened to one line per block."""
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False),
         [
             transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
-            _gift(4, price),
+            _gift(4, price, action=action),
         ],
     )
     render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
@@ -401,6 +459,18 @@ def test_the_pdf_keeps_a_loss_on_a_gift_out_of_the_total(tmp_path: Path) -> None
     assert "\\textbf{Clogged loss} of £20.00 on a gift, kept out of the loss" in source
     assert "Losses on gifts, kept separate: £20.00" in source
     assert "Capital loss to date" not in source
+
+
+def test_the_pdf_shows_an_unconnected_loss_as_an_ordinary_loss(
+    tmp_path: Path,
+) -> None:
+    """No clog for an unconnected recipient: the loss runs into the total."""
+    source = _latex(tmp_path, 5, ActionType.GIFT_UNCONNECTED)
+
+    assert "given away at a market value of £20.00" in source
+    assert "Chargeable \\textbf{loss} is £20.00" in source
+    assert "Capital loss to date is £20.00" in source
+    assert "Clogged" not in source
 
 
 def test_the_pdf_does_not_call_a_gift_at_cost_a_loss(tmp_path: Path) -> None:
