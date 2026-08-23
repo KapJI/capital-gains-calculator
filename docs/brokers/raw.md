@@ -90,6 +90,15 @@ split (Schwab's export does this), divide the value of the whole gift by the res
 holding that has become worthless can be given away at a market value of `0`, and the whole cost
 becomes a loss.
 
+Gifts to connected persons made within six years of each other are valued as a series
+([s19](https://www.legislation.gov.uk/ukpga/1992/12/section/19),
+[CG14650](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14650)): when the pieces
+are worth more together than apart, each gift's consideration becomes its share of the value of
+everything given, and each later gift enlarges the series, which can revise the earlier gifts —
+already-filed years included. A typical holding of quoted shares is unaffected, since every share
+has the same price, but for unquoted shares given in stages enter the s19-apportioned value as the
+`price`, and amend the earlier years yourself when a later gift revises them.
+
 ```csv
 2024-03-16,GIFT,META,21.5,480.00,0.00,USD
 ```
