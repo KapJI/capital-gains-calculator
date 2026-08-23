@@ -3,6 +3,10 @@
         {
             "pattern": "^#%EF%B8%8F-",
             "replacement": "#-"
+        },
+        {
+            "pattern": "^https://cgt-calc\\.uk/assets/",
+            "replacement": "docs/assets/"
         }
     ],
     "httpHeaders": [
