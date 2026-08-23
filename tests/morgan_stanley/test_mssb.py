@@ -135,27 +135,39 @@ def test_read_mssb_withdrawal_with_uppercase_csv_extension(tmp_path: Path) -> No
     assert transactions[0].amount == Decimal("-100.00")
 
 
-def test_read_mssb_withdrawal_goog_sale_before_split_window(tmp_path: Path) -> None:
-    """Ensure a GOOG sale shortly before the July 15, 2022 split is adjusted.
+@pytest.mark.parametrize(
+    ("execution_date", "price", "quantity"),
+    [
+        # The window that went unadjusted while STOCK_SPLIT_INFO dated the
+        # split 15 June 2022 instead of 15 July.
+        pytest.param("01-Jul-2022", "$2,240.00", "-2.00", id="before-split"),
+        # The report notice says sales "on or prior to" 15 July are pre-split.
+        pytest.param("15-Jul-2022", "$2,240.00", "-2.00", id="on-split-date"),
+        # Later sales are already exported in post-split values.
+        pytest.param("18-Jul-2022", "$112.00", "-40.00", id="after-split"),
+    ],
+)
+def test_read_mssb_withdrawal_goog_sale_split_adjustment(
+    tmp_path: Path, execution_date: str, price: str, quantity: str
+) -> None:
+    """Normalise GOOG sales either side of 15 July 2022 to post-split units.
 
-    Morgan Stanley's own notice states that sales occurring "on or prior to
-    the July 15, 2022 stock split are reflected in pre-split" values. This
-    covers the previously mishandled window (2022-06-15 to 2022-07-14) where
-    a bug in STOCK_SPLIT_INFO used June 15 instead of July 15, causing these
-    sales to be skipped for the 20x split adjustment.
+    Morgan Stanley's notice states that sales "on or prior to the July 15,
+    2022 stock split are reflected in pre-split" values and later sales in
+    post-split values, so only the former are scaled by the split factor.
     """
 
     withdrawal_file = tmp_path / WITHDRAWALS_REPORT_FILENAME
     rows = [
         COLUMNS_WITHDRAWAL,
         [
-            "01-Jul-2022",
+            execution_date,
             "ORDER-4",
             "GSU Class C",
             "Sale",
             "Complete",
-            "$2,240.00",
-            "-2.00",
+            price,
+            quantity,
             "$4,479.90",
             "0",
             "N/A",
@@ -168,73 +180,7 @@ def test_read_mssb_withdrawal_goog_sale_before_split_window(tmp_path: Path) -> N
     assert len(transactions) == 1
     transaction = transactions[0]
     assert transaction.action == ActionType.SELL
-    expected_symbol = TICKER_RENAMES.get("GOOG", "GOOG")
-    assert transaction.symbol == expected_symbol
-    # Pre-split values reported by Morgan Stanley get multiplied by the
-    # split factor (20) for quantity and divided by it for price.
-    assert transaction.quantity == Decimal("40.00")
-    assert transaction.price == Decimal("112.00")
-
-
-def test_read_mssb_withdrawal_goog_sale_on_split_date_is_adjusted(
-    tmp_path: Path,
-) -> None:
-    """Adjust a GOOG sale on July 15 because the report uses pre-split values."""
-
-    withdrawal_file = tmp_path / WITHDRAWALS_REPORT_FILENAME
-    rows = [
-        COLUMNS_WITHDRAWAL,
-        [
-            "15-Jul-2022",
-            "ORDER-5",
-            "GSU Class C",
-            "Sale",
-            "Complete",
-            "$2,240.00",
-            "-2.00",
-            "$4,479.90",
-            "0",
-            "N/A",
-        ],
-    ]
-    _write_csv(withdrawal_file, rows)
-
-    transactions = MSSBParser().load_from_dir(tmp_path)
-
-    assert len(transactions) == 1
-    transaction = transactions[0]
-    # The report notice says activity "on or prior to" July 15 is pre-split.
-    assert transaction.quantity == Decimal("40.00")
-    assert transaction.price == Decimal("112.00")
-
-
-def test_read_mssb_withdrawal_goog_sale_after_split_not_adjusted(
-    tmp_path: Path,
-) -> None:
-    """Leave a GOOG sale after July 15 in its exported post-split values."""
-
-    withdrawal_file = tmp_path / WITHDRAWALS_REPORT_FILENAME
-    rows = [
-        COLUMNS_WITHDRAWAL,
-        [
-            "18-Jul-2022",
-            "ORDER-6",
-            "GSU Class C",
-            "Sale",
-            "Complete",
-            "$112.00",
-            "-40.00",
-            "$4,479.90",
-            "0",
-            "N/A",
-        ],
-    ]
-    _write_csv(withdrawal_file, rows)
-
-    transactions = MSSBParser().load_from_dir(tmp_path)
-
-    assert len(transactions) == 1
-    transaction = transactions[0]
+    assert transaction.symbol == TICKER_RENAMES.get("GOOG", "GOOG")
     assert transaction.quantity == Decimal("40.00")
     assert transaction.price == Decimal("112.00")
 
