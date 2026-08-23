@@ -72,6 +72,18 @@ def test_invalid_price(tmp_path: Path) -> None:
     assert "initial_prices.csv" in message
 
 
+@pytest.mark.parametrize("price", ["-1", "NaN", "Infinity"])
+def test_invalid_numeric_price(tmp_path: Path, price: str) -> None:
+    """Negative and non-finite prices are reported as invalid file data."""
+    prices_file = tmp_path / "initial_prices.csv"
+    prices_file.write_text(f'date,symbol,price\n"Mar 08, 2021",FOO,{price}\n')
+
+    with pytest.raises(ParsingError, match="finite and non-negative") as excinfo:
+        InitialPrices(initial_prices_file=prices_file)
+
+    assert excinfo.value.row_index == 2
+
+
 def test_entry_parses_row() -> None:
     """Parse the date, symbol and decimal price from a CSV row."""
     entry = InitialPricesEntry(

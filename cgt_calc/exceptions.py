@@ -185,6 +185,14 @@ class PriceMissingError(InvalidTransactionError):
         super().__init__(transaction, "Price missing")
 
 
+class IsinMissingError(InvalidTransactionError):
+    """ISIN is missing error."""
+
+    def __init__(self, transaction: BrokerTransaction):
+        """Initialise."""
+        super().__init__(transaction, "ISIN missing")
+
+
 class QuantityMissingError(InvalidTransactionError):
     """Quantity is missing error."""
 

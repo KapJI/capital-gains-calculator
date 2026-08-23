@@ -18,6 +18,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from cgt_calc.exceptions import ParsingError
 from cgt_calc.parsers.eri.importer.xtrackers import XtrackersImporter
 from tests.eri_importers.helpers import check_transaction
 
@@ -176,8 +177,11 @@ def test_bad_data_row_fails_loudly(tmp_path: Path) -> None:
         data_rows=[["LU0000000009", "not-a-currency", "1.23456", "Fund A", "Acc"]],
     )
 
-    with pytest.raises(AssertionError, match="Bad currency"):
+    with pytest.raises(ParsingError, match="Invalid currency") as exc_info:
         XtrackersImporter().parse(file)
+
+    assert str(file) in str(exc_info.value)
+    assert "page 1" in str(exc_info.value)
 
 
 def test_unknown_content_is_not_accepted(tmp_path: Path) -> None:

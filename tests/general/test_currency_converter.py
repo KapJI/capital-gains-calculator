@@ -97,6 +97,20 @@ def test_read_exchange_rates_raises_on_invalid_rate(tmp_path: Path) -> None:
         CurrencyConverter(exchange_rates_file=rates_file)
 
 
+@pytest.mark.parametrize("rate", ["0", "-1.25", "NaN", "Infinity"])
+def test_read_exchange_rates_rejects_non_positive_or_non_finite_rate(
+    tmp_path: Path, rate: str
+) -> None:
+    """Rates that cannot represent a real conversion are invalid input."""
+    rates_file = tmp_path / "invalid_rate.csv"
+    rates_file.write_text(
+        f"month,currency,rate\n2024-01-01,USD,{rate}\n", encoding="utf8"
+    )
+
+    with pytest.raises(ParsingError, match="must be finite and positive"):
+        CurrencyConverter(exchange_rates_file=rates_file)
+
+
 def test_read_exchange_rates_raises_on_malformed_currency(tmp_path: Path) -> None:
     """A malformed code in the rate file is reported there, not as a missing rate."""
     rates_file = tmp_path / "rates.csv"
@@ -225,6 +239,26 @@ def test_hmrc_response_invalid_rate_value_raises_api_error(
     monkeypatch.setattr(converter, "session", CannedSession(CannedResponse(xml)))
 
     with pytest.raises(ExternalApiError, match="contains invalid rate"):
+        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
+
+
+@pytest.mark.parametrize("rate", ["0", "-1.25", "NaN", "Infinity"])
+def test_hmrc_response_rejects_non_positive_or_non_finite_rate(
+    monkeypatch: pytest.MonkeyPatch, rate: str
+) -> None:
+    """Invalid numeric rates from the external service are reported as API errors."""
+    xml = (
+        "<exchangeRateMonthList>"
+        "<exchangeRate>"
+        "<currencyCode>USD</currencyCode>"
+        f"<rateNew>{rate}</rateNew>"
+        "</exchangeRate>"
+        "</exchangeRateMonthList>"
+    )
+    converter = CurrencyConverter()
+    monkeypatch.setattr(converter, "session", CannedSession(CannedResponse(xml)))
+
+    with pytest.raises(ExternalApiError, match="non-positive or non-finite"):
         converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
 
 

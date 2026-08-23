@@ -163,8 +163,6 @@ def adjust_cusip_bond_price(
     if not _is_cusip_symbol(symbol) or price is None:
         return (price, fees)
 
-    # Mypy: at this point price is guaranteed to be non-None due to check above
-    assert price is not None
     adjusted_price = price / BOND_PRICE_DIVISOR
 
     # If we can't validate, apply adjustment anyway (trusted data)

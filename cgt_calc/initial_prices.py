@@ -41,6 +41,10 @@ class InitialPricesEntry:
             self.price = Decimal(row[2])
         except InvalidOperation as err:
             raise ParsingError(file, f"Invalid decimal price: {row[2]!r}") from err
+        if not self.price.is_finite() or self.price < 0:
+            raise ParsingError(
+                file, f"Initial price must be finite and non-negative: {row[2]!r}"
+            )
 
     @staticmethod
     def _parse_date(date_str: str, file: Path) -> datetime.date:

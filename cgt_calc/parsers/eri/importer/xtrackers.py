@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, override
 import dateutil.parser as date_parser
 import pdfplumber
 
+from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import CurrencyCode, Isin
 from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.util import round_decimal
@@ -71,7 +72,7 @@ class XtrackersImporter(ERIImporter):
                 XtrackersImporter._parse_investor_report_format,
             ]
             for parser in parsers:
-                parsed_data = parser(pdf)
+                parsed_data = parser(pdf, file)
                 if parsed_data is not None:
                     result.transactions = parsed_data
                     break
@@ -100,12 +101,16 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _extract_header(
-        page: pdfplumber.page.Page,
+        page: pdfplumber.page.Page, file: Path, page_num: int
     ) -> tuple[tuple[float, float, float, float], list[float], dict[int, int]]:
         header_table = page.find_table()
-        assert header_table, "Could not find table headers on the page"
+        if header_table is None:
+            raise ParsingError(file, f"Could not find table headers on page {page_num}")
+        extracted_header = header_table.extract()
+        if not extracted_header or not extracted_header[0]:
+            raise ParsingError(file, f"Table header is empty on page {page_num}")
         cur_header = [
-            (col or "").replace("\n", " ").strip() for col in header_table.extract()[0]
+            (col or "").replace("\n", " ").strip() for col in extracted_header[0]
         ]
         LOGGER.debug("cur_header=%s", cur_header)
         colmap = {}
@@ -122,10 +127,17 @@ class XtrackersImporter(ERIImporter):
         }
         for col, regex in colreg.items():
             match_idx = [i for i, h in enumerate(cur_header) if regex.match(h)]
-            assert len(match_idx) <= 1, (
-                f"Multiple columns matching for {regex}: {match_idx}"
-            )
-            assert match_idx, f"No column found for {regex}"
+            if len(match_idx) > 1:
+                raise ParsingError(
+                    file,
+                    f"Multiple columns match {regex.pattern!r} on page {page_num}: "
+                    f"{match_idx}",
+                )
+            if not match_idx:
+                raise ParsingError(
+                    file,
+                    f"No column matching {regex.pattern!r} on page {page_num}",
+                )
             colmap[col] = match_idx[0]
 
         columns = [col.bbox[0] for col in header_table.columns]
@@ -134,7 +146,10 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _extract_data_rows(
-        cropped: pdfplumber.page.CroppedPage, columns: list[float]
+        cropped: pdfplumber.page.CroppedPage,
+        columns: list[float],
+        file: Path,
+        page_num: int,
     ) -> list[list[str | None]]:
         table_settings = {
             "vertical_strategy": "explicit",
@@ -142,7 +157,8 @@ class XtrackersImporter(ERIImporter):
             "horizontal_strategy": "text",
         }
         data_table = cropped.extract_table(table_settings)
-        assert data_table
+        if data_table is None:
+            raise ParsingError(file, f"Could not extract data table on page {page_num}")
         return data_table
 
     @staticmethod
@@ -151,6 +167,7 @@ class XtrackersImporter(ERIImporter):
         data_table: list[list[str | None]],
         reporting_period_end: datetime.date,
         colmap: dict[int, int],
+        file: Path,
     ) -> list[ERITransaction]:
         transactions = []
         for row_num, raw_row in enumerate(data_table, 1):
@@ -162,17 +179,24 @@ class XtrackersImporter(ERIImporter):
 
             isin_raw = row[ISIN_COLUMN]
             isin = Isin.parse(isin_raw)
-            assert isin is not None, (
-                f"Bad ISIN in page {page_num}, row {row_num}: {isin_raw!r}"
-            )
+            if isin is None:
+                raise ParsingError(
+                    file,
+                    f"Invalid ISIN on page {page_num}, row {row_num}: {isin_raw!r}",
+                )
             currency = CurrencyCode.parse(row[CURRENCY_COLUMN].replace("JPN", "JPY"))
-            assert currency is not None, (
-                f"Bad currency in page {page_num}, row {row_num}: "
-                f"{row[CURRENCY_COLUMN]!r}"
-            )
-            assert re.match(AMOUNT_REGEX, row[ERI_COLUMN]), (
-                f"Bad amount in page {page_num}, row {row_num}: {row[ERI_COLUMN]!r}"
-            )
+            if currency is None:
+                raise ParsingError(
+                    file,
+                    f"Invalid currency on page {page_num}, row {row_num}: "
+                    f"{row[CURRENCY_COLUMN]!r}",
+                )
+            if not re.match(AMOUNT_REGEX, row[ERI_COLUMN]):
+                raise ParsingError(
+                    file,
+                    f"Invalid amount on page {page_num}, row {row_num}: "
+                    f"{row[ERI_COLUMN]!r}",
+                )
             amount = round_decimal(Decimal(row[ERI_COLUMN]), 5)
 
             transactions.append(
@@ -188,21 +212,29 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _parse_pages(
-        pdf: pdfplumber.pdf.PDF, reporting_period_end: datetime.date
+        pdf: pdfplumber.pdf.PDF,
+        reporting_period_end: datetime.date,
+        file: Path,
     ) -> list[ERITransaction]:
         transactions = []
         for page_num, page in enumerate(pdf.pages, 1):
-            header_bbox, columns, colmap = XtrackersImporter._extract_header(page)
+            header_bbox, columns, colmap = XtrackersImporter._extract_header(
+                page, file, page_num
+            )
             (h_left, _h_top, h_right, h_bottom) = header_bbox
             cropped = page.crop((h_left, h_bottom, h_right, page.height))
-            data_table = XtrackersImporter._extract_data_rows(cropped, columns)
+            data_table = XtrackersImporter._extract_data_rows(
+                cropped, columns, file, page_num
+            )
             transactions += XtrackersImporter._process_data_table(
-                page_num, data_table, reporting_period_end, colmap
+                page_num, data_table, reporting_period_end, colmap, file
             )
         return transactions
 
     @staticmethod
-    def _parse_summary_format(pdf: pdfplumber.pdf.PDF) -> list[ERITransaction] | None:
+    def _parse_summary_format(
+        pdf: pdfplumber.pdf.PDF, file: Path
+    ) -> list[ERITransaction] | None:
         """Parse the summary format used by the main Xtrackers umbrella."""
         first_page = pdf.pages[0]
         prefix = "Period ended"
@@ -216,11 +248,11 @@ class XtrackersImporter(ERIImporter):
         if reporting_period_end is None or reporting_period_end.year < MIN_VALID_YEAR:
             return []
 
-        return XtrackersImporter._parse_pages(pdf, reporting_period_end)
+        return XtrackersImporter._parse_pages(pdf, reporting_period_end, file)
 
     @staticmethod
     def _parse_investor_report_format(
-        pdf: pdfplumber.pdf.PDF,
+        pdf: pdfplumber.pdf.PDF, file: Path
     ) -> list[ERITransaction] | None:
         """Parse the investor report format used by Xtrackers II and (IE) Plc."""
         first_page = pdf.pages[0]
@@ -236,4 +268,4 @@ class XtrackersImporter(ERIImporter):
         if reporting_period_end is None or reporting_period_end.year < MIN_VALID_YEAR:
             return []
 
-        return XtrackersImporter._parse_pages(pdf, reporting_period_end)
+        return XtrackersImporter._parse_pages(pdf, reporting_period_end, file)

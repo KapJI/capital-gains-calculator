@@ -7,7 +7,14 @@ from decimal import Decimal
 
 import pytest
 
-from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
+from cgt_calc.exceptions import CalculationError
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CurrencyCode,
+    ForeignCurrencyAmount,
+    Isin,
+)
 
 # Apple, a real ISIN with a valid check digit.
 VALID_ISIN = "US0378331005"
@@ -169,6 +176,23 @@ def test_currency_code_parse_returns_none_for_invalid_input() -> None:
 def test_currency_code_parse_normalises_valid_input() -> None:
     """The lenient constructor normalises exactly like the strict one."""
     assert CurrencyCode.parse(" GBP ") == CurrencyCode("GBP")
+
+
+def test_foreign_currency_amount_rejects_mixed_currencies() -> None:
+    """Amounts sourced from incompatible input rows produce a domain error."""
+    usd = ForeignCurrencyAmount(Decimal(1), CurrencyCode("USD"))
+    gbp = ForeignCurrencyAmount(Decimal(1), CurrencyCode("GBP"))
+
+    with pytest.raises(CalculationError, match="different currencies"):
+        usd + gbp
+
+
+def test_nonzero_foreign_amount_requires_a_currency() -> None:
+    """A missing input currency produces a domain error rather than an assertion."""
+    invalid = ForeignCurrencyAmount(Decimal(1))
+
+    with pytest.raises(CalculationError, match="Currency missing"):
+        ForeignCurrencyAmount() + invalid
 
 
 def test_broker_transaction_rejects_a_bare_invalid_currency() -> None:

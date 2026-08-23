@@ -152,6 +152,12 @@ class CurrencyConverter:
                     exchange_rates_file,
                     f"Invalid rate '{rate_value}' at line {row_number}",
                 ) from err
+            if not rate.is_finite() or rate <= 0:
+                raise ParsingError(
+                    exchange_rates_file,
+                    f"Exchange rate must be finite and positive at line "
+                    f"{row_number}: {rate_value!r}",
+                )
 
             # Duplicates suggest conflicting data, so fail fast.
             if currency in cache[date]:
@@ -256,12 +262,19 @@ class CurrencyConverter:
                     f"{currency_code_elem.text!r}",
                 )
             try:
-                rates[currency] = Decimal(rate_new_elem.text)
+                rate = Decimal(rate_new_elem.text)
             except (InvalidOperation, ValueError) as err:
                 raise ExternalApiError(
                     url,
                     f"HMRC API response for {month_str} contains invalid rate: {rate_new_elem.text}",
                 ) from err
+            if not rate.is_finite() or rate <= 0:
+                raise ExternalApiError(
+                    url,
+                    f"HMRC API response for {month_str} contains a non-positive "
+                    f"or non-finite rate: {rate_new_elem.text}",
+                )
+            rates[currency] = rate
         self.cache[date] = rates
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
 

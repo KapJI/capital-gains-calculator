@@ -18,7 +18,13 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from cgt_calc.parsers.eri.importer.invesco import InvescoImporter
+from cgt_calc.exceptions import ParsingError
+from cgt_calc.parsers.eri.importer.invesco import (
+    CURRENCY_COLUMN,
+    ERI_COLUMN,
+    ISIN_COLUMN,
+    InvescoImporter,
+)
 from cgt_calc.parsers.eri.importer.model import ERIImporter
 from tests.eri_importers.helpers import check_transaction
 
@@ -230,6 +236,17 @@ def test_v2_unparseable_reporting_date(tmp_path: Path) -> None:
 
     assert result is not None
     assert result.transactions == []
+
+
+def test_short_data_row_fails_loudly(tmp_path: Path) -> None:
+    """A row with too few cells is an error, not a silently skipped subrow."""
+    colmap = {ISIN_COLUMN: 0, CURRENCY_COLUMN: 1, ERI_COLUMN: 2}
+    data_table: list[list[str | None]] = [["IE00B3RBWM25", "USD"]]
+
+    with pytest.raises(ParsingError, match="has 2 cells, expected at least 3"):
+        InvescoImporter._process_data_table(  # noqa: SLF001
+            1, data_table, datetime.date(2024, 12, 31), colmap, tmp_path / "x.pdf"
+        )
 
 
 def test_unknown_content_is_not_accepted(tmp_path: Path) -> None:

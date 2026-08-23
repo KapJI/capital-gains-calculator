@@ -10,7 +10,12 @@ import pytest
 
 from cgt_calc.exceptions import ParsingError, SymbolMissingError
 from cgt_calc.model import ActionType, BrokerTransaction
-from cgt_calc.parsers.schwab import AwardPrices, SchwabParser, action_from_str
+from cgt_calc.parsers.schwab import (
+    AwardPrices,
+    SchwabParser,
+    _read_schwab_awards,
+    action_from_str,
+)
 from tests.utils import build_cmd, report_path, stderr_alerts
 
 
@@ -41,6 +46,23 @@ def test_missing_award_file_reports_the_vest_it_cannot_price() -> None:
     # The row that needs the file is named, so it can be found in the statement.
     assert "BAR" in message
     assert "2023-08-18" in message
+
+
+def test_award_rows_overlapping_in_a_column_are_reported(tmp_path: Path) -> None:
+    """A split award row whose halves both fill a column is malformed input."""
+    award_file = tmp_path / "awards.csv"
+    award_file.write_text(
+        "Date,Action,Symbol,Description,Quantity,FeesAndCommissions,"
+        "DisbursementElection,Amount,AwardDate,AwardId,FairMarketValuePrice,"
+        "SalePrice,SharesSoldWithheldForTaxes,NetSharesDeposited,Taxes\n"
+        "08/15/2023,Lapse,BAR,Restricted Stock Lapse,400,,,,,,,,,,\n"
+        ',,,,400,,,,03/21/2022,101883189,$140.35,,200,200,"$13,192.90"\n'
+    )
+
+    with pytest.raises(ParsingError, match="contain data in column 5") as exc_info:
+        _read_schwab_awards(award_file)
+
+    assert exc_info.value.row_index == 2
 
 
 def test_award_file_without_the_award_says_so() -> None:
@@ -331,6 +353,30 @@ def test_cash_merger_adj_without_cash_merger() -> None:
         _read(content)
 
 
+def test_cash_merger_adj_after_another_action() -> None:
+    """Report a malformed pair as input data, not an internal assertion."""
+    content = (
+        SCHWAB_HEADER
+        + "01/15/2023,Credit Interest,,Interest,,,,$1.00\n"
+        + "01/15/2023,Cash Merger Adj,FOO,Merger,,-10,,\n"
+    )
+
+    with pytest.raises(ParsingError, match="must immediately follow"):
+        _read(content)
+
+
+def test_full_redemption_adj_before_another_action() -> None:
+    """Report an unexpected second row as malformed broker data."""
+    content = (
+        SCHWAB_HEADER
+        + "01/15/2023,Full Redemption Adj,FOO,Redemption,,,,$100.00\n"
+        + "01/15/2023,Credit Interest,,Interest,,,,$1.00\n"
+    )
+
+    with pytest.raises(ParsingError, match="must be followed"):
+        _read(content)
+
+
 def test_invalid_cash_merger_pair() -> None:
     """Raise when a Cash Merger pair fails validation."""
     content = (
@@ -338,8 +384,10 @@ def test_invalid_cash_merger_pair() -> None:
         + '01/16/2023,Cash Merger,FOO,Merger,,,,"$100.00"\n'
         + '01/15/2023,Cash Merger Adj,FOO,Merger,,-10,,"$5.00"\n'
     )
-    with pytest.raises(ParsingError, match="Invalid Cash Merger format"):
+    with pytest.raises(ParsingError, match="Invalid Cash Merger format") as exc_info:
         _read(content)
+
+    assert "FOO on 2023-01-16" in str(exc_info.value)
 
 
 def test_invalid_full_redemption_pair() -> None:
@@ -349,5 +397,37 @@ def test_invalid_full_redemption_pair() -> None:
         + '01/16/2023,Full Redemption Adj,FOO,Redemption,,,,"$100.00"\n'
         + '01/15/2023,Full Redemption,FOO,Redemption,"$1.00",-10,,\n'
     )
-    with pytest.raises(ParsingError, match="Invalid Full Redemption format"):
+    with pytest.raises(
+        ParsingError, match="Invalid Full Redemption format"
+    ) as exc_info:
         _read(content)
+
+    assert "FOO on 2023-01-15" in str(exc_info.value)
+
+
+def test_cash_merger_rejects_zero_adjustment_quantity() -> None:
+    """A zero quantity identifies the malformed Cash Merger pair."""
+    content = (
+        SCHWAB_HEADER
+        + "01/15/2023,Cash Merger,FOO,Merger,,,,$100.00\n"
+        + "01/15/2023,Cash Merger Adj,FOO,Merger,,0,,\n"
+    )
+
+    with pytest.raises(ParsingError, match="non-zero quantity") as exc_info:
+        _read(content)
+
+    assert "FOO on 2023-01-15" in str(exc_info.value)
+
+
+def test_full_redemption_rejects_zero_quantity() -> None:
+    """A zero quantity identifies the malformed Full Redemption pair."""
+    content = (
+        SCHWAB_HEADER
+        + "01/15/2023,Full Redemption Adj,FOO,Redemption,,,,$100.00\n"
+        + "01/15/2023,Full Redemption,FOO,Redemption,,0,,\n"
+    )
+
+    with pytest.raises(ParsingError, match="non-zero quantity") as exc_info:
+        _read(content)
+
+    assert "FOO on 2023-01-15" in str(exc_info.value)

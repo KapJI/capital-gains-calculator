@@ -19,6 +19,7 @@ from cgt_calc.exceptions import (
     InitialPriceMissingError,
     InteractiveInputRequiredError,
     InvalidTransactionError,
+    IsinMissingError,
     IsinTranslationError,
     LatexRenderError,
     MarketDataMissingError,
@@ -104,6 +105,7 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
     (AmountMissingError(TRANSACTION), ["FOO", "2023"]),
     (SymbolMissingError(TRANSACTION), ["FOO", "2023"]),
     (PriceMissingError(TRANSACTION), ["FOO", "2023"]),
+    (IsinMissingError(TRANSACTION), ["FOO", "2023"]),
     (QuantityMissingError(TRANSACTION), ["FOO", "2023"]),
     (QuantityNotPositiveError(TRANSACTION), ["FOO", "2023"]),
     # Both the calculated and the supplied amount are needed to see the gap.

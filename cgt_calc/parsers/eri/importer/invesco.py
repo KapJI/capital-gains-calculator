@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, override
 import dateutil.parser as date_parser
 import pdfplumber
 
+from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import CurrencyCode, Isin
 from cgt_calc.util import round_decimal
 
@@ -64,14 +65,18 @@ class InvescoImporter(ERIImporter):
 
     @staticmethod
     def _extract_header(
-        page: pdfplumber.page.Page,
+        page: pdfplumber.page.Page, file: Path, page_num: int
     ) -> tuple[tuple[float, float, float, float], list[float], dict[int, int]]:
         # Useful for debugging:
         # page.to_image(resolution=100).debug_tablefinder().save(f"full_p{page_num}.png")
         header_table = page.find_table()
-        assert header_table
+        if header_table is None:
+            raise ParsingError(file, f"Could not find table headers on page {page_num}")
+        extracted_header = header_table.extract()
+        if not extracted_header or not extracted_header[0]:
+            raise ParsingError(file, f"Table header is empty on page {page_num}")
         cur_header = [
-            (col or "").replace("\n", " ").strip() for col in header_table.extract()[0]
+            (col or "").replace("\n", " ").strip() for col in extracted_header[0]
         ]
         LOGGER.debug("cur_header=%s", cur_header)
         colmap = {}
@@ -85,22 +90,35 @@ class InvescoImporter(ERIImporter):
         }
         for col, regex in colreg.items():
             match_idx = [i for i, h in enumerate(cur_header) if regex.match(h)]
-            assert len(match_idx) <= 1, (
-                f"Multiple columns matching for {regex}: {match_idx}"
-            )
-            assert match_idx, f"No column found for {regex}"
+            if len(match_idx) > 1:
+                raise ParsingError(
+                    file,
+                    f"Multiple columns match {regex.pattern!r} on page {page_num}: "
+                    f"{match_idx}",
+                )
+            if not match_idx:
+                raise ParsingError(
+                    file,
+                    f"No column matching {regex.pattern!r} on page {page_num}",
+                )
             colmap[col] = match_idx[0]
         min_column_count = 11
-        assert len(cur_header) >= min_column_count
+        if len(cur_header) < min_column_count:
+            raise ParsingError(
+                file,
+                f"Expected at least {min_column_count} columns on page {page_num}, "
+                f"found {len(cur_header)}",
+            )
         columns = [col.bbox[0] for col in header_table.columns]
         columns.append(header_table.rows[0].bbox[2])
         return header_table.rows[0].bbox, columns, colmap
 
     @staticmethod
     def _extract_data_rows(
-        page_num: int,  # noqa: ARG004  # kept for the debug line below
+        page_num: int,  # kept for the debug line below
         cropped: pdfplumber.page.CroppedPage,
         columns: list[float],
+        file: Path,
     ) -> list[list[str | None]]:
         table_settings = {
             "vertical_strategy": "explicit",
@@ -110,7 +128,8 @@ class InvescoImporter(ERIImporter):
         # Useful for debugging:
         # cropped.to_image(resolution=100).debug_tablefinder(table_settings).save(f"cropped_p{page_num}.png")
         data_table = cropped.extract_table(table_settings)
-        assert data_table
+        if data_table is None:
+            raise ParsingError(file, f"Could not extract data table on page {page_num}")
         return data_table
 
     @staticmethod
@@ -119,12 +138,20 @@ class InvescoImporter(ERIImporter):
         data_table: list[list[str | None]],
         reporting_period_end: datetime.date,
         colmap: dict[int, int],
+        file: Path,
     ) -> list[ERITransaction]:
         transactions = []
+        required_cells = max(colmap.values()) + 1
         for row_num, raw_row in enumerate(data_table, 1):
-            row = {}
-            for col, pos in colmap.items():
-                row[col] = (raw_row[pos] or "").strip()
+            # A short row cannot be told apart from a subrow by its empty ISIN
+            # cell, and skipping it would silently drop reportable income.
+            if len(raw_row) < required_cells:
+                raise ParsingError(
+                    file,
+                    f"Row {row_num} on page {page_num} has {len(raw_row)} cells, "
+                    f"expected at least {required_cells}",
+                )
+            row = {col: (raw_row[pos] or "").strip() for col, pos in colmap.items()}
             isin_raw = row[ISIN_COLUMN]
             if not isin_raw:
                 # probably a subrow
@@ -133,16 +160,24 @@ class InvescoImporter(ERIImporter):
                 # not part of the table
                 continue
             isin = Isin.parse(isin_raw)
-            assert isin is not None, (
-                f"Bad ISIN in page {page_num}, row {row_num}: {isin_raw}"
-            )
+            if isin is None:
+                raise ParsingError(
+                    file,
+                    f"Invalid ISIN on page {page_num}, row {row_num}: {isin_raw!r}",
+                )
             currency = CurrencyCode.parse(row[CURRENCY_COLUMN].replace("JPN", "JPY"))
-            assert currency is not None, (
-                f"Bad currency in page {page_num}, row {row_num}: {row[CURRENCY_COLUMN]}"
-            )
-            assert re.match(AMOUNT_REGEX, row[ERI_COLUMN]), (
-                f"Bad amount in page {page_num}, row {row_num}: {row[ERI_COLUMN]}"
-            )
+            if currency is None:
+                raise ParsingError(
+                    file,
+                    f"Invalid currency on page {page_num}, row {row_num}: "
+                    f"{row[CURRENCY_COLUMN]!r}",
+                )
+            if not re.match(AMOUNT_REGEX, row[ERI_COLUMN]):
+                raise ParsingError(
+                    file,
+                    f"Invalid amount on page {page_num}, row {row_num}: "
+                    f"{row[ERI_COLUMN]!r}",
+                )
             amount = round_decimal(Decimal(row[ERI_COLUMN]), 5)
             transactions.append(
                 ERITransaction(
@@ -157,7 +192,7 @@ class InvescoImporter(ERIImporter):
 
     @staticmethod
     # v1 has headers only on the first page
-    def _parse_v1(pdf: pdfplumber.pdf.PDF) -> list[ERITransaction] | None:
+    def _parse_v1(pdf: pdfplumber.pdf.PDF, file: Path) -> list[ERITransaction] | None:
         first_page = pdf.pages[0]
         prefix = "STATEMENT OF REPORTABLE INCOME FOR INVESCO MARKETS II PLC FOR THE PERIOD ENDED"
         if not first_page.search(prefix):
@@ -169,7 +204,9 @@ class InvescoImporter(ERIImporter):
         if reporting_period_end is None or reporting_period_end.year < MIN_VALID_YEAR:
             LOGGER.warning("First page has old or missing reporting date")
             return []
-        header_bbox, columns, colmap = InvescoImporter._extract_header(first_page)
+        header_bbox, columns, colmap = InvescoImporter._extract_header(
+            first_page, file, 1
+        )
         (h_left, _h_top, h_right, h_bottom) = header_bbox
         transactions = []
         for page_num, page in enumerate(pdf.pages, 1):
@@ -177,15 +214,17 @@ class InvescoImporter(ERIImporter):
                 cropped = page.crop((h_left, h_bottom, h_right, page.height))
             else:
                 cropped = page.crop((0, 0, page.width, page.height))
-            data_table = InvescoImporter._extract_data_rows(page_num, cropped, columns)
+            data_table = InvescoImporter._extract_data_rows(
+                page_num, cropped, columns, file
+            )
             transactions += InvescoImporter._process_data_table(
-                page_num, data_table, reporting_period_end, colmap
+                page_num, data_table, reporting_period_end, colmap, file
             )
         return transactions
 
     @staticmethod
     # v2 has headers on all pages, and the headers are slightly different
-    def _parse_v2(pdf: pdfplumber.pdf.PDF) -> list[ERITransaction] | None:
+    def _parse_v2(pdf: pdfplumber.pdf.PDF, file: Path) -> list[ERITransaction] | None:
         first_page = pdf.pages[0]
         if not first_page.search("Invesco Markets II plc"):
             return None
@@ -202,12 +241,16 @@ class InvescoImporter(ERIImporter):
             return []
         transactions = []
         for page_num, page in enumerate(pdf.pages, 1):
-            header_bbox, columns, colmap = InvescoImporter._extract_header(page)
+            header_bbox, columns, colmap = InvescoImporter._extract_header(
+                page, file, page_num
+            )
             (h_left, _h_top, h_right, h_bottom) = header_bbox
             cropped = page.crop((h_left, h_bottom, h_right, page.height))
-            data_table = InvescoImporter._extract_data_rows(page_num, cropped, columns)
+            data_table = InvescoImporter._extract_data_rows(
+                page_num, cropped, columns, file
+            )
             transactions += InvescoImporter._process_data_table(
-                page_num, data_table, reporting_period_end, colmap
+                page_num, data_table, reporting_period_end, colmap, file
             )
         return transactions
 
@@ -226,7 +269,7 @@ class InvescoImporter(ERIImporter):
                 return None
             parsers = [InvescoImporter._parse_v1, InvescoImporter._parse_v2]
             for parser in parsers:
-                parsed_data = parser(pdf)
+                parsed_data = parser(pdf, file)
                 if parsed_data is not None:
                     result.transactions = parsed_data
                     break

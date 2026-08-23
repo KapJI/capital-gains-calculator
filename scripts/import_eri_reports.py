@@ -7,11 +7,16 @@ import csv
 from decimal import Decimal
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from cgt_calc import resources
 from cgt_calc.const import DEFAULT_ISIN_TRANSLATION_FILE
-from cgt_calc.exceptions import InvalidTransactionError
+from cgt_calc.exceptions import (
+    CgtError,
+    InvalidTransactionError,
+    IsinMissingError,
+    PriceMissingError,
+)
 from cgt_calc.parsers.eri.importer.blackrock import BlackrockImporter
 from cgt_calc.parsers.eri.importer.invesco import InvescoImporter
 from cgt_calc.parsers.eri.importer.vanguard import VanguardImporter
@@ -22,7 +27,8 @@ from cgt_calc.util import approx_equal
 if TYPE_CHECKING:
     import datetime
 
-    from cgt_calc.parsers.eri.model import ERIImporter, ERITransaction
+    from cgt_calc.parsers.eri.importer.model import ERIImporter
+    from cgt_calc.parsers.eri.model import ERITransaction
 
 ERI_IMPORTERS: list[ERIImporter] = [
     BlackrockImporter(),
@@ -41,20 +47,21 @@ def validate_and_remove_duplicates(
 
     Sort the final output by date for writing
     """
-    transaction_index: dict[tuple[str, datetime.date], ERITransaction] = {}
+    transaction_index: dict[
+        tuple[str, datetime.date], tuple[ERITransaction, Decimal]
+    ] = {}
     result = []
     for transaction in transactions:
-        assert transaction.price is not None, (
-            f"Transaction price not set for {transaction}"
-        )
-        assert transaction.isin, f"Transaction ISIN not set for {transaction}"
-        key = (transaction.isin, transaction.date)
+        price = transaction.price
+        if price is None:
+            raise PriceMissingError(transaction)
+        isin = transaction.isin
+        if isin is None:
+            raise IsinMissingError(transaction)
+        key = (isin, transaction.date)
         if key in transaction_index:
-            current_transaction = transaction_index[key]
-            assert current_transaction.price is not None, str(current_transaction)
-            if approx_equal(
-                current_transaction.price, transaction.price, Decimal("0.0001")
-            ):
+            current_transaction, current_price = transaction_index[key]
+            if approx_equal(current_price, price, Decimal("0.0001")):
                 continue
             raise InvalidTransactionError(
                 transaction,
@@ -62,7 +69,7 @@ def validate_and_remove_duplicates(
                 f"{current_transaction}",
             )
         result.append(transaction)
-        transaction_index[key] = transaction
+        transaction_index[key] = (transaction, price)
 
     result.sort(key=lambda t: t.date)
     return result
@@ -71,7 +78,8 @@ def validate_and_remove_duplicates(
 def eri_import_from_file(path: Path) -> None:
     """Import the specified path into the tool resources."""
 
-    assert path.is_file(), f"Specified path {path} not a file!"
+    if not path.is_file():
+        raise CgtError(f"Specified path is not a file: {path}")
 
     print(f"Processing ERI file: {path}")
     for importer in ERI_IMPORTERS:
@@ -79,15 +87,21 @@ def eri_import_from_file(path: Path) -> None:
         if data is None:
             continue
 
-        assert data, f"ERI Importer {importer.name} emitted no transactions for {path}"
+        if not data.transactions:
+            print(
+                f"WARNING: ERI importer {importer.name} found no transactions in {path}"
+            )
+            return
         print(
             f"ERI file {path} successfully parsed with {importer.name}, "
             f"transactions found: {len(data.transactions)}"
         )
         output_path = Path(resources.__file__).parent / "eri" / data.output_file_name
-        transactions = []
+        transactions: list[ERITransaction] = []
         if output_path.exists():
-            transactions += ERIRawParser.load_from_file(output_path)
+            transactions += cast(
+                "list[ERITransaction]", ERIRawParser.load_from_file(output_path)
+            )
         transactions += data.transactions
         transactions = validate_and_remove_duplicates(transactions)
 
@@ -126,7 +140,7 @@ def eri_import_from_path(path_str: str) -> str:
     )
 
 
-def main():
+def main() -> None:
     """Entry point."""
     parser = argparse.ArgumentParser(description="Import ERI Reports in CGT tool")
     parser.add_argument(
@@ -139,7 +153,10 @@ def main():
     )
 
     args = parser.parse_args()
-    eri_import_from_path(args.eri_reports)
+    try:
+        eri_import_from_path(args.eri_reports)
+    except CgtError as err:
+        parser.error(str(err))
     print("Import complete! Run cgt_calc to use the imported data in your reports!")
 
 

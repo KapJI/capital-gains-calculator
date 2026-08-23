@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Final, Self, override
 
 from colorama import Style
 
+from .exceptions import CalculationError
 from .logging import bullet, style_text
 from .util import (
     approx_equal,
@@ -182,15 +183,19 @@ class ForeignCurrencyAmount:
 
     def __add__(self, amount: ForeignCurrencyAmount) -> ForeignCurrencyAmount:
         """Add two amounts."""
-        assert self.currency or not self.amount, (
-            f"Invalid foreign currency amount {self}"
-        )
-        assert amount.currency or not amount.amount, (
-            f"Invalid foreign currency amount {amount}"
-        )
-        assert (
-            not self.currency or not amount.currency or self.currency == amount.currency
-        ), f"Incompatible currency operation {self.currency} vs {amount.currency}"
+        if self.currency is None and self.amount:
+            raise CalculationError(f"Currency missing for amount {self.amount}")
+        if amount.currency is None and amount.amount:
+            raise CalculationError(f"Currency missing for amount {amount.amount}")
+        if (
+            self.currency is not None
+            and amount.currency is not None
+            and self.currency != amount.currency
+        ):
+            raise CalculationError(
+                "Cannot combine amounts in different currencies: "
+                f"{self.currency} and {amount.currency}"
+            )
         result = ForeignCurrencyAmount(
             amount=self.amount + amount.amount,
             currency=self.currency or amount.currency,
@@ -537,7 +542,11 @@ class CapitalGainsReport:
 
     def taxable_gain(self) -> Decimal:
         """Taxable gain with current allowance."""
-        assert self.capital_gain_allowance is not None
+        if self.capital_gain_allowance is None:
+            raise CalculationError(
+                f"Taxable gain cannot be calculated because the capital gains "
+                f"allowance for {self.tax_year}/{self.tax_year + 1} is unavailable"
+            )
         return max(Decimal(0), self.total_gain() - self.capital_gain_allowance)
 
     def total_eri_amount(self, *, is_interest: bool) -> Decimal:

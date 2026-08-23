@@ -306,37 +306,40 @@ def _combine_cash_merger_pair(
 
     Returns: Unified transaction with calculated price
     """
-    try:
-        # Validate matching fields
-        assert cash_merger.description == cash_merger_adj.description
-        assert cash_merger.symbol == cash_merger_adj.symbol
-        assert cash_merger.date == cash_merger_adj.date
-
-        # Validate data pattern: Cash Merger has amount, Adj has quantity
-        assert cash_merger.amount is not None, "Cash Merger must have Amount"
-        assert cash_merger.quantity is None, "Cash Merger should not have Quantity"
-        assert cash_merger.price is None, "Cash Merger should not have Price"
-
-        assert cash_merger_adj.quantity is not None, (
-            "Cash Merger Adj must have Quantity"
-        )
-        assert cash_merger_adj.amount is None, "Cash Merger Adj should not have Amount"
-
-    except AssertionError as err:
+    if (
+        cash_merger.description != cash_merger_adj.description
+        or cash_merger.symbol != cash_merger_adj.symbol
+        or cash_merger.date != cash_merger_adj.date
+    ):
         raise ParsingError(
             transactions_file,
-            f"Invalid Cash Merger format: {cash_merger.raw_action}, "
-            "run with --verbose for more details",
-        ) from err
+            f"Invalid Cash Merger format for {cash_merger.symbol} on "
+            f"{cash_merger.date}: the Cash Merger and adjustment rows must "
+            "have the same date, symbol and description",
+        )
+
+    amount = cash_merger.amount
+    adjustment_quantity = cash_merger_adj.quantity
+    if (
+        amount is None
+        or cash_merger.quantity is not None
+        or cash_merger.price is not None
+        or adjustment_quantity is None
+        or adjustment_quantity == 0
+        or cash_merger_adj.amount is not None
+    ):
+        raise ParsingError(
+            transactions_file,
+            f"Invalid Cash Merger format for {cash_merger.symbol} on "
+            f"{cash_merger.date}: expected proceeds only on the Cash Merger "
+            "row and a non-zero quantity only on the adjustment row",
+        )
 
     # Create unified transaction
     unified = cash_merger
     # Quantity is negative (shares leaving), convert to positive for SELL
-    unified.quantity = -1 * cash_merger_adj.quantity
-    # Mypy: at this point unified.amount and unified.quantity are guaranteed non-None
-    assert unified.amount is not None
-    assert unified.quantity is not None
-    unified.price = unified.amount / unified.quantity
+    unified.quantity = -adjustment_quantity
+    unified.price = amount / unified.quantity
     unified.fees += cash_merger_adj.fees
 
     return unified
@@ -355,45 +358,42 @@ def _combine_full_redemption_pair(
 
     Returns: Unified transaction with calculated price
     """
-    try:
-        # Validate matching fields
-        assert full_redemption_adj.description == full_redemption.description
-        assert full_redemption_adj.symbol == full_redemption.symbol
-        assert full_redemption_adj.date == full_redemption.date
-
-        # Validate data pattern: Adj has amount, Full Redemption has quantity
-        assert full_redemption_adj.amount is not None, (
-            "Full Redemption Adj must have Amount"
-        )
-        assert full_redemption_adj.quantity is None, (
-            "Full Redemption Adj should not have Quantity"
-        )
-        assert full_redemption_adj.price is None, (
-            "Full Redemption Adj should not have Price"
-        )
-
-        assert full_redemption.quantity is not None, (
-            "Full Redemption must have Quantity"
-        )
-        assert full_redemption.price is None, "Full Redemption should not have Price"
-        assert full_redemption.amount is None, "Full Redemption should not have Amount"
-
-    except AssertionError as err:
+    if (
+        full_redemption_adj.description != full_redemption.description
+        or full_redemption_adj.symbol != full_redemption.symbol
+        or full_redemption_adj.date != full_redemption.date
+    ):
         raise ParsingError(
             transactions_file,
-            f"Invalid Full Redemption format: {full_redemption.raw_action}, "
-            "run with --verbose for more details",
-        ) from err
+            f"Invalid Full Redemption format for {full_redemption.symbol} on "
+            f"{full_redemption.date}: the adjustment and redemption rows must "
+            "have the same date, symbol and description",
+        )
+
+    amount = full_redemption_adj.amount
+    redemption_quantity = full_redemption.quantity
+    if (
+        amount is None
+        or full_redemption_adj.quantity is not None
+        or full_redemption_adj.price is not None
+        or redemption_quantity is None
+        or redemption_quantity == 0
+        or full_redemption.price is not None
+        or full_redemption.amount is not None
+    ):
+        raise ParsingError(
+            transactions_file,
+            f"Invalid Full Redemption format for {full_redemption.symbol} on "
+            f"{full_redemption.date}: expected proceeds only on the adjustment "
+            "row and a non-zero quantity only on the redemption row",
+        )
 
     # Create unified transaction (use Full Redemption as base for action type)
     unified = full_redemption
     # Quantity is negative (shares leaving), convert to positive
-    unified.quantity = -1 * full_redemption.quantity
-    unified.amount = full_redemption_adj.amount
-    # Mypy: at this point unified.amount and unified.quantity are guaranteed non-None
-    assert unified.amount is not None
-    assert unified.quantity is not None
-    unified.price = unified.amount / unified.quantity
+    unified.quantity = -redemption_quantity
+    unified.amount = amount
+    unified.price = amount / unified.quantity
     unified.fees += full_redemption_adj.fees
 
     return unified
@@ -435,10 +435,11 @@ def _unify_schwab_paired_transactions(
             main_transaction = filtered[-1]
             adj_transaction = transaction
 
-            # Validate it's a Cash Merger pair
-            assert main_transaction.raw_action == "Cash Merger", (
-                "Cash Merger Adj must follow Cash Merger"
-            )
+            if main_transaction.raw_action != "Cash Merger":
+                raise ParsingError(
+                    transactions_file,
+                    "Cash Merger Adj must immediately follow a Cash Merger transaction",
+                )
 
             unified = _combine_cash_merger_pair(
                 main_transaction, adj_transaction, transactions_file
@@ -470,10 +471,12 @@ def _unify_schwab_paired_transactions(
             adj_transaction = transaction
             main_transaction = transactions[i + 1]
 
-            # Validate it's a Full Redemption pair
-            assert main_transaction.raw_action == "Full Redemption", (
-                "Full Redemption Adj must be followed by Full Redemption"
-            )
+            if main_transaction.raw_action != "Full Redemption":
+                raise ParsingError(
+                    transactions_file,
+                    "Full Redemption Adj must be followed by a Full Redemption "
+                    "transaction",
+                )
 
             unified = _combine_full_redemption_pair(
                 adj_transaction, main_transaction, transactions_file
@@ -643,8 +646,16 @@ def _read_schwab_awards(
         # in this format each logical row is split into two rows,
         # so we combine them safely below
         row = []
-        for upper_col, lower_col in zip(upper_row, lower_row, strict=True):
-            assert upper_col == "" or lower_col == ""
+        for column_index, (upper_col, lower_col) in enumerate(
+            zip(upper_row, lower_row, strict=True), start=1
+        ):
+            if upper_col and lower_col:
+                raise ParsingError(
+                    schwab_award_transactions_file,
+                    f"Both halves of the split award row (rows {row_index} and "
+                    f"{row_index + 1}) contain data in column {column_index}",
+                    row_index=row_index,
+                )
             row.append(upper_col + lower_col)
 
         row_dict = OrderedDict(zip(header, row, strict=True))
