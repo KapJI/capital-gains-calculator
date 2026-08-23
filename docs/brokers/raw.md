@@ -97,7 +97,10 @@ are worth more together than apart, each gift's consideration becomes its share 
 everything given, and each later gift enlarges the series, which can revise the earlier gifts —
 already-filed years included. A typical holding of quoted shares is unaffected, since every share
 has the same price, but for unquoted shares given in stages enter the s19-apportioned value as the
-`price`, and amend the earlier years yourself when a later gift revises them.
+`price`, and amend the earlier years yourself when a later gift revises them. A transfer to your
+spouse stays no gain / no loss, but it still counts towards the series when the same holding is
+split between a spouse and someone else
+([CG14710](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14710)).
 
 ```csv
 2024-03-16,GIFT,META,21.5,480.00,0.00,USD
