@@ -49,3 +49,23 @@
   background-color: #ffffff33;
   color: var(--md-primary-bg-color);
 }
+
+/* The example report is shown one image per page, in a frame that scrolls. A
+   browser's built-in PDF viewer would bring its own toolbar and zoom controls;
+   images give a fixed, fit-to-width view with nothing to fiddle with, and they
+   render the same on phones, where inline PDFs do not work. */
+.report-preview {
+  max-height: 70vh;
+  overflow-y: auto;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+}
+
+.report-preview img {
+  display: block;
+  width: 100%;
+}
+
+.report-preview img + img {
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+}

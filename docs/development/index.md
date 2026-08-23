@@ -144,7 +144,8 @@ This writes `docs/assets/example_report.pdf`. Commit the updated file if your ch
 generation. The example source transactions and fixed exchange rates live in
 `scripts/example_data/`, so generation is deterministic and does not call the exchange-rate API.
 
-After regenerating the PDF, update the preview used by the README and documentation:
+After regenerating the PDF, update the images made from it: the teaser the README shows and the
+full-page images the docs show:
 
 ```shell
 ./scripts/generate_example_preview.sh
