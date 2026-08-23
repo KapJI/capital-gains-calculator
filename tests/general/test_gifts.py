@@ -148,6 +148,42 @@ def test_gifts_to_a_connected_and_an_unconnected_person_on_one_day_are_refused(
         )
 
 
+def test_a_worthless_holding_given_to_a_connected_person_is_a_clogged_loss() -> None:
+    """Market value zero: the whole cost becomes a loss, clogged as usual."""
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            dataclasses.replace(_gift(4, 30), price=Decimal(0)),
+        ],
+    )
+
+    assert report.disposal_count == 1
+    assert report.disposal_proceeds == Decimal(0)
+    assert report.allowable_costs == Decimal(40)
+    assert report.gift_loss == Decimal(-40)
+    assert report.capital_loss == Decimal(0)
+
+
+def test_a_worthless_holding_given_to_an_unconnected_person_is_a_loss() -> None:
+    """The same at nil value, plus a fee: an ordinary loss of cost and fee."""
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            dataclasses.replace(
+                _gift(4, 30, fees=5, action=ActionType.GIFT_UNCONNECTED),
+                price=Decimal(0),
+            ),
+        ],
+    )
+
+    assert report.disposal_proceeds == Decimal(0)
+    assert report.allowable_costs == Decimal(45)
+    assert report.capital_loss == Decimal(-45)
+    assert report.total_gain() == Decimal(-45)
+
+
 def test_a_gift_is_identified_like_a_sale() -> None:
     """A repurchase within 30 days is matched first, as for any disposal."""
     rebuy_day = datetime.date(2024, 6, 20)
@@ -203,12 +239,12 @@ def test_a_fee_on_a_gift_is_allowed_as_a_cost() -> None:
 
 @pytest.mark.parametrize(
     ("price", "error"),
-    [(None, PriceMissingError), (Decimal(0), InvalidTransactionError)],
+    [(None, PriceMissingError), (Decimal(-1), InvalidTransactionError)],
 )
 def test_a_gift_needs_the_market_value(
     price: Decimal | None, error: type[Exception]
 ) -> None:
-    """The price column is the whole point of the row."""
+    """The price cannot be absent or negative; zero is a real value."""
     with pytest.raises(error):
         get_report(
             create_calculator(tax_year=2024, balance_check=False),

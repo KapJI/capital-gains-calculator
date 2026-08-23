@@ -86,7 +86,9 @@ quoted on an exchange it follows the day's quoted prices, while unquoted shares 
 open-market valuation of the holding you gave away — the size of the holding changes the value per
 share ([CG59562](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg59562)), and HMRC
 can check a valuation after the disposal (form CG34). If the count has been restated for a later
-split (Schwab's export does this), divide the value of the whole gift by the restated count.
+split (Schwab's export does this), divide the value of the whole gift by the restated count. A
+holding that has become worthless can be given away at a market value of `0`, and the whole cost
+becomes a loss.
 
 ```csv
 2024-03-16,GIFT,META,21.5,480.00,0.00,USD

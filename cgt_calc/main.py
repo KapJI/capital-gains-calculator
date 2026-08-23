@@ -612,10 +612,12 @@ class CapitalGainsCalculator:
             )
         if transaction.price is None:
             raise PriceMissingError(transaction)
-        if transaction.price <= 0:
+        # Zero is a real market value: a holding can become worthless, and
+        # giving it away disposes of it for nothing, leaving the cost as a
+        # loss. Only a negative value is nonsense.
+        if transaction.price < 0:
             raise InvalidTransactionError(
-                transaction,
-                "A gift needs its market value divided by its units as the price",
+                transaction, "A gift cannot have a negative market value"
             )
         connected = transaction.action is ActionType.GIFT
         key = (transaction.date, symbol)
