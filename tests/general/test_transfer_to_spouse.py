@@ -32,6 +32,7 @@ from cgt_calc.parsers.raw import RawParser
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 from .calc_test_data import (
+    GBP,
     split_transaction,
     transaction,
     transfer_to_spouse_transaction,
@@ -51,10 +52,10 @@ def test_transfer_to_spouse_from_pool_is_no_gain_no_loss() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transaction(
-                buy_day, ActionType.BUY, "BAR", 5, 5, 0, -25, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "BAR", 5, 5, 0, -25, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(transfer_day, "FOO", 4),
             transfer_to_spouse_transaction(transfer_day, "BAR", 2),
@@ -98,11 +99,11 @@ def test_transfer_to_spouse_matches_repurchase_within_30_days() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(transfer_day, "FOO", 5),
             transaction(
-                rebuy_day, ActionType.BUY, "FOO", 5, 12, 0, -60, CurrencyCode("GBP")
+                rebuy_day, ActionType.BUY, "FOO", 5, 12, 0, -60, CurrencyCode(GBP)
             ),
         ],
     )
@@ -125,7 +126,7 @@ def test_transfer_to_spouse_entire_holding_empties_pool() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(transfer_day, "FOO", 10),
         ],
@@ -150,10 +151,10 @@ def test_transfer_to_spouse_matches_same_day_acquisition() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transaction(
-                transfer_day, ActionType.BUY, "FOO", 3, 20, 0, -60, CurrencyCode("GBP")
+                transfer_day, ActionType.BUY, "FOO", 3, 20, 0, -60, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(transfer_day, "FOO", 3),
         ],
@@ -187,10 +188,10 @@ def test_transfer_to_spouse_same_day_as_sale_is_rejected(
             calculator,
             [
                 transaction(
-                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
                 ),
                 transaction(
-                    event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode("GBP")
+                    event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode(GBP)
                 ),
                 transfer_to_spouse_transaction(event_day, "FOO", 2),
                 transaction(
@@ -201,7 +202,7 @@ def test_transfer_to_spouse_same_day_as_sale_is_rejected(
                     30,
                     0,
                     -120,
-                    CurrencyCode("GBP"),
+                    CurrencyCode(GBP),
                 ),
             ],
         )
@@ -225,10 +226,10 @@ def test_transfer_to_spouse_same_day_as_sale_from_pool_is_allowed() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transaction(
-                event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode("GBP")
+                event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(event_day, "FOO", 2),
         ],
@@ -256,7 +257,7 @@ def test_transfer_to_spouse_more_than_owned_is_rejected() -> None:
             calculator,
             [
                 transaction(
-                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
                 ),
                 transfer_to_spouse_transaction(transfer_day, "FOO", 11),
             ],
@@ -285,7 +286,7 @@ def test_transfer_to_spouse_warns_about_the_ignored_price(
             calculator,
             [
                 transaction(
-                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
                 ),
                 transaction(
                     transfer_day,
@@ -295,7 +296,7 @@ def test_transfer_to_spouse_warns_about_the_ignored_price(
                     25,
                     0,
                     0,
-                    CurrencyCode("GBP"),
+                    CurrencyCode(GBP),
                 ),
             ],
         )
@@ -320,7 +321,7 @@ def test_transfer_to_spouse_fee_is_added_to_the_base_cost() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transaction(
                 transfer_day,
@@ -330,7 +331,7 @@ def test_transfer_to_spouse_fee_is_added_to_the_base_cost() -> None:
                 None,
                 5,
                 -5,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
         ],
     )
@@ -354,7 +355,7 @@ def test_transfer_to_spouse_shown_in_report() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 1000, 10, 0, -10000, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 1000, 10, 0, -10000, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(transfer_day, "FOO", 400),
         ],
@@ -376,10 +377,10 @@ def test_unclassified_gift_is_rejected_with_instructions() -> None:
             calculator,
             [
                 transaction(
-                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
                 ),
                 transaction(
-                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode("GBP")
+                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
                 ),
             ],
         )
@@ -401,10 +402,10 @@ def test_gift_matched_by_transfer_to_spouse_is_accounted_for() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transaction(
-                gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode("GBP")
+                gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(gift_day, "FOO", 4),
         ],
@@ -428,10 +429,10 @@ def test_gift_with_mismatched_transfer_is_rejected() -> None:
             calculator,
             [
                 transaction(
-                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
                 ),
                 transaction(
-                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode("GBP")
+                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
                 ),
                 # Same day and symbol, different quantity.
                 transfer_to_spouse_transaction(gift_day, "FOO", 3),
@@ -448,7 +449,7 @@ def test_transfer_to_spouse_without_quantity_is_rejected() -> None:
             calculator,
             [
                 transaction(
-                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
                 ),
                 transfer_to_spouse_transaction(datetime.date(2024, 6, 10), "FOO", 0),
             ],
@@ -467,7 +468,7 @@ def test_gift_without_quantity_is_rejected() -> None:
                     ActionType.GIFT,
                     "FOO",
                     0,
-                    currency=CurrencyCode("GBP"),
+                    currency=CurrencyCode(GBP),
                 )
             ],
         )
@@ -488,13 +489,13 @@ def test_transfer_to_spouse_reserves_its_share_of_a_same_day_acquisition() -> No
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transaction(
-                sell_day, ActionType.SELL, "FOO", 5, 20, 0, 100, CurrencyCode("GBP")
+                sell_day, ActionType.SELL, "FOO", 5, 20, 0, 100, CurrencyCode(GBP)
             ),
             transaction(
-                rebuy_day, ActionType.BUY, "FOO", 5, 30, 0, -150, CurrencyCode("GBP")
+                rebuy_day, ActionType.BUY, "FOO", 5, 30, 0, -150, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(rebuy_day, "FOO", 5),
         ],
@@ -512,14 +513,14 @@ def test_transfer_to_spouse_reserves_its_share_of_a_same_day_acquisition() -> No
     assert calculator.portfolio["FOO"].amount == Decimal(50)
 
 
-def test_transfer_to_spouse_logs_a_pending_spin_off() -> None:
-    """A spin-off still pending when the transfer happens is recorded.
+def test_transfer_to_spouse_after_a_spin_off_takes_the_apportioned_cost() -> None:
+    """A spin-off before the transfer has already moved part of the cost away.
 
-    The transfer is identified like a disposal, so it is the event that
-    applies the outstanding cost-proportion adjustment and has to report it.
+    FOO keeps 90% of its £1,000 at the spin-off, so the 50 units transferred
+    carry £450, and the spin-off is recorded under its own date.
     """
-    buy_day = datetime.date(2023, 6, 1)
-    spin_off_day = datetime.date(2023, 7, 5)
+    buy_day = datetime.date(2024, 4, 10)
+    spin_off_day = datetime.date(2024, 5, 5)
     transfer_day = datetime.date(2024, 6, 10)
     currency_converter = CurrencyConverter(None, {})
     spin_off_handler = SpinOffHandler()
@@ -545,7 +546,7 @@ def test_transfer_to_spouse_logs_a_pending_spin_off() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 100, 10, 0, -1000, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 100, 10, 0, -1000, CurrencyCode(GBP)
             ),
             transaction(
                 spin_off_day,
@@ -554,20 +555,19 @@ def test_transfer_to_spouse_logs_a_pending_spin_off() -> None:
                 100,
                 10,
                 0,
-                currency=CurrencyCode("GBP"),
+                currency=CurrencyCode(GBP),
             ),
             transfer_to_spouse_transaction(transfer_day, "FOO", 50),
         ],
     )
 
     assert report.total_gain() == Decimal(0)
-    # 90/(90+10) of the £1,000 stays with FOO, so 50 of 100 units carry £450.
     entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
     assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(450)
-    # The transfer applied the adjustment, so it reports the spin-off too.
-    spin_off_entries = report.calculation_log[spin_off_day]["spin-off$FOO"]
-    assert len(spin_off_entries) == 1
-    assert spin_off_entries[0].rule_type is RuleType.SPIN_OFF
+    (spin_off_entry,) = report.calculation_log[spin_off_day]["spin-off$FOO"]
+    assert spin_off_entry.rule_type is RuleType.SPIN_OFF
+    assert spin_off_entry.new_pool_cost == Decimal(900)
+    assert calculator.portfolio["BAR"].amount == Decimal(100)
 
 
 def test_transfer_to_spouse_before_the_tax_year_still_reduces_the_pool() -> None:
@@ -584,11 +584,11 @@ def test_transfer_to_spouse_before_the_tax_year_still_reduces_the_pool() -> None
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(transfer_day, "FOO", 4),
             transaction(
-                sell_day, ActionType.SELL, "FOO", 6, 20, 0, 120, CurrencyCode("GBP")
+                sell_day, ActionType.SELL, "FOO", 6, 20, 0, 120, CurrencyCode(GBP)
             ),
         ],
     )
@@ -613,11 +613,11 @@ def test_disposal_is_not_matched_against_a_same_day_split() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             split_transaction(split_day, "FOO", 10),
             transaction(
-                split_day, ActionType.SELL, "FOO", 4, 12, 0, 48, CurrencyCode("GBP")
+                split_day, ActionType.SELL, "FOO", 4, 12, 0, 48, CurrencyCode(GBP)
             ),
         ],
     )
@@ -639,7 +639,7 @@ def test_transfer_to_spouse_is_not_matched_against_a_same_day_split() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             split_transaction(split_day, "FOO", 10),
             transfer_to_spouse_transaction(split_day, "FOO", 4),
@@ -669,7 +669,7 @@ def test_either_reading_of_an_ambiguous_gift_settles_it(confirmed: Decimal) -> N
         price=None,
         fees=Decimal(0),
         amount=Decimal(0),
-        currency=CurrencyCode("GBP"),
+        currency=CurrencyCode(GBP),
         broker="Testing",
         ambiguous_quantity=Decimal(40),
     )
@@ -685,7 +685,7 @@ def test_either_reading_of_an_ambiguous_gift_settles_it(confirmed: Decimal) -> N
                 10,
                 0,
                 -1000,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             gift,
             transfer_to_spouse_transaction(gift_day, "FOO", float(confirmed)),
@@ -709,7 +709,7 @@ def test_ambiguous_gift_error_offers_both_readings() -> None:
         price=None,
         fees=Decimal(0),
         amount=Decimal(0),
-        currency=CurrencyCode("GBP"),
+        currency=CurrencyCode(GBP),
         broker="Testing",
         ambiguous_quantity=Decimal(40),
     )
@@ -740,7 +740,7 @@ def test_a_certain_gift_is_not_stranded_by_an_uncertain_one() -> None:
             price=None,
             fees=Decimal(0),
             amount=Decimal(0),
-            currency=CurrencyCode("GBP"),
+            currency=CurrencyCode(GBP),
             broker="Testing",
             ambiguous_quantity=ambiguous,
         )
@@ -757,7 +757,7 @@ def test_a_certain_gift_is_not_stranded_by_an_uncertain_one() -> None:
                 10,
                 0,
                 -1000,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             gift(2, Decimal(40)),
             gift(2),
@@ -783,7 +783,7 @@ def _gift(
         price=None,
         fees=Decimal(0),
         amount=Decimal(0),
-        currency=CurrencyCode("GBP"),
+        currency=CurrencyCode(GBP),
         broker="Testing",
         ambiguous_quantity=ambiguous,
     )
@@ -808,7 +808,7 @@ def test_two_uncertain_gifts_are_read_the_way_that_fits_both() -> None:
                 10,
                 0,
                 -10000,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             _gift(gift_day, 20, Decimal(400)),
             _gift(gift_day, 1, Decimal(20)),
@@ -836,7 +836,7 @@ def test_gifts_no_reading_can_satisfy_still_name_the_one_left_out() -> None:
                     10,
                     0,
                     -10000,
-                    CurrencyCode("GBP"),
+                    CurrencyCode(GBP),
                 ),
                 _gift(gift_day, 20, Decimal(400)),
                 _gift(gift_day, 20, Decimal(400)),
@@ -860,13 +860,13 @@ def test_each_gift_needs_its_own_classification() -> None:
             calculator,
             [
                 transaction(
-                    buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, CurrencyCode("GBP")
+                    buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, CurrencyCode(GBP)
                 ),
                 transaction(
-                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode("GBP")
+                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
                 ),
                 transaction(
-                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode("GBP")
+                    gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
                 ),
                 transfer_to_spouse_transaction(gift_day, "FOO", 4),
             ],
@@ -882,13 +882,13 @@ def test_two_gifts_are_settled_by_two_classifications() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, CurrencyCode(GBP)
             ),
             transaction(
-                gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode("GBP")
+                gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
             ),
             transaction(
-                gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode("GBP")
+                gift_day, ActionType.GIFT, "FOO", 4, currency=CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(gift_day, "FOO", 4),
             transfer_to_spouse_transaction(gift_day, "FOO", 4),
@@ -909,7 +909,7 @@ def test_transfer_to_spouse_sorts_after_a_same_day_acquisition() -> None:
     validated first and fails as "not owned".
     """
     day = datetime.date(2024, 6, 10)
-    buy = transaction(day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP"))
+    buy = transaction(day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP))
     transfer = transfer_to_spouse_transaction(day, "FOO", 4)
 
     # Worst case: the transfer is read first, as a RAW file would give it.
@@ -936,14 +936,14 @@ def test_management_fee_is_not_a_contended_acquisition() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transaction(
-                event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode("GBP")
+                event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(event_day, "FOO", 2),
             transaction(
-                fee_day, ActionType.FEE, "FOO", None, None, 0, -1, CurrencyCode("GBP")
+                fee_day, ActionType.FEE, "FOO", None, None, 0, -1, CurrencyCode(GBP)
             ),
         ],
     )
@@ -961,7 +961,7 @@ def test_fractional_transfer_keeps_its_units_in_the_report() -> None:
         create_calculator(),
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(transfer_day, "FOO", 0.001),
         ],
@@ -989,12 +989,10 @@ def test_split_shares_do_not_dilute_a_same_day_purchase() -> None:
                 10,
                 0,
                 -100,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             split_transaction(day, "FOO", 10),
-            transaction(
-                day, ActionType.BUY, "FOO", 5, 20, 0, -100, CurrencyCode("GBP")
-            ),
+            transaction(day, ActionType.BUY, "FOO", 5, 20, 0, -100, CurrencyCode(GBP)),
             transfer_to_spouse_transaction(day, "FOO", 5),
         ],
     )
@@ -1026,7 +1024,7 @@ def test_transfer_reservation_survives_a_split_before_the_repurchase() -> None:
                 10,
                 0,
                 -100,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             transaction(
                 datetime.date(2024, 6, 5),
@@ -1036,7 +1034,7 @@ def test_transfer_reservation_survives_a_split_before_the_repurchase() -> None:
                 15,
                 0,
                 60,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             split_transaction(datetime.date(2024, 6, 8), "FOO", 6),
             transaction(
@@ -1047,7 +1045,7 @@ def test_transfer_reservation_survives_a_split_before_the_repurchase() -> None:
                 5,
                 0,
                 -50,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             transfer_to_spouse_transaction(datetime.date(2024, 6, 12), "FOO", 6),
         ],
@@ -1067,17 +1065,17 @@ def test_fully_matched_acquisition_is_not_contended() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, CurrencyCode(GBP)
             ),
             transaction(
-                event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode("GBP")
+                event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(event_day, "FOO", 2),
             transaction(
-                later, ActionType.BUY, "FOO", 4, 30, 0, -120, CurrencyCode("GBP")
+                later, ActionType.BUY, "FOO", 4, 30, 0, -120, CurrencyCode(GBP)
             ),
             transaction(
-                later, ActionType.SELL, "FOO", 4, 31, 0, 124, CurrencyCode("GBP")
+                later, ActionType.SELL, "FOO", 4, 31, 0, 124, CurrencyCode(GBP)
             ),
         ],
     )
@@ -1104,7 +1102,7 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
                 10,
                 0,
                 -200,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             transaction(
                 datetime.date(2024, 6, 5),
@@ -1114,7 +1112,7 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
                 15,
                 0,
                 60,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             transaction(
                 datetime.date(2024, 6, 10),
@@ -1124,7 +1122,7 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
                 20,
                 0,
                 60,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             transfer_to_spouse_transaction(datetime.date(2024, 6, 10), "FOO", 2),
             transaction(
@@ -1135,7 +1133,7 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
                 30,
                 0,
                 -120,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
         ],
     )
@@ -1162,10 +1160,10 @@ def test_same_day_sale_and_transfer_after_a_split_is_allowed() -> None:
         calculator,
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transaction(
-                event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode("GBP")
+                event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(event_day, "FOO", 2),
             split_transaction(split_day, "FOO", 5),
@@ -1191,7 +1189,7 @@ def test_same_day_sale_and_transfer_message_caps_the_dates_it_lists() -> None:
             30,
             0,
             -30,
-            CurrencyCode("GBP"),
+            CurrencyCode(GBP),
         )
         for offset in (1, 2, 3, 4)
     ]
@@ -1200,10 +1198,10 @@ def test_same_day_sale_and_transfer_message_caps_the_dates_it_lists() -> None:
             calculator,
             [
                 transaction(
-                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                    buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
                 ),
                 transaction(
-                    event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode("GBP")
+                    event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode(GBP)
                 ),
                 transfer_to_spouse_transaction(event_day, "FOO", 2),
                 *rebuys,
@@ -1231,7 +1229,7 @@ def test_transfer_fee_does_not_move_the_cash_balance() -> None:
         price=Decimal(0),
         fees=Decimal(5),
         amount=Decimal(-5),
-        currency=CurrencyCode("GBP"),
+        currency=CurrencyCode(GBP),
         broker="Unknown",
     )
     calculator = create_calculator(balance_check=True)
@@ -1246,10 +1244,10 @@ def test_transfer_fee_does_not_move_the_cash_balance() -> None:
                 None,
                 0,
                 200,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             transaction(
-                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
             ),
             transfer,
         ],
@@ -1280,10 +1278,10 @@ def test_transfer_from_spouse_enters_the_pool_at_the_given_cost() -> None:
                 10,
                 0,
                 None,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             transaction(
-                sale, ActionType.SELL, "FOO", 40, 20, 0, 800, CurrencyCode("GBP")
+                sale, ActionType.SELL, "FOO", 40, 20, 0, 800, CurrencyCode(GBP)
             ),
         ],
     )
@@ -1308,7 +1306,7 @@ def test_transfer_from_spouse_needs_the_cost() -> None:
                     None,
                     0,
                     None,
-                    CurrencyCode("GBP"),
+                    CurrencyCode(GBP),
                 ),
             ],
         )
@@ -1317,7 +1315,7 @@ def test_transfer_from_spouse_needs_the_cost() -> None:
 def test_transfer_from_spouse_sorts_before_a_same_day_sale() -> None:
     """Shares sold on the day they arrive must be read as arriving first."""
     day = datetime.date(2024, 6, 15)
-    sale = transaction(day, ActionType.SELL, "FOO", 40, 20, 0, 800, CurrencyCode("GBP"))
+    sale = transaction(day, ActionType.SELL, "FOO", 40, 20, 0, 800, CurrencyCode(GBP))
     arrival = transaction(
         day,
         ActionType.TRANSFER_FROM_SPOUSE,
@@ -1326,7 +1324,7 @@ def test_transfer_from_spouse_sorts_before_a_same_day_sale() -> None:
         10,
         0,
         None,
-        CurrencyCode("GBP"),
+        CurrencyCode(GBP),
     )
 
     report = get_report(
@@ -1344,7 +1342,7 @@ def test_transferor_report_hands_over_the_recipients_row() -> None:
         create_calculator(),
         [
             transaction(
-                buy_day, ActionType.BUY, "FOO", 1000, 10, 0, -10000, CurrencyCode("GBP")
+                buy_day, ActionType.BUY, "FOO", 1000, 10, 0, -10000, CurrencyCode(GBP)
             ),
             transfer_to_spouse_transaction(transfer_day, "FOO", 400),
         ],
@@ -1372,7 +1370,7 @@ def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> Non
                 10,
                 0,
                 -100,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             transaction(
                 datetime.date(2024, 6, 2),
@@ -1382,7 +1380,7 @@ def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> Non
                 11,
                 0,
                 -55,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
             transfer_to_spouse_transaction(transfer_day, "FOO", 3),
         ],
@@ -1408,7 +1406,7 @@ def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> Non
                 20,
                 0,
                 60,
-                CurrencyCode("GBP"),
+                CurrencyCode(GBP),
             ),
         ],
     )

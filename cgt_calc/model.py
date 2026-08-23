@@ -90,15 +90,18 @@ class CurrencyCode(str):
 class SpinOff:
     """Class representing spin-off event on a share."""
 
-    # Cost proportion to be applied to the cost of original shares from which
-    # Spin-off originated
-    cost_proportion: Decimal
     # Source of the Spin-off, e.g. MMM for SOLV
     source: str
     # Destination ticker to which SpinOff happened, e.g. SOLV for MMM
     dest: str
     # When the spin-off happened
     date: datetime.date
+    # Shares received under this row, and the closing prices on the day. A
+    # holding split across brokers arrives as one row per broker; the split
+    # of value is worked out across all of them together.
+    quantity: Decimal = Decimal(0)
+    source_price: Decimal | None = None
+    dest_price: Decimal | None = None
 
 
 @dataclass

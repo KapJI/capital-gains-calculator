@@ -34,6 +34,7 @@ from cgt_calc.util import round_decimal
 from tests.utils import build_cmd, report_path
 
 from .calc_test_data import (
+    GBP,
     buy_transaction,
     calc_basic_data,
     split_transaction,
@@ -1307,3 +1308,19 @@ def test_multiple_foreign_fee_currencies_on_sell() -> None:
     assert sell.foreign_fees == {}
     assert sell.fees == Decimal("0.70")
     assert sell.price == Decimal(10)
+
+
+def test_calculate_capital_gain_runs_once() -> None:
+    """A second run would count the first pass's estimates and B&B claims twice."""
+    calculator = create_calculator()
+    get_report(
+        calculator,
+        [
+            transaction(
+                datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 1, 10, 0, -10, GBP
+            )
+        ],
+    )
+
+    with pytest.raises(RuntimeError, match="runs once per calculator"):
+        calculator.calculate_capital_gain()
