@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-# Generate the example report images: a cropped PNG teaser for the README and one
-# full-page WebP per page for the docs site.
+# Generate the example report images: a cropped teaser for the README and one
+# full-page image per page for the docs site. Both are WebP: these pages are
+# grey antialiased text, which PNG stores several times less compactly.
 # Requires: ImageMagick (with Ghostscript).
 # Usage: run with no arguments.
 
@@ -9,9 +10,9 @@ set -euo pipefail
 
 ### --- Configuration ---------------------------------------------------------
 
-# Source PDF and output PNG paths
+# Source PDF and teaser image paths
 PDF_PATH="docs/assets/example_report.pdf"
-OUTPUT_PATH="docs/assets/example_report_preview.png"
+OUTPUT_PATH="docs/assets/example_report_preview.webp"
 
 # Rendering resolution (DPI)
 DPI=300
@@ -23,8 +24,9 @@ CROP_HEIGHT=1975
 # Margin (in pixels) to add after trimming.
 BORDER=20
 
-# Resize after cropping
+# Resize after cropping, and the quality to encode the teaser with.
 FINAL_WIDTH=1200
+QUALITY=82
 
 # Full-page images for the docs site: prefix, resolution and width.
 PAGE_PREFIX="docs/assets/example_report_page"
@@ -47,7 +49,7 @@ echo "Density: ${DPI} DPI, Crop: full-width x ${CROP_HEIGHT}, Trim: on"
 # 4) Add optional white border margin
 # 5) Flatten onto white to remove transparency
 # 6) Resize to look good in README
-# 7) Write optimised PNG
+# 7) Write the WebP
 magick -density "$DPI" "$PDF_PATH[0]" -units PixelsPerInch -strip miff:- |
     magick miff:- \
         -gravity North -crop "x${CROP_HEIGHT}+0+0" +repage \
@@ -55,9 +57,7 @@ magick -density "$DPI" "$PDF_PATH[0]" -units PixelsPerInch -strip miff:- |
         -bordercolor white -border "${BORDER}" \
         -background white -alpha remove -alpha off \
         -resize "${FINAL_WIDTH}" \
-        -define png:compression-level=9 \
-        -define png:compression-strategy=2 \
-        -define png:exclude-chunk=all \
+        -quality "${QUALITY}" \
         -strip "$OUTPUT_PATH"
 
 echo "✅ Preview generated: $OUTPUT_PATH"
