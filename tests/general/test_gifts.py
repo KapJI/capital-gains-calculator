@@ -539,3 +539,22 @@ def test_a_gift_sorts_after_a_same_day_acquisition(action: ActionType) -> None:
 
     assert report.disposal_count == 1
     assert report.disposal_proceeds == Decimal(120)
+
+
+def test_a_mixed_disposal_day_is_named_precisely_in_the_transfer_refusal() -> None:
+    """Sold and given-away units share the count, so the verb covers both."""
+    with pytest.raises(CalculationError) as err:
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [
+                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+                transaction(GIFT_DAY, ActionType.BUY, "FOO", 2, 20, 0, -40, GBP),
+                transaction(GIFT_DAY, ActionType.SELL, "FOO", 2, 30, 0, 60, GBP),
+                _unconnected_gift(2, 30),
+                transfer_to_spouse_transaction(GIFT_DAY, "FOO", 2),
+            ],
+        )
+
+    message = str(err.value)
+    assert "sold or gave away 4 units of FOO and transferred 2" in message
+    assert "Both the disposal and the transfer" in message

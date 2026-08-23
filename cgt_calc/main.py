@@ -1882,8 +1882,14 @@ class CapitalGainsCalculator:
         shown = ", ".join(str(date) for date in contended[:MAX_CONTENDED_DATES_SHOWN])
         if len(contended) > MAX_CONTENDED_DATES_SHOWN:
             shown += f" and {len(contended) - MAX_CONTENDED_DATES_SHOWN} more"
-        is_gift = self._disposal_log_prefix(date_index, symbol) != "sell"
-        verb, noun = ("gave away", "gift") if is_gift else ("sold", "sale")
+        has_gift = (date_index, symbol) in self.gift_disposals
+        has_sale = (date_index, symbol) in self.sale_days
+        if has_gift and has_sale:
+            verb, noun = ("sold or gave away", "disposal")
+        elif has_gift:
+            verb, noun = ("gave away", "gift")
+        else:
+            verb, noun = ("sold", "sale")
         return (
             f"On {date_index} you {verb} {strip_zeros(sold)} units of {symbol} "
             f"and transferred {strip_zeros(transferred)} to a spouse, and you "
