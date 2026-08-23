@@ -283,7 +283,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
     # them decides the tax, and the export does not say, so the calculator
     # refuses it with instructions rather than assuming.
     if label == "Gift":
-        return ActionType.GIFT
+        return ActionType.UNCLASSIFIED_GIFT
 
     raise ParsingError(file, f"Unknown action: {label}")
 
@@ -774,7 +774,7 @@ class SchwabTransaction(BrokerTransaction):
                     ):
                         quantity = (amount + fees) / price
 
-        elif action is ActionType.GIFT:
+        elif action is ActionType.UNCLASSIFIED_GIFT:
             date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
             price = None
             # A gift moves shares, not money. Anything in these fields means
@@ -835,7 +835,7 @@ class SchwabTransaction(BrokerTransaction):
         Missing this costs 54 shares on the two 2023 disposals, and the pool
         stays wrong by that much for every year afterwards.
         """
-        if self.action not in (ActionType.SELL, ActionType.GIFT):
+        if self.action not in (ActionType.SELL, ActionType.UNCLASSIFIED_GIFT):
             return
 
         self._rescale(split_multiplier(self.symbol, self.date))
@@ -851,7 +851,11 @@ class SchwabTransaction(BrokerTransaction):
         floor = history.presplit_price_floor
         assert floor is not None  # guaranteed by SplitHistory.__post_init__
         multiplier = split_multiplier(self.symbol, self.date)
-        if self.action is ActionType.GIFT and multiplier != 1 and self.quantity:
+        if (
+            self.action is ActionType.UNCLASSIFIED_GIFT
+            and multiplier != 1
+            and self.quantity
+        ):
             # A gift carries no money, so the price cannot say which units the
             # count is in, and being wrong here is wrong by the whole
             # multiplier. Record both readings rather than pick one; the

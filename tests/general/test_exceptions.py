@@ -140,6 +140,7 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
         # The row to paste, the shares it covers, and the other outcome.
         [
             "2023-01-01,TRANSFER_TO_SPOUSE,FOO,1,0.00,0.00,USD",
+            "2023-01-01,GIFT,FOO,1,<market value per share>,0.00,USD",
             "1 units of FOO",
             "Test",
             "disposal at market value",

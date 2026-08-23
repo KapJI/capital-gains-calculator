@@ -99,6 +99,12 @@ class UnclassifiedGiftError(CgtError):
             f"{strip_zeros(reading)},0.00,0.00,{transaction.currency}"
             for reading in readings
         )
+        gift_rows = "\n".join(
+            f"  {transaction.date},GIFT,{transaction.symbol},"
+            f"{strip_zeros(reading)},<market value per share>,0.00,"
+            f"{transaction.currency}"
+            for reading in readings
+        )
         gift = (
             f"{strip_zeros(readings[0])} units of {transaction.symbol}"
             if len(readings) == 1
@@ -135,9 +141,12 @@ class UnclassifiedGiftError(CgtError):
             "\n"
             f"{how}\n"
             "\n"
-            "If they went to anyone else, it is a disposal at market value and "
-            "may be chargeable. cgt-calc cannot work that out yet, so you have "
-            "to do it by hand (consider professional advice).\n"
+            "If they went to anyone else, it is a disposal at market value. Put "
+            "this line in the CSV instead, with the market value per share on "
+            f"the day as the price:\n{gift_rows}\n"
+            "A loss on it is reported on its own, since a loss on a gift to a "
+            "connected person can only be set against gains on disposals to "
+            "the same person (TCGA 1992 s18(3)).\n"
             "\n"
             "See https://cgt-calc.uk/brokers/raw/"
             "#transfers-to-a-spouse-or-civil-partner"

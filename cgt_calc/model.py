@@ -233,8 +233,12 @@ class ActionType(Enum):
     RENAME = 19
     INTEREST_TAX = 20
     TRANSFER_TO_SPOUSE = 21
-    GIFT = 22
+    # A broker reported shares leaving as a gift without saying who received
+    # them. The user classifies it with a TRANSFER_TO_SPOUSE or GIFT row.
+    UNCLASSIFIED_GIFT = 22
     TRANSFER_FROM_SPOUSE = 23
+    # Shares given to anyone other than a spouse: a disposal at market value.
+    GIFT = 24
 
 
 class CalculationType(Enum):
@@ -745,6 +749,41 @@ class CapitalGainsReport:
                     f"    {date_index},TRANSFER_FROM_SPOUSE,{symbol},"
                     f"{exact_str(quantity)},{exact_str(base_cost / quantity)},"
                     "0.00,GBP\n"
+                )
+
+        gift_prefix = "gift$"
+        gifts = sorted(
+            (
+                (date_index, key, entry_list)
+                for date_index, symbol_dict in self.calculation_log.items()
+                for key, entry_list in symbol_dict.items()
+                if key.startswith(gift_prefix)
+            ),
+            key=lambda gift: (gift[0], gift[1]),
+        )
+        if gifts:
+            out += (
+                "\n" + style_text("Gifts at market value", colour=Style.BRIGHT) + "\n"
+            )
+            out += (
+                "  Disposals at market value (TCGA 1992 s17). A loss is left out of"
+                " the totals above: a loss on a\n"
+                "  gift to a connected person can only be set against gains on"
+                " disposals to the same person (s18(3)).\n"
+            )
+            for date_index, key, entry_list in gifts:
+                symbol = key[len(gift_prefix) :]
+                quantity = sum((e.quantity for e in entry_list), Decimal(0))
+                market_value = sum((e.amount + e.fees for e in entry_list), Decimal(0))
+                gain = sum((e.gain for e in entry_list), Decimal(0))
+                outcome = (
+                    f"loss £{round_decimal(-gain, 2):,} (not in totals)"
+                    if gain < 0
+                    else f"gain £{round_decimal(gain, 2):,}"
+                )
+                out += (
+                    f"{bul}{date_index}: {symbol} {strip_zeros(quantity)} units, "
+                    f"market value £{round_decimal(market_value, 2):,}, {outcome}\n"
                 )
 
         return out

@@ -38,6 +38,10 @@
 \BLOCK{ elif symbol.startswith("transfer-to-spouse$") }
     \BLOCK{ set symbol = symbol[19:] }
     \BLOCK{ set is_transfer_to_spouse = True }
+\BLOCK{ elif symbol.startswith("gift$") }
+    \BLOCK{ set symbol = symbol[5:] }
+    \BLOCK{ set is_disposal = True }
+    \BLOCK{ set is_gift = True }
 \BLOCK{ endif }
 \BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
 \BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
@@ -46,7 +50,8 @@
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
     \subsubsection*{
-        Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }
+        Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol }
+        \BLOCK{ if is_gift }given away at a market value of\BLOCK{ else }for\BLOCK{ endif } £\VAR{ "{:,}".format(overall_disposed) }
         (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
         \BLOCK{ if overall_fees > 0 }
             , £\VAR{ "{:,}".format(overall_fees) } fees allowed as cost
@@ -57,6 +62,9 @@
 
         \BLOCK{ set total_gain.value = total_gain.value + overall_gain }
         Capital gain to date is £\VAR{ "{:,}".format(total_gain.value) }
+    \BLOCK{ elif is_gift }
+        \textbf{Loss} of £\VAR{ "{:,}".format(-overall_gain) } on a gift, not included in the totals:
+        a loss on a gift to a connected person can only be set against gains on disposals to the same person (TCGA 1992 s18(3)).
     \BLOCK{ else }
         Chargeable \textbf{loss} is £\VAR{ "{:,}".format(-overall_gain) }
 

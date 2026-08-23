@@ -256,6 +256,9 @@ class CapitalGainsCalculator:
             Decimal
         )
         self.calculated = False
+        # Disposals that are gifts at market value rather than sales. A loss on
+        # one is reported on its own and kept out of the loss total.
+        self.gift_disposals: set[tuple[datetime.date, str]] = set()
         # Days on which a symbol was charged a management fee. A fee adds to
         # the pool's cost with no shares, so it cannot be told from the pool
         # itself once it is in.
@@ -495,6 +498,10 @@ class CapitalGainsCalculator:
 
         if price is None:
             raise PriceMissingError(transaction)
+        if (transaction.date, symbol) in self.gift_disposals:
+            raise CalculationError(
+                self._sale_and_gift_message(symbol, transaction.date)
+            )
         calculated_amount = quantity * price - transaction.fees
         if not _approx_equal_price_rounding(
             amount,
@@ -567,6 +574,87 @@ class CapitalGainsCalculator:
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
 
+    def add_gift(
+        self,
+        transaction: BrokerTransaction,
+    ) -> None:
+        """Record shares given to someone other than a spouse.
+
+        A gift is a disposal otherwise than by way of a bargain at arm's
+        length, so its consideration is the market value of the shares on the
+        day (TCGA 1992 s17, CG14530). The row states that value per share as
+        its price, and the disposal is then identified exactly like a sale. No
+        money changes hands, so the balance is left alone.
+        """
+        symbol = get_symbol_or_fail(transaction)
+        quantity = transaction.quantity
+        if symbol not in self.portfolio:
+            raise InvalidTransactionError(
+                transaction, "Tried to give away a not owned symbol"
+            )
+        if quantity is None or quantity <= 0:
+            raise QuantityNotPositiveError(transaction)
+        if self.portfolio[symbol].quantity < quantity:
+            raise InvalidTransactionError(
+                transaction,
+                "Tried to give away more than the available "
+                f"balance({self.portfolio[symbol].quantity})",
+            )
+        if transaction.price is None:
+            raise PriceMissingError(transaction)
+        if transaction.price <= 0:
+            raise InvalidTransactionError(
+                transaction,
+                "A gift needs the market value per share on the day as its price",
+            )
+        if has_key(self.disposal_list, transaction.date, symbol):
+            raise CalculationError(
+                self._sale_and_gift_message(symbol, transaction.date)
+            )
+        # Reduce the first-pass holding so later same-symbol transactions
+        # validate; the pool cost is recomputed in the second pass.
+        position = self.portfolio[symbol]
+        cost = normalize_amount(position.amount * quantity / position.quantity)
+        self.portfolio[symbol] -= Position(quantity, cost)
+        if self.portfolio[symbol].quantity == 0:
+            del self.portfolio[symbol]
+        # Recorded like a sale: the amount net of fees, the fees alongside, so
+        # that proceeds come to the market value and the fees are allowed as
+        # a cost of the disposal.
+        add_to_list(
+            self.disposal_list,
+            transaction.date,
+            symbol,
+            quantity,
+            self.currency_converter.to_gbp_for(
+                quantity * transaction.price - transaction.fees, transaction
+            ),
+            self.currency_converter.to_gbp_for(transaction.fees, transaction),
+        )
+        self.gift_disposals.add((transaction.date, symbol))
+
+    def add_shares_given_away(self, transaction: BrokerTransaction) -> None:
+        """Record shares handed to someone for nothing.
+
+        To a spouse that is no gain/no loss; to anyone else it is a disposal
+        at market value.
+        """
+        if transaction.action is ActionType.TRANSFER_TO_SPOUSE:
+            self.add_transfer_to_spouse(transaction)
+        else:
+            self.add_gift(transaction)
+
+    @staticmethod
+    def _sale_and_gift_message(symbol: str, date_index: datetime.date) -> str:
+        return (
+            f"Cannot compute a sale and a gift of {symbol} on the same day "
+            f"({date_index}): TCGA 1992 s105(1) treats everything disposed of "
+            "on one day as a single disposal, and a loss on it could not then "
+            "be attributed to the gift for the s18(3) restriction. Work this "
+            "day out by hand (consider professional advice). Do not change the "
+            "dates."
+        )
+
     def _resolve_gifts(
         self,
         transactions: list[BrokerTransaction],
@@ -576,12 +664,13 @@ class CapitalGainsCalculator:
         A gift to a spouse or civil partner is no gain/no loss; a gift to
         anyone else is a disposal at market value. Broker exports record only
         that the shares left, so the user says which it was by adding a RAW
-        ``TRANSFER_TO_SPOUSE`` row for the same date, symbol and quantity. That
-        row carries everything needed, so the broker's own row is then
-        redundant and is dropped here.
+        ``TRANSFER_TO_SPOUSE`` or ``GIFT`` row for the same date, symbol and
+        quantity. That row carries everything needed, so the broker's own row
+        is then redundant and is dropped here.
         """
         if not any(
-            transaction.action is ActionType.GIFT for transaction in transactions
+            transaction.action is ActionType.UNCLASSIFIED_GIFT
+            for transaction in transactions
         ):
             return transactions
         # Counted, not a set: two gifts of the same shares on the same day need
@@ -589,7 +678,7 @@ class CapitalGainsCalculator:
         classified = Counter(
             (transaction.date, transaction.symbol, transaction.quantity)
             for transaction in transactions
-            if transaction.action is ActionType.TRANSFER_TO_SPOUSE
+            if transaction.action in (ActionType.TRANSFER_TO_SPOUSE, ActionType.GIFT)
         )
         # Gifts of one symbol on one day all draw on the same rows, and a gift
         # printed before a split can state either of two counts, so which row
@@ -598,7 +687,7 @@ class CapitalGainsCalculator:
             tuple[datetime.date, str | None], list[tuple[int, list[Decimal]]]
         ] = defaultdict(list)
         for index, transaction in enumerate(transactions):
-            if transaction.action is not ActionType.GIFT:
+            if transaction.action is not ActionType.UNCLASSIFIED_GIFT:
                 continue
             get_symbol_or_fail(transaction)
             quantity = transaction.quantity
@@ -636,7 +725,7 @@ class CapitalGainsCalculator:
             for index, _ in gifts:
                 settled.add(index)
                 LOGGER.debug(
-                    "Gift of %s on %s is accounted for by a transfer to spouse",
+                    "Gift of %s on %s is accounted for by a classifying row",
                     symbol,
                     day,
                 )
@@ -902,13 +991,17 @@ class CapitalGainsCalculator:
                 old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
                 self.rename_list[transaction.date][old_symbol] = new_symbol
                 self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
-            elif transaction.action is ActionType.TRANSFER_TO_SPOUSE:
-                # The balance is left alone. A transfer fee is real money, but
-                # these rows are written by hand in a RAW file, which is its own
-                # unfunded "Unknown" ledger, so charging the fee there only ever
-                # drives that balance negative. The fee still counts towards the
-                # base cost; it is the cash check it cannot take part in.
-                self.add_transfer_to_spouse(transaction)
+            elif transaction.action in [
+                ActionType.TRANSFER_TO_SPOUSE,
+                ActionType.GIFT,
+            ]:
+                # Shares leave for no money, so the balance is left alone. A fee
+                # on the row is real money, but these rows are written by hand
+                # in a RAW file, which is its own unfunded "Unknown" ledger, so
+                # charging the fee there only ever drives that balance negative.
+                # The fee still counts as a cost; it is the cash check it cannot
+                # take part in.
+                self.add_shares_given_away(transaction)
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
             else:
@@ -2141,13 +2234,18 @@ class CapitalGainsCalculator:
                         assert transaction_capital_gain == round_decimal(
                             calculated_gain, 2
                         )
-                        calculation_log[date_index][f"sell${symbol}"] = (
-                            calculation_entries
-                        )
+                        is_gift = (date_index, symbol) in self.gift_disposals
+                        calculation_log[date_index][
+                            f"{'gift' if is_gift else 'sell'}${symbol}"
+                        ] = calculation_entries
                         if transaction_capital_gain > 0:
                             capital_gain += transaction_capital_gain
-                        else:
+                        elif not is_gift:
                             capital_loss += transaction_capital_gain
+                        # A loss on a gift stays out of the total. The recipient
+                        # is usually a connected person, and then the loss can
+                        # only be set against gains on disposals to that person
+                        # (TCGA 1992 s18(3)); the report lists it on its own.
 
             if date_index in self.rename_list:
                 for old, new in self.rename_list[date_index].items():
