@@ -754,11 +754,11 @@ class CapitalGainsCalculator:
             (transaction.date, transaction.symbol, transaction.quantity)
             for transaction in transactions
             if transaction.action
-            in (
+            in {
                 ActionType.TRANSFER_TO_SPOUSE,
                 ActionType.GIFT,
                 ActionType.GIFT_UNCONNECTED,
-            )
+            }
         )
         # Gifts of one symbol on one day all draw on the same rows, and a gift
         # printed before a split can state either of two counts, so which row
@@ -985,7 +985,7 @@ class CapitalGainsCalculator:
         # The parser derived the price without the foreign fees; re-derive it
         # so that amount, price and fees stay mutually consistent.
         if (
-            transaction.action in [ActionType.BUY, ActionType.SELL]
+            transaction.action in {ActionType.BUY, ActionType.SELL}
             and transaction.quantity
             and transaction.amount is not None
         ):
@@ -1024,28 +1024,28 @@ class CapitalGainsCalculator:
             new_balance = balance[transaction.broker, transaction.currency]
             if transaction.action is ActionType.TRANSFER:
                 new_balance += get_amount_or_fail(transaction)
-            elif transaction.action in [
+            elif transaction.action in {
                 ActionType.BUY,
                 ActionType.REINVEST_SHARES,
-            ]:
+            }:
                 new_balance += get_amount_or_fail(transaction)
                 self.add_acquisition(transaction)
-            elif transaction.action in [
+            elif transaction.action in {
                 ActionType.SELL,
                 ActionType.CASH_MERGER,
                 ActionType.FULL_REDEMPTION,
-            ]:
+            }:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 self.add_disposal(transaction)
             elif transaction.action is ActionType.FEE:
                 new_balance += self.add_management_fee(transaction)
-            elif transaction.action in [
+            elif transaction.action in {
                 ActionType.STOCK_ACTIVITY,
                 ActionType.SPIN_OFF,
                 # Shares arriving from a spouse: a cost, but no cash paid.
                 ActionType.TRANSFER_FROM_SPOUSE,
-            ]:
+            }:
                 self.add_acquisition(transaction)
             elif transaction.action == ActionType.STOCK_SPLIT:
                 # Calculate the multiplier based on portfolio and received shares
@@ -1056,7 +1056,7 @@ class CapitalGainsCalculator:
                 self.split_list[symbol, transaction.date] = multiplier
                 self.split_shares[symbol, transaction.date] += acquired_quantity
                 self.add_acquisition(transaction)
-            elif transaction.action in [ActionType.DIVIDEND, ActionType.CAPITAL_GAIN]:
+            elif transaction.action in {ActionType.DIVIDEND, ActionType.CAPITAL_GAIN}:
                 amount = get_amount_or_fail(transaction)
                 symbol = get_symbol_or_fail(transaction)
                 currency = transaction.currency
@@ -1100,11 +1100,11 @@ class CapitalGainsCalculator:
                 new_balance += amount
             elif transaction.action is ActionType.RENAME:
                 self.add_rename(transaction)
-            elif transaction.action in [
+            elif transaction.action in {
                 ActionType.TRANSFER_TO_SPOUSE,
                 ActionType.GIFT,
                 ActionType.GIFT_UNCONNECTED,
-            ]:
+            }:
                 # Shares leave for no money, so the balance is left alone. A fee
                 # on the row is real money, but these rows are written by hand
                 # in a RAW file, which is its own unfunded "Unknown" ledger, so

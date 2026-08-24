@@ -152,7 +152,7 @@ def decimal_or_none(
     """
 
     value = row.get(column)
-    if value is None or value in ("", "Not available"):
+    if value is None or value in {"", "Not available"}:
         return None
     try:
         return Decimal(value)
@@ -162,48 +162,48 @@ def decimal_or_none(
 
 def action_from_str(label: str, file: Path) -> ActionType:
     """Convert label to ActionType."""
-    if label in [
+    if label in {
         "Market buy",
         "Limit buy",
         "Stop buy",
         "Stop limit buy",
-    ]:
+    }:
         return ActionType.BUY
 
-    if label in [
+    if label in {
         "Market sell",
         "Limit sell",
         "Stop sell",
         "Stop limit sell",
-    ]:
+    }:
         return ActionType.SELL
 
-    if label in [
+    if label in {
         "Card credit",
         "Card debit",
         "Card refund",
         "Deposit",
         "Withdrawal",
-    ]:
+    }:
         return ActionType.TRANSFER
 
-    if label in [
+    if label in {
         "Dividend (Ordinary)",
         "Dividend (Dividend)",
         "Dividend (Dividends paid by us corporations)",
         "Dividend (Dividend manufactured payment)",
         "Dividend (Property income distribution)",
         "Dividend adjustment",
-    ]:
+    }:
         return ActionType.DIVIDEND
 
-    if label in [
+    if label in {
         "Interest on cash",
         "Lending interest",
         # Interest distributions from bond and money market funds,
         # taxed as savings income rather than dividends.
         "Dividend (Interest)",
-    ]:
+    }:
         return ActionType.INTEREST
 
     if label == "Stock Split":
@@ -212,11 +212,11 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label == "Spin off":
         return ActionType.SPIN_OFF
 
-    if label in [
+    if label in {
         "Currency conversion",
         "Result adjustment",
         "Spending cashback",
-    ]:
+    }:
         return ActionType.ADJUSTMENT
 
     raise ParsingError(file, f"Unknown action: {label}")

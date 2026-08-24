@@ -229,7 +229,7 @@ class IsinConverter:
         result = {
             data["ticker"]
             for data in json_data
-            if data["exchCode"] in ("LC", "LT", "LI", "LO")
+            if data["exchCode"] in {"LC", "LT", "LI", "LO"}
         }
 
         if result:

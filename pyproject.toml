@@ -126,6 +126,7 @@ select = [
   "PGH", # pygrep-hooks
   "PIE", # flake8-pie
   "PL", # pylint
+  "PLR6201", # literal-membership: set literals for membership tests
   "PLW1514", # unspecified-encoding: locale-dependent IO broke Windows once
   "PLW1641", # eq-without-hash: __eq__ without __hash__ makes a class unhashable
   "PT", # flake8-pytest-style

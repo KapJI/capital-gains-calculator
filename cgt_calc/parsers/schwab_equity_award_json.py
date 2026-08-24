@@ -243,25 +243,25 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label in {"Stock Plan Activity", "Deposit"}:
         return ActionType.STOCK_ACTIVITY
 
-    if label in ["Qualified Dividend", "Cash Dividend", "Dividend"]:
+    if label in {"Qualified Dividend", "Cash Dividend", "Dividend"}:
         return ActionType.DIVIDEND
 
-    if label in [
+    if label in {
         "NRA Tax Adj",
         "NRA Withholding",
         "Foreign Tax Paid",
         "Tax Reversal",
         "Tax Withholding",
-    ]:
+    }:
         return ActionType.DIVIDEND_TAX
 
     if label == "ADR Mgmt Fee":
         return ActionType.FEE
 
-    if label in ["Adjustment", "IRS Withhold Adj"]:
+    if label in {"Adjustment", "IRS Withhold Adj"}:
         return ActionType.ADJUSTMENT
 
-    if label in ["Short Term Cap Gain", "Long Term Cap Gain"]:
+    if label in {"Short Term Cap Gain", "Long Term Cap Gain"}:
         return ActionType.CAPITAL_GAIN
 
     if label == "Spin-off":
@@ -686,7 +686,7 @@ class SchwabTransaction(BrokerTransaction):
                     f"{details[names.award_date]} "
                     f"(ID {details[names.award_id]})"
                 )
-        elif row[names.action] in ("Sale", "Forced Quick Sell"):
+        elif row[names.action] in {"Sale", "Forced Quick Sell"}:
             date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
 
             if _restates_acquisitions_only(symbol):
@@ -784,13 +784,13 @@ class SchwabTransaction(BrokerTransaction):
                     file, "Unexpected amount or fees on a gift of shares."
                 )
             description = self.raw_action
-        elif action in [
+        elif action in {
             ActionType.DIVIDEND,
             ActionType.DIVIDEND_TAX,
             # Pure cash movements, e.g. Forced Disbursement wiring out the
             # proceeds of the autosale programme.
             ActionType.TRANSFER,
-        ]:
+        }:
             date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
             price = None
             amount = _decimal_from_str(row[names.amount])
@@ -835,7 +835,7 @@ class SchwabTransaction(BrokerTransaction):
         Missing this costs 54 shares on the two 2023 disposals, and the pool
         stays wrong by that much for every year afterwards.
         """
-        if self.action not in (ActionType.SELL, ActionType.UNCLASSIFIED_GIFT):
+        if self.action not in {ActionType.SELL, ActionType.UNCLASSIFIED_GIFT}:
             return
 
         self._rescale(split_multiplier(self.symbol, self.date))

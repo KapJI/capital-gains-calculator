@@ -59,16 +59,16 @@ def _transaction_sort_key(
     Everything else keeps its relative order, so the "buys last" ordering that
     some parsers rely on to avoid negative balances is preserved.
     """
-    if transaction.action in (
+    if transaction.action in {
         ActionType.STOCK_ACTIVITY,
         ActionType.TRANSFER_FROM_SPOUSE,
-    ):
+    }:
         order = 0
-    elif transaction.action in (
+    elif transaction.action in {
         ActionType.TRANSFER_TO_SPOUSE,
         ActionType.GIFT,
         ActionType.GIFT_UNCONNECTED,
-    ):
+    }:
         order = 2
     else:
         order = 1

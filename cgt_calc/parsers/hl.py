@@ -75,7 +75,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
             return ActionType.SELL
         if ref == "INTEREST":
             return ActionType.INTEREST
-        if ref in ("FPC", "MANAGE FEE"):
+        if ref in {"FPC", "MANAGE FEE"}:
             return ActionType.TRANSFER
 
         return None
@@ -183,7 +183,7 @@ class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
         )
 
         # Live PDF lookup only when needed for buy/sell actions
-        if action_type in [ActionType.BUY, ActionType.SELL]:
+        if action_type in {ActionType.BUY, ActionType.SELL}:
             matching_pdfs = list(
                 file_path.parent.glob(
                     f"{reference}_*.pdf",
