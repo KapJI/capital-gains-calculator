@@ -92,6 +92,10 @@ required-version = ">=0.13.0"
 target-version = "py312"
 
 [tool.ruff.lint]
+# Preview is on only to reach PLW1514; explicit-preview-rules keeps every
+# other preview rule and behaviour change off.
+preview = true
+explicit-preview-rules = true
 select = [
   "A", # flake8-builtins
   "ARG", # flake8-unused-arguments
@@ -120,6 +124,7 @@ select = [
   "PGH", # pygrep-hooks
   "PIE", # flake8-pie
   "PL", # pylint
+  "PLW1514", # unspecified-encoding: locale-dependent IO broke Windows once
   "PT", # flake8-pytest-style
   "PTH", # flake8-pathlib
   "PYI", # flake8-pyi
