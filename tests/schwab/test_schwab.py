@@ -390,6 +390,51 @@ def test_invalid_cash_merger_pair() -> None:
     assert "FOO on 2023-01-16" in str(exc_info.value)
 
 
+@pytest.mark.parametrize(
+    ("amount", "quantity"),
+    [
+        # Negative proceeds would make a disposal with a negative price.
+        ('"-$100.00"', "-10"),
+        # A positive quantity is not shares leaving the account.
+        ('"$100.00"', "10"),
+        # Non-finite values would silently poison the derived price.
+        ("NaN", "-10"),
+        ('"$100.00"', "NaN"),
+    ],
+)
+def test_cash_merger_pair_with_invalid_values(amount: str, quantity: str) -> None:
+    """Reject values that would corrupt the derived disposal."""
+    content = (
+        SCHWAB_HEADER
+        + f"01/15/2023,Cash Merger,FOO,Merger,,,,{amount}\n"
+        + f"01/15/2023,Cash Merger Adj,FOO,Merger,,{quantity},,\n"
+    )
+
+    with pytest.raises(ParsingError, match="Invalid Cash Merger format"):
+        _read(content)
+
+
+@pytest.mark.parametrize(
+    ("amount", "quantity"),
+    [
+        ('"-$100.00"', "-10"),
+        ('"$100.00"', "10"),
+        ("NaN", "-10"),
+        ('"$100.00"', "NaN"),
+    ],
+)
+def test_full_redemption_pair_with_invalid_values(amount: str, quantity: str) -> None:
+    """Reject values that would corrupt the derived disposal."""
+    content = (
+        SCHWAB_HEADER
+        + f"01/15/2023,Full Redemption Adj,FOO,Redemption,,,,{amount}\n"
+        + f"01/15/2023,Full Redemption,FOO,Redemption,,{quantity},,\n"
+    )
+
+    with pytest.raises(ParsingError, match="Invalid Full Redemption format"):
+        _read(content)
+
+
 def test_invalid_full_redemption_pair() -> None:
     """Raise when a Full Redemption pair fails validation."""
     content = (
@@ -413,7 +458,7 @@ def test_cash_merger_rejects_zero_adjustment_quantity() -> None:
         + "01/15/2023,Cash Merger Adj,FOO,Merger,,0,,\n"
     )
 
-    with pytest.raises(ParsingError, match="non-zero quantity") as exc_info:
+    with pytest.raises(ParsingError, match="negative share quantity") as exc_info:
         _read(content)
 
     assert "FOO on 2023-01-15" in str(exc_info.value)
@@ -427,7 +472,7 @@ def test_full_redemption_rejects_zero_quantity() -> None:
         + "01/15/2023,Full Redemption,FOO,Redemption,,0,,\n"
     )
 
-    with pytest.raises(ParsingError, match="non-zero quantity") as exc_info:
+    with pytest.raises(ParsingError, match="negative share quantity") as exc_info:
         _read(content)
 
     assert "FOO on 2023-01-15" in str(exc_info.value)

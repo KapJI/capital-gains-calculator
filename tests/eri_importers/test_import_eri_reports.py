@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, override
+
+import pytest
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pytest
-
+from cgt_calc.exceptions import InvalidTransactionError
+from cgt_calc.model import CurrencyCode, Isin
 from cgt_calc.parsers.eri.importer.model import ERIImporter, ERIImporterOutput
+from cgt_calc.parsers.eri.model import ERITransaction
 from scripts import import_eri_reports
 
 
@@ -44,3 +49,17 @@ def test_directory_import_continues_after_empty_importer_results(
 
     assert set(seen) == set(reports)
     assert capsys.readouterr().out.count("WARNING: ERI importer Empty") == 2
+
+
+@pytest.mark.parametrize("price", [Decimal(-1), Decimal("NaN"), Decimal("Infinity")])
+def test_unusable_eri_price_is_rejected_before_it_is_written(price: Decimal) -> None:
+    """A price the calculator would refuse must not reach the resource files."""
+    transaction = ERITransaction(
+        date=datetime.date(2024, 6, 30),
+        isin=Isin("IE00B3RBWM25"),
+        price=price,
+        currency=CurrencyCode("USD"),
+    )
+
+    with pytest.raises(InvalidTransactionError, match="finite and non-negative"):
+        import_eri_reports.validate_and_remove_duplicates([transaction])

@@ -322,17 +322,21 @@ def _combine_cash_merger_pair(
     adjustment_quantity = cash_merger_adj.quantity
     if (
         amount is None
+        or not amount.is_finite()
+        or amount < 0
         or cash_merger.quantity is not None
         or cash_merger.price is not None
         or adjustment_quantity is None
-        or adjustment_quantity == 0
+        or not adjustment_quantity.is_finite()
+        or adjustment_quantity >= 0
         or cash_merger_adj.amount is not None
     ):
         raise ParsingError(
             transactions_file,
             f"Invalid Cash Merger format for {cash_merger.symbol} on "
-            f"{cash_merger.date}: expected proceeds only on the Cash Merger "
-            "row and a non-zero quantity only on the adjustment row",
+            f"{cash_merger.date}: expected non-negative proceeds only on the "
+            "Cash Merger row and a negative share quantity only on the "
+            "adjustment row",
         )
 
     # Create unified transaction
@@ -374,18 +378,22 @@ def _combine_full_redemption_pair(
     redemption_quantity = full_redemption.quantity
     if (
         amount is None
+        or not amount.is_finite()
+        or amount < 0
         or full_redemption_adj.quantity is not None
         or full_redemption_adj.price is not None
         or redemption_quantity is None
-        or redemption_quantity == 0
+        or not redemption_quantity.is_finite()
+        or redemption_quantity >= 0
         or full_redemption.price is not None
         or full_redemption.amount is not None
     ):
         raise ParsingError(
             transactions_file,
             f"Invalid Full Redemption format for {full_redemption.symbol} on "
-            f"{full_redemption.date}: expected proceeds only on the adjustment "
-            "row and a non-zero quantity only on the redemption row",
+            f"{full_redemption.date}: expected non-negative proceeds only on "
+            "the adjustment row and a negative share quantity only on the "
+            "redemption row",
         )
 
     # Create unified transaction (use Full Redemption as base for action type)

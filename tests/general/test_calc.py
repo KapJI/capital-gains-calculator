@@ -329,8 +329,19 @@ def test_dividend_and_tax_currency_mismatch_has_a_calculation_error() -> None:
         calculator.calculate_capital_gain()
 
 
-def test_positive_management_fee_has_a_transaction_error() -> None:
-    """A fee that would reduce pooled cost is rejected before an invariant fires."""
+@pytest.mark.parametrize(
+    ("amount", "error_match"),
+    [
+        (Decimal(1), "must not be positive"),
+        (Decimal("NaN"), "must be a finite number"),
+        (Decimal("Infinity"), "must be a finite number"),
+        (Decimal("-Infinity"), "must be a finite number"),
+    ],
+)
+def test_invalid_management_fee_has_a_transaction_error(
+    amount: Decimal, error_match: str
+) -> None:
+    """A fee that would corrupt pooled cost is rejected before an invariant fires."""
     fee = BrokerTransaction(
         date=datetime.date(2024, 6, 3),
         action=ActionType.FEE,
@@ -339,12 +350,12 @@ def test_positive_management_fee_has_a_transaction_error() -> None:
         quantity=None,
         price=None,
         fees=Decimal(0),
-        amount=Decimal(1),
+        amount=amount,
         currency=CurrencyCode("GBP"),
         broker="Test",
     )
 
-    with pytest.raises(InvalidTransactionError, match="must not be positive"):
+    with pytest.raises(InvalidTransactionError, match=error_match):
         create_calculator(
             tax_year=2024, balance_check=False
         ).convert_to_hmrc_transactions([fee])
@@ -835,10 +846,11 @@ def test_rename_transfers_pool_to_new_ticker() -> None:
     assert entry.new_pool_cost == Decimal(1000)
 
 
-def test_rename_without_old_symbol_has_a_transaction_error() -> None:
+@pytest.mark.parametrize("description", ["", RENAME_DESCRIPTION_PREFIX])
+def test_rename_without_old_symbol_has_a_transaction_error(description: str) -> None:
     """A rename row that cannot name its source is invalid input."""
     transaction = _rename_transaction(datetime.date(2024, 5, 10), "OLD", "NEW")
-    transaction.description = ""
+    transaction.description = description
 
     with pytest.raises(InvalidTransactionError, match="old symbol"):
         create_calculator(

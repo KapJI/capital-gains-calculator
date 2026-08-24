@@ -55,6 +55,10 @@ def validate_and_remove_duplicates(
         price = transaction.price
         if price is None:
             raise PriceMissingError(transaction)
+        if not price.is_finite() or price < 0:
+            raise InvalidTransactionError(
+                transaction, "ERI price must be finite and non-negative"
+            )
         isin = transaction.isin
         if isin is None:
             raise IsinMissingError(transaction)

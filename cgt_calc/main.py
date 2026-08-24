@@ -921,18 +921,26 @@ class CapitalGainsCalculator:
     def add_rename(self, transaction: BrokerTransaction) -> None:
         """Apply a ticker rename during the first calculation pass."""
         new_symbol = get_symbol_or_fail(transaction)
-        if not transaction.description.startswith(RENAME_DESCRIPTION_PREFIX):
+        old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
+        if (
+            not transaction.description.startswith(RENAME_DESCRIPTION_PREFIX)
+            or not old_symbol
+        ):
             raise InvalidTransactionError(
                 transaction,
                 "Rename transaction does not identify the old symbol",
             )
-        old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
         self.rename_list[transaction.date][old_symbol] = new_symbol
         self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
 
     def add_management_fee(self, transaction: BrokerTransaction) -> Decimal:
         """Record a fee that increases the holding's pooled cost."""
         amount = get_amount_or_fail(transaction)
+        if not amount.is_finite():
+            raise InvalidTransactionError(
+                transaction,
+                "Fee amount must be a finite number",
+            )
         if amount > 0:
             raise InvalidTransactionError(
                 transaction,
