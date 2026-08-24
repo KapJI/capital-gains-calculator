@@ -28,7 +28,7 @@ Vanguard UK publishes the Reportable Income yearly report at the bottom of this 
 Vanguard Investment Series Plc reports are for traditional funds, Vanguard Funds Plc reports are for
 ETFs.
 
-Note this tool **already includes** Vanguard Funds ERI data from 2018 to 2024.
+Note this tool **already includes** Vanguard Funds ERI data from 2018 to 2025.
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** End date in the Reporting Period column
