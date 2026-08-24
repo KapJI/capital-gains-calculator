@@ -35,7 +35,7 @@ def test_run_with_raw_files_no_balance_check(request: pytest.FixtureRequest) -> 
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     if result.returncode:
         pytest.fail(
             "Integration test failed\n"
@@ -44,7 +44,7 @@ def test_run_with_raw_files_no_balance_check(request: pytest.FixtureRequest) -> 
         )
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output.txt"
-    expected = expected_file.read_text()
+    expected = expected_file.read_text(encoding="utf-8")
     cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
@@ -63,7 +63,7 @@ def test_run_with_raw_files(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     if result.returncode:
         pytest.fail(
             "Integration test failed\n"
@@ -72,7 +72,7 @@ def test_run_with_raw_files(request: pytest.FixtureRequest) -> None:
         )
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output_2.txt"
-    expected = expected_file.read_text()
+    expected = expected_file.read_text(encoding="utf-8")
     cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
@@ -96,7 +96,7 @@ def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
         report_path(request),
     )
     result = subprocess.run(
-        cmd, input=csv_content, capture_output=True, text=True, check=False
+        cmd, input=csv_content, capture_output=True, encoding="utf-8", check=False
     )
     if result.returncode:
         pytest.fail(
@@ -106,7 +106,7 @@ def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
         )
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output_stdin.txt"
-    expected = expected_file.read_text()
+    expected = expected_file.read_text(encoding="utf-8")
 
     cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
@@ -125,7 +125,7 @@ def test_run_with_nonexistent_file() -> None:
         "--raw-file",
         missing_file,
     )
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     assert result.returncode != 0
     assert "path does not exist" in result.stderr
     assert missing_file in result.stderr

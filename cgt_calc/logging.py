@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import io
 import logging
 import os
 from pathlib import Path
@@ -178,8 +179,21 @@ def bullet(stream: TextIO) -> str:
     return "    • " if get_ui().supports_emoji(stream) else "  "
 
 
+def force_utf8_stdio() -> None:
+    """Emit UTF-8 regardless of the platform's locale.
+
+    Windows encodes piped output with the legacy code page by default,
+    which cannot hold every character the reports use.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8")
+
+
 def setup_logging() -> None:
     """Configure the root logger with coloured output."""
+
+    force_utf8_stdio()
 
     # Enable ANSI pass-through on Windows (harmless on other platforms)
     colorama.just_fix_windows_console()
