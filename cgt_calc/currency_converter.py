@@ -7,7 +7,6 @@ from copy import deepcopy
 import csv
 import datetime
 from decimal import Decimal, InvalidOperation
-import fcntl
 import logging
 from typing import TYPE_CHECKING, Final, TextIO, override
 
@@ -21,7 +20,7 @@ from .const import CGT_MODE, RuntimeMode
 from .dates import is_date
 from .exceptions import ExchangeRateMissingError, ExternalApiError, ParsingError
 from .model import CurrencyCode
-from .util import open_with_parents
+from .util import exclusive_lock, open_with_parents
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -355,8 +354,10 @@ class TestCurrencyConverter(CurrencyConverter):
         currency: CurrencyCode,
         value: Decimal,
     ) -> None:
-        with open_with_parents(exchange_rates_file, clear_content=False) as fout:
-            fcntl.flock(fout.fileno(), fcntl.LOCK_EX)
+        with (
+            open_with_parents(exchange_rates_file, clear_content=False) as fout,
+            exclusive_lock(fout),
+        ):
             fout.seek(0)
             data = TestCurrencyConverter._read_exchange_rates_data(
                 exchange_rates_file, fout
@@ -364,7 +365,6 @@ class TestCurrencyConverter(CurrencyConverter):
             if date not in data or currency not in data[date]:
                 writer = csv.writer(fout)
                 writer.writerow([date, currency, str(value)])
-            fcntl.flock(fout.fileno(), fcntl.LOCK_UN)
 
     @staticmethod
     @override
