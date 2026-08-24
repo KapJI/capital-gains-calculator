@@ -71,20 +71,12 @@ echo "Density: ${PAGE_DPI} DPI, Width: ${PAGE_WIDTH}, Quality: ${PAGE_QUALITY}"
 rm -f "${PAGE_PREFIX}"*.webp
 
 # Render every page: flatten onto white, resize to a fixed width, write WebP.
+# The docs refer to pages from one, so -scene starts the %d numbering there.
 magick -density "$PAGE_DPI" "$PDF_PATH" \
     -background white -alpha remove -alpha off \
     -resize "$PAGE_WIDTH" \
     -quality "$PAGE_QUALITY" \
+    -scene 1 \
     -strip "${PAGE_PREFIX}%d.webp"
-
-# ImageMagick numbers pages from zero; the docs refer to them from one.
-for image in "${PAGE_PREFIX}"*.webp; do
-    number="${image#"${PAGE_PREFIX}"}"
-    number="${number%.webp}"
-    mv "$image" "${PAGE_PREFIX}$((number + 1)).webp.tmp"
-done
-for image in "${PAGE_PREFIX}"*.webp.tmp; do
-    mv "$image" "${image%.tmp}"
-done
 
 echo "✅ Page images generated: $(ls "${PAGE_PREFIX}"*.webp | wc -l | tr -d ' ') pages"

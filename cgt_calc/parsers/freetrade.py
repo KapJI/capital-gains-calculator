@@ -261,6 +261,10 @@ class FreetradeParser(BaseSingleFileParser):
         indexed_rows.reverse()
         transactions: list[BrokerTransaction] = []
         for index, row_raw in indexed_rows:
+            # Exports may end with a blank line, which csv reads as an
+            # empty row rather than a transaction.
+            if not any(row_raw):
+                continue
             row = dict(zip(header, row_raw, strict=False))
             action_type = row.get(FreetradeColumn.TYPE)
             if action_type in IGNORED_TYPES:

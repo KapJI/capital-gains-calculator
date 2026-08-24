@@ -239,7 +239,7 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
                 row[WithdrawalColumn.EXECUTION_DATE], "%d-%b-%Y"
             ).date(),
             action=action,
-            symbol=symbol,
+            symbol=TICKER_RENAMES.get(symbol, symbol),
             description=plan,
             quantity=quantity,
             price=price,
@@ -249,16 +249,20 @@ class MSSBParser(StandardCSVParser, BaseDirParser):
             broker=BROKER_NAME,
         )
 
-        # Splits are keyed by the symbol the report uses, so rename afterwards.
-        transaction = MSSBParser._handle_stock_split(transaction)
-        transaction.symbol = TICKER_RENAMES.get(symbol, symbol)
-        return transaction
+        return MSSBParser._handle_stock_split(transaction, report_symbol=symbol)
 
     @staticmethod
-    def _handle_stock_split(transaction: BrokerTransaction) -> BrokerTransaction:
+    def _handle_stock_split(
+        transaction: BrokerTransaction, report_symbol: str
+    ) -> BrokerTransaction:
+        """Adjust pre-split sales, keyed by the symbol the report uses.
+
+        Splits are matched on ``report_symbol`` rather than the transaction's,
+        which a ``TICKER_RENAMES`` entry may have renamed.
+        """
         for split in STOCK_SPLIT_INFO:
             if (
-                transaction.symbol == split.symbol
+                report_symbol == split.symbol
                 and transaction.action == ActionType.SELL
                 and transaction.date <= split.date
             ):

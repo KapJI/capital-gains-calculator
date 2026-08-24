@@ -34,7 +34,7 @@ ReturnType = TextIO | IO[bytes]
 DirIterator = Iterator[Path]
 
 
-@pytest.mark.parametrize("shell", ["bash", "zsh", "fish", "tcsh"])
+@pytest.mark.parametrize("shell", ["bash", "zsh", "fish", "tcsh", "powershell"])
 def test_print_completion_outputs_script(
     shell: str, capsys: pytest.CaptureFixture[str]
 ) -> None:

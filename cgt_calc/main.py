@@ -1179,19 +1179,27 @@ class CapitalGainsCalculator:
         print(style_text("Final balance", colour=Style.BRIGHT, emoji="💰"))
         for (broker, currency), amount in balance.items():
             print(f"{bul}{broker}: {round_decimal(amount, 2)} ({currency})")
-        if dividends:
+        # Withholding can arrive without income in the same run, so taxed
+        # symbols are listed even when no dividend was paid. A tax-only
+        # entry whose withholding rounds to 0.00, or is a net refund, has
+        # nothing to display, so it is left out entirely.
+        keys = list(dividends)
+        keys += [key for key in dividends_tax if key not in dividends]
+        dividend_lines = []
+        for symbol, currency in keys:
+            amount = dividends.get((symbol, currency), Decimal(0))
+            tax = round_decimal(-dividends_tax.get((symbol, currency), Decimal(0)), 2)
+            if (symbol, currency) not in dividends and tax <= 0:
+                continue
+            tax_str = f", excluding {tax} taxed at source" if tax > 0 else ""
+            dividend_lines.append(
+                f"{bul}{symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})"
+            )
+        if dividend_lines:
             print()
             print(style_text("Dividends", colour=Style.BRIGHT, emoji="💵"))
-            for (symbol, currency), amount in dividends.items():
-                tax = dividends_tax[symbol, currency]
-                tax_str = (
-                    f", excluding {round_decimal(-tax, 2)} taxed at source"
-                    if tax < 0
-                    else ""
-                )
-                print(
-                    f"{bul}{symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})"
-                )
+            for line in dividend_lines:
+                print(line)
         if interests:
             print()
             print(style_text("Interest", colour=Style.BRIGHT, emoji="🏦"))

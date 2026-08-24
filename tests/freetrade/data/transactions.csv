@@ -1,6 +1,7 @@
 Title,Type,Timestamp,Account Currency,Total Amount,Buy / Sell,Ticker,ISIN,Price per Share in Account Currency,Stamp Duty,Quantity,Venue,Order ID,Order Type,Instrument Currency,Total Shares Amount,Price per Share,FX Rate,Base FX Rate,FX Fee (BPS),FX Fee Amount,Dividend Ex Date,Dividend Pay Date,Dividend Eligible Quantity,Dividend Amount Per Share,Dividend Gross Distribution Amount,Dividend Net Distribution Amount,Dividend Withheld Tax Percentage,Dividend Withheld Tax Amount
 S&P 500,ORDER,2024-01-16T10:01:02.811Z,GBP,2930.36,SELL,SPXP,IE00B3YCGJ38,732.59000000,0.00,4.00000000,London Stock Exchange,PEJJSM8NABDD,BASIC,GBP,2930.36,732.59000000,,,0,,,,,,,,,
 Nasdaq,DIVIDEND,2023-12-22T17:11:00.000Z,GBP,0.93,,NDAQ,US6311031081,,,6.36545916,,,,USD,,,,0.78491703,0,0.00,2023-12-07,2023-12-22,6.36545916,0.22000000,1.40,1.19,15,0.21
+Lloyds,ORDER,2023-11-06T09:30:00.000Z,GBP,502.50,BUY,LLOY,GB0008706128,0.50000000,2.50,1000.00000000,London Stock Exchange,QWK3M7NP5RTZ,BASIC,GBP,500.00,0.50000000,,,,,,,,,,,,
 Interest,INTEREST_FROM_CASH,2023-10-16T00:00:00.000Z,GBP,9.02,,,,,,,,,,,,,,,,,,,,,,,,
 Nasdaq,DIVIDEND,2022-03-25T02:35:00.000Z,GBP,0.74,,NDAQ,US6311031081,,,2.12181972,,,,USD,,,,0.76110000,0,0.00,2022-03-10,2022-03-25,2.12181972,0.54000000,1.15,0.97,15,0.18
 Tesla,ORDER,2022-02-01T15:14:23.014Z,GBP,5.59,BUY,TSLA,US88160R1014,678.77225238,0.00,0.00819126,Drivewealth,AMN762KCC2G3,MARKET,USD,7.50,915.61000000,1.34403451,1.35011000,45,0.03,,,,,,,,
