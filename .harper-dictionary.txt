@@ -101,6 +101,7 @@ NVDA
 NVIDIA
 OPRA
 OTGLY
+ParsingError
 pdf
 pdflatex
 pipx

@@ -4,8 +4,10 @@ Tests the filtering of Cancel Buy transactions and their matching with original
 Buy transactions within the search window.
 
 Cancel Buy is a Schwab-specific transaction type that indicates a purchase was
-cancelled. Both the original Buy and the Cancel Buy are mapped to ActionType.BUY,
-and both need to be filtered out to avoid incorrect capital gains calculations.
+cancelled. Both rows have to be filtered out to avoid counting a purchase that
+never stood. The cancellation carries ActionType.CANCEL_BUY rather than the
+type of a purchase, so a row that escapes the filter is refused downstream
+instead of being booked as an acquisition.
 
 Real Schwab exports are ordered newest-first (see
 tests/schwab/data/schwab_transactions.csv, where 2021 rows appear before 2020
@@ -14,13 +16,17 @@ newest-first CSV the Cancel Buy row appears *above* (before) its matching Buy
 row. All CSVs below follow that realistic ordering.
 """
 
+from collections import OrderedDict
+import csv
 import datetime
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
-from cgt_calc.parsers.schwab import SchwabParser
+from cgt_calc.exceptions import ParsingError
+from cgt_calc.model import ActionType
+from cgt_calc.parsers.schwab import AwardPrices, SchwabParser, SchwabTransaction
 
 
 class TestCancelBuyFiltering:
@@ -49,12 +55,9 @@ class TestCancelBuyFiltering:
             "01/01/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
-        transactions = SchwabParser().load_from_file(csv_file)
-
-        # 9 days apart - Cancel Buy won't match, both should remain
-        assert len(transactions) == 2
-        assert transactions[0].action.name == "BUY"
-        assert transactions[1].action.name == "BUY"  # Cancel Buy mapped to BUY
+        # 9 days apart, so the Buy is outside the window and nothing matches.
+        with pytest.raises(ParsingError, match="no Buy to match it"):
+            SchwabParser().load_from_file(csv_file)
 
     def test_cancel_buy_matches_exact_symbol_quantity_price(
         self, tmp_path: Path
@@ -83,10 +86,9 @@ class TestCancelBuyFiltering:
             "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
-        transactions = SchwabParser().load_from_file(csv_file)
-
-        # Different symbols - no match, both remain
-        assert len(transactions) == 2
+        # Different symbols, so nothing matches the cancellation.
+        with pytest.raises(ParsingError, match="no Buy to match it"):
+            SchwabParser().load_from_file(csv_file)
 
     def test_cancel_buy_with_fractional_shares(self, tmp_path: Path) -> None:
         """Test that Cancel Buy works with fractional shares."""
@@ -168,10 +170,9 @@ class TestCancelBuyFiltering:
             f"{buy_date.strftime('%m/%d/%Y')},Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
         )
 
-        transactions = SchwabParser().load_from_file(csv_file)
-
-        # 6 days apart - no match, both remain
-        assert len(transactions) == 2
+        # 6 days apart, one day outside the window.
+        with pytest.raises(ParsingError, match="no Buy to match it"):
+            SchwabParser().load_from_file(csv_file)
 
     def test_no_cancel_buy_transactions(self, tmp_path: Path) -> None:
         """Test that normal transactions are unaffected when no Cancel Buy present."""
@@ -215,3 +216,51 @@ class TestCancelBuyFiltering:
         # AAPL Buy and Cancel Buy should be matched and removed; MSFT remains.
         assert len(transactions) == 1
         assert transactions[0].symbol == "MSFT"
+
+
+def test_unmatched_cancel_buy_is_refused(tmp_path: Path) -> None:
+    """An unmatched Cancel Buy stops the run, naming the row at fault.
+
+    The pair cannot be reconciled: either the export does not reach the
+    purchase being reversed, or it settled outside the search window. Refusing
+    in the parser names the offending row and what to check, which the
+    calculator cannot do once the row is just an action it does not handle.
+    """
+    csv_file = tmp_path / "transactions.csv"
+    csv_file.write_text(
+        "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
+        "01/20/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+        "01/01/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+        "01/05/2020,Buy,MSFT,MICROSOFT CORP,$200.00,5,$0.00,-$1000.00\n"
+    )
+
+    with pytest.raises(ParsingError, match="no Buy to match it"):
+        SchwabParser().load_from_file(csv_file)
+
+
+def test_cancel_buy_is_not_typed_as_a_purchase(tmp_path: Path) -> None:
+    """A Cancel Buy row does not carry the action type of a purchase.
+
+    Nothing between parsing and filtering reads the action type, and the
+    filter drops or refuses every cancellation, so typing one as a purchase
+    buys nothing and costs the guarantee: a row reaching the calculator by
+    any other route would be booked as real cost basis. Typed as itself, the
+    calculator refuses it.
+    """
+    csv_file = tmp_path / "transactions.csv"
+    csv_file.write_text(
+        "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
+        "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$1500.00\n"
+        "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+    )
+
+    # Reach past the filter to see how the row itself is typed.
+    with csv_file.open(encoding="utf-8") as handle:
+        rows = list(csv.reader(handle))
+    header = rows[0]
+    cancel = SchwabTransaction.create(
+        OrderedDict(zip(header, rows[1], strict=True)), csv_file, AwardPrices({})
+    )
+
+    assert cancel.raw_action == "Cancel Buy"
+    assert cancel.action is ActionType.CANCEL_BUY

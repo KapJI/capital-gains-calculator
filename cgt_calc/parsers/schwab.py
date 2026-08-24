@@ -91,8 +91,13 @@ class AwardPrices:
 
 def action_from_str(label: str, file: Path) -> ActionType:
     """Convert string label to ActionType."""
-    if label in {"Buy", "Cancel Buy"}:
+    if label == "Buy":
         return ActionType.BUY
+
+    if label == "Cancel Buy":
+        # Not a purchase: it is dropped along with the Buy it reverses, and
+        # a cancellation with no matching Buy fails the run.
+        return ActionType.CANCEL_BUY
 
     if label == "Sell":
         return ActionType.SELL
@@ -513,6 +518,7 @@ def _unify_schwab_paired_transactions(
 
 def _filter_cancelled_buy_transactions(
     transactions: list[SchwabTransaction],
+    file: Path,
 ) -> list[SchwabTransaction]:
     """Filter out Cancel Buy transactions and their matching Buy transactions.
 
@@ -532,9 +538,13 @@ def _filter_cancelled_buy_transactions(
 
     Args:
         transactions: List of parsed Schwab transactions, newest-first
+        file: Source file, for error reporting
 
     Returns:
         Filtered list with Cancel Buy pairs removed
+
+    Raises:
+        ParsingError: If a Cancel Buy has no matching Buy
 
     """
     indices_to_remove: set[int] = set()
@@ -549,7 +559,11 @@ def _filter_cancelled_buy_transactions(
             continue
 
         # Search forward (older transactions, since the list is newest-first)
-        # for the matching Buy within the search window
+        # for the matching Buy within the search window. A flag rather than
+        # for/else: the search window check below leaves the loop with a break,
+        # which skips an else clause on any export long enough to contain a row
+        # outside the window - that is, on every real one.
+        matched = False
         for buy_idx in range(cancel_idx + 1, len(transactions)):
             buy_txn = transactions[buy_idx]
 
@@ -561,14 +575,16 @@ def _filter_cancelled_buy_transactions(
             if buy_idx in indices_to_remove:
                 continue
 
-            # Check if this is the matching Buy transaction
+            # Match the raw action, so a cancellation can never pair with
+            # another cancellation.
             if (
-                buy_txn.action == ActionType.BUY
+                buy_txn.raw_action == "Buy"
                 and buy_txn.symbol == transaction.symbol
                 and buy_txn.quantity == transaction.quantity
                 and buy_txn.price == transaction.price
             ):
                 # Found matching pair - mark both for removal
+                matched = True
                 indices_to_remove.add(cancel_idx)
                 indices_to_remove.add(buy_idx)
                 LOGGER.debug(
@@ -581,11 +597,22 @@ def _filter_cancelled_buy_transactions(
                     transaction.date,
                 )
                 break
-        else:
-            # No matching Buy found
-            LOGGER.warning(
-                "Could not find matching Buy for Cancel Buy: %s",
-                transaction,
+
+        if not matched:
+            # A cancellation with nothing to reverse means the export does not
+            # reach back to the purchase, or that purchase settled outside the
+            # window above. Either way the pair cannot be reconciled and the
+            # row cannot be processed, so refuse here, where the row's meaning
+            # is still known. Left in place it would reach the calculator,
+            # which refuses any action it does not handle but can only report
+            # an unprocessed action type, naming neither the cancellation nor
+            # what to do about it.
+            raise ParsingError(
+                file,
+                f"Found a {transaction.raw_action} for {transaction.symbol} on "
+                f"{transaction.date} with no Buy to match it in the "
+                f"{CANCEL_BUY_SEARCH_DAYS} days before. Check that the export "
+                "covers the purchase it reverses.",
             )
 
     if len(indices_to_remove) > 0:
@@ -781,6 +808,6 @@ class SchwabParser(BaseSingleFileParser):
 
             transactions.append(transaction)
         transactions = _unify_schwab_paired_transactions(transactions, file_path)
-        transactions = _filter_cancelled_buy_transactions(transactions)
+        transactions = _filter_cancelled_buy_transactions(transactions, file_path)
         transactions.reverse()
         return list(transactions)
