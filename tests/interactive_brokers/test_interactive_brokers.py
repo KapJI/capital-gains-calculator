@@ -221,10 +221,123 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert len(transactions) == 1
         assert transactions[0].action == ActionType.ADJUSTMENT
         assert transactions[0].amount == Decimal("0.55")
-        # No quantity and no price, so it cannot become an acquisition or a
-        # disposal however it is grouped downstream.
+        # No symbol, no quantity and no price, so it cannot become an
+        # acquisition or a disposal however it is grouped downstream. IBKR
+        # writes "-" in all three, and only the numeric columns read that as
+        # absent on their own, so the symbol is pinned here too.
+        assert transactions[0].symbol is None
         assert transactions[0].quantity is None
         assert transactions[0].price is None
+
+    def test_forex_trade_component_is_an_adjustment_not_a_fee(
+        self, tmp_path: Path
+    ) -> None:
+        """A currency conversion is not a charge against a holding.
+
+        IBKR files the base-currency net of an FX trade under the currency
+        pair as a "Forex Trade Component". Its Net Amount is positive when the
+        conversion leaves more base currency behind and negative when it
+        leaves less, and neither direction is a fee: a positive one is refused
+        outright, and a negative one opens a pooled cost for a currency pair.
+        "Other Fee", which really is a charge on a holding, keeps its meaning.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-10-01,U***00000,"
+            "Net Amount in Base from Forex Trade: 800 GBP.USD,"
+            "Forex Trade Component,GBP.USD,800,1.32,0.16,-0.02,0.14\n"
+            + "Transaction History,Data,2025-10-02,U***00000,"
+            "Net Amount in Base from Forex Trade: -800 GBP.USD,"
+            "Forex Trade Component,GBP.USD,-800,1.32,-0.18,-,-0.18\n"
+            + "Transaction History,Data,2025-10-03,U***00000,"
+            "CNX1 ADR Fee,Other Fee,CNX1,-,-,-1.5,-,-1.5\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert [t.action for t in transactions] == [
+            ActionType.ADJUSTMENT,
+            ActionType.ADJUSTMENT,
+            ActionType.FEE,
+        ]
+        assert [t.amount for t in transactions] == [
+            Decimal("0.14"),
+            Decimal("-0.18"),
+            Decimal("-1.5"),
+        ]
+        # Neither direction keeps anything that could be read as a security,
+        # and the description still names the pair the movement came from.
+        for component in transactions[:2]:
+            assert component.symbol is None
+            assert component.quantity is None
+            assert component.price is None
+            assert component.fees == Decimal(0)
+            assert "GBP.USD" in component.description
+        assert transactions[2].symbol == "CNX1"
+
+    def test_forex_trade_component_moves_the_base_currency_balance(
+        self, tmp_path: Path
+    ) -> None:
+        """Net Amount is in the base currency whatever priced the leg.
+
+        In the extended format a currency-pair row can name a Price Currency,
+        and the price is converted to GBP only when the row also carries an
+        Exchange Rate. Without one the price stays foreign, and taking that as
+        the transaction currency would file a GBP Net Amount against a USD
+        balance instead.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header_with_foreign_currency
+            + "Transaction History,Data,2025-10-02,U***00000,"
+            "Net Amount in Base from Forex Trade: 800 GBP.USD,"
+            "Forex Trade Component,GBP.USD,800,1.32,USD,0.18,-,0.18,-\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert len(transactions) == 1
+        assert transactions[0].action == ActionType.ADJUSTMENT
+        assert transactions[0].currency == CurrencyCode("GBP")
+        assert transactions[0].amount == Decimal("0.18")
+
+    def test_forex_trade_component_leaves_no_fee_in_the_report(
+        self, tmp_path: Path
+    ) -> None:
+        """A currency pair must not reach the report as a holding with a cost.
+
+        The pooled cost a fee opens is invisible in the printed summary while
+        the quantity is zero, so the rendered report is what gives it away: on
+        the fee path this file produces a "Management fee for GBP.USD" section
+        for a symbol that is not a security.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-01-01,U***00000,"
+            "Electronic Fund Transfer,Deposit,-,-,-,1000.0,-,1000.0\n"
+            + "Transaction History,Data,2025-10-02,U***00000,"
+            "Net Amount in Base from Forex Trade: -800 GBP.USD,"
+            "Forex Trade Component,GBP.USD,-800,1.32,-0.18,-,-0.18\n"
+        )
+
+        cmd = build_cmd(
+            "--year",
+            "2025",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--output",
+            str(tmp_path / "out"),
+        )
+        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+        if result.returncode:
+            pytest.fail(
+                "Integration test failed\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+        assert stderr_alerts(result.stderr) == []
+        assert "Final balance\n  Interactive Brokers: 999.82 (GBP)" in result.stdout
+        assert "GBP.USD" not in (tmp_path / "out.tex").read_text(encoding="utf-8")
 
     def test_buy_before_same_day_sell_does_not_go_negative(
         self, tmp_path: Path

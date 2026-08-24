@@ -53,19 +53,23 @@ check the date range and filters as described in [Troubleshooting](#troubleshoot
 
 The importer recognises these literal values from the CSV's `Transaction Type` column:
 
-| Transaction type                     | How cgt-calc handles it                                                 |
-| ------------------------------------ | ----------------------------------------------------------------------- |
-| `Buy`, `Sell`                        | Share or fund acquisitions and disposals, with commission               |
-| `Dividend`, `Payment in Lieu`        | Dividend income                                                         |
-| `Foreign Tax Withholding`            | Tax deducted at source; treated as dividend tax                         |
-| `Credit Interest`                    | Interest income                                                         |
-| `Deposit`, `Withdrawal`              | Cash movements used by the balance check                                |
-| `Other Fee`, `Forex Trade Component` | Charged against the cash balance as fees; no security is bought or sold |
-| `Adjustment`                         | Cash-balance adjustments such as `FX Translations P&L`                  |
+| Transaction type              | How cgt-calc handles it                                      |
+| ----------------------------- | ------------------------------------------------------------ |
+| `Buy`, `Sell`                 | Share or fund acquisitions and disposals, with commission    |
+| `Dividend`, `Payment in Lieu` | Dividend income                                              |
+| `Foreign Tax Withholding`     | Tax deducted at source; treated as dividend tax              |
+| `Credit Interest`             | Interest income                                              |
+| `Deposit`, `Withdrawal`       | Cash movements used by the balance check                     |
+| `Other Fee`                   | A charge against a holding, added to its pooled cost         |
+| `Adjustment`                  | Cash-balance adjustments such as `FX Translations P&L`       |
+| `Forex Trade Component`       | The base-currency net of a currency conversion; balance only |
 
 For a GBP-base account, IBKR reports gross amounts, commissions and net amounts in GBP. When the CSV
 also supplies `Price Currency` and `Exchange Rate`, cgt-calc converts a foreign-currency unit price
 to GBP before calculating the acquisition or disposal.
+
+cgt-calc does not treat a currency conversion as a disposal. It applies the `Forex Trade Component`
+Net Amount to the cash balance and reports no gain or loss on the conversion itself.
 
 IBKR descriptions for dividends and payments in lieu can put an ISIN in parentheses immediately
 after the symbol. cgt-calc uses that identifier when deciding whether a supported double-taxation
