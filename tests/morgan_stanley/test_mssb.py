@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.mssb import (
@@ -67,8 +66,7 @@ def test_read_mssb_release_success(tmp_path: Path) -> None:
 
     assert len(transactions) == 1
     transaction = transactions[0]
-    expected_symbol = TICKER_RENAMES.get("GOOG", "GOOG")
-    assert transaction.symbol == expected_symbol
+    assert transaction.symbol == "GOOG"
     assert transaction.action == ActionType.STOCK_ACTIVITY
     assert transaction.quantity == Decimal(3)
     assert transaction.price == Decimal("10.00")
@@ -180,7 +178,7 @@ def test_read_mssb_withdrawal_goog_sale_split_adjustment(
     assert len(transactions) == 1
     transaction = transactions[0]
     assert transaction.action == ActionType.SELL
-    assert transaction.symbol == TICKER_RENAMES.get("GOOG", "GOOG")
+    assert transaction.symbol == "GOOG"
     assert transaction.quantity == Decimal("40.00")
     assert transaction.price == Decimal("112.00")
 
