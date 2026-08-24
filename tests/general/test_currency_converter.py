@@ -441,5 +441,5 @@ def test_strict_converter_refuses_to_fetch() -> None:
     """The CI converter never calls the HMRC API."""
     converter = StrictTestCurrencyConverter()
 
-    with pytest.raises(RuntimeError, match="provided for tests"):
+    with pytest.raises(RuntimeError, match="HMRC values missing for 2024-01"):
         converter.currency_to_gbp_rate(CurrencyCode("USD"), DATE)

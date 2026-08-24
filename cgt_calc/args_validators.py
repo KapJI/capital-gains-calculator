@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from .const import INTERNAL_START_DATE
-from .version import get_version
+from .version import DISTRIBUTION_NAME, get_version
 
 STDIN_PATH = Path("-")
 
@@ -139,7 +139,7 @@ class DeprecatedAction(argparse.Action):
     @override
     def __call__(  # type: ignore[explicit-any]
         self,
-        _parser: argparse.ArgumentParser,
+        parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
         values: str | Sequence[Any] | None,
         option_string: str | None = None,
@@ -179,10 +179,10 @@ class VersionAction(argparse.Action):
     def __call__(  # type: ignore[explicit-any]
         self,
         parser: argparse.ArgumentParser,
-        _namespace: argparse.Namespace,
-        _values: str | Sequence[Any] | None,
-        _option_string: str | None = None,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
     ) -> None:
         """Print the version and exit."""
-        print(f"cgt-calc {get_version()}")
+        print(f"{DISTRIBUTION_NAME} {get_version()}")
         parser.exit()

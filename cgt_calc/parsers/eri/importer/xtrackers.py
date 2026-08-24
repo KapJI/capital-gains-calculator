@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     import datetime
     from pathlib import Path
 
+    from pdfplumber.page import CroppedPage, Page
+    from pdfplumber.pdf import PDF
+
 LOGGER = logging.getLogger(__name__)
 
 # Matches both manually renamed reports and the official download names
@@ -82,9 +85,7 @@ class XtrackersImporter(ERIImporter):
         return result
 
     @staticmethod
-    def _extract_report_end_date(
-        page: pdfplumber.page.Page, prefix: str
-    ) -> datetime.date | None:
+    def _extract_report_end_date(page: Page, prefix: str) -> datetime.date | None:
         matches = [
             line["text"]
             for line in page.extract_text_lines()
@@ -101,7 +102,7 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _extract_header(
-        page: pdfplumber.page.Page, file: Path, page_num: int
+        page: Page, file: Path, page_num: int
     ) -> tuple[tuple[float, float, float, float], list[float], dict[int, int]]:
         header_table = page.find_table()
         if header_table is None:
@@ -146,7 +147,7 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _extract_data_rows(
-        cropped: pdfplumber.page.CroppedPage,
+        cropped: CroppedPage,
         columns: list[float],
         file: Path,
         page_num: int,
@@ -212,7 +213,7 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _parse_pages(
-        pdf: pdfplumber.pdf.PDF,
+        pdf: PDF,
         reporting_period_end: datetime.date,
         file: Path,
     ) -> list[ERITransaction]:
@@ -232,9 +233,7 @@ class XtrackersImporter(ERIImporter):
         return transactions
 
     @staticmethod
-    def _parse_summary_format(
-        pdf: pdfplumber.pdf.PDF, file: Path
-    ) -> list[ERITransaction] | None:
+    def _parse_summary_format(pdf: PDF, file: Path) -> list[ERITransaction] | None:
         """Parse the summary format used by the main Xtrackers umbrella."""
         first_page = pdf.pages[0]
         prefix = "Period ended"
@@ -252,7 +251,7 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _parse_investor_report_format(
-        pdf: pdfplumber.pdf.PDF, file: Path
+        pdf: PDF, file: Path
     ) -> list[ERITransaction] | None:
         """Parse the investor report format used by Xtrackers II and (IE) Plc."""
         first_page = pdf.pages[0]

@@ -18,6 +18,8 @@ GIT_DESCRIBE_TIMEOUT_SECONDS = 5
 # backup tag left behind by a rebase, would name a version that does not exist.
 RELEASE_TAG_GLOB = "v[0-9]*"
 
+DISTRIBUTION_NAME = "cgt-calc"
+
 # Commits since the latest reachable tag, e.g. "v2.0.0-157-g3473d67".
 COMMITS_SINCE_TAG_RE = re.compile(
     r"^(?P<tag>.+)-(?P<distance>\d+)-g(?P<commit>[0-9a-f]+)$"
@@ -35,7 +37,7 @@ def get_version() -> str:
     source checkout carries the placeholder instead, so describe it with git to
     report something that pins down the exact commit.
     """
-    version = importlib.metadata.version(__package__)
+    version = importlib.metadata.version(DISTRIBUTION_NAME)
     if version != PLACEHOLDER_VERSION:
         return version
     return _describe_source_tree() or PLACEHOLDER_VERSION
