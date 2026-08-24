@@ -203,7 +203,8 @@ Environment variables:
         help="show version and exit",
     )
     shtab.add_argument_to(
-        general_group,  # type: ignore[arg-type]  # groups work like parsers here
+        # Argument groups support the same operation as parsers.
+        general_group,  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
         "--print-completion",
         help="print shell tab completion script and exit",
     )

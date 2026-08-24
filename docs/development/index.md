@@ -40,6 +40,7 @@ We use:
 
 - [ruff](https://docs.astral.sh/ruff/) — for Python linting and formatting
 - [mypy](https://mypy-lang.org/) — for static type checking
+- [ty](https://docs.astral.sh/ty/) — for additional static type checking
 - [pytest](https://docs.pytest.org/) — for running tests
 - [dprint](https://dprint.dev/) — for formatting Markdown, YAML, TOML, JSON, and Dockerfiles
 - [shfmt](https://github.com/mvdan/sh#shfmt) - for formatting shell scripts
@@ -83,6 +84,7 @@ Or you can run single hook:
 
 ```shell
 prek run mypy --all-files
+prek run ty --all-files
 prek run pytest
 prek run --hook-stage manual python-typing-update --all-files
 ```
@@ -102,6 +104,7 @@ uv run pytest
 uv run pytest -k <expr> -q # run subset
 uv run ruff check .
 uv run mypy cgt_calc
+uv run ty check
 ```
 
 ## Managing dependencies
