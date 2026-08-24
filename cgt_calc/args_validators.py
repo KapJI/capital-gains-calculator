@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from .const import INTERNAL_START_DATE
-from .version import get_version
+from .version import DISTRIBUTION_NAME, get_version
 
 STDIN_PATH = Path("-")
 
@@ -145,7 +145,6 @@ class DeprecatedAction(argparse.Action):
         option_string: str | None = None,
     ) -> None:
         """Check if argument is deprecated."""
-        del parser
         assert isinstance(option_string, str), "Positional arguments are not supported"
         replacements: dict[str, str] = {
             "--freetrade": "--freetrade-file",
@@ -185,6 +184,5 @@ class VersionAction(argparse.Action):
         option_string: str | None = None,
     ) -> None:
         """Print the version and exit."""
-        del namespace, values, option_string
-        print(f"cgt-calc {get_version()}")
+        print(f"{DISTRIBUTION_NAME} {get_version()}")
         parser.exit()

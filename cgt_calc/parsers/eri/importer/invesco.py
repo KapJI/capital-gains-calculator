@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from pdfplumber.page import CroppedPage, Page
+    from pdfplumber.pdf import PDF
 
 from cgt_calc.parsers.eri.model import ERITransaction
 
@@ -192,7 +193,7 @@ class InvescoImporter(ERIImporter):
 
     @staticmethod
     # v1 has headers only on the first page
-    def _parse_v1(pdf: pdfplumber.pdf.PDF, file: Path) -> list[ERITransaction] | None:
+    def _parse_v1(pdf: PDF, file: Path) -> list[ERITransaction] | None:
         first_page = pdf.pages[0]
         prefix = "STATEMENT OF REPORTABLE INCOME FOR INVESCO MARKETS II PLC FOR THE PERIOD ENDED"
         if not first_page.search(prefix):
@@ -224,7 +225,7 @@ class InvescoImporter(ERIImporter):
 
     @staticmethod
     # v2 has headers on all pages, and the headers are slightly different
-    def _parse_v2(pdf: pdfplumber.pdf.PDF, file: Path) -> list[ERITransaction] | None:
+    def _parse_v2(pdf: PDF, file: Path) -> list[ERITransaction] | None:
         first_page = pdf.pages[0]
         if not first_page.search("Invesco Markets II plc"):
             return None

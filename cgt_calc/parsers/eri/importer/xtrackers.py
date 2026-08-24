@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from pdfplumber.page import CroppedPage, Page
+    from pdfplumber.pdf import PDF
 
 LOGGER = logging.getLogger(__name__)
 
@@ -212,7 +213,7 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _parse_pages(
-        pdf: pdfplumber.pdf.PDF,
+        pdf: PDF,
         reporting_period_end: datetime.date,
         file: Path,
     ) -> list[ERITransaction]:
@@ -232,9 +233,7 @@ class XtrackersImporter(ERIImporter):
         return transactions
 
     @staticmethod
-    def _parse_summary_format(
-        pdf: pdfplumber.pdf.PDF, file: Path
-    ) -> list[ERITransaction] | None:
+    def _parse_summary_format(pdf: PDF, file: Path) -> list[ERITransaction] | None:
         """Parse the summary format used by the main Xtrackers umbrella."""
         first_page = pdf.pages[0]
         prefix = "Period ended"
@@ -252,7 +251,7 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _parse_investor_report_format(
-        pdf: pdfplumber.pdf.PDF, file: Path
+        pdf: PDF, file: Path
     ) -> list[ERITransaction] | None:
         """Parse the investor report format used by Xtrackers II and (IE) Plc."""
         first_page = pdf.pages[0]

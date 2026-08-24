@@ -433,8 +433,7 @@ class Trading212Parser(BaseDirParser):
     ) -> tuple[datetime, bool]:
         """Sort by date and action type."""
 
-        if not isinstance(transaction, Trading212Transaction):
-            raise TypeError("Trading 212 post-processing received another broker's row")
+        assert isinstance(transaction, Trading212Transaction)
 
         # If there's a deposit in the same second as a buy
         # (happens with the referral award at least)

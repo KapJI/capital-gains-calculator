@@ -372,7 +372,7 @@ class TestCurrencyConverter(CurrencyConverter):
         exchange_rates_file: Path | None,
         data: dict[datetime.date, dict[CurrencyCode, Decimal]],
     ) -> None:
-        del exchange_rates_file, data
+        pass
 
 
 class StrictTestCurrencyConverter(CurrencyConverter):
@@ -380,9 +380,8 @@ class StrictTestCurrencyConverter(CurrencyConverter):
 
     @override
     def _query_hmrc_api(self, date: datetime.date) -> None:
-        del date
         raise RuntimeError(
-            "HMRC values should be provided for tests to avoid flakiness! "
+            f"HMRC values missing for {date:%Y-%m}! "
             "Run `pytest` (once) to populate them from HMRC data"
         )
 
@@ -392,4 +391,4 @@ class StrictTestCurrencyConverter(CurrencyConverter):
         exchange_rates_file: Path | None,
         data: dict[datetime.date, dict[CurrencyCode, Decimal]],
     ) -> None:
-        del exchange_rates_file, data
+        pass
