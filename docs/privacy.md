@@ -14,4 +14,13 @@ The only external API calls made are:
 
 ## Disclaimer
 
-Please note: I'm **not a tax adviser**. Use this tool and its outputs **at your own risk**.
+This tool is a calculation aid, **not tax advice**. It calculates capital gains figures from the
+transaction history you provide and is designed to apply the UK tax rules it supports, following the
+legislation and published HMRC guidance. Its authors and contributors are not acting as your tax
+advisers, the results may contain errors, and tax rules change.
+
+You are responsible for providing complete data and checking the figures against your records and
+current HMRC guidance before using them in a tax return. For unusual or uncertain circumstances,
+consider consulting a suitably qualified tax adviser. The software is provided "as is", without
+warranty of any kind; see the
+[MIT License](https://github.com/KapJI/capital-gains-calculator/blob/main/LICENSE).
