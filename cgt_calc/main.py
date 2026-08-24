@@ -2179,18 +2179,43 @@ class CapitalGainsCalculator:
             return isin[:ISIN_COUNTRY_CODE_LENGTH]
         return DIVIDEND_CURRENCY_TO_COUNTRY.get(currency)
 
+    def _warn_unattributed_dividend_tax(self) -> None:
+        """Warn about withheld tax that no dividend of the same date claims.
+
+        Withholding is attributed to a dividend of the same symbol and date.
+        A broker that dates a correction apart from the payment it corrects,
+        such as a Schwab ``NRA Tax Adj``, leaves tax that no dividend claims,
+        and it is reported as if it had never been withheld.
+        """
+        for (symbol, date), tax in self.dividend_tax_list.items():
+            if not self.date_in_tax_year(date) or not tax.amount:
+                continue
+            if (symbol, date) in self.dividend_list:
+                continue
+            LOGGER.warning(
+                "Dividend tax of %s %s for %s on %s is not attributed to any "
+                "dividend of that date, so it is left out of the report!",
+                round_decimal(tax.amount, 2),
+                tax.currency,
+                symbol,
+                date,
+            )
+
     def process_dividends(self) -> None:
         """Process all dividend events and taxes.
 
         It updates the interest total for the year if needed.
         """
+        self._warn_unattributed_dividend_tax()
         for (symbol, date), foreign_amount in self.dividend_list.items():
             # Dividends outside the computed tax year are not reported, so
             # neither are the warnings raised while resolving their treaty.
             if not self.date_in_tax_year(date):
                 continue
 
-            tax = self.dividend_tax_list[symbol, date]
+            # Read without inserting: a dividend with no tax must not leave a
+            # zero entry behind in the withholding log.
+            tax = self.dividend_tax_list.get((symbol, date), ForeignCurrencyAmount())
             currency = foreign_amount.currency
             assert currency is not None, f"Dividend for {symbol} has no currency"
 
