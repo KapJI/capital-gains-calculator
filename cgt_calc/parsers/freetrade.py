@@ -116,9 +116,9 @@ def _action_from_str(action_type: str, buy_sell: str, file: Path) -> ActionType:
         return ActionType.INTEREST
     if action_type == "DIVIDEND":
         return ActionType.DIVIDEND
-    if action_type in ["TOP_UP", "WITHDRAWAL"]:
+    if action_type in {"TOP_UP", "WITHDRAWAL"}:
         return ActionType.TRANSFER
-    if action_type in ["ORDER", "FREESHARE_ORDER"]:
+    if action_type in {"ORDER", "FREESHARE_ORDER"}:
         if buy_sell == "BUY":
             return ActionType.BUY
         if buy_sell == "SELL":
@@ -141,7 +141,7 @@ class FreetradeTransaction(BrokerTransaction):
         symbol = (
             row[FreetradeColumn.TICKER] if row[FreetradeColumn.TICKER] != "" else None
         )
-        if symbol is None and action not in [ActionType.TRANSFER, ActionType.INTEREST]:
+        if symbol is None and action not in {ActionType.TRANSFER, ActionType.INTEREST}:
             raise ParsingError(file, f"No symbol for action: {action}")
 
         # The importer and calculation path below use the exported GBP account
@@ -153,7 +153,7 @@ class FreetradeTransaction(BrokerTransaction):
             )
 
         fees = Decimal(0)
-        if action in [ActionType.SELL, ActionType.BUY]:
+        if action in {ActionType.SELL, ActionType.BUY}:
             quantity = _parse_decimal(row, FreetradeColumn.QUANTITY)
             # These two fields are already in account currency. Total Amount
             # is the cash movement after fees, while the account-currency unit
@@ -169,7 +169,7 @@ class FreetradeTransaction(BrokerTransaction):
             amount = _dividend_amount_in_gbp(row, FreetradeColumn.DIVIDEND_GROSS_AMOUNT)
             quantity, price = None, None
             currency = CurrencyCode("GBP")
-        elif action in [ActionType.TRANSFER, ActionType.INTEREST]:
+        elif action in {ActionType.TRANSFER, ActionType.INTEREST}:
             amount = _parse_decimal(row, FreetradeColumn.TOTAL_AMOUNT)
             quantity, price = None, None
             currency = CurrencyCode("GBP")

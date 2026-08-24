@@ -72,9 +72,9 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
     # A payment in lieu arrives instead of a dividend when the holding is out on
     # loan. It is the rarer of the two, so a parser that knows it and not the
     # ordinary dividend fails for most holders on their first real statement.
-    if action_type in ["Dividend", "Payment in Lieu"]:
+    if action_type in {"Dividend", "Payment in Lieu"}:
         return ActionType.DIVIDEND
-    if action_type in ["Deposit", "Withdrawal"]:
+    if action_type in {"Deposit", "Withdrawal"}:
         return ActionType.TRANSFER
     if action_type == "Buy":
         return ActionType.BUY
@@ -82,7 +82,7 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
         return ActionType.SELL
     if action_type == "Foreign Tax Withholding":
         return ActionType.DIVIDEND_TAX
-    if action_type in ["Forex Trade Component", "Other Fee"]:
+    if action_type in {"Forex Trade Component", "Other Fee"}:
         return ActionType.FEE
     # "FX Translations P&L": the revaluation of a foreign currency balance, not
     # a trade. It moves the cash balance and creates no taxable event, which is
@@ -229,7 +229,7 @@ class InteractiveBrokersParser(StandardCSVParser):
         # before the dividend it was taken from.
         return (
             transaction.date,
-            transaction.action in (ActionType.BUY, ActionType.DIVIDEND_TAX),
+            transaction.action in {ActionType.BUY, ActionType.DIVIDEND_TAX},
         )
 
     @classmethod

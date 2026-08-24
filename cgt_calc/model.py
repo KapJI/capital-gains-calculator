@@ -376,14 +376,14 @@ class CalculationEntry:
                 f"Mismatch: {self.allowable_cost} != "
                 f"{self.amount} + {self.new_pool_cost} (for {self})"
             )
-        elif self.amount >= 0 and self.rule_type not in (
+        elif self.amount >= 0 and self.rule_type not in {
             RuleType.SPIN_OFF,
             RuleType.DIVIDEND,
             RuleType.INTEREST,
             RuleType.INTEREST_TAX,
             RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
             RuleType.RENAME,
-        ):
+        }:
             assert self.gain == self.amount + self.fees - self.allowable_cost, (
                 f"Mismatch: {self.gain} != "
                 f"{self.amount} + {self.fees} - {self.allowable_cost} (for {self})"
@@ -714,7 +714,7 @@ class CapitalGainsReport:
             out += f"\n{style_text(title, colour=Style.BRIGHT)}\n"
             for label, value in rows:
                 line = f"  {label + ':':<{label_width}} {value:>{value_width}}"
-                if label in ("Total gain", "Taxable gain"):
+                if label in {"Total gain", "Taxable gain"}:
                     # The headline figures of the whole report.
                     line = style_text(line, colour=Style.BRIGHT)
                 out += f"{line}\n"

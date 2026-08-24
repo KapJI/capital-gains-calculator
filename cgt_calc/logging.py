@@ -131,7 +131,7 @@ class ColourMessageFormatter(logging.Formatter):
                 lines[1:] = [f"    {line}" for line in lines[1:]]
                 message = "\n".join(lines)
 
-        is_alert = record.levelno in (logging.WARNING, logging.ERROR)
+        is_alert = record.levelno in {logging.WARNING, logging.ERROR}
         if is_alert:
             # Blank lines both sides so alerts stand apart from the progress flow,
             # collapsed to a single blank line within a run of consecutive alerts.
