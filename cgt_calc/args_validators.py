@@ -6,16 +6,12 @@ import argparse
 import datetime
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import override
 
 from .const import INTERNAL_START_DATE
 from .version import get_version
 
 STDIN_PATH = Path("-")
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from typing import Any
 
 LOGGER = logging.getLogger(__name__)
 
@@ -137,14 +133,15 @@ class DeprecatedAction(argparse.Action):
     """Print warning when deprecated argument is used."""
 
     @override
-    def __call__(  # type: ignore[explicit-any]
+    def __call__(
         self,
-        _parser: argparse.ArgumentParser,
+        parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        values: str | Sequence[Any] | None,
+        values: object,
         option_string: str | None = None,
     ) -> None:
         """Check if argument is deprecated."""
+        del parser
         assert isinstance(option_string, str), "Positional arguments are not supported"
         replacements: dict[str, str] = {
             "--freetrade": "--freetrade-file",
@@ -176,13 +173,14 @@ class VersionAction(argparse.Action):
     """
 
     @override
-    def __call__(  # type: ignore[explicit-any]
+    def __call__(
         self,
         parser: argparse.ArgumentParser,
-        _namespace: argparse.Namespace,
-        _values: str | Sequence[Any] | None,
-        _option_string: str | None = None,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
     ) -> None:
         """Print the version and exit."""
+        del namespace, values, option_string
         print(f"cgt-calc {get_version()}")
         parser.exit()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import datetime
 from decimal import Decimal
 
@@ -222,9 +223,7 @@ def _transaction_with_fees(
     foreign_fees: dict[CurrencyCode, Decimal],
 ) -> BrokerTransaction:
     transaction = _transaction(None)
-    return BrokerTransaction(
-        **{**vars(transaction), "foreign_fees": foreign_fees},
-    )
+    return replace(transaction, foreign_fees=foreign_fees)
 
 
 def test_broker_transaction_rejects_a_bare_invalid_foreign_fee_currency() -> None:

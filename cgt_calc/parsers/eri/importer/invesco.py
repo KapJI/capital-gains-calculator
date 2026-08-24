@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     import datetime
     from pathlib import Path
 
+    from pdfplumber.page import CroppedPage, Page
+
 from cgt_calc.parsers.eri.model import ERITransaction
 
 from .model import ERIImporter, ERIImporterOutput
@@ -44,9 +46,7 @@ class InvescoImporter(ERIImporter):
         super().__init__(name="Invesco")
 
     @staticmethod
-    def _extract_report_end_date(
-        page: pdfplumber.page.Page, prefix: str
-    ) -> datetime.date | None:
+    def _extract_report_end_date(page: Page, prefix: str) -> datetime.date | None:
         matches = [
             line["text"]
             for line in page.extract_text_lines()
@@ -65,7 +65,7 @@ class InvescoImporter(ERIImporter):
 
     @staticmethod
     def _extract_header(
-        page: pdfplumber.page.Page, file: Path, page_num: int
+        page: Page, file: Path, page_num: int
     ) -> tuple[tuple[float, float, float, float], list[float], dict[int, int]]:
         # Useful for debugging:
         # page.to_image(resolution=100).debug_tablefinder().save(f"full_p{page_num}.png")
@@ -116,7 +116,7 @@ class InvescoImporter(ERIImporter):
     @staticmethod
     def _extract_data_rows(
         page_num: int,  # kept for the debug line below
-        cropped: pdfplumber.page.CroppedPage,
+        cropped: CroppedPage,
         columns: list[float],
         file: Path,
     ) -> list[list[str | None]]:

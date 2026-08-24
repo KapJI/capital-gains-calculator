@@ -117,7 +117,7 @@ RENAME_DESCRIPTION_PREFIX: Final = "renamed from "
 # Resource files
 # =============================================================================
 
-PACKAGE_NAME: Final = __package__
+PACKAGE_NAME: Final = "cgt_calc"
 
 # LaTeX template for calculations report
 LATEX_TEMPLATE_RESOURCE: Final = "template.tex.j2"

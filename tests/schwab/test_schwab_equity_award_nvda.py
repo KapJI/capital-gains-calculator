@@ -161,10 +161,14 @@ def test_disposal_before_the_split_is_converted(
     year afterwards.
     """
     sale = on(transactions, datetime.date(2023, 1, 23), ActionType.SELL)
+    quantity = sale.quantity
+    price = sale.price
 
-    assert sale.quantity == Decimal(20)
-    assert sale.price == Decimal("19.193")
-    assert sale.quantity * sale.price == Decimal("383.86")
+    assert quantity is not None
+    assert price is not None
+    assert quantity == Decimal(20)
+    assert price == Decimal("19.193")
+    assert quantity * price == Decimal("383.86")
 
 
 def test_disposal_after_the_split_is_left_alone(
