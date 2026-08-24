@@ -226,6 +226,93 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert transactions[0].quantity is None
         assert transactions[0].price is None
 
+    @pytest.mark.parametrize("net_amount", ["5.0", "-5.0"])
+    def test_forex_trade_component_adjusts_the_balance_only(
+        self, tmp_path: Path, net_amount: str
+    ) -> None:
+        """The base-currency leg of an FX trade is not a fee.
+
+        IBKR reports it under the currency pair as a "Forex Trade Component",
+        and its Net Amount is positive when the trade brings base currency in
+        and negative when it takes it out. Read as a fee it was rejected
+        outright on the positive side, and on the negative side it built a
+        zero-quantity pooled cost for a symbol that is a currency pair rather
+        than a security. It belongs with the other balance-only adjustments.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header
+            + f"Transaction History,Data,2025-10-01,U***00000,Net Amount in Base from Forex Trade: 0.8 GBP.USD,Forex Trade Component,GBP.USD,0.8,1.32,{net_amount},-,{net_amount}\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert len(transactions) == 1
+        assert transactions[0].action == ActionType.ADJUSTMENT
+        assert transactions[0].amount == Decimal(net_amount)
+        # The currency pair is not a security, and without a symbol, quantity
+        # or price the row cannot become an acquisition, a disposal or a fee
+        # however it is grouped downstream.
+        assert transactions[0].symbol is None
+        assert transactions[0].quantity is None
+        assert transactions[0].price is None
+        assert transactions[0].fees == Decimal(0)
+        # The description still says which pair it came from.
+        assert transactions[0].description == (
+            "Net Amount in Base from Forex Trade: 0.8 GBP.USD"
+        )
+
+    def test_forex_trade_components_reach_the_final_balance(
+        self, tmp_path: Path
+    ) -> None:
+        """Both signs move the cash balance and nothing else.
+
+        A full run is what proves it: the positive component used to abort the
+        calculation outright, and neither sign may leave a holding or a fee day
+        behind for a currency pair.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header
+            + "Transaction History,Data,2025-01-01,U***00000,Electronic Fund Transfer,Deposit,-,-,-,1000.0,-,1000.0\n"
+            + "Transaction History,Data,2025-10-01,U***00000,Net Amount in Base from Forex Trade: 0.8 GBP.USD,Forex Trade Component,GBP.USD,0.8,1.32,5.0,-,5.0\n"
+            + "Transaction History,Data,2025-10-02,U***00000,Net Amount in Base from Forex Trade: 1.5 GBP.USD,Forex Trade Component,GBP.USD,1.5,1.32,-2.0,-,-2.0\n"
+        )
+
+        cmd = build_cmd(
+            "--year",
+            "2025",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--output",
+            str(tmp_path / "out"),
+        )
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode:
+            pytest.fail(
+                "Integration test failed\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+        assert stderr_alerts(result.stderr) == []
+        assert "Final balance\n  Interactive Brokers: 1003.00 (GBP)" in result.stdout
+        assert "GBP.USD" not in result.stdout
+
+    def test_other_fee_is_still_a_fee(self, tmp_path: Path) -> None:
+        """A fee charged against a holding keeps increasing its pooled cost."""
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header
+            + "Transaction History,Data,2025-10-01,U***00000,CNX1 ADR Fee,Other Fee,CNX1,-,-,-1.5,-,-1.5\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert len(transactions) == 1
+        assert transactions[0].action == ActionType.FEE
+        assert transactions[0].symbol == "CNX1"
+        assert transactions[0].amount == Decimal("-1.5")
+
     def test_buy_before_same_day_sell_does_not_go_negative(
         self, tmp_path: Path
     ) -> None:

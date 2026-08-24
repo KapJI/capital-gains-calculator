@@ -82,12 +82,17 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
         return ActionType.SELL
     if action_type == "Foreign Tax Withholding":
         return ActionType.DIVIDEND_TAX
-    if action_type in ["Forex Trade Component", "Other Fee"]:
+    if action_type == "Other Fee":
         return ActionType.FEE
-    # "FX Translations P&L": the revaluation of a foreign currency balance, not
-    # a trade. It moves the cash balance and creates no taxable event, which is
-    # what ADJUSTMENT means here and how the Schwab parser treats its own.
-    if action_type == "Adjustment":
+    # "FX Translations P&L" arrives as an Adjustment: the revaluation of a
+    # foreign currency balance, not a trade. It moves the cash balance and
+    # creates no taxable event, which is what ADJUSTMENT means here and how the
+    # Schwab parser treats its own. A "Forex Trade Component" is the
+    # base-currency leg of an FX trade and belongs with it: read as a fee, its
+    # Net Amount was rejected outright whenever the trade brought base currency
+    # in, and built a pooled cost for the currency pair whenever it took some
+    # out.
+    if action_type in ["Adjustment", "Forex Trade Component"]:
         return ActionType.ADJUSTMENT
 
     raise ParsingError(file_path, f"Unknown type: '{action_type}'")
@@ -158,6 +163,16 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         if price is not None and price_currency != "GBP" and exchange_rate is not None:
             price = price * exchange_rate
             price_currency = CurrencyCode("GBP")
+
+        # An adjustment only moves the cash balance, so the columns describing
+        # a security are meaningless on one. IBKR files a Forex Trade Component
+        # under the currency pair with a quantity and a price; a currency pair
+        # is not a holding, and keeping them would open a pool for it.
+        if action is ActionType.ADJUSTMENT:
+            symbol = None
+            quantity = None
+            price = None
+            fees = Decimal(0)
 
         super().__init__(
             date=date,
