@@ -330,6 +330,9 @@ def _combine_cash_merger_pair(
         or not adjustment_quantity.is_finite()
         or adjustment_quantity >= 0
         or cash_merger_adj.amount is not None
+        or cash_merger_adj.price is not None
+        or not cash_merger.fees.is_finite()
+        or not cash_merger_adj.fees.is_finite()
     ):
         raise ParsingError(
             transactions_file,
@@ -387,6 +390,8 @@ def _combine_full_redemption_pair(
         or redemption_quantity >= 0
         or full_redemption.price is not None
         or full_redemption.amount is not None
+        or not full_redemption_adj.fees.is_finite()
+        or not full_redemption.fees.is_finite()
     ):
         raise ParsingError(
             transactions_file,

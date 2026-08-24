@@ -391,23 +391,29 @@ def test_invalid_cash_merger_pair() -> None:
 
 
 @pytest.mark.parametrize(
-    ("amount", "quantity"),
+    ("amount", "quantity", "adj_price", "adj_fees"),
     [
         # Negative proceeds would make a disposal with a negative price.
-        ('"-$100.00"', "-10"),
+        ('"-$100.00"', "-10", "", ""),
         # A positive quantity is not shares leaving the account.
-        ('"$100.00"', "10"),
+        ('"$100.00"', "10", "", ""),
         # Non-finite values would silently poison the derived price.
-        ("NaN", "-10"),
-        ('"$100.00"', "NaN"),
+        ("NaN", "-10", "", ""),
+        ('"$100.00"', "NaN", "", ""),
+        # Non-finite fees would silently poison the combined fees.
+        ('"$100.00"', "-10", "", "NaN"),
+        # A price on the adjustment row is not part of the format.
+        ('"$100.00"', "-10", "5", ""),
     ],
 )
-def test_cash_merger_pair_with_invalid_values(amount: str, quantity: str) -> None:
+def test_cash_merger_pair_with_invalid_values(
+    amount: str, quantity: str, adj_price: str, adj_fees: str
+) -> None:
     """Reject values that would corrupt the derived disposal."""
     content = (
         SCHWAB_HEADER
         + f"01/15/2023,Cash Merger,FOO,Merger,,,,{amount}\n"
-        + f"01/15/2023,Cash Merger Adj,FOO,Merger,,{quantity},,\n"
+        + f"01/15/2023,Cash Merger Adj,FOO,Merger,{adj_price},{quantity},{adj_fees},\n"
     )
 
     with pytest.raises(ParsingError, match="Invalid Cash Merger format"):
@@ -415,20 +421,23 @@ def test_cash_merger_pair_with_invalid_values(amount: str, quantity: str) -> Non
 
 
 @pytest.mark.parametrize(
-    ("amount", "quantity"),
+    ("amount", "quantity", "redemption_fees"),
     [
-        ('"-$100.00"', "-10"),
-        ('"$100.00"', "10"),
-        ("NaN", "-10"),
-        ('"$100.00"', "NaN"),
+        ('"-$100.00"', "-10", ""),
+        ('"$100.00"', "10", ""),
+        ("NaN", "-10", ""),
+        ('"$100.00"', "NaN", ""),
+        ('"$100.00"', "-10", "NaN"),
     ],
 )
-def test_full_redemption_pair_with_invalid_values(amount: str, quantity: str) -> None:
+def test_full_redemption_pair_with_invalid_values(
+    amount: str, quantity: str, redemption_fees: str
+) -> None:
     """Reject values that would corrupt the derived disposal."""
     content = (
         SCHWAB_HEADER
         + f"01/15/2023,Full Redemption Adj,FOO,Redemption,,,,{amount}\n"
-        + f"01/15/2023,Full Redemption,FOO,Redemption,,{quantity},,\n"
+        + f"01/15/2023,Full Redemption,FOO,Redemption,,{quantity},{redemption_fees},\n"
     )
 
     with pytest.raises(ParsingError, match="Invalid Full Redemption format"):
