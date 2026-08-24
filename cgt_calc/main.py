@@ -1179,16 +1179,19 @@ class CapitalGainsCalculator:
         print(style_text("Final balance", colour=Style.BRIGHT, emoji="💰"))
         for (broker, currency), amount in balance.items():
             print(f"{bul}{broker}: {round_decimal(amount, 2)} ({currency})")
-        if dividends:
+        if dividends or dividends_tax:
             print()
             print(style_text("Dividends", colour=Style.BRIGHT, emoji="💵"))
-            for (symbol, currency), amount in dividends.items():
-                tax = dividends_tax[symbol, currency]
-                tax_str = (
-                    f", excluding {round_decimal(-tax, 2)} taxed at source"
-                    if tax < 0
-                    else ""
+            # Withholding can arrive without income in the same run, so taxed
+            # symbols are listed even when no dividend was paid.
+            keys = list(dividends)
+            keys += [key for key in dividends_tax if key not in dividends]
+            for symbol, currency in keys:
+                amount = dividends.get((symbol, currency), Decimal(0))
+                tax = round_decimal(
+                    -dividends_tax.get((symbol, currency), Decimal(0)), 2
                 )
+                tax_str = f", excluding {tax} taxed at source" if tax > 0 else ""
                 print(
                     f"{bul}{symbol}: {round_decimal(amount, 2)}{tax_str} ({currency})"
                 )
