@@ -6,6 +6,12 @@ updates:
       interval: weekly
     labels:
       - "dependencies"
+  - package-ecosystem: pre-commit
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - "dependencies"
   - package-ecosystem: github-actions
     directories:
       # Workflows in .github/workflows
