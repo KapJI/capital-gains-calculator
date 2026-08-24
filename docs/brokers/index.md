@@ -8,7 +8,7 @@ export instructions.
 | --------------------------------------------- | -------------------------------------- | ----------------------------------- |
 | [Charles Schwab](schwab.md)                   | `--schwab-file`, `--schwab-award-file` | Equity awards supported             |
 | [Freetrade](freetrade.md)                     | `--freetrade-file`                     | Activity CSV export                 |
-| [Hargreaves Lansdown](hargreaves-lansdown.md) | `--hl-dir`                             | CSVs plus contract-note PDFs        |
+| [Hargreaves Lansdown](hargreaves-lansdown.md) | `--hl-dir`                             | Tax Centre CSVs plus contract notes |
 | [Interactive Brokers](interactive-brokers.md) | `--interactive-brokers-file`           | Transaction history CSV             |
 | [Morgan Stanley](morgan-stanley.md)           | `--mssb-dir`                           | Alphabet equity-award report folder |
 | [Sharesight](sharesight.md)                   | `--sharesight-dir`                     | Multi-broker portfolio tracker      |

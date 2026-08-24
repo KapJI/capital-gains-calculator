@@ -139,6 +139,7 @@ Sharesight's
 Shareworks
 shfmt
 shtab
+SIPP
 SOLV
 SpinOff
 SpinOffs
