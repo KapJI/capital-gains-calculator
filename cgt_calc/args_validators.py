@@ -6,12 +6,16 @@ import argparse
 import datetime
 import logging
 from pathlib import Path
-from typing import override
+from typing import TYPE_CHECKING, override
 
 from .const import INTERNAL_START_DATE
 from .version import get_version
 
 STDIN_PATH = Path("-")
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from typing import Any
 
 LOGGER = logging.getLogger(__name__)
 
@@ -133,11 +137,11 @@ class DeprecatedAction(argparse.Action):
     """Print warning when deprecated argument is used."""
 
     @override
-    def __call__(
+    def __call__(  # type: ignore[explicit-any]
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        values: object,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         """Check if argument is deprecated."""
@@ -173,11 +177,11 @@ class VersionAction(argparse.Action):
     """
 
     @override
-    def __call__(
+    def __call__(  # type: ignore[explicit-any]
         self,
         parser: argparse.ArgumentParser,
         namespace: argparse.Namespace,
-        values: object,
+        values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
         """Print the version and exit."""
