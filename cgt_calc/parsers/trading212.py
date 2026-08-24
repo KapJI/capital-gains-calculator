@@ -429,9 +429,11 @@ class Trading212Parser(BaseDirParser):
 
     @staticmethod
     def _by_date_and_action(
-        transaction: Trading212Transaction,
+        transaction: BrokerTransaction,
     ) -> tuple[datetime, bool]:
         """Sort by date and action type."""
+
+        assert isinstance(transaction, Trading212Transaction)
 
         # If there's a deposit in the same second as a buy
         # (happens with the referral award at least)
@@ -445,5 +447,5 @@ class Trading212Parser(BaseDirParser):
     ) -> list[BrokerTransaction]:
         """Remove duplicates and sort."""
         transactions = list(set(transactions))
-        transactions.sort(key=cls._by_date_and_action)  # type: ignore[arg-type]
+        transactions.sort(key=cls._by_date_and_action)
         return transactions

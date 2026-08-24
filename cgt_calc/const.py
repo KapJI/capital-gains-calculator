@@ -117,6 +117,7 @@ RENAME_DESCRIPTION_PREFIX: Final = "renamed from "
 # Resource files
 # =============================================================================
 
+assert __package__ is not None
 PACKAGE_NAME: Final = __package__
 
 # LaTeX template for calculations report

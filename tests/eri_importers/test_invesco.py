@@ -31,7 +31,7 @@ from tests.eri_importers.helpers import check_transaction
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pdfplumber
+    from pdfplumber.page import Page
 
     from cgt_calc.parsers.eri.model import ERITransaction
 
@@ -366,7 +366,7 @@ class _HeaderlessPage:
 
 def test_empty_extracted_header_fails_loudly(tmp_path: Path) -> None:
     """A detected table that extracts to nothing is reported, not indexed."""
-    page = cast("pdfplumber.page.Page", _HeaderlessPage())
+    page = cast("Page", _HeaderlessPage())
 
     with pytest.raises(ParsingError, match="Table header is empty on page 1"):
         InvescoImporter._extract_header(  # noqa: SLF001
