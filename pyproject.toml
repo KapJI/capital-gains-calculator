@@ -8,10 +8,10 @@ version = "0.0.0"
 description = "Calculate UK capital gains from broker exports — supports Charles Schwab, Freetrade, Hargreaves Lansdown, Interactive Brokers, Morgan Stanley, Sharesight, Trading 212, Vanguard and a custom RAW format."
 authors = [{ name = "Ruslan Sayfutdinov", email = "ruslan@sayfutdinov.com" }]
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 classifiers = [
   "Development Status :: 4 - Beta",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
