@@ -38,7 +38,9 @@ def _dividend_lines(
     """Run the report and return the printed dividend lines."""
     _calculator().first_pass_report({}, dividends, dividends_tax, {}, {})
     lines = capsys.readouterr().out.splitlines()
-    header = next(i for i, line in enumerate(lines) if "Dividends" in line)
+    header = next((i for i, line in enumerate(lines) if "Dividends" in line), None)
+    if header is None:
+        return []
     section = lines[header + 1 :]
     return section[: section.index("")] if "" in section else section
 
@@ -68,3 +70,20 @@ def test_sub_half_penny_withholding_is_not_reported(
     lines = _dividend_lines(capsys, dividends, dividends_tax)
 
     assert lines == ["  NDAQ: 1.10 (GBP)"]
+
+
+@pytest.mark.parametrize(
+    "tax",
+    [
+        pytest.param(Decimal("-0.004"), id="rounds-to-zero"),
+        pytest.param(Decimal("0.30"), id="net-refund"),
+        pytest.param(Decimal(0), id="zero"),
+    ],
+)
+def test_undisplayable_tax_without_dividend_prints_no_section(
+    capsys: pytest.CaptureFixture[str], tax: Decimal
+) -> None:
+    """A tax-only entry with nothing to show prints no dividend section."""
+    lines = _dividend_lines(capsys, {}, {("AAPL", GBP): tax})
+
+    assert lines == []
