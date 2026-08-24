@@ -342,7 +342,7 @@ class CapitalGainsCalculator:
 
         gbp_amount = self.currency_converter.to_gbp_for(amount, transaction)
         if transaction.action is ActionType.SPIN_OFF:
-            self.spin_off_estimates[(transaction.date, symbol)] += gbp_amount
+            self.spin_off_estimates[transaction.date, symbol] += gbp_amount
         add_to_list(
             self.acquisition_list,
             transaction.date,
@@ -754,11 +754,11 @@ class CapitalGainsCalculator:
             (transaction.date, transaction.symbol, transaction.quantity)
             for transaction in transactions
             if transaction.action
-            in (
+            in {
                 ActionType.TRANSFER_TO_SPOUSE,
                 ActionType.GIFT,
                 ActionType.GIFT_UNCONNECTED,
-            )
+            }
         )
         # Gifts of one symbol on one day all draw on the same rows, and a gift
         # printed before a split can state either of two counts, so which row
@@ -776,13 +776,13 @@ class CapitalGainsCalculator:
             readings = [quantity]
             if transaction.ambiguous_quantity is not None:
                 readings.append(transaction.ambiguous_quantity)
-            groups[(transaction.date, transaction.symbol)].append((index, readings))
+            groups[transaction.date, transaction.symbol].append((index, readings))
 
         settled: set[int] = set()
         for (day, symbol), gifts in groups.items():
             available = Counter(
                 {
-                    reading: classified[(day, symbol, reading)]
+                    reading: classified[day, symbol, reading]
                     for _, readings in gifts
                     for reading in readings
                 }
@@ -985,7 +985,7 @@ class CapitalGainsCalculator:
         # The parser derived the price without the foreign fees; re-derive it
         # so that amount, price and fees stay mutually consistent.
         if (
-            transaction.action in [ActionType.BUY, ActionType.SELL]
+            transaction.action in {ActionType.BUY, ActionType.SELL}
             and transaction.quantity
             and transaction.amount is not None
         ):
@@ -1021,31 +1021,31 @@ class CapitalGainsCalculator:
                     Decimal(0)
                 )  # dummy value, this will get filtered out
                 continue
-            new_balance = balance[(transaction.broker, transaction.currency)]
+            new_balance = balance[transaction.broker, transaction.currency]
             if transaction.action is ActionType.TRANSFER:
                 new_balance += get_amount_or_fail(transaction)
-            elif transaction.action in [
+            elif transaction.action in {
                 ActionType.BUY,
                 ActionType.REINVEST_SHARES,
-            ]:
+            }:
                 new_balance += get_amount_or_fail(transaction)
                 self.add_acquisition(transaction)
-            elif transaction.action in [
+            elif transaction.action in {
                 ActionType.SELL,
                 ActionType.CASH_MERGER,
                 ActionType.FULL_REDEMPTION,
-            ]:
+            }:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 self.add_disposal(transaction)
             elif transaction.action is ActionType.FEE:
                 new_balance += self.add_management_fee(transaction)
-            elif transaction.action in [
+            elif transaction.action in {
                 ActionType.STOCK_ACTIVITY,
                 ActionType.SPIN_OFF,
                 # Shares arriving from a spouse: a cost, but no cash paid.
                 ActionType.TRANSFER_FROM_SPOUSE,
-            ]:
+            }:
                 self.add_acquisition(transaction)
             elif transaction.action == ActionType.STOCK_SPLIT:
                 # Calculate the multiplier based on portfolio and received shares
@@ -1053,29 +1053,29 @@ class CapitalGainsCalculator:
                 symbol = get_symbol_or_fail(transaction)
                 holding_quantity = self.portfolio[symbol].quantity
                 multiplier = (acquired_quantity + holding_quantity) / holding_quantity
-                self.split_list[(symbol, transaction.date)] = multiplier
-                self.split_shares[(symbol, transaction.date)] += acquired_quantity
+                self.split_list[symbol, transaction.date] = multiplier
+                self.split_shares[symbol, transaction.date] += acquired_quantity
                 self.add_acquisition(transaction)
-            elif transaction.action in [ActionType.DIVIDEND, ActionType.CAPITAL_GAIN]:
+            elif transaction.action in {ActionType.DIVIDEND, ActionType.CAPITAL_GAIN}:
                 amount = get_amount_or_fail(transaction)
                 symbol = get_symbol_or_fail(transaction)
                 currency = transaction.currency
                 new_balance += amount
-                self.dividend_list[(symbol, transaction.date)] += ForeignCurrencyAmount(
+                self.dividend_list[symbol, transaction.date] += ForeignCurrencyAmount(
                     amount, currency
                 )
                 if self.date_in_tax_year(transaction.date):
-                    dividends[(symbol, currency)] += amount
+                    dividends[symbol, currency] += amount
             elif transaction.action is ActionType.DIVIDEND_TAX:
                 amount = get_amount_or_fail(transaction)
                 symbol = get_symbol_or_fail(transaction)
                 currency = transaction.currency
                 new_balance += amount
-                self.dividend_tax_list[(symbol, transaction.date)] += (
+                self.dividend_tax_list[symbol, transaction.date] += (
                     ForeignCurrencyAmount(amount, currency)
                 )
                 if self.date_in_tax_year(transaction.date):
-                    dividends_tax[(symbol, currency)] += amount
+                    dividends_tax[symbol, currency] += amount
             elif transaction.action is ActionType.ADJUSTMENT:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
@@ -1083,28 +1083,28 @@ class CapitalGainsCalculator:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 self.interest_list[
-                    (transaction.broker, transaction.currency, transaction.date)
+                    transaction.broker, transaction.currency, transaction.date
                 ] += ForeignCurrencyAmount(amount, transaction.currency)
                 if self.date_in_tax_year(transaction.date):
-                    interests[(transaction.broker, transaction.currency)] += amount
+                    interests[transaction.broker, transaction.currency] += amount
             elif transaction.action is ActionType.INTEREST_TAX:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 self.interest_tax_list[
-                    (transaction.broker, transaction.currency, transaction.date)
+                    transaction.broker, transaction.currency, transaction.date
                 ] += ForeignCurrencyAmount(amount, transaction.currency)
                 if self.date_in_tax_year(transaction.date):
-                    interest_taxes[(transaction.broker, transaction.currency)] += amount
+                    interest_taxes[transaction.broker, transaction.currency] += amount
             elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
             elif transaction.action is ActionType.RENAME:
                 self.add_rename(transaction)
-            elif transaction.action in [
+            elif transaction.action in {
                 ActionType.TRANSFER_TO_SPOUSE,
                 ActionType.GIFT,
                 ActionType.GIFT_UNCONNECTED,
-            ]:
+            }:
                 # Shares leave for no money, so the balance is left alone. A fee
                 # on the row is real money, but these rows are written by hand
                 # in a RAW file, which is its own unfunded "Unknown" ledger, so
@@ -1144,7 +1144,7 @@ class CapitalGainsCalculator:
                 msg += "\n".join(entries) + "\n"
                 msg += "Tip: If your input file is missing deposits/withdrawals use --no-balance-check."
                 raise CalculationError(msg)
-            balance[(transaction.broker, transaction.currency)] = new_balance
+            balance[transaction.broker, transaction.currency] = new_balance
 
         self.first_pass_report(
             balance,
@@ -1183,7 +1183,7 @@ class CapitalGainsCalculator:
             print()
             print(style_text("Dividends", colour=Style.BRIGHT, emoji="💵"))
             for (symbol, currency), amount in dividends.items():
-                tax = dividends_tax[(symbol, currency)]
+                tax = dividends_tax[symbol, currency]
                 tax_str = (
                     f", excluding {round_decimal(-tax, 2)} taxed at source"
                     if tax < 0
@@ -2087,10 +2087,10 @@ class CapitalGainsCalculator:
                 and currency == last_currency
                 and (date.year, date.month) == (last_date.year, last_date.month)
             ):
-                monthly[(broker, currency, date)] = monthly.pop(
+                monthly[broker, currency, date] = monthly.pop(
                     (broker, currency, last_date)
                 )
-            monthly[(broker, currency, date)] += foreign_amount
+            monthly[broker, currency, date] += foreign_amount
             last_date = date
             last_broker = broker
             last_currency = currency
@@ -2174,7 +2174,7 @@ class CapitalGainsCalculator:
             if not self.date_in_tax_year(date):
                 continue
 
-            tax = self.dividend_tax_list[(symbol, date)]
+            tax = self.dividend_tax_list[symbol, date]
             currency = foreign_amount.currency
             assert currency is not None, f"Dividend for {symbol} has no currency"
 

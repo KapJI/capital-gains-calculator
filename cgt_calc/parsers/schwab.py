@@ -91,13 +91,13 @@ class AwardPrices:
 
 def action_from_str(label: str, file: Path) -> ActionType:
     """Convert string label to ActionType."""
-    if label in ["Buy", "Cancel Buy"]:
+    if label in {"Buy", "Cancel Buy"}:
         return ActionType.BUY
 
     if label == "Sell":
         return ActionType.SELL
 
-    if label in [
+    if label in {
         "MoneyLink Transfer",
         "Misc Cash Entry",
         "Service Fee",
@@ -110,38 +110,38 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "MoneyLink Deposit",
         "MoneyLink Adj",  # likely a returned transfer
         "Security Transfer",
-    ]:
+    }:
         return ActionType.TRANSFER
 
     if label == "Stock Plan Activity":
         return ActionType.STOCK_ACTIVITY
 
-    if label in [
+    if label in {
         "Qualified Dividend",
         "Cash Dividend",
         "Qual Div Reinvest",
         "Div Adjustment",
         "Special Qual Div",
         "Non-Qualified Div",
-    ]:
+    }:
         return ActionType.DIVIDEND
 
-    if label in ["NRA Tax Adj", "NRA Withholding", "Foreign Tax Paid"]:
+    if label in {"NRA Tax Adj", "NRA Withholding", "Foreign Tax Paid"}:
         return ActionType.DIVIDEND_TAX
 
     if label == "ADR Mgmt Fee":
         return ActionType.FEE
 
-    if label in ["Adjustment", "IRS Withhold Adj", "Wire Funds Adj"]:
+    if label in {"Adjustment", "IRS Withhold Adj", "Wire Funds Adj"}:
         return ActionType.ADJUSTMENT
 
-    if label in ["Short Term Cap Gain", "Long Term Cap Gain"]:
+    if label in {"Short Term Cap Gain", "Long Term Cap Gain"}:
         return ActionType.CAPITAL_GAIN
 
     if label == "Spin-off":
         return ActionType.SPIN_OFF
 
-    if label in ["Credit Interest", "Bond Interest"]:
+    if label in {"Credit Interest", "Bond Interest"}:
         return ActionType.INTEREST
 
     if label == "Reinvest Shares":
@@ -156,10 +156,10 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label == "Stock Split":
         return ActionType.STOCK_SPLIT
 
-    if label in ["Cash Merger", "Cash Merger Adj"]:
+    if label in {"Cash Merger", "Cash Merger Adj"}:
         return ActionType.CASH_MERGER
 
-    if label in ["Full Redemption", "Full Redemption Adj"]:
+    if label in {"Full Redemption", "Full Redemption Adj"}:
         return ActionType.FULL_REDEMPTION
 
     raise ParsingError(file, f"Unknown action: '{label}'")
