@@ -91,7 +91,7 @@ def test_run_with_schwab_example_2023_files(request: pytest.FixtureRequest) -> N
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     if result.returncode:
         pytest.fail(
             "Integration test failed\n"
@@ -100,7 +100,7 @@ def test_run_with_schwab_example_2023_files(request: pytest.FixtureRequest) -> N
         )
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "schwab" / "data" / "2023" / "expected_output.txt"
-    expected = expected_file.read_text()
+    expected = expected_file.read_text(encoding="utf-8")
     cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
@@ -119,7 +119,7 @@ def test_run_with_schwab_cash_merger_files(request: pytest.FixtureRequest) -> No
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     if result.returncode:
         pytest.fail(
             "Integration test failed\n"
@@ -133,7 +133,7 @@ def test_run_with_schwab_cash_merger_files(request: pytest.FixtureRequest) -> No
     expected_file = (
         Path("tests") / "schwab" / "data" / "cash_merger" / "expected_output.txt"
     )
-    expected = expected_file.read_text()
+    expected = expected_file.read_text(encoding="utf-8")
     cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
@@ -154,7 +154,7 @@ def test_run_with_schwab_rsu_settlement_files(request: pytest.FixtureRequest) ->
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     if result.returncode:
         pytest.fail(
             "Integration test failed\n"
@@ -165,7 +165,7 @@ def test_run_with_schwab_rsu_settlement_files(request: pytest.FixtureRequest) ->
     expected_file = (
         Path("tests") / "schwab" / "data" / "rsu_settlement" / "expected_output.txt"
     )
-    expected = expected_file.read_text()
+    expected = expected_file.read_text(encoding="utf-8")
     cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
@@ -184,7 +184,7 @@ def test_run_with_schwab_bond_interest_files(request: pytest.FixtureRequest) -> 
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     if result.returncode:
         pytest.fail(
             "Integration test failed\n"
@@ -195,7 +195,7 @@ def test_run_with_schwab_bond_interest_files(request: pytest.FixtureRequest) -> 
     expected_file = (
         Path("tests") / "schwab" / "data" / "bond_interest" / "expected_output.txt"
     )
-    expected = expected_file.read_text()
+    expected = expected_file.read_text(encoding="utf-8")
     cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "
@@ -214,7 +214,7 @@ def test_run_with_schwab_interest_tax_files(request: pytest.FixtureRequest) -> N
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     if result.returncode:
         pytest.fail(
             "Integration test failed\n"
@@ -225,7 +225,7 @@ def test_run_with_schwab_interest_tax_files(request: pytest.FixtureRequest) -> N
     expected_file = (
         Path("tests") / "schwab" / "data" / "interest_tax" / "expected_output.txt"
     )
-    expected = expected_file.read_text()
+    expected = expected_file.read_text(encoding="utf-8")
     cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "

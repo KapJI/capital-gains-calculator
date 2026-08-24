@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import io
 import logging
 import os
 from pathlib import Path
@@ -168,6 +169,9 @@ def parsing_msg(file: str | Path | Traversable) -> None:
     # Strip package root
     package_root = f"{Path(__file__).resolve().parent.parent}{os.path.sep}"
     file = str(file).removeprefix(package_root)
+    # Forward slashes on every platform: the progress narrative is a
+    # contract, and Windows would otherwise print backslashes here.
+    file = file.replace(os.path.sep, "/")
     LOGGER.info(
         style_text(f"Parsing {file}...", colour=colorama.Fore.CYAN, stream=sys.stderr)
     )
@@ -178,8 +182,21 @@ def bullet(stream: TextIO) -> str:
     return "    • " if get_ui().supports_emoji(stream) else "  "
 
 
+def force_utf8_stdio() -> None:
+    """Emit UTF-8 regardless of the platform's locale.
+
+    Windows encodes piped output with the legacy code page by default,
+    which cannot hold every character the reports use.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8")
+
+
 def setup_logging() -> None:
     """Configure the root logger with coloured output."""
+
+    force_utf8_stdio()
 
     # Enable ANSI pass-through on Windows (harmless on other platforms)
     colorama.just_fix_windows_console()

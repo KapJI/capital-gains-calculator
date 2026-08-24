@@ -356,7 +356,7 @@ def test_write_exchange_rates_file(tmp_path: Path) -> None:
         },
     )
 
-    assert rates_file.read_text() == (
+    assert rates_file.read_text(encoding="utf-8") == (
         "month,currency,rate\n2024-01-01,EUR,1.10\n2024-01-01,USD,1.25\n"
     )
 
@@ -428,13 +428,13 @@ def test_test_converter_records_new_rates(tmp_path: Path) -> None:
     converter._query_hmrc_api = fake_query  # type: ignore[method-assign]  # noqa: SLF001
 
     assert converter.currency_to_gbp_rate(CurrencyCode("USD"), DATE) == Decimal("1.25")
-    assert "2024-01-01,USD,1.25" in rates_file.read_text()
+    assert "2024-01-01,USD,1.25" in rates_file.read_text(encoding="utf-8")
 
     # Appending the same rate again is a no-op.
     RecordingCurrencyConverter._append_exchange_rates_file(  # noqa: SLF001
         rates_file, DATE, CurrencyCode("USD"), Decimal("1.25")
     )
-    assert rates_file.read_text().count("USD") == 1
+    assert rates_file.read_text(encoding="utf-8").count("USD") == 1
 
 
 def test_strict_converter_refuses_to_fetch() -> None:

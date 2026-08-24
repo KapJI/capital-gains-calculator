@@ -158,7 +158,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "--output",
             report_path(request),
         )
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
         if result.returncode:
             pytest.fail(
                 "Integration test failed\n"
@@ -169,7 +169,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         expected_file = (
             Path("tests") / "interactive_brokers" / "data" / "expected_output.txt"
         )
-        expected = expected_file.read_text()
+        expected = expected_file.read_text(encoding="utf-8")
         cmd_str = " ".join([param or "''" for param in cmd])
         assert result.stdout == expected, (
             "Run with example files generated unexpected outputs, "
@@ -257,7 +257,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "--output",
             str(tmp_path / "out"),
         )
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
         if result.returncode:
             pytest.fail(
                 "Integration test failed\n"
@@ -294,7 +294,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "--output",
             str(tmp_path / "out"),
         )
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
         if result.returncode:
             pytest.fail(
                 "Integration test failed\n"

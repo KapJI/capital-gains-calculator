@@ -41,12 +41,20 @@ jobs:
           uvx prek run --hook-stage manual python-typing-update --all-files --show-diff-on-failure --color=always
 
   tests:
-    name: Tests (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    name: Tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.12", "3.13", "3.14"]
+        include:
+          # One job per extra OS is enough: platform breakage is about
+          # OS APIs and encodings, not the Python minor version.
+          - os: macos-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.12"
     env:
       UV_PYTHON: ${{ matrix.python-version }}
     steps:
@@ -71,7 +79,7 @@ jobs:
         uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
-          flags: python-${{ matrix.python-version }}
+          flags: python-${{ matrix.python-version }}-${{ matrix.os }}
           token: ${{ secrets.CODECOV_TOKEN }}
           # Don't fail CI on upload issues: merge protection comes
           # from the codecov/project status check, not this step.
@@ -84,7 +92,7 @@ jobs:
         with:
           report_type: test_results
           files: junit.xml
-          flags: python-${{ matrix.python-version }}
+          flags: python-${{ matrix.python-version }}-${{ matrix.os }}
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 

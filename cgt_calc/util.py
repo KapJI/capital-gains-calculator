@@ -1,8 +1,11 @@
 """Utility functions."""
 
+from collections.abc import Generator
+from contextlib import contextmanager
 import decimal
 from decimal import Decimal
 from pathlib import Path
+import sys
 from typing import TextIO
 
 
@@ -82,6 +85,38 @@ def approx_equal(
 
 
 def open_with_parents(path: Path, *, clear_content: bool = True) -> TextIO:
-    """Open a file for writing, creating parent directories if they do not exist."""
+    """Open a file for writing, creating parent directories if they do not exist.
+
+    Newline translation is disabled because every caller writes CSV:
+    csv.writer emits its own CRLF terminators, which translation would
+    double into CR CR LF on Windows.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    return path.open("w" if clear_content else "r+", encoding="utf8")
+    return path.open("w" if clear_content else "r+", encoding="utf8", newline="")
+
+
+if sys.platform == "win32":
+    import msvcrt
+
+    @contextmanager
+    def exclusive_lock(file: TextIO) -> Generator[None]:
+        """Hold an exclusive advisory lock on the whole open file."""
+        file.seek(0)
+        msvcrt.locking(file.fileno(), msvcrt.LK_LOCK, 1)
+        try:
+            yield
+        finally:
+            file.seek(0)
+            msvcrt.locking(file.fileno(), msvcrt.LK_UNLCK, 1)
+
+else:
+    import fcntl
+
+    @contextmanager
+    def exclusive_lock(file: TextIO) -> Generator[None]:
+        """Hold an exclusive advisory lock on the whole open file."""
+        fcntl.flock(file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(file.fileno(), fcntl.LOCK_UN)

@@ -153,7 +153,7 @@ def test_run_with_freetrade_file(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     if result.returncode:
         pytest.fail(
             "Integration test failed\n"
@@ -162,7 +162,7 @@ def test_run_with_freetrade_file(request: pytest.FixtureRequest) -> None:
         )
     assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
     expected_file = Path("tests") / "freetrade" / "data" / "expected_output.txt"
-    expected = expected_file.read_text()
+    expected = expected_file.read_text(encoding="utf-8")
     cmd_str = " ".join([param or "''" for param in cmd])
     assert result.stdout == expected, (
         "Run with example files generated unexpected outputs, "

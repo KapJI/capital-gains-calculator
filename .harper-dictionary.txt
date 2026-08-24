@@ -36,6 +36,7 @@ CG52742
 CG59562
 cgt
 CMF5
+CRLF
 codepage
 codespell
 colorama
@@ -79,6 +80,7 @@ ISIN
 IsinConverter
 ISINs
 Lansdown
+LF
 len
 LSE
 Luhn

@@ -243,7 +243,9 @@ def test_translation_file_roundtrip(
     converter = IsinConverter(isin_translation_file=translation_file)
     converter.add_from_transaction(_transaction(ISIN_A, "FOO"))
 
-    assert translation_file.read_text() == f"ISIN,symbol\n{ISIN_A},FOO\n"
+    assert (
+        translation_file.read_text(encoding="utf-8") == f"ISIN,symbol\n{ISIN_A},FOO\n"
+    )
 
     restored = IsinConverter(isin_translation_file=translation_file)
     assert restored.get_symbols(ISIN_A) == {"FOO"}

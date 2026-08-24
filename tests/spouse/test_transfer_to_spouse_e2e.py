@@ -29,7 +29,7 @@ def _run(name: str, request: pytest.FixtureRequest) -> subprocess.CompletedProce
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     if result.returncode:
         pytest.fail(
             f"{name} run failed\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
@@ -37,7 +37,7 @@ def _run(name: str, request: pytest.FixtureRequest) -> subprocess.CompletedProce
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = DATA / f"expected_output_{name}.txt"
     cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected_file.read_text(), (
+    assert result.stdout == expected_file.read_text(encoding="utf-8"), (
         f"The {name} report changed; if that is intended, update it with:\n"
         f"{cmd_str} > {expected_file}"
     )

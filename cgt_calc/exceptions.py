@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from .util import strip_zeros
