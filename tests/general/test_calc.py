@@ -77,9 +77,13 @@ def create_calculator(
     """Create a calculator with standard test configuration.
 
     Mirrors the command line: the tax year has to be given, by name, and
-    the balance check is on unless a test turns it off.
+    the balance check is on unless a test turns it off. The converter
+    comes from the factory so it follows the runtime mode, sharing the
+    recorded rates file with the command-line runs: a missing rate is
+    fetched and recorded under plain pytest and refused, with a message
+    saying how to record it, under the strict pre-commit and CI runs.
     """
-    currency_converter = CurrencyConverter(None, {})
+    currency_converter = CurrencyConverter.create(Path("tests/exchange_rates_data.csv"))
     price_fetcher = CurrentPriceFetcher(currency_converter, {}, {})
     return CapitalGainsCalculator(
         tax_year,
