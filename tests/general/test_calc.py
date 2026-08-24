@@ -15,7 +15,12 @@ import pytest
 from cgt_calc.const import BALANCE_CHECK_CONTEXT_ROWS, RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
-from cgt_calc.exceptions import CalculationError, InvalidTransactionError
+from cgt_calc.exceptions import (
+    CalculationError,
+    InvalidTransactionError,
+    IsinMissingError,
+    PriceMissingError,
+)
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator, main
@@ -259,6 +264,121 @@ def test_eri_conflicting_report_raises_invalid_transaction_error() -> None:
 
     with pytest.raises(InvalidTransactionError, match="conflicting ERI report"):
         calculator.convert_to_hmrc_transactions(transactions)
+
+
+@pytest.mark.parametrize(
+    ("isin", "price", "error"),
+    [
+        (None, Decimal(1), IsinMissingError),
+        (ERI_ISIN, None, PriceMissingError),
+        (ERI_ISIN, Decimal(-1), InvalidTransactionError),
+        (ERI_ISIN, Decimal("NaN"), InvalidTransactionError),
+    ],
+)
+def test_eri_missing_required_data_has_a_transaction_error(
+    isin: Isin | None,
+    price: Decimal | None,
+    error: type[InvalidTransactionError],
+) -> None:
+    """Malformed ERI input identifies the transaction instead of asserting."""
+    transaction = BrokerTransaction(
+        date=datetime.date(2024, 6, 30),
+        action=ActionType.EXCESS_REPORTED_INCOME,
+        symbol=None,
+        description="",
+        quantity=None,
+        price=price,
+        fees=Decimal(0),
+        amount=None,
+        currency=CurrencyCode("GBP"),
+        broker="ERI input",
+        isin=isin,
+    )
+
+    with pytest.raises(error):
+        create_calculator(
+            tax_year=2024, balance_check=False
+        ).convert_to_hmrc_transactions([transaction])
+
+
+def test_dividend_and_tax_currency_mismatch_has_a_calculation_error() -> None:
+    """Inconsistent income rows produce a user-facing data error."""
+    day = datetime.date(2024, 6, 3)
+    transactions = [
+        BrokerTransaction(
+            date=day,
+            action=action,
+            symbol="FOO",
+            description="dividend",
+            quantity=None,
+            price=None,
+            fees=Decimal(0),
+            amount=amount,
+            currency=currency,
+            broker="Test",
+        )
+        for action, amount, currency in [
+            (ActionType.DIVIDEND, Decimal(100), CurrencyCode("USD")),
+            (ActionType.DIVIDEND_TAX, Decimal(-15), CurrencyCode("GBP")),
+        ]
+    ]
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.convert_to_hmrc_transactions(transactions)
+
+    with pytest.raises(CalculationError, match="currencies do not match"):
+        calculator.calculate_capital_gain()
+
+
+@pytest.mark.parametrize(
+    ("amount", "error_match"),
+    [
+        (Decimal(1), "must not be positive"),
+        (Decimal("NaN"), "must be a finite number"),
+        (Decimal("Infinity"), "must be a finite number"),
+        (Decimal("-Infinity"), "must be a finite number"),
+    ],
+)
+def test_invalid_management_fee_has_a_transaction_error(
+    amount: Decimal, error_match: str
+) -> None:
+    """A fee that would corrupt pooled cost is rejected before an invariant fires."""
+    fee = BrokerTransaction(
+        date=datetime.date(2024, 6, 3),
+        action=ActionType.FEE,
+        symbol="FOO",
+        description="management fee",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=amount,
+        currency=CurrencyCode("GBP"),
+        broker="Test",
+    )
+
+    with pytest.raises(InvalidTransactionError, match=error_match):
+        create_calculator(
+            tax_year=2024, balance_check=False
+        ).convert_to_hmrc_transactions([fee])
+
+
+def test_zero_management_fee_is_accepted() -> None:
+    """A zero fee leaves pooled cost unchanged and remains valid input."""
+    fee = BrokerTransaction(
+        date=datetime.date(2024, 6, 3),
+        action=ActionType.FEE,
+        symbol="FOO",
+        description="management fee",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(0),
+        currency=CurrencyCode("GBP"),
+        broker="Test",
+    )
+
+    create_calculator(tax_year=2024, balance_check=False).convert_to_hmrc_transactions(
+        [fee]
+    )
 
 
 @pytest.mark.parametrize(
@@ -726,6 +846,18 @@ def test_rename_transfers_pool_to_new_ticker() -> None:
     assert entry.new_pool_cost == Decimal(1000)
 
 
+@pytest.mark.parametrize("description", ["", RENAME_DESCRIPTION_PREFIX])
+def test_rename_without_old_symbol_has_a_transaction_error(description: str) -> None:
+    """A rename row that cannot name its source is invalid input."""
+    transaction = _rename_transaction(datetime.date(2024, 5, 10), "OLD", "NEW")
+    transaction.description = description
+
+    with pytest.raises(InvalidTransactionError, match="old symbol"):
+        create_calculator(
+            tax_year=2024, balance_check=False
+        ).convert_to_hmrc_transactions([transaction])
+
+
 def test_section_104_disposal_uses_renamed_pool_cost() -> None:
     """After a rename, S104 disposal under NEW uses the pool cost carried from OLD."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
@@ -1181,6 +1313,30 @@ def test_report_labels_full_tax_year() -> None:
 
     assert report.title_period == "2024-25"
     assert "Tax summary for 2024/2025" in str(report)
+
+
+def test_taxable_gain_requires_an_allowance() -> None:
+    """Taxable gain cannot be derived when the tax-year allowance is unknown."""
+    report = CapitalGainsReport(
+        2024,
+        [],
+        0,
+        Decimal(0),
+        Decimal(0),
+        Decimal(0),
+        Decimal(0),
+        None,
+        None,
+        {},
+        {},
+        Decimal(0),
+        Decimal(0),
+        Decimal(0),
+        show_unrealized_gains=False,
+    )
+
+    with pytest.raises(CalculationError, match=r"allowance.*unavailable"):
+        report.taxable_gain()
 
 
 def test_foreign_fees_folded_into_gbp_transaction() -> None:

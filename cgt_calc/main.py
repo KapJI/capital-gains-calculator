@@ -38,6 +38,7 @@ from .exceptions import (
     CalculationError,
     CgtError,
     InvalidTransactionError,
+    IsinMissingError,
     PriceMissingError,
     QuantityMissingError,
     QuantityNotPositiveError,
@@ -411,8 +412,7 @@ class CapitalGainsCalculator:
         MMM shares will be used as the acquisition date for the SOLV shares.
         """
         symbol = get_symbol_or_fail(transaction)
-        quantity = transaction.quantity
-        assert quantity is not None
+        quantity = get_quantity_or_fail(transaction)
 
         ticker = self.spin_off_handler.get_spin_off_source(
             symbol, transaction.date, self.portfolio
@@ -871,10 +871,15 @@ class CapitalGainsCalculator:
         """
         distribution_date = transaction.date + ERI_TAX_DATE_DELTA
 
-        assert transaction.isin is not None, f"{transaction} doesn't have a valid ISIN"
-        assert transaction.price is not None, (
-            f"{transaction} doesn't have a valid price"
-        )
+        if transaction.isin is None:
+            raise IsinMissingError(transaction)
+        if transaction.price is None:
+            raise PriceMissingError(transaction)
+        if not transaction.price.is_finite() or transaction.price < 0:
+            raise InvalidTransactionError(
+                transaction,
+                "Excess reported income price must be finite and non-negative",
+            )
 
         if transaction.price == Decimal(0):
             return
@@ -912,6 +917,50 @@ class CapitalGainsCalculator:
                 distribution_date=distribution_date,
                 is_interest=symbol in self.interest_fund_tickers,
             )
+
+    def add_rename(self, transaction: BrokerTransaction) -> None:
+        """Apply a ticker rename during the first calculation pass."""
+        new_symbol = get_symbol_or_fail(transaction)
+        old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
+        if (
+            not transaction.description.startswith(RENAME_DESCRIPTION_PREFIX)
+            or not old_symbol
+        ):
+            raise InvalidTransactionError(
+                transaction,
+                "Rename transaction does not identify the old symbol",
+            )
+        self.rename_list[transaction.date][old_symbol] = new_symbol
+        self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
+
+    def add_management_fee(self, transaction: BrokerTransaction) -> Decimal:
+        """Record a fee that increases the holding's pooled cost."""
+        amount = get_amount_or_fail(transaction)
+        if not amount.is_finite():
+            raise InvalidTransactionError(
+                transaction,
+                "Fee amount must be a finite number",
+            )
+        if amount > 0:
+            raise InvalidTransactionError(
+                transaction,
+                "Fee amount must not be positive: a positive fee would reduce "
+                "the pooled cost",
+            )
+        transaction.fees = -amount
+        transaction.quantity = Decimal(0)
+        gbp_fees = self.currency_converter.to_gbp_for(transaction.fees, transaction)
+        symbol = get_symbol_or_fail(transaction)
+        self.fee_days.add((transaction.date, symbol))
+        add_to_list(
+            self.acquisition_list,
+            transaction.date,
+            symbol,
+            transaction.quantity,
+            gbp_fees,
+            gbp_fees,
+        )
+        return amount
 
     def _convert_foreign_fees(self, transaction: BrokerTransaction) -> None:
         """Fold fees paid in other currencies into the transaction's fees.
@@ -990,23 +1039,7 @@ class CapitalGainsCalculator:
                 new_balance += amount
                 self.add_disposal(transaction)
             elif transaction.action is ActionType.FEE:
-                amount = get_amount_or_fail(transaction)
-                new_balance += amount
-                transaction.fees = -amount
-                transaction.quantity = Decimal(0)
-                gbp_fees = self.currency_converter.to_gbp_for(
-                    transaction.fees, transaction
-                )
-                symbol = get_symbol_or_fail(transaction)
-                self.fee_days.add((transaction.date, symbol))
-                add_to_list(
-                    self.acquisition_list,
-                    transaction.date,
-                    symbol,
-                    transaction.quantity,
-                    gbp_fees,
-                    gbp_fees,
-                )
+                new_balance += self.add_management_fee(transaction)
             elif transaction.action in [
                 ActionType.STOCK_ACTIVITY,
                 ActionType.SPIN_OFF,
@@ -1066,11 +1099,7 @@ class CapitalGainsCalculator:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
             elif transaction.action is ActionType.RENAME:
-                new_symbol = get_symbol_or_fail(transaction)
-                assert transaction.description.startswith(RENAME_DESCRIPTION_PREFIX)
-                old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
-                self.rename_list[transaction.date][old_symbol] = new_symbol
-                self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
+                self.add_rename(transaction)
             elif transaction.action in [
                 ActionType.TRANSFER_TO_SPOUSE,
                 ActionType.GIFT,
@@ -2157,10 +2186,12 @@ class CapitalGainsCalculator:
                         "Cannot apply taxation treaty for bond fund %s", symbol
                     )
                 else:
-                    assert tax.currency == foreign_amount.currency, (
-                        f"Not matching currency for dividend {foreign_amount.currency} "
-                        f"and its tax {tax.currency}"
-                    )
+                    if tax.currency != foreign_amount.currency:
+                        raise CalculationError(
+                            f"Dividend and withholding tax currencies do not match "
+                            f"for {symbol} on {date}: dividend "
+                            f"{foreign_amount.currency}, tax {tax.currency}"
+                        )
                     country = self.dividend_source_country(symbol, currency)
                     if country is None:
                         LOGGER.warning(

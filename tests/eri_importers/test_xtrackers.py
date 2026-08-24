@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from reportlab.lib import colors
@@ -18,11 +18,14 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from cgt_calc.exceptions import ParsingError
 from cgt_calc.parsers.eri.importer.xtrackers import XtrackersImporter
 from tests.eri_importers.helpers import check_transaction
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import pdfplumber
 
     from cgt_calc.parsers.eri.model import ERITransaction
 
@@ -52,18 +55,21 @@ def _build_pdf(
     preamble: list[str],
     with_table: bool = True,
     data_rows: list[list[str]] | None = None,
+    header: list[str] | None = None,
 ) -> Path:
     """Build a PDF with preamble text lines and optionally a data table."""
     styles = getSampleStyleSheet()
     doc = SimpleDocTemplate(str(path), pagesize=PAGESIZE)
     story: list[Flowable] = [Paragraph(line, styles["Normal"]) for line in preamble]
     if with_table:
+        header = header if header is not None else HEADER
+        data_rows = data_rows if data_rows is not None else DATA_ROWS
         story.append(Spacer(1, 20))
         # The third column is wide enough for its long header to stay
         # within the cell boundaries.
-        col_widths = [180.0] * len(HEADER)
+        col_widths = [180.0] * len(header)
         col_widths[2] = 340.0
-        table = Table([HEADER, *(data_rows or DATA_ROWS)], colWidths=col_widths)
+        table = Table([header, *data_rows], colWidths=col_widths)
         table.setStyle(
             TableStyle(
                 [
@@ -165,19 +171,126 @@ def test_missing_reporting_date(tmp_path: Path) -> None:
     assert result.transactions == []
 
 
-def test_bad_data_row_fails_loudly(tmp_path: Path) -> None:
+SUMMARY_PREAMBLE = [
+    "Summary of reportable income calculations",
+    "Period ended 31 December 2024",
+]
+
+
+@pytest.mark.parametrize(
+    ("row", "error_match"),
+    [
+        (["not-an-isin", "USD", "1.23456", "Fund A", "Acc"], "Invalid ISIN"),
+        (
+            ["LU0000000009", "not-a-currency", "1.23456", "Fund A", "Acc"],
+            "Invalid currency",
+        ),
+        (["LU0000000009", "USD", "not-a-number", "Fund A", "Acc"], "Invalid amount"),
+    ],
+)
+def test_bad_data_row_fails_loudly(
+    tmp_path: Path, row: list[str], error_match: str
+) -> None:
     """Raise on rows with unparsable content instead of skipping them."""
     file = _build_pdf(
         tmp_path / "Xtrackers-Report-2024.pdf",
-        [
-            "Summary of reportable income calculations",
-            "Period ended 31 December 2024",
-        ],
-        data_rows=[["LU0000000009", "not-a-currency", "1.23456", "Fund A", "Acc"]],
+        SUMMARY_PREAMBLE,
+        data_rows=[row],
     )
 
-    with pytest.raises(AssertionError, match="Bad currency"):
+    with pytest.raises(ParsingError, match=error_match) as exc_info:
         XtrackersImporter().parse(file)
+
+    assert str(file) in str(exc_info.value)
+    assert "page 1" in str(exc_info.value)
+
+
+def test_report_without_a_table_fails_loudly(tmp_path: Path) -> None:
+    """A recognised report page with no table at all is invalid input."""
+    file = _build_pdf(
+        tmp_path / "Xtrackers-Report-2024.pdf",
+        SUMMARY_PREAMBLE,
+        with_table=False,
+    )
+
+    with pytest.raises(ParsingError, match="Could not find table headers on page 1"):
+        XtrackersImporter().parse(file)
+
+
+def test_header_only_table_fails_loudly(tmp_path: Path) -> None:
+    """A table with headers but no data rows is invalid input."""
+    file = _build_pdf(
+        tmp_path / "Xtrackers-Report-2024.pdf",
+        SUMMARY_PREAMBLE,
+        data_rows=[],
+    )
+
+    with pytest.raises(ParsingError, match="Could not extract data table on page 1"):
+        XtrackersImporter().parse(file)
+
+
+def test_duplicate_header_columns_fail_loudly(tmp_path: Path) -> None:
+    """Two columns claiming the same field make the table ambiguous."""
+    file = _build_pdf(
+        tmp_path / "Xtrackers-Report-2024.pdf",
+        SUMMARY_PREAMBLE,
+        header=[
+            "ISIN",
+            "Share class currency",
+            "Excess reported income per share",
+            "ISIN again",
+            "Sub fund",
+        ],
+        data_rows=[],
+    )
+
+    with pytest.raises(ParsingError, match=r"Multiple columns match .* on page 1"):
+        XtrackersImporter().parse(file)
+
+
+def test_missing_header_column_fails_loudly(tmp_path: Path) -> None:
+    """A table without one of the required columns is invalid input."""
+    file = _build_pdf(
+        tmp_path / "Xtrackers-Report-2024.pdf",
+        SUMMARY_PREAMBLE,
+        header=[
+            "ISIN",
+            "Currency",
+            "Excess reported income per share",
+            "Fund name",
+            "Sub fund",
+        ],
+        data_rows=[],
+    )
+
+    with pytest.raises(ParsingError, match=r"No column matching .* on page 1"):
+        XtrackersImporter().parse(file)
+
+
+class _HeaderlessTable:
+    """Table stub whose extraction yields no rows."""
+
+    @staticmethod
+    def extract() -> list[list[str]]:
+        return []
+
+
+class _HeaderlessPage:
+    """Page stub with a detectable but empty table."""
+
+    @staticmethod
+    def find_table() -> _HeaderlessTable:
+        return _HeaderlessTable()
+
+
+def test_empty_extracted_header_fails_loudly(tmp_path: Path) -> None:
+    """A detected table that extracts to nothing is reported, not indexed."""
+    page = cast("pdfplumber.page.Page", _HeaderlessPage())
+
+    with pytest.raises(ParsingError, match="Table header is empty on page 1"):
+        XtrackersImporter._extract_header(  # noqa: SLF001
+            page, tmp_path / "report.pdf", 1
+        )
 
 
 def test_unknown_content_is_not_accepted(tmp_path: Path) -> None:
