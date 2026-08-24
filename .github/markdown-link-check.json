@@ -6,7 +6,7 @@
         },
         {
             "pattern": "^https://cgt-calc\\.uk/assets/",
-            "replacement": "docs/assets/"
+            "replacement": "{{BASEURL}}/docs/assets/"
         }
     ],
     "httpHeaders": [
