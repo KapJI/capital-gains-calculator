@@ -40,6 +40,7 @@ We use:
 
 - [ruff](https://docs.astral.sh/ruff/) — for Python linting and formatting
 - [mypy](https://mypy-lang.org/) — for static type checking
+- [ty](https://docs.astral.sh/ty/) — for additional static type checking
 - [pytest](https://docs.pytest.org/) — for running tests
 - [dprint](https://dprint.dev/) — for formatting Markdown, YAML, TOML, JSON, and Dockerfiles
 - [shfmt](https://github.com/mvdan/sh#shfmt) - for formatting shell scripts
@@ -73,6 +74,13 @@ prek install
 
 This will automatically check code style, linting, and types before each commit.
 
+Type suppressions must name the diagnostic for both checkers. When both tools report the same
+intentional violation, keep their targeted comments together:
+
+```python
+value = untyped_value  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+```
+
 You can also run all checks on the repository manually:
 
 ```shell
@@ -83,6 +91,7 @@ Or you can run single hook:
 
 ```shell
 prek run mypy --all-files
+prek run ty --all-files
 prek run pytest
 prek run --hook-stage manual python-typing-update --all-files
 ```
@@ -101,7 +110,8 @@ You can also run linters and tests directly:
 uv run pytest
 uv run pytest -k <expr> -q # run subset
 uv run ruff check .
-uv run mypy cgt_calc
+uv run mypy cgt_calc tests scripts
+uv run ty check cgt_calc tests scripts
 ```
 
 ## Managing dependencies

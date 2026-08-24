@@ -66,7 +66,7 @@ def test_isin_rejects_attribute_assignment() -> None:
     """The value type carries no instance dict."""
     isin = Isin(VALID_ISIN)
     with pytest.raises(AttributeError):
-        isin.symbol = "AAPL"  # type: ignore[attr-defined]
+        isin.symbol = "AAPL"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
 
 def test_isin_parse_returns_none_for_invalid_input() -> None:
@@ -98,12 +98,12 @@ def _transaction(isin: Isin | None, currency: CurrencyCode = USD) -> BrokerTrans
 def test_broker_transaction_rejects_a_bare_invalid_isin() -> None:
     """A caller that skips the type still cannot smuggle in a bad ISIN."""
     with pytest.raises(ValueError, match="Invalid ISIN"):
-        _transaction("NOTANISIN")  # type: ignore[arg-type]
+        _transaction("NOTANISIN")  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
 
 def test_broker_transaction_coerces_a_bare_valid_isin() -> None:
     """A valid bare string is normalised into the value type."""
-    transaction = _transaction("us0378331005")  # type: ignore[arg-type]
+    transaction = _transaction("us0378331005")  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
     assert isinstance(transaction.isin, Isin)
     assert transaction.isin == VALID_ISIN
 
@@ -166,7 +166,7 @@ def test_currency_code_rejects_attribute_assignment() -> None:
     """The value type carries no instance dict."""
     code = CurrencyCode("GBP")
     with pytest.raises(AttributeError):
-        code.symbol = "£"  # type: ignore[attr-defined]
+        code.symbol = "£"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
 
 def test_currency_code_parse_returns_none_for_invalid_input() -> None:
@@ -203,12 +203,12 @@ def test_nonzero_foreign_amount_requires_a_currency() -> None:
 def test_broker_transaction_rejects_a_bare_invalid_currency() -> None:
     """A caller that skips the type still cannot smuggle in a bad currency."""
     with pytest.raises(ValueError, match="Invalid currency code"):
-        _transaction(None, currency="GBp")  # type: ignore[arg-type]
+        _transaction(None, currency="GBp")  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
 
 def test_broker_transaction_coerces_a_bare_valid_currency() -> None:
     """A valid bare string is normalised into the value type."""
-    transaction = _transaction(None, currency=" USD ")  # type: ignore[arg-type]
+    transaction = _transaction(None, currency=" USD ")  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
     assert isinstance(transaction.currency, CurrencyCode)
     assert transaction.currency == "USD"
 
@@ -229,12 +229,12 @@ def _transaction_with_fees(
 def test_broker_transaction_rejects_a_bare_invalid_foreign_fee_currency() -> None:
     """Foreign fee keys are held to the same rule as the transaction currency."""
     with pytest.raises(ValueError, match="Invalid currency code"):
-        _transaction_with_fees({"GBp": Decimal(1)})  # type: ignore[dict-item]
+        _transaction_with_fees({"GBp": Decimal(1)})  # type: ignore[dict-item]  # ty: ignore[invalid-argument-type]
 
 
 def test_broker_transaction_coerces_bare_valid_foreign_fee_currencies() -> None:
     """Valid bare keys are normalised into the value type."""
-    transaction = _transaction_with_fees({" USD ": Decimal(1)})  # type: ignore[dict-item]
+    transaction = _transaction_with_fees({" USD ": Decimal(1)})  # type: ignore[dict-item]  # ty: ignore[invalid-argument-type]
     assert list(transaction.foreign_fees) == [CurrencyCode("USD")]
     assert all(isinstance(key, CurrencyCode) for key in transaction.foreign_fees)
 
@@ -242,7 +242,7 @@ def test_broker_transaction_coerces_bare_valid_foreign_fee_currencies() -> None:
 def test_broker_transaction_sums_foreign_fees_that_coerce_to_one_currency() -> None:
     """Keys that normalise to the same code add up rather than overwrite."""
     transaction = _transaction_with_fees(
-        {" USD ": Decimal(1), "USD": Decimal(2)}  # type: ignore[dict-item]
+        {" USD ": Decimal(1), "USD": Decimal(2)}  # type: ignore[dict-item]  # ty: ignore[invalid-argument-type]
     )
     assert transaction.foreign_fees == {CurrencyCode("USD"): Decimal(3)}
 

@@ -160,6 +160,7 @@ tranche's
 TransactionDetails
 transferor
 transferor's
+ty
 UCITS
 un
 US9220427424
