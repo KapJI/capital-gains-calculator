@@ -169,6 +169,9 @@ def parsing_msg(file: str | Path | Traversable) -> None:
     # Strip package root
     package_root = f"{Path(__file__).resolve().parent.parent}{os.path.sep}"
     file = str(file).removeprefix(package_root)
+    # Forward slashes on every platform: the progress narrative is a
+    # contract, and Windows would otherwise print backslashes here.
+    file = file.replace(os.path.sep, "/")
     LOGGER.info(
         style_text(f"Parsing {file}...", colour=colorama.Fore.CYAN, stream=sys.stderr)
     )
