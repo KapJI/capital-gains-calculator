@@ -17,9 +17,9 @@ that hold the same fund.
 
 Currently bundled data:
 
-- [Vanguard Funds Plc 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
-- [Blackrock Funds 2019-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
-- [iShares Funds 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv)
+- [Vanguard Funds Plc 2018-2025](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+- [Blackrock Funds 2019-2025](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
+- [iShares Funds 2018-2025](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv)
 - [Invesco Funds 2018-2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/invesco_eri.csv)
 - [Xtrackers Funds 2024](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/xtrackers_eri.csv)
 
