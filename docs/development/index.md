@@ -74,6 +74,13 @@ prek install
 
 This will automatically check code style, linting, and types before each commit.
 
+Type suppressions must name the diagnostic for both checkers. When both tools report the same
+intentional violation, keep their targeted comments together:
+
+```python
+value = untyped_value  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+```
+
 You can also run all checks on the repository manually:
 
 ```shell
@@ -103,8 +110,8 @@ You can also run linters and tests directly:
 uv run pytest
 uv run pytest -k <expr> -q # run subset
 uv run ruff check .
-uv run mypy cgt_calc
-uv run ty check
+uv run mypy cgt_calc tests scripts
+uv run ty check cgt_calc tests scripts
 ```
 
 ## Managing dependencies

@@ -50,13 +50,13 @@ repos:
         require_serial: true
       - id: mypy
         name: mypy
-        entry: uv run mypy cgt_calc tests
+        entry: uv run mypy cgt_calc tests scripts
         language: system
         types: [python]
         pass_filenames: false
       - id: ty
         name: ty
-        entry: uv run ty check
+        entry: uv run ty check cgt_calc tests scripts
         language: system
         types: [python]
         pass_filenames: false
