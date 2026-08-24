@@ -84,14 +84,10 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
         return ActionType.DIVIDEND_TAX
     if action_type == "Other Fee":
         return ActionType.FEE
-    # "FX Translations P&L" arrives as an Adjustment: the revaluation of a
-    # foreign currency balance, not a trade. It moves the cash balance and
-    # creates no taxable event, which is what ADJUSTMENT means here and how the
-    # Schwab parser treats its own. A "Forex Trade Component" is the
-    # base-currency leg of an FX trade and belongs with it: read as a fee, its
-    # Net Amount was rejected outright whenever the trade brought base currency
-    # in, and built a pooled cost for the currency pair whenever it took some
-    # out.
+    # "FX Translations P&L" arrives as an Adjustment, and a "Forex Trade
+    # Component" is the base-currency leg of an FX trade. Both move the cash
+    # balance and create no taxable event, which is what ADJUSTMENT means here
+    # and how the Schwab parser treats its own.
     if action_type in ["Adjustment", "Forex Trade Component"]:
         return ActionType.ADJUSTMENT
 
@@ -164,10 +160,10 @@ class InteractiveBrokersTransaction(BrokerTransaction):
             price = price * exchange_rate
             price_currency = CurrencyCode("GBP")
 
-        # An adjustment only moves the cash balance, so the columns describing
-        # a security are meaningless on one. IBKR files a Forex Trade Component
-        # under the currency pair with a quantity and a price; a currency pair
-        # is not a holding, and keeping them would open a pool for it.
+        # An adjustment is balance-only: the calculator reads its amount and
+        # nothing else. IBKR files a Forex Trade Component under the currency
+        # pair, with a quantity and a price, so clear the columns describing a
+        # security here rather than carry values no reader may rely on.
         if action is ActionType.ADJUSTMENT:
             symbol = None
             quantity = None

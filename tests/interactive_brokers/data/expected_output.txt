@@ -2,7 +2,7 @@ Final portfolio
   CNX1: 2.00
 
 Final balance
-  Interactive Brokers: 3027.40 (GBP)
+  Interactive Brokers: 3032.40 (GBP)
 
 Dividends
   IBKR: 1.00, excluding 0.15 taxed at source (GBP)
