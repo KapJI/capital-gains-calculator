@@ -233,6 +233,25 @@ def test_add_from_transaction_adds_mapping() -> None:
     assert converter.get_symbol_to_isin_map()["FOO"] == ISIN_A
 
 
+def test_symbol_map_skips_unknown_tickers() -> None:
+    """An ISIN recorded without a ticker must not claim the empty symbol.
+
+    validate_data deliberately allows an ISIN whose ticker is unknown to be
+    stored with an empty symbol. Letting that into the symbol map gives it an
+    "" key, and callers resolving a transaction with no symbol - interest, a
+    transfer, a fee - would then match that ISIN by accident.
+    """
+    converter = IsinConverter()
+    converter.data[ISIN_A] = {""}
+    converter.data[ISIN_B] = {"FOO"}
+
+    symbol_map = converter.get_symbol_to_isin_map()
+
+    assert "" not in symbol_map
+    assert ISIN_A not in symbol_map.values()
+    assert symbol_map["FOO"] == ISIN_B
+
+
 def test_translation_file_roundtrip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
