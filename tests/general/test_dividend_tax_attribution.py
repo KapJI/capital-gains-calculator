@@ -104,16 +104,25 @@ def test_withholding_without_any_dividend_warns(
     assert "-15.00 USD for FOO on 2024-06-03" in warnings[0]
 
 
-def test_unattributed_withholding_rounding_away_does_not_warn(
+def test_unattributed_withholding_below_a_penny_shows_its_own_value(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Tax below report precision cannot change what the report shows."""
+    """Tax too small to round to a penny is shown as it stands, not as zero.
+
+    Whether such an amount is material depends on its value in GBP, which
+    this warning deliberately does not work out, so it reports the loss and
+    leaves that judgement to the reader.
+    """
     transactions = [
         dividend_transaction(DIVIDEND_DATE, "FOO", 100),
         dividend_tax_transaction(LATER_DATE, "FOO", 0.004),
     ]
 
-    assert _unattributed_warnings(transactions, caplog) == []
+    warnings = _unattributed_warnings(transactions, caplog)
+
+    assert len(warnings) == 1
+    assert "of -0.00 USD" not in warnings[0]
+    assert "-0.004" in warnings[0]
 
 
 def test_unattributed_withholding_of_half_a_penny_warns(
