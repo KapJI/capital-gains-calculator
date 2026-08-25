@@ -102,6 +102,63 @@ def _unattributed_warnings(
     ]
 
 
+def _summary_dividend_lines(
+    transactions: list[BrokerTransaction],
+    capsys: pytest.CaptureFixture[str],
+    tax_year: int = TAX_YEAR,
+) -> list[str]:
+    """Return the dividend lines of the first pass summary."""
+    # Discard whatever an earlier run in the same test printed.
+    capsys.readouterr()
+    calculator = _calculator(transactions, tax_year)
+    calculator.convert_to_hmrc_transactions(transactions)
+    lines = capsys.readouterr().out.splitlines()
+    header = next((i for i, line in enumerate(lines) if "Dividends" in line), None)
+    if header is None:
+        return []
+    section = lines[header + 1 :]
+    return section[: section.index("")] if "" in section else section
+
+
+def test_summary_and_report_agree_across_the_tax_year_end(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The summary puts withholding in the year the report puts it in.
+
+    The summary used to count withholding in the year it was posted, so a
+    payment and its tax either side of 5 April were reported in different
+    years and contradicted the report.
+    """
+    transactions = [
+        dividend_transaction(BORDER_DIVIDEND_DATE, "FOO", 100),
+        dividend_tax_transaction(BORDER_TAX_DATE, "FOO", 15),
+    ]
+
+    assert _summary_dividend_lines(transactions, capsys, tax_year=2024) == [
+        "  FOO: 100.00, excluding 15.00 taxed at source (USD)"
+    ]
+    assert _reported(transactions, tax_year=2024) == [
+        (BORDER_DIVIDEND_DATE, Decimal(100), Decimal(-15), True)
+    ]
+
+    assert _summary_dividend_lines(transactions, capsys, tax_year=2025) == []
+    assert _reported(transactions, tax_year=2025) == []
+
+
+def test_summary_counts_withholding_dated_apart_from_its_dividend(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Tax posted days after its dividend still reaches the summary."""
+    transactions = [
+        dividend_transaction(DIVIDEND_DATE, "FOO", 100),
+        dividend_tax_transaction(LATER_DATE, "FOO", 15),
+    ]
+
+    assert _summary_dividend_lines(transactions, capsys) == [
+        "  FOO: 100.00, excluding 15.00 taxed at source (USD)"
+    ]
+
+
 def test_withholding_on_its_dividend_date_is_attributed(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

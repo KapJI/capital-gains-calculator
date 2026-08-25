@@ -239,6 +239,7 @@ class CapitalGainsCalculator:
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        self._attributed_dividend_tax: ForeignAmountLog | None = None
         self.interest_list: dict[
             tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
         ] = defaultdict(ForeignCurrencyAmount)
@@ -1081,8 +1082,6 @@ class CapitalGainsCalculator:
                 self.dividend_tax_list[symbol, transaction.date] += (
                     ForeignCurrencyAmount(amount, currency)
                 )
-                if self.date_in_tax_year(transaction.date):
-                    dividends_tax[symbol, currency] += amount
             # Cash moves and nothing else: a deposit or withdrawal, a
             # correction, or an incoming wire. No shares change hands.
             elif transaction.action in {
@@ -1154,6 +1153,13 @@ class CapitalGainsCalculator:
                 msg += "Tip: If your input file is missing deposits/withdrawals use --no-balance-check."
                 raise CalculationError(msg)
             balance[transaction.broker, transaction.currency] = new_balance
+
+        # Withholding belongs to the year of the dividend it was taken from,
+        # which is not always the year it was posted in, so the summary reads
+        # it from the same attribution the report is built from.
+        for (symbol, date), tax in self._dividend_tax_attribution().items():
+            if self.date_in_tax_year(date) and tax.currency is not None:
+                dividends_tax[symbol, tax.currency] += tax.amount
 
         self.first_pass_report(
             balance,
@@ -2250,12 +2256,21 @@ class CapitalGainsCalculator:
             attributed[symbol, match] += tax
         return attributed
 
+    def _dividend_tax_attribution(self) -> ForeignAmountLog:
+        """Attribute withholding once, for both the summary and the report.
+
+        The two must agree, and attributing twice would warn twice.
+        """
+        if self._attributed_dividend_tax is None:
+            self._attributed_dividend_tax = self._attribute_dividend_tax()
+        return self._attributed_dividend_tax
+
     def process_dividends(self) -> None:
         """Process all dividend events and taxes.
 
         It updates the interest total for the year if needed.
         """
-        attributed_tax = self._attribute_dividend_tax()
+        attributed_tax = self._dividend_tax_attribution()
         for (symbol, date), foreign_amount in self.dividend_list.items():
             # Dividends outside the computed tax year are not reported, so
             # neither are the warnings raised while resolving their treaty.
