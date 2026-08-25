@@ -22,6 +22,8 @@ from .const import (
     DIVIDEND_ALLOWANCES,
     DIVIDEND_CURRENCY_TO_COUNTRY,
     DIVIDEND_DOUBLE_TAXATION_RULES,
+    DIVIDEND_TAX_LEAD_DAYS,
+    DIVIDEND_TAX_MATCH_DAYS,
     ERI_TAX_DATE_DELTA,
     INTERNAL_START_DATE,
     ISIN_COUNTRY_CODE_LENGTH,
@@ -57,6 +59,7 @@ from .model import (
     CapitalGainsReport,
     CurrencyCode,
     Dividend,
+    DividendTaxAttribution,
     ExcessReportedIncome,
     ExcessReportedIncomeDistribution,
     ExcessReportedIncomeDistributionLog,
@@ -237,7 +240,17 @@ class CapitalGainsCalculator:
         self.rename_list: dict[datetime.date, dict[str, str]] = defaultdict(dict)
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
-        self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        # Withholding is matched to a dividend of the same broker as well as
+        # the same symbol, so both are keyed by broker. The dividends stay
+        # merged across brokers in dividend_list, which is what the report
+        # rows are built from.
+        self.dividend_tax_list: dict[
+            tuple[str, str, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
+        self.dividend_dates: dict[tuple[str, str], set[datetime.date]] = defaultdict(
+            set
+        )
+        self._attributed_dividend_tax: DividendTaxAttribution | None = None
         self.interest_list: dict[
             tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
         ] = defaultdict(ForeignCurrencyAmount)
@@ -1070,6 +1083,7 @@ class CapitalGainsCalculator:
                 self.dividend_list[symbol, transaction.date] += ForeignCurrencyAmount(
                     amount, currency
                 )
+                self.dividend_dates[transaction.broker, symbol].add(transaction.date)
                 if self.date_in_tax_year(transaction.date):
                     dividends[symbol, currency] += amount
             elif transaction.action is ActionType.DIVIDEND_TAX:
@@ -1077,11 +1091,9 @@ class CapitalGainsCalculator:
                 symbol = get_symbol_or_fail(transaction)
                 currency = transaction.currency
                 new_balance += amount
-                self.dividend_tax_list[symbol, transaction.date] += (
-                    ForeignCurrencyAmount(amount, currency)
-                )
-                if self.date_in_tax_year(transaction.date):
-                    dividends_tax[symbol, currency] += amount
+                self.dividend_tax_list[
+                    transaction.broker, symbol, transaction.date
+                ] += ForeignCurrencyAmount(amount, currency)
             # Cash moves and nothing else: a deposit or withdrawal, a
             # correction, or an incoming wire. No shares change hands.
             elif transaction.action in {
@@ -1153,6 +1165,20 @@ class CapitalGainsCalculator:
                 msg += "Tip: If your input file is missing deposits/withdrawals use --no-balance-check."
                 raise CalculationError(msg)
             balance[transaction.broker, transaction.currency] = new_balance
+
+        # Withholding belongs to the year of the dividend it was taken from,
+        # which is not always the year it was posted in, so the summary reads
+        # it from the same attribution the report is built from. Tax that
+        # matched no dividend is counted under its own date: no dividend row
+        # can carry it, but the broker took it and the summary says so. The
+        # warning raised for it explains why the report does not show it.
+        attribution = self._dividend_tax_attribution()
+        for (symbol, date), tax in [
+            *attribution.matched.items(),
+            *attribution.unmatched.items(),
+        ]:
+            if self.date_in_tax_year(date) and tax.currency is not None:
+                dividends_tax[symbol, tax.currency] += tax.amount
 
         self.first_pass_report(
             balance,
@@ -2179,39 +2205,134 @@ class CapitalGainsCalculator:
             return isin[:ISIN_COUNTRY_CODE_LENGTH]
         return DIVIDEND_CURRENCY_TO_COUNTRY.get(currency)
 
-    def _warn_unattributed_dividend_tax(self) -> None:
-        """Warn about withheld tax that no dividend of the same date claims.
-
-        Withholding is attributed to a dividend of the same symbol and date.
-        A broker that dates a correction apart from the payment it corrects,
-        such as a Schwab ``NRA Tax Adj``, leaves tax that no dividend claims,
-        and it is reported as if it had never been withheld.
-        """
-        for (symbol, date), tax in self.dividend_tax_list.items():
-            if not self.date_in_tax_year(date) or not tax.amount:
-                continue
-            if (symbol, date) in self.dividend_list:
-                continue
-            # Tax below half a unit would print as a bare "-0.00", so it is
-            # shown as it stands instead. Whether it is material is a question
-            # about its value in GBP, and answering it here would put a rate
-            # lookup, and the failure of one, in the way of a warning.
-            amount = round_decimal(tax.amount, 2) or tax.amount
+    def _warn_unattributed_dividend_tax(
+        self,
+        symbol: str,
+        date: datetime.date,
+        tax: ForeignCurrencyAmount,
+        candidates: list[datetime.date],
+    ) -> None:
+        """Warn about withheld tax that no single dividend can claim."""
+        # The tax is missing from the report of every year that holds a
+        # payment which could have carried it, not only from the year it was
+        # taken in, and each of those years is entitled to hear so. A
+        # withholding just after 5 April can leave a payment short on either
+        # side of the boundary.
+        if not any(self.date_in_tax_year(affected) for affected in (date, *candidates)):
+            return
+        # Tax below half a unit would print as a bare "-0.00", so it is
+        # shown as it stands instead. Whether it is material is a question
+        # about its value in GBP, and answering it here would put a rate
+        # lookup, and the failure of one, in the way of a warning.
+        amount = round_decimal(tax.amount, 2) or tax.amount
+        if candidates:
             LOGGER.warning(
-                "Dividend tax of %s %s for %s on %s is not attributed to any "
-                "dividend of that date, so it is left out of the report!",
+                "Dividend tax of %s %s for %s on %s could have been taken "
+                "from the dividend on %s, so it is left out of the report! "
+                "Date it in the export on the one it belongs to to have it "
+                "counted.",
                 amount,
                 tax.currency,
                 symbol,
                 date,
+                " or ".join(str(candidate) for candidate in candidates),
             )
+            return
+        LOGGER.warning(
+            "Dividend tax of %s %s for %s on %s has no dividend in the %d "
+            "days before it or the %d days after, so it is left out of the "
+            "report!",
+            amount,
+            tax.currency,
+            symbol,
+            date,
+            DIVIDEND_TAX_MATCH_DAYS,
+            DIVIDEND_TAX_LEAD_DAYS,
+        )
+
+    @staticmethod
+    def _dividends_for_tax(
+        date: datetime.date, dividend_dates: set[datetime.date]
+    ) -> list[datetime.date]:
+        """Return the dividends a withholding could have been taken from.
+
+        A payment on the day of the withholding is not in doubt, whatever
+        else lies nearby. Otherwise, every payment in the window counts as a
+        candidate, and it is for the caller to refuse when there is more
+        than one: which of two payments a correction belongs to cannot be
+        told from a date and a net amount.
+
+        The window is asymmetric because the directions mean different
+        things. Tax follows the payment it was taken from, and a correction
+        follows it by longer, so it reaches back weeks; a payment after the
+        withholding only means the broker posted the tax early, which it
+        does by days.
+        """
+        if date in dividend_dates:
+            return [date]
+        return sorted(
+            candidate
+            for candidate in dividend_dates
+            if -DIVIDEND_TAX_MATCH_DAYS
+            <= (candidate - date).days
+            <= DIVIDEND_TAX_LEAD_DAYS
+        )
+
+    def _attribute_dividend_tax(self) -> DividendTaxAttribution:
+        """Attribute each withholding to the dividend it was taken from.
+
+        Brokers do not always date a withholding, or a later correction of
+        one such as a Schwab ``NRA Tax Adj``, on the day of the payment it
+        belongs to, so tax is matched to a dividend of the same broker and
+        symbol nearby. Holding one symbol at two brokers therefore keeps
+        each broker's withholding with that broker's own payments.
+
+        Tax is attributed only where one payment can claim it. Where two
+        could, the export does not record which, and no arrangement of dates
+        and amounts recovers it: an adjustment reaching back to last month's
+        payment looks exactly like ordinary tax on next month's. Those are
+        left out of the report and warned about instead of guessed at. They
+        still reach the summary, and dating one on its dividend in the input
+        settles it.
+
+        Matching runs over the whole history rather than the reported year,
+        so a payment and its withholding either side of 5 April stay
+        together, and one withholding cannot be claimed in two years.
+        """
+        matched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        unmatched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        for (broker, symbol, date), tax in self.dividend_tax_list.items():
+            if not tax.amount:
+                continue
+            candidates = self._dividends_for_tax(
+                date, self.dividend_dates.get((broker, symbol), set())
+            )
+            if len(candidates) == 1:
+                matched[symbol, candidates[0]] += tax
+                continue
+            # Either nothing is near enough, or two payments are and the
+            # export does not say which one this is. Guessing between them
+            # puts a wrong figure in the report; leaving it out and saying so
+            # does not.
+            self._warn_unattributed_dividend_tax(symbol, date, tax, candidates)
+            unmatched[symbol, date] += tax
+        return DividendTaxAttribution(matched, unmatched)
+
+    def _dividend_tax_attribution(self) -> DividendTaxAttribution:
+        """Attribute withholding once, for both the summary and the report.
+
+        The two must agree, and attributing twice would warn twice.
+        """
+        if self._attributed_dividend_tax is None:
+            self._attributed_dividend_tax = self._attribute_dividend_tax()
+        return self._attributed_dividend_tax
 
     def process_dividends(self) -> None:
         """Process all dividend events and taxes.
 
         It updates the interest total for the year if needed.
         """
-        self._warn_unattributed_dividend_tax()
+        attributed_tax = self._dividend_tax_attribution().matched
         for (symbol, date), foreign_amount in self.dividend_list.items():
             # Dividends outside the computed tax year are not reported, so
             # neither are the warnings raised while resolving their treaty.
@@ -2219,10 +2340,23 @@ class CapitalGainsCalculator:
                 continue
 
             # Read without inserting: a dividend with no tax must not leave a
-            # zero entry behind in the withholding log.
-            tax = self.dividend_tax_list.get((symbol, date), ForeignCurrencyAmount())
+            # zero entry behind in the attribution.
+            tax = attributed_tax.get((symbol, date), ForeignCurrencyAmount())
             currency = foreign_amount.currency
             assert currency is not None, f"Dividend for {symbol} has no currency"
+
+            # The tax is converted at the dividend's rate below, so the two
+            # have to be in one currency whichever way the tax runs and
+            # whatever the holding is. Checking this only for tax deducted
+            # from an ordinary holding let a refund, or any tax on a bond
+            # fund, be converted as though it were in the dividend's
+            # currency.
+            if tax.amount and tax.currency != currency:
+                raise CalculationError(
+                    f"Dividend and withholding tax currencies do not match "
+                    f"for {symbol} on {date}: dividend "
+                    f"{foreign_amount.currency}, tax {tax.currency}"
+                )
 
             treaty = None
             is_interest_fund = symbol in self.interest_fund_tickers
@@ -2232,12 +2366,6 @@ class CapitalGainsCalculator:
                         "Cannot apply taxation treaty for bond fund %s", symbol
                     )
                 else:
-                    if tax.currency != foreign_amount.currency:
-                        raise CalculationError(
-                            f"Dividend and withholding tax currencies do not match "
-                            f"for {symbol} on {date}: dividend "
-                            f"{foreign_amount.currency}, tax {tax.currency}"
-                        )
                     country = self.dividend_source_country(symbol, currency)
                     if country is None:
                         LOGGER.warning(
