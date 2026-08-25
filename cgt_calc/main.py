@@ -2188,14 +2188,17 @@ class CapitalGainsCalculator:
         and it is reported as if it had never been withheld.
         """
         for (symbol, date), tax in self.dividend_tax_list.items():
-            if not self.date_in_tax_year(date) or not tax.amount:
+            if not self.date_in_tax_year(date):
                 continue
-            if (symbol, date) in self.dividend_list:
+            # Tax that rounds away at report precision cannot change any
+            # figure the report shows, so its absence is not worth a warning.
+            amount = round_decimal(tax.amount, 2)
+            if not amount or (symbol, date) in self.dividend_list:
                 continue
             LOGGER.warning(
                 "Dividend tax of %s %s for %s on %s is not attributed to any "
                 "dividend of that date, so it is left out of the report!",
-                round_decimal(tax.amount, 2),
+                amount,
                 tax.currency,
                 symbol,
                 date,
