@@ -72,6 +72,7 @@ HL
 Hmrc
 IBKR
 IBKR's
+idx
 InvalidTransactionError
 Invesco
 InvestmentName
@@ -161,6 +162,7 @@ tranche's
 TransactionDetails
 transferor
 transferor's
+txn
 ty
 UCITS
 un

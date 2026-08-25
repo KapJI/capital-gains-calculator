@@ -264,3 +264,61 @@ def test_cancel_buy_is_not_typed_as_a_purchase(tmp_path: Path) -> None:
 
     assert cancel.raw_action == "Cancel Buy"
     assert cancel.action is ActionType.CANCEL_BUY
+
+
+def test_identical_cancellations_pair_with_the_buys(tmp_path: Path) -> None:
+    """Two identical cancellations reverse the two purchases, not each other.
+
+    Matching on the action type paired the cancellations with one another,
+    because a Cancel Buy was itself typed as a purchase. Both cancellations
+    dropped out and both purchases stayed, adding cost basis for shares that
+    were never bought. The rows here are deliberately identical in symbol,
+    quantity and price, which is what it takes to reproduce that: the
+    committed multiple-cancellation test varies both, so the pairs can only
+    match the way they are meant to.
+    """
+    csv_file = tmp_path / "transactions.csv"
+    csv_file.write_text(
+        "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
+        "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$1500.00\n"
+        "01/11/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$1500.00\n"
+        "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+        "01/09/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+    )
+
+    assert SchwabParser().load_from_file(csv_file) == []
+
+
+def test_cancel_buy_matches_a_same_date_buy_listed_above_it(tmp_path: Path) -> None:
+    """A same-date purchase is found whichever side of the cancellation it sits.
+
+    The export gives no order to rows sharing a date, so the purchase can be
+    listed either side of the cancellation that reverses it. Searching only
+    older rows refused a file that held the pair all along.
+    """
+    csv_file = tmp_path / "transactions.csv"
+    csv_file.write_text(
+        "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
+        "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+        "01/10/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$1500.00\n"
+    )
+
+    assert SchwabParser().load_from_file(csv_file) == []
+
+
+def test_cancel_buy_does_not_match_a_later_buy(tmp_path: Path) -> None:
+    """A purchase made after the cancellation is a different purchase.
+
+    Only same-date rows above the cancellation are searched. A Buy on a later
+    date had not happened when the cancellation was recorded, so consuming it
+    would delete a real acquisition.
+    """
+    csv_file = tmp_path / "transactions.csv"
+    csv_file.write_text(
+        "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
+        "01/12/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+        "01/10/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$1500.00\n"
+    )
+
+    with pytest.raises(ParsingError, match="no Buy to match it"):
+        SchwabParser().load_from_file(csv_file)

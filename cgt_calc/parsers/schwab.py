@@ -516,6 +516,64 @@ def _unify_schwab_paired_transactions(
     return filtered
 
 
+def _is_matching_buy(buy_txn: SchwabTransaction, cancel_txn: SchwabTransaction) -> bool:
+    """Whether buy_txn is the purchase that cancel_txn reverses.
+
+    The raw action is compared rather than the action type, so a cancellation
+    can never pair with another cancellation.
+    """
+    return (
+        buy_txn.raw_action == "Buy"
+        and buy_txn.symbol == cancel_txn.symbol
+        and buy_txn.quantity == cancel_txn.quantity
+        and buy_txn.price == cancel_txn.price
+    )
+
+
+def _find_matching_buy(
+    transactions: list[SchwabTransaction],
+    cancel_idx: int,
+    consumed: set[int],
+) -> int | None:
+    """Find the index of the Buy that the Cancel Buy at cancel_idx reverses.
+
+    The list is newest-first, so the purchase being reversed normally sits at
+    a higher index than the cancellation. When the two share a date the export
+    orders them arbitrarily, so the purchase can equally sit just above it;
+    those rows are searched as well. A purchase on a date later than the
+    cancellation is never a match, because it had not happened yet when the
+    cancellation was recorded.
+
+    Args:
+        transactions: Parsed Schwab transactions, newest-first
+        cancel_idx: Index of the Cancel Buy to reconcile
+        consumed: Indices already claimed by an earlier pair
+
+    Returns:
+        Index of the matching Buy, or None when there is none
+
+    """
+    cancel_txn = transactions[cancel_idx]
+
+    # Older rows, out to the edge of the search window.
+    for buy_idx in range(cancel_idx + 1, len(transactions)):
+        buy_txn = transactions[buy_idx]
+        if abs((buy_txn.date - cancel_txn.date).days) > CANCEL_BUY_SEARCH_DAYS:
+            break
+        if buy_idx not in consumed and _is_matching_buy(buy_txn, cancel_txn):
+            return buy_idx
+
+    # Newer rows, but only the ones sharing the cancellation's own date.
+    for buy_idx in range(cancel_idx - 1, -1, -1):
+        buy_txn = transactions[buy_idx]
+        if buy_txn.date != cancel_txn.date:
+            break
+        if buy_idx not in consumed and _is_matching_buy(buy_txn, cancel_txn):
+            return buy_idx
+
+    return None
+
+
 def _filter_cancelled_buy_transactions(
     transactions: list[SchwabTransaction],
     file: Path,
@@ -532,9 +590,10 @@ def _filter_cancelled_buy_transactions(
     Note: this runs on the raw, newest-first ordered list of transactions as
     read from the Schwab export (before ``transactions.reverse()`` is applied
     by the caller). A Cancel Buy row is chronologically *after* the Buy it
-    cancels, so in a newest-first list the Cancel Buy has a *lower* index than
-    its Buy. We therefore search forward (increasing index = older dates) from
-    the Cancel Buy's index.
+    cancels, so in a newest-first list the Cancel Buy normally has a *lower*
+    index than its Buy. Same-date rows are the exception, since the export
+    orders those arbitrarily; see ``_find_matching_buy`` for how both are
+    searched.
 
     Args:
         transactions: List of parsed Schwab transactions, newest-first
@@ -558,47 +617,23 @@ def _filter_cancelled_buy_transactions(
         if cancel_idx in indices_to_remove:
             continue
 
-        # Search forward (older transactions, since the list is newest-first)
-        # for the matching Buy within the search window. A flag rather than
-        # for/else: the search window check below leaves the loop with a break,
-        # which skips an else clause on any export long enough to contain a row
-        # outside the window - that is, on every real one.
-        matched = False
-        for buy_idx in range(cancel_idx + 1, len(transactions)):
+        buy_idx = _find_matching_buy(transactions, cancel_idx, indices_to_remove)
+
+        if buy_idx is not None:
+            # Found matching pair - mark both for removal
+            indices_to_remove.add(cancel_idx)
+            indices_to_remove.add(buy_idx)
             buy_txn = transactions[buy_idx]
-
-            # Stop if beyond search window
-            if abs((buy_txn.date - transaction.date).days) > CANCEL_BUY_SEARCH_DAYS:
-                break
-
-            # Skip if already marked for removal
-            if buy_idx in indices_to_remove:
-                continue
-
-            # Match the raw action, so a cancellation can never pair with
-            # another cancellation.
-            if (
-                buy_txn.raw_action == "Buy"
-                and buy_txn.symbol == transaction.symbol
-                and buy_txn.quantity == transaction.quantity
-                and buy_txn.price == transaction.price
-            ):
-                # Found matching pair - mark both for removal
-                matched = True
-                indices_to_remove.add(cancel_idx)
-                indices_to_remove.add(buy_idx)
-                LOGGER.debug(
-                    "Matched Cancel Buy with original Buy: symbol=%s, qty=%s, "
-                    "price=%s, buy_date=%s, cancel_date=%s",
-                    buy_txn.symbol,
-                    buy_txn.quantity,
-                    buy_txn.price,
-                    buy_txn.date,
-                    transaction.date,
-                )
-                break
-
-        if not matched:
+            LOGGER.debug(
+                "Matched Cancel Buy with original Buy: symbol=%s, qty=%s, "
+                "price=%s, buy_date=%s, cancel_date=%s",
+                buy_txn.symbol,
+                buy_txn.quantity,
+                buy_txn.price,
+                buy_txn.date,
+                transaction.date,
+            )
+        else:
             # A cancellation with nothing to reverse means the export does not
             # reach back to the purchase, or that purchase settled outside the
             # window above. Either way the pair cannot be reconciled and the
