@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, ClassVar
 
 from colorama import Fore
 
+from cgt_calc.args_validators import STDIN_PATH
+from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.logging import style_text
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.eri.raw import ERIRawParser
@@ -20,18 +22,63 @@ from cgt_calc.parsers.schwab import SchwabParser
 from cgt_calc.parsers.schwab_equity_award_json import SchwabEquityAwardsJSONParser
 from cgt_calc.parsers.sharesight import SharesightParser
 from cgt_calc.parsers.trading212 import Trading212Parser
-from cgt_calc.parsers.vanguard import VanguardParser
+from cgt_calc.parsers.vanguard import VanguardParser, VanguardTransaction
 
 if TYPE_CHECKING:
     import argparse
     import datetime
 
     from cgt_calc.isin_converter import IsinConverter
-    from cgt_calc.model import BrokerTransaction
+    from cgt_calc.model import BrokerTransaction, Isin
 
     from .base_parsers import BaseParser
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _resolve_isins(
+    transactions: list[BrokerTransaction], isin_map: dict[str, Isin]
+) -> tuple[set[Isin], list[str]]:
+    """Resolve the run's ISINs and list Vanguard symbols that have none.
+
+    Both answers come from one pass, so the warning cannot drift from the ERI
+    filter it describes.
+
+    A symbol is matchable when any row carries its ISIN or the cache maps it,
+    even a row from another broker: warning about the Vanguard rows for it
+    would send the user after a mapping that changes nothing. A rename moves
+    the holding to the new symbol, so a mapping for the new name covers the
+    rows still carrying the old one.
+    """
+    isins: set[Isin] = set()
+    resolved: set[str] = set()
+    renamed_to: dict[str, str] = {}
+    vanguard_symbols: set[str] = set()
+
+    for transaction in transactions:
+        symbol = transaction.symbol
+        isin = transaction.isin or (isin_map.get(symbol) if symbol else None)
+        if isin is not None:
+            isins.add(isin)
+            if symbol:
+                resolved.add(symbol)
+        if (
+            transaction.action is ActionType.RENAME
+            and symbol
+            and transaction.description.startswith(RENAME_DESCRIPTION_PREFIX)
+        ):
+            old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
+            if old_symbol:
+                renamed_to[old_symbol] = symbol
+        if isinstance(transaction, VanguardTransaction) and symbol and symbol.strip():
+            vanguard_symbols.add(symbol)
+
+    unmapped = sorted(
+        symbol
+        for symbol in vanguard_symbols
+        if symbol not in resolved and renamed_to.get(symbol) not in resolved
+    )
+    return isins, unmapped
 
 
 def _transaction_sort_key(
@@ -131,7 +178,29 @@ class BrokerRegistry:
         # ERI Raw is not a broker but is close enough to one to be here
         # Only add ERI for funds that show up in the portfolio
         isin_map = isin_converter.get_symbol_to_isin_map()
-        isins = {trx.isin or isin_map.get(trx.symbol or "") for trx in all_transactions}
+        isins, unmapped_vanguard_symbols = _resolve_isins(all_transactions, isin_map)
+        if unmapped_vanguard_symbols:
+            # Name the cache the converter read. The flag can be cleared, and
+            # the stdin sentinel is not a usable cache location: IsinConverter
+            # treats it as an ordinary relative path and would write a file
+            # literally named "-". Neither is somewhere to send the user.
+            cache_path = isin_converter.isin_translation_file
+            location = (
+                f" at {cache_path}"
+                if cache_path is not None and cache_path != STDIN_PATH
+                else ""
+            )
+            LOGGER.warning(
+                "Vanguard transactions do not contain ISINs, and no ISIN mapping "
+                "was found for: %s. cgt-calc cannot match Excess Reported "
+                "Income for these holdings if it applies; add verified mappings "
+                "to the --isin-translation-file cache%s. Give each ISIN a single "
+                "row listing every symbol it is known by: a row that leaves one "
+                "out replaces the existing mapping and can stop a later run. "
+                "See https://cgt-calc.uk/configuration/",
+                ", ".join(unmapped_vanguard_symbols),
+                location,
+            )
         all_transactions += [
             trx for trx in ERIRawParser.load_from_args(args) if trx.isin in isins
         ]

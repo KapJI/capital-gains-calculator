@@ -2,17 +2,43 @@
 
 from __future__ import annotations
 
+import datetime
+from decimal import Decimal
 import logging
 from typing import TYPE_CHECKING
 
 from cgt_calc.args_parser import create_parser
+from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.isin_converter import IsinConverter
-from cgt_calc.parsers.broker_registry import BrokerRegistry
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
+from cgt_calc.parsers.broker_registry import BrokerRegistry, _resolve_isins
+from cgt_calc.parsers.vanguard import VanguardTransaction
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     import pytest
+
+
+def _vanguard_warning(caplog: pytest.LogCaptureFixture) -> str:
+    """Return the unmapped-symbol warning, whatever else the run logged."""
+    warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if "no ISIN mapping was found" in record.getMessage()
+    ]
+    assert len(warnings) == 1, f"Expected exactly one warning, got {warnings}"
+    return warnings[0]
+
+
+def _write_vanguard_csv(tmp_path: Path) -> Path:
+    """Write a one-row Vanguard cash table whose symbol is a fund name."""
+    vanguard_file = tmp_path / "vanguard.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n09/03/2022,Bought 10 Foo Fund,-100.00,0\n",
+        encoding="utf-8",
+    )
+    return vanguard_file
 
 
 def test_load_all_transactions_without_files(
@@ -50,3 +76,243 @@ def test_load_all_transactions_from_raw_file(
         "2022-11-14",
         "2023-02-09",
     ]
+
+
+def test_vanguard_symbol_without_isin_mapping_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Warn that ERI cannot be matched to an unmapped Vanguard symbol."""
+    vanguard_file = _write_vanguard_csv(tmp_path)
+    args = create_parser().parse_args(
+        ["--year", "2023", "--vanguard-file", str(vanguard_file)]
+    )
+
+    cache = tmp_path / "isin_translation.csv"
+    converter = IsinConverter(isin_translation_file=cache)
+
+    with caplog.at_level(logging.WARNING):
+        BrokerRegistry.load_all_transactions(args, converter)
+
+    warning = _vanguard_warning(caplog)
+    assert "no ISIN mapping was found for: Foo Fund" in warning
+    assert f"--isin-translation-file cache at {cache}." in warning
+    # Appending a row that drops an alias breaks a later run, so the advice
+    # has to say how the cache is keyed, not just where it lives.
+    assert "single row listing every symbol it is known by" in warning
+    assert "https://cgt-calc.uk/configuration/" in warning
+
+
+def test_vanguard_warning_omits_cache_path_when_flag_is_cleared(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Do not advertise a cache location when the flag was explicitly cleared."""
+    vanguard_file = _write_vanguard_csv(tmp_path)
+    args = create_parser().parse_args(
+        [
+            "--year",
+            "2023",
+            "--vanguard-file",
+            str(vanguard_file),
+            "--isin-translation-file",
+            "",
+        ]
+    )
+
+    converter = IsinConverter(isin_translation_file=args.isin_translation_file)
+
+    with caplog.at_level(logging.WARNING):
+        BrokerRegistry.load_all_transactions(args, converter)
+
+    warning = _vanguard_warning(caplog)
+    assert "no ISIN mapping was found for: Foo Fund" in warning
+    assert "--isin-translation-file cache. " in warning
+
+
+def test_vanguard_warning_omits_stdin_sentinel_as_cache_path(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The stdin sentinel is not a usable cache location, so do not name it."""
+    vanguard_file = _write_vanguard_csv(tmp_path)
+    args = create_parser().parse_args(
+        [
+            "--year",
+            "2023",
+            "--vanguard-file",
+            str(vanguard_file),
+            "--isin-translation-file",
+            "-",
+        ]
+    )
+    converter = IsinConverter(isin_translation_file=args.isin_translation_file)
+
+    with caplog.at_level(logging.WARNING):
+        BrokerRegistry.load_all_transactions(args, converter)
+
+    warning = _vanguard_warning(caplog)
+    assert "--isin-translation-file cache. " in warning
+
+
+def test_vanguard_symbol_with_isin_mapping_does_not_warn(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Do not warn when a Vanguard symbol has an explicit ISIN mapping."""
+    vanguard_file = _write_vanguard_csv(tmp_path)
+    args = create_parser().parse_args(
+        ["--year", "2023", "--vanguard-file", str(vanguard_file)]
+    )
+    converter = IsinConverter()
+    converter.data[Isin("US0378331005")] = {"Foo Fund"}
+
+    with caplog.at_level(logging.WARNING):
+        BrokerRegistry.load_all_transactions(args, converter)
+
+    assert "no ISIN mapping was found" not in caplog.text
+
+
+def test_vanguard_display_name_does_not_define_parser_provenance() -> None:
+    """Ignore a non-Vanguard transaction whose broker label happens to match."""
+    transaction = BrokerTransaction(
+        date=datetime.date(2022, 3, 9),
+        action=ActionType.BUY,
+        symbol="Foo Fund",
+        description="",
+        quantity=Decimal(10),
+        price=Decimal(10),
+        fees=Decimal(0),
+        amount=Decimal(-100),
+        currency=CurrencyCode("GBP"),
+        broker="Vanguard",
+    )
+
+    assert _unmapped([transaction], {}) == []
+
+
+def test_vanguard_symbol_resolved_by_another_broker_does_not_warn() -> None:
+    """Stay quiet when another broker's row already supplies the ISIN.
+
+    ERI matches through that row, so telling the user to add a mapping would
+    send them after a change that makes no difference.
+    """
+    vanguard = VanguardTransaction.from_fields(
+        date=datetime.date(2022, 3, 9),
+        action=ActionType.BUY,
+        symbol="VWRP",
+        quantity=Decimal(10),
+        price=Decimal(10),
+        amount=Decimal(-100),
+        currency=CurrencyCode("GBP"),
+        is_reversal=False,
+    )
+    elsewhere = BrokerTransaction(
+        date=datetime.date(2022, 3, 9),
+        action=ActionType.BUY,
+        symbol="VWRP",
+        description="",
+        quantity=Decimal(5),
+        price=Decimal(10),
+        fees=Decimal(0),
+        amount=Decimal(-50),
+        currency=CurrencyCode("GBP"),
+        broker="Trading212",
+        isin=Isin("IE00BK5BQT80"),
+    )
+
+    assert _unmapped([vanguard, elsewhere], {}) == []
+    assert _unmapped([vanguard], {}) == ["VWRP"]
+
+
+def test_vanguard_blank_symbol_is_not_reported() -> None:
+    """A whitespace-only symbol must not render as a phantom empty entry."""
+    blank = VanguardTransaction.from_fields(
+        date=datetime.date(2022, 3, 9),
+        action=ActionType.BUY,
+        symbol="",
+        quantity=Decimal(1),
+        price=Decimal(1),
+        amount=Decimal(-1),
+        currency=CurrencyCode("GBP"),
+        is_reversal=False,
+    )
+
+    whitespace = VanguardTransaction.from_fields(
+        date=datetime.date(2022, 3, 9),
+        action=ActionType.BUY,
+        symbol=" ",
+        quantity=Decimal(1),
+        price=Decimal(1),
+        amount=Decimal(-1),
+        currency=CurrencyCode("GBP"),
+        is_reversal=False,
+    )
+
+    assert _unmapped([blank], {}) == []
+    assert _unmapped([whitespace], {}) == []
+
+
+def _unmapped(
+    transactions: list[BrokerTransaction], isin_map: dict[str, Isin]
+) -> list[str]:
+    """Return just the unmapped-symbol half of the resolution."""
+    return _resolve_isins(transactions, isin_map)[1]
+
+
+def test_vanguard_symbol_renamed_to_a_mapped_symbol_does_not_warn() -> None:
+    """A mapping for the new name also covers rows carrying the old one."""
+    pre_rename = VanguardTransaction.from_fields(
+        date=datetime.date(2022, 3, 9),
+        action=ActionType.BUY,
+        symbol="VDXX",
+        quantity=Decimal(10),
+        price=Decimal(10),
+        amount=Decimal(-100),
+        currency=CurrencyCode("GBP"),
+        is_reversal=False,
+    )
+    rename = VanguardTransaction.from_fields(
+        date=datetime.date(2022, 3, 10),
+        action=ActionType.RENAME,
+        symbol="VGER",
+        quantity=Decimal(0),
+        price=None,
+        amount=Decimal(0),
+        currency=CurrencyCode("GBP"),
+        is_reversal=False,
+        description=f"{RENAME_DESCRIPTION_PREFIX}VDXX",
+    )
+    mapped = {"VGER": Isin("IE00BK5BQT80")}
+
+    assert _unmapped([pre_rename, rename], mapped) == []
+    # Without the mapping both names are genuinely unmatchable.
+    assert _unmapped([pre_rename, rename], {}) == ["VDXX", "VGER"]
+
+
+def test_resolve_isins_matches_the_eri_filter() -> None:
+    """The resolved set is what the ERI filter consumes, from the same pass."""
+    vanguard = VanguardTransaction.from_fields(
+        date=datetime.date(2022, 3, 9),
+        action=ActionType.BUY,
+        symbol="VWRP",
+        quantity=Decimal(10),
+        price=Decimal(10),
+        amount=Decimal(-100),
+        currency=CurrencyCode("GBP"),
+        is_reversal=False,
+    )
+    elsewhere = BrokerTransaction(
+        date=datetime.date(2022, 3, 9),
+        action=ActionType.BUY,
+        symbol="VWRP",
+        description="",
+        quantity=Decimal(5),
+        price=Decimal(10),
+        fees=Decimal(0),
+        amount=Decimal(-50),
+        currency=CurrencyCode("GBP"),
+        broker="Trading212",
+        isin=Isin("IE00BK5BQT80"),
+    )
+
+    isins, unmapped = _resolve_isins([vanguard, elsewhere], {})
+
+    assert isins == {Isin("IE00BK5BQT80")}
+    assert unmapped == []
