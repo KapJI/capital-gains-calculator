@@ -159,6 +159,38 @@ def test_summary_counts_withholding_dated_apart_from_its_dividend(
     ]
 
 
+def test_summary_reports_withholding_with_no_dividend(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Tax the broker took is summarised even when no dividend can carry it."""
+    transactions = [dividend_tax_transaction(DIVIDEND_DATE, "FOO", 15)]
+
+    assert _summary_dividend_lines(transactions, capsys) == [
+        "  FOO: 0.00, excluding 15.00 taxed at source (USD)"
+    ]
+    assert _reported(transactions) == []
+
+
+def test_summary_reports_withholding_beyond_the_limit(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Tax too far from a dividend is summarised but carried by no row.
+
+    The two views differ here on purpose. The broker took the tax, so the
+    summary says so, while the report cannot say which payment it belongs
+    to and leaves it out. The warning raised for it reconciles the two.
+    """
+    transactions = [
+        dividend_transaction(DIVIDEND_DATE, "FOO", 100),
+        dividend_tax_transaction(BEYOND_LIMIT_DATE, "FOO", 15),
+    ]
+
+    assert _summary_dividend_lines(transactions, capsys) == [
+        "  FOO: 100.00, excluding 15.00 taxed at source (USD)"
+    ]
+    assert _reported(transactions) == [(DIVIDEND_DATE, Decimal(100), Decimal(0), False)]
+
+
 def test_withholding_on_its_dividend_date_is_attributed(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

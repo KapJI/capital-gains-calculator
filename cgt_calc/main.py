@@ -9,7 +9,7 @@ import decimal
 from decimal import Decimal
 import logging
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from colorama import Fore, Style
 
@@ -177,6 +177,20 @@ def _match_gifts_to_rows(
     return False
 
 
+class DividendTaxAttribution(NamedTuple):
+    """Withheld tax sorted by whether a dividend was found to carry it."""
+
+    matched: ForeignAmountLog
+    """Keyed by the symbol and date of the dividend the tax was taken from."""
+
+    unmatched: ForeignAmountLog
+    """Keyed by the symbol and date of the withholding itself.
+
+    No dividend row can carry this tax, but the broker took it all the same,
+    so the summary reports it against the year it was taken in.
+    """
+
+
 class CapitalGainsCalculator:
     """Main calculator class."""
 
@@ -239,7 +253,7 @@ class CapitalGainsCalculator:
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
-        self._attributed_dividend_tax: ForeignAmountLog | None = None
+        self._attributed_dividend_tax: DividendTaxAttribution | None = None
         self.interest_list: dict[
             tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
         ] = defaultdict(ForeignCurrencyAmount)
@@ -1156,8 +1170,15 @@ class CapitalGainsCalculator:
 
         # Withholding belongs to the year of the dividend it was taken from,
         # which is not always the year it was posted in, so the summary reads
-        # it from the same attribution the report is built from.
-        for (symbol, date), tax in self._dividend_tax_attribution().items():
+        # it from the same attribution the report is built from. Tax that
+        # matched no dividend is counted under its own date: no dividend row
+        # can carry it, but the broker took it and the summary says so. The
+        # warning raised for it explains why the report does not show it.
+        attribution = self._dividend_tax_attribution()
+        for (symbol, date), tax in [
+            *attribution.matched.items(),
+            *attribution.unmatched.items(),
+        ]:
             if self.date_in_tax_year(date) and tax.currency is not None:
                 dividends_tax[symbol, tax.currency] += tax.amount
 
@@ -2228,7 +2249,7 @@ class CapitalGainsCalculator:
             within, key=lambda candidate: (abs((candidate - date).days), candidate)
         )
 
-    def _attribute_dividend_tax(self) -> ForeignAmountLog:
+    def _attribute_dividend_tax(self) -> DividendTaxAttribution:
         """Attribute each withholding to the dividend it was taken from.
 
         Brokers do not always date a withholding, or a later correction of
@@ -2245,18 +2266,20 @@ class CapitalGainsCalculator:
         for symbol, date in self.dividend_list:
             dividend_dates[symbol].append(date)
 
-        attributed: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        matched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        unmatched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         for (symbol, date), tax in self.dividend_tax_list.items():
             if not tax.amount:
                 continue
             match = self._nearest_dividend_date(date, dividend_dates.get(symbol, []))
             if match is None:
                 self._warn_unattributed_dividend_tax(symbol, date, tax)
+                unmatched[symbol, date] += tax
                 continue
-            attributed[symbol, match] += tax
-        return attributed
+            matched[symbol, match] += tax
+        return DividendTaxAttribution(matched, unmatched)
 
-    def _dividend_tax_attribution(self) -> ForeignAmountLog:
+    def _dividend_tax_attribution(self) -> DividendTaxAttribution:
         """Attribute withholding once, for both the summary and the report.
 
         The two must agree, and attributing twice would warn twice.
@@ -2270,7 +2293,7 @@ class CapitalGainsCalculator:
 
         It updates the interest total for the year if needed.
         """
-        attributed_tax = self._dividend_tax_attribution()
+        attributed_tax = self._dividend_tax_attribution().matched
         for (symbol, date), foreign_amount in self.dividend_list.items():
             # Dividends outside the computed tax year are not reported, so
             # neither are the warnings raised while resolving their treaty.
