@@ -12,15 +12,13 @@ from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
-from cgt_calc.model import CurrencyCode
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 from .calc_test_data import dividend_tax_transaction, dividend_transaction
 
 if TYPE_CHECKING:
     import pytest
-
-    from cgt_calc.model import BrokerTransaction
 
 USD = CurrencyCode("USD")
 
@@ -118,6 +116,92 @@ def _summary_dividend_lines(
         return []
     section = lines[header + 1 :]
     return section[: section.index("")] if "" in section else section
+
+
+def _dividend_at(date: datetime.date, amount: float, broker: str) -> BrokerTransaction:
+    """Create a dividend held at a named broker."""
+    return BrokerTransaction(
+        date,
+        ActionType.DIVIDEND,
+        symbol="FOO",
+        description="Dividend",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(str(amount)),
+        currency=USD,
+        broker=broker,
+    )
+
+
+def _dividend_tax_at(
+    date: datetime.date, amount: float, broker: str
+) -> BrokerTransaction:
+    """Create withholding taken by a named broker."""
+    return BrokerTransaction(
+        date,
+        ActionType.DIVIDEND_TAX,
+        symbol="FOO",
+        description="Dividend tax",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(str(-amount)),
+        currency=USD,
+        broker=broker,
+    )
+
+
+def test_late_correction_belongs_to_the_payment_it_corrects(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A correction goes to the payment before it, not the nearer one after.
+
+    A monthly payer leaves a late correction closer to the following payment
+    than to the one it corrects, so matching on distance alone moved it, and
+    both payments then failed the treaty check.
+    """
+    first = datetime.date(2024, 6, 3)
+    correction = datetime.date(2024, 6, 22)  # 19 days after, 11 days before
+    second = datetime.date(2024, 7, 3)
+    transactions = [
+        dividend_transaction(first, "FOO", 100),
+        dividend_tax_transaction(first, "FOO", 30),
+        dividend_tax_transaction(correction, "FOO", -15),
+        dividend_transaction(second, "FOO", 200),
+        dividend_tax_transaction(second, "FOO", 30),
+    ]
+
+    assert _reported(transactions) == [
+        (first, Decimal(100), Decimal(-15), True),
+        (second, Decimal(200), Decimal(-30), True),
+    ]
+    assert _unattributed_warnings(transactions, caplog) == []
+
+
+def test_withholding_stays_with_its_own_broker(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """One symbol at two brokers keeps each broker's tax with its payments.
+
+    The other broker's payment is nearer in time than the one the tax was
+    taken from, so matching on symbol alone claimed it.
+    """
+    first = datetime.date(2024, 6, 3)
+    late_tax = datetime.date(2024, 6, 20)
+    other = datetime.date(2024, 6, 25)
+    transactions = [
+        _dividend_at(first, 100, broker="A"),
+        _dividend_tax_at(late_tax, 15, broker="A"),
+        _dividend_at(other, 200, broker="B"),
+        _dividend_tax_at(other, 30, broker="B"),
+    ]
+
+    assert _reported(transactions) == [
+        (first, Decimal(100), Decimal(-15), True),
+        (other, Decimal(200), Decimal(-30), True),
+    ]
+    assert _unattributed_warnings(transactions, caplog) == []
 
 
 def test_summary_and_report_agree_across_the_tax_year_end(

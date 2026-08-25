@@ -252,7 +252,16 @@ class CapitalGainsCalculator:
         self.rename_list: dict[datetime.date, dict[str, str]] = defaultdict(dict)
 
         self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
-        self.dividend_tax_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
+        # Withholding is matched to a dividend of the same broker as well as
+        # the same symbol, so both are keyed by broker. The dividends stay
+        # merged across brokers in dividend_list, which is what the report
+        # rows are built from.
+        self.dividend_tax_list: dict[
+            tuple[str, str, datetime.date], ForeignCurrencyAmount
+        ] = defaultdict(ForeignCurrencyAmount)
+        self.dividend_dates: dict[tuple[str, str], set[datetime.date]] = defaultdict(
+            set
+        )
         self._attributed_dividend_tax: DividendTaxAttribution | None = None
         self.interest_list: dict[
             tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
@@ -1086,6 +1095,7 @@ class CapitalGainsCalculator:
                 self.dividend_list[symbol, transaction.date] += ForeignCurrencyAmount(
                     amount, currency
                 )
+                self.dividend_dates[transaction.broker, symbol].add(transaction.date)
                 if self.date_in_tax_year(transaction.date):
                     dividends[symbol, currency] += amount
             elif transaction.action is ActionType.DIVIDEND_TAX:
@@ -1093,9 +1103,9 @@ class CapitalGainsCalculator:
                 symbol = get_symbol_or_fail(transaction)
                 currency = transaction.currency
                 new_balance += amount
-                self.dividend_tax_list[symbol, transaction.date] += (
-                    ForeignCurrencyAmount(amount, currency)
-                )
+                self.dividend_tax_list[
+                    transaction.broker, symbol, transaction.date
+                ] += ForeignCurrencyAmount(amount, currency)
             # Cash moves and nothing else: a deposit or withdrawal, a
             # correction, or an incoming wire. No shares change hands.
             elif transaction.action in {
@@ -2232,7 +2242,7 @@ class CapitalGainsCalculator:
 
     @staticmethod
     def _nearest_dividend_date(
-        date: datetime.date, dividend_dates: list[datetime.date]
+        date: datetime.date, dividend_dates: set[datetime.date]
     ) -> datetime.date | None:
         """Return the date of the dividend a withholding was taken from."""
         within = [
@@ -2242,36 +2252,39 @@ class CapitalGainsCalculator:
         ]
         if not within:
             return None
-        # A payment on the day of the withholding is nearest of all. Failing
-        # that the closest one wins, preferring the payment a correction
-        # follows when two are equally close.
-        return min(
-            within, key=lambda candidate: (abs((candidate - date).days), candidate)
-        )
+        # Tax is taken from a payment already made, and a correction corrects
+        # one, so a dividend on or before the withholding is preferred however
+        # much nearer a later payment falls. Choosing by distance alone sends
+        # a late correction to the next payment rather than the one it fixes,
+        # which for a monthly payer is most of them.
+        earlier = [candidate for candidate in within if candidate <= date]
+        if earlier:
+            return max(earlier)
+        # Nothing precedes it: a broker that posts tax before the payment.
+        return min(within)
 
     def _attribute_dividend_tax(self) -> DividendTaxAttribution:
         """Attribute each withholding to the dividend it was taken from.
 
         Brokers do not always date a withholding, or a later correction of
         one such as a Schwab ``NRA Tax Adj``, on the day of the payment it
-        belongs to. Tax is matched to a dividend of the same symbol on the
-        same day where there is one, and otherwise to the nearest dividend
-        of that symbol within ``DIVIDEND_TAX_MATCH_DAYS``.
+        belongs to. Tax is matched to a dividend of the same broker and
+        symbol within ``DIVIDEND_TAX_MATCH_DAYS``, preferring the payment it
+        follows. Holding one symbol at two brokers therefore keeps each
+        broker's withholding with that broker's own payments.
 
         Matching runs over the whole history rather than the reported year,
         so a payment and its withholding either side of 5 April stay
         together, and one withholding cannot be claimed in two years.
         """
-        dividend_dates: dict[str, list[datetime.date]] = defaultdict(list)
-        for symbol, date in self.dividend_list:
-            dividend_dates[symbol].append(date)
-
         matched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         unmatched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
-        for (symbol, date), tax in self.dividend_tax_list.items():
+        for (broker, symbol, date), tax in self.dividend_tax_list.items():
             if not tax.amount:
                 continue
-            match = self._nearest_dividend_date(date, dividend_dates.get(symbol, []))
+            match = self._nearest_dividend_date(
+                date, self.dividend_dates.get((broker, symbol), set())
+            )
             if match is None:
                 self._warn_unattributed_dividend_tax(symbol, date, tax)
                 unmatched[symbol, date] += tax
