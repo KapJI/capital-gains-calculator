@@ -352,6 +352,21 @@ class CapitalGainsCalculator:
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
 
+    def add_stock_split(self, transaction: BrokerTransaction) -> None:
+        """Record a stock split during the first pass.
+
+        The multiplier is kept for the bed and breakfast quantity adjustment,
+        and the new shares are added as a zero-cost acquisition.
+        """
+        acquired_quantity = get_quantity_or_fail(transaction)
+        symbol = get_symbol_or_fail(transaction)
+        holding_quantity = self.portfolio[symbol].quantity
+        self.split_list[symbol, transaction.date] = (
+            acquired_quantity + holding_quantity
+        ) / holding_quantity
+        self.split_shares[symbol, transaction.date] += acquired_quantity
+        self.add_acquisition(transaction)
+
     def handle_spin_off(
         self,
         transaction: BrokerTransaction,
@@ -1022,9 +1037,7 @@ class CapitalGainsCalculator:
                 )  # dummy value, this will get filtered out
                 continue
             new_balance = balance[transaction.broker, transaction.currency]
-            if transaction.action is ActionType.TRANSFER:
-                new_balance += get_amount_or_fail(transaction)
-            elif transaction.action in {
+            if transaction.action in {
                 ActionType.BUY,
                 ActionType.REINVEST_SHARES,
             }:
@@ -1048,14 +1061,7 @@ class CapitalGainsCalculator:
             }:
                 self.add_acquisition(transaction)
             elif transaction.action == ActionType.STOCK_SPLIT:
-                # Calculate the multiplier based on portfolio and received shares
-                acquired_quantity = get_quantity_or_fail(transaction)
-                symbol = get_symbol_or_fail(transaction)
-                holding_quantity = self.portfolio[symbol].quantity
-                multiplier = (acquired_quantity + holding_quantity) / holding_quantity
-                self.split_list[symbol, transaction.date] = multiplier
-                self.split_shares[symbol, transaction.date] += acquired_quantity
-                self.add_acquisition(transaction)
+                self.add_stock_split(transaction)
             elif transaction.action in {ActionType.DIVIDEND, ActionType.CAPITAL_GAIN}:
                 amount = get_amount_or_fail(transaction)
                 symbol = get_symbol_or_fail(transaction)
@@ -1076,9 +1082,14 @@ class CapitalGainsCalculator:
                 )
                 if self.date_in_tax_year(transaction.date):
                     dividends_tax[symbol, currency] += amount
-            elif transaction.action is ActionType.ADJUSTMENT:
-                amount = get_amount_or_fail(transaction)
-                new_balance += amount
+            # Cash moves and nothing else: a deposit or withdrawal, a
+            # correction, or an incoming wire. No shares change hands.
+            elif transaction.action in {
+                ActionType.ADJUSTMENT,
+                ActionType.TRANSFER,
+                ActionType.WIRE_FUNDS_RECEIVED,
+            }:
+                new_balance += get_amount_or_fail(transaction)
             elif transaction.action is ActionType.INTEREST:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
@@ -1095,9 +1106,6 @@ class CapitalGainsCalculator:
                 ] += ForeignCurrencyAmount(amount, transaction.currency)
                 if self.date_in_tax_year(transaction.date):
                     interest_taxes[transaction.broker, transaction.currency] += amount
-            elif transaction.action is ActionType.WIRE_FUNDS_RECEIVED:
-                amount = get_amount_or_fail(transaction)
-                new_balance += amount
             elif transaction.action is ActionType.RENAME:
                 self.add_rename(transaction)
             elif transaction.action in {
