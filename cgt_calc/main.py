@@ -22,6 +22,7 @@ from .const import (
     DIVIDEND_ALLOWANCES,
     DIVIDEND_CURRENCY_TO_COUNTRY,
     DIVIDEND_DOUBLE_TAXATION_RULES,
+    DIVIDEND_TAX_LEAD_DAYS,
     DIVIDEND_TAX_MATCH_DAYS,
     ERI_TAX_DATE_DELTA,
     INTERNAL_START_DATE,
@@ -2244,24 +2245,29 @@ class CapitalGainsCalculator:
     def _nearest_dividend_date(
         date: datetime.date, dividend_dates: set[datetime.date]
     ) -> datetime.date | None:
-        """Return the date of the dividend a withholding was taken from."""
+        """Return the date of the dividend a withholding was taken from.
+
+        The window is asymmetric because the two directions mean different
+        things. Tax follows the payment it was taken from, and a correction
+        follows it by longer, so the search reaches back weeks. A payment
+        after the withholding only means the broker posted the tax early,
+        which it does by days, so the search barely reaches forward. Looking
+        equally far both ways would let a monthly holding's next payment
+        claim a correction belonging to the last one.
+        """
         within = [
             candidate
             for candidate in dividend_dates
-            if abs((candidate - date).days) <= DIVIDEND_TAX_MATCH_DAYS
+            if -DIVIDEND_TAX_MATCH_DAYS
+            <= (candidate - date).days
+            <= DIVIDEND_TAX_LEAD_DAYS
         ]
         if not within:
             return None
-        # Tax is taken from a payment already made, and a correction corrects
-        # one, so a dividend on or before the withholding is preferred however
-        # much nearer a later payment falls. Choosing by distance alone sends
-        # a late correction to the next payment rather than the one it fixes,
-        # which for a monthly payer is most of them.
-        earlier = [candidate for candidate in within if candidate <= date]
-        if earlier:
-            return max(earlier)
-        # Nothing precedes it: a broker that posts tax before the payment.
-        return min(within)
+        # Nearest wins, and a payment on or before the withholding takes a tie.
+        return min(
+            within, key=lambda candidate: (abs((candidate - date).days), candidate)
+        )
 
     def _attribute_dividend_tax(self) -> DividendTaxAttribution:
         """Attribute each withholding to the dividend it was taken from.

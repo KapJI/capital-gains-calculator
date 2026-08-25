@@ -179,6 +179,46 @@ def test_late_correction_belongs_to_the_payment_it_corrects(
     assert _unattributed_warnings(transactions, caplog) == []
 
 
+def test_withholding_posted_before_its_dividend_waits_for_it(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Tax posted just before a payment belongs to it, not the month before.
+
+    A broker that posts the withholding a day ahead of the payment leaves it
+    near the end of the previous payment's window, so preferring an earlier
+    payment outright would hand it to the wrong month.
+    """
+    first = datetime.date(2024, 6, 3)
+    early_tax = datetime.date(2024, 7, 2)  # 29 days after first, 1 day before second
+    second = datetime.date(2024, 7, 3)
+    transactions = [
+        dividend_transaction(first, "FOO", 100),
+        dividend_tax_transaction(first, "FOO", 15),
+        dividend_tax_transaction(early_tax, "FOO", 30),
+        dividend_transaction(second, "FOO", 200),
+    ]
+
+    assert _reported(transactions) == [
+        (first, Decimal(100), Decimal(-15), True),
+        (second, Decimal(200), Decimal(-30), True),
+    ]
+    assert _unattributed_warnings(transactions, caplog) == []
+
+
+def test_withholding_too_far_before_its_dividend_is_not_claimed(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A payment further ahead than the lead window cannot claim the tax."""
+    dividend = DIVIDEND_DATE + datetime.timedelta(days=6)
+    transactions = [
+        dividend_transaction(dividend, "FOO", 100),
+        dividend_tax_transaction(DIVIDEND_DATE, "FOO", 15),
+    ]
+
+    assert _reported(transactions) == [(dividend, Decimal(100), Decimal(0), False)]
+    assert len(_unattributed_warnings(transactions, caplog)) == 1
+
+
 def test_withholding_stays_with_its_own_broker(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
