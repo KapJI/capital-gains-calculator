@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
-from cgt_calc.const import TICKER_RENAMES
+from cgt_calc.const import TICKER_RENAMES, UK_TIMEZONE
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 
@@ -25,6 +25,7 @@ class Trading212Column(StrEnum):
 
     ACTION = "Action"
     TIME = "Time"
+    TIME_UTC = "Time (UTC)"
     ISIN = "ISIN"
     TICKER = "Ticker"
     NAME = "Name"
@@ -160,6 +161,23 @@ def decimal_or_none(
         raise ValueError(f"Invalid decimal in {column.value}: {value!r}") from err
 
 
+def datetime_from_str(value: str) -> datetime:
+    """Convert a timestamp to an aware UTC datetime.
+
+    Exports have used whole seconds and milliseconds, and the column
+    renamed to "Time (UTC)" may spell the zone out. Every export states
+    its times in UTC, so a value without a zone is read as UTC too.
+    """
+
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as err:
+        raise ValueError(f"Invalid timestamp: {value!r}") from err
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
 def action_from_str(label: str, file: Path) -> ActionType:
     """Convert label to ActionType."""
     if label in {
@@ -235,10 +253,17 @@ class Trading212Transaction(BrokerTransaction):
             for column, value in zip(header, row_raw, strict=False)
         }
 
-        time_str = row[Trading212Column.TIME]
-        time_format = "%Y-%m-%d %H:%M:%S.%f" if "." in time_str else "%Y-%m-%d %H:%M:%S"
-        self.datetime = datetime.strptime(time_str, time_format)
-        date = self.datetime.date()
+        # Older exports call the column "Time", newer ones "Time (UTC)".
+        time_str = row.get(Trading212Column.TIME) or row.get(Trading212Column.TIME_UTC)
+        if not time_str:
+            raise ValueError(
+                f"Missing {Trading212Column.TIME.value} "
+                f"or {Trading212Column.TIME_UTC.value}"
+            )
+        self.datetime = datetime_from_str(time_str)
+        # The instant is kept in UTC for ordering, but the date that drives
+        # the tax year and the matching rules is the UK one.
+        date = self.datetime.astimezone(UK_TIMEZONE).date()
         self.raw_action = row[Trading212Column.ACTION]
         action = action_from_str(self.raw_action, file)
 
@@ -302,7 +327,9 @@ class Trading212Transaction(BrokerTransaction):
             and (self.currency_foreign == "GBP" or self.exchange_rate is not None)
         ):
             exchange_rate = self.exchange_rate or Decimal(1)
-            check_fees = self._checkable_fees(fees, foreign_fees, exchange_rate)
+            check_fees = self._checkable_fees(
+                row, fees, foreign_fees, currency, exchange_rate
+            )
             if check_fees is not None:
                 check_price = abs(amount + check_fees) / quantity
                 calculated_price_foreign = check_price * exchange_rate
@@ -338,18 +365,33 @@ class Trading212Transaction(BrokerTransaction):
 
     def _checkable_fees(
         self,
+        row: dict[Trading212Column, str],
         fees: Decimal,
         foreign_fees: dict[CurrencyCode, Decimal],
+        currency: CurrencyCode,
         exchange_rate: Decimal,
     ) -> Decimal | None:
-        """Total fees for the price consistency check.
+        """Total amounts to add back for the price consistency check.
 
-        Foreign fees in the instrument currency are converted with the
-        export's own exchange rate. Returns None when a fee is in some
-        other currency, which the export alone cannot convert.
+        Withholding tax is deducted from a dividend Total while the Price
+        per Share stays gross, so it is added back here. It is not a
+        dealing cost and never reaches the reported fees.
+
+        Foreign amounts in the instrument currency are converted with the
+        export's own exchange rate. Returns None when one is in some other
+        currency, which the export alone cannot convert.
         """
         total = fees
-        for fee_currency, fee_amount in foreign_fees.items():
+        foreign = dict(foreign_fees)
+        withholding_tax = decimal_or_none(row, Trading212Column.WITHHOLDING_TAX)
+        if withholding_tax:
+            tax_currency = row.get(Trading212Column.CURRENCY_WITHHOLDING_TAX) or None
+            if tax_currency is None or tax_currency == currency:
+                total += withholding_tax
+            else:
+                tax_code = CurrencyCode(tax_currency)
+                foreign[tax_code] = foreign.get(tax_code, Decimal(0)) + withholding_tax
+        for fee_currency, fee_amount in foreign.items():
             if fee_currency != self.currency_foreign:
                 return None
             total += fee_amount / exchange_rate

@@ -67,10 +67,18 @@ The Trading 212 parser currently handles:
 | Corporate actions | Transactions labelled `Stock Split` or `Spin off`                                                                                                                  |
 | Costs and taxes   | Transaction, regulatory and currency-conversion fees; stamp duty, stamp duty reserve tax and French transaction tax, including costs charged in a foreign currency |
 
+### Dates and time zones
+
+Trading 212 timestamps every transaction in UTC. cgt-calc converts each one to UK time, GMT in
+winter and BST in summer, before taking the date. The tax year boundary and the same-day and 30-day
+matching rules all run on UK calendar days, and the boundary always falls inside BST, so a
+transaction stamped after 23:00 UTC on 5 April belongs to the following tax year.
+
 ### Known limitations
 
-- Dividends are recorded at the CSV `Total`; the `Withholding tax` column is not used and does not
-  appear separately in the report.
+- Dividends are recorded at the CSV `Total`, which is net of withholding tax. The `Withholding tax`
+  column is only used to check the export for consistency and does not appear separately in the
+  report.
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
   supported.
 - Split transactions labelled `Stock split open` or `Stock split close` are not supported. Only the

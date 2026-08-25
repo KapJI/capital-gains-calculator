@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
 from decimal import Decimal
 import logging
 from pathlib import Path
@@ -16,6 +17,7 @@ from cgt_calc.parsers.trading212 import (
     Trading212Column,
     Trading212Parser,
     Trading212Transaction,
+    datetime_from_str,
 )
 from tests.utils import build_cmd, report_path, stderr_alerts
 
@@ -102,6 +104,11 @@ HEADER_2026 = [
     "Currency (Finra fee)",
     "Merchant name",
     "Merchant category",
+]
+
+# Trading 212 renamed the Time column to spell out the zone.
+HEADER_2026_UTC = [
+    "Time (UTC)" if column == "Time" else column for column in HEADER_2026
 ]
 
 
@@ -960,6 +967,275 @@ def test_read_trading212_transactions_unconvertible_fee_skips_price_check(
         ),
     ]
     folder = _prepare_file(tmp_path, rows)
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        Trading212Parser().load_from_dir(folder)
+
+    assert "does not add up" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2024-01-01 16:10:05", datetime(2024, 1, 1, 16, 10, 5, tzinfo=UTC)),
+        (
+            "2024-01-01 16:10:05.175",
+            datetime(2024, 1, 1, 16, 10, 5, 175000, tzinfo=UTC),
+        ),
+        ("2024-01-01T16:10:05Z", datetime(2024, 1, 1, 16, 10, 5, tzinfo=UTC)),
+        (
+            "2024-01-01 16:10:05.175+00:00",
+            datetime(2024, 1, 1, 16, 10, 5, 175000, tzinfo=UTC),
+        ),
+        ("2024-01-01 17:10:05+01:00", datetime(2024, 1, 1, 16, 10, 5, tzinfo=UTC)),
+    ],
+)
+def test_datetime_from_str(value: str, expected: datetime) -> None:
+    """Parse every timestamp shape the exports use, normalised to UTC."""
+
+    assert datetime_from_str(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("time_str", "expected"),
+    [
+        # The tax year boundary always falls inside BST, so the last hour
+        # of 5 April in UTC already belongs to the next tax year.
+        ("2025-04-05 22:59:59+00:00", date(2025, 4, 5)),
+        ("2025-04-05 23:00:00+00:00", date(2025, 4, 6)),
+        ("2025-04-05 23:30:00", date(2025, 4, 6)),
+        # Outside summer time UK dates and UTC dates agree.
+        ("2026-01-15 23:30:00+00:00", date(2026, 1, 15)),
+        ("2026-11-01 23:30:00+00:00", date(2026, 11, 1)),
+    ],
+)
+def test_read_trading212_transactions_uses_uk_dates(
+    tmp_path: Path, time_str: str, expected: date
+) -> None:
+    """Take the tax date from the UK calendar, not the UTC one."""
+
+    rows = [
+        HEADER_2024,
+        _make_row(
+            HEADER_2024,
+            {
+                Trading212Column.ACTION: "Deposit",
+                Trading212Column.TIME: time_str,
+                Trading212Column.TOTAL: "100.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "deposit-boundary",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert transactions[0].date == expected
+
+
+def test_read_trading212_transactions_supports_time_utc_column(
+    tmp_path: Path,
+) -> None:
+    """Parse an export whose Time column spells out the zone."""
+
+    rows = [
+        HEADER_2026_UTC,
+        _make_row(
+            HEADER_2026_UTC,
+            {
+                Trading212Column.TIME_UTC: "2026-05-02 14:30:05.123",
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.ISIN: "US0000000200",
+                Trading212Column.TICKER: "ACME",
+                Trading212Column.NAME: "Acme Corp",
+                Trading212Column.NO_OF_SHARES: "10",
+                Trading212Column.PRICE_PER_SHARE: "150.00",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
+                Trading212Column.EXCHANGE_RATE: "1.25",
+                Trading212Column.TOTAL: "1200.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "buy-utc",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert isinstance(transaction, Trading212Transaction)
+    assert transaction.datetime == datetime(2026, 5, 2, 14, 30, 5, 123000, tzinfo=UTC)
+    assert transaction.amount == Decimal("-1200.00")
+
+
+def test_read_trading212_transactions_mixes_time_column_spellings(
+    tmp_path: Path,
+) -> None:
+    """Read old and new exports from the same directory."""
+
+    folder = tmp_path / "inputs"
+    folder.mkdir()
+    _write_csv(
+        folder / "old.csv",
+        [
+            HEADER_2026,
+            _make_row(
+                HEADER_2026,
+                {
+                    Trading212Column.ACTION: "Deposit",
+                    Trading212Column.TIME: "2026-05-01 00:10:00.000",
+                    Trading212Column.TOTAL: "100.00",
+                    Trading212Column.CURRENCY_TOTAL: "GBP",
+                    Trading212Column.TRANSACTION_ID: "deposit-old",
+                },
+            ),
+        ],
+    )
+    _write_csv(
+        folder / "new.csv",
+        [
+            HEADER_2026_UTC,
+            _make_row(
+                HEADER_2026_UTC,
+                {
+                    Trading212Column.ACTION: "Deposit",
+                    Trading212Column.TIME_UTC: "2026-05-02 00:10:00.000",
+                    Trading212Column.TOTAL: "200.00",
+                    Trading212Column.CURRENCY_TOTAL: "GBP",
+                    Trading212Column.TRANSACTION_ID: "deposit-new",
+                },
+            ),
+        ],
+    )
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal("100.00"),
+        Decimal("200.00"),
+    ]
+
+
+def test_read_trading212_transactions_missing_time_column(tmp_path: Path) -> None:
+    """Raise ParsingError when neither Time column is present."""
+
+    header = ["Action", "Total", "Currency (Total)", "ID"]
+    rows = [header, ["Deposit", "100.00", "GBP", "deposit-no-time"]]
+    folder = _prepare_file(tmp_path, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        Trading212Parser().load_from_dir(folder)
+
+    message = str(exc.value)
+    assert "row 2" in message
+    assert "Missing Time or Time (UTC)" in message
+
+
+def test_read_trading212_transactions_invalid_time(tmp_path: Path) -> None:
+    """Raise ParsingError when the timestamp cannot be parsed."""
+
+    rows = [
+        HEADER_2024,
+        _make_row(
+            HEADER_2024,
+            {
+                Trading212Column.ACTION: "Deposit",
+                Trading212Column.TIME: "01/01/2024 10:00",
+                Trading212Column.TOTAL: "100.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "deposit-bad-time",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        Trading212Parser().load_from_dir(folder)
+
+    message = str(exc.value)
+    assert "row 2" in message
+    assert "Invalid timestamp" in message
+
+
+def _make_dividend_row(
+    total: str, overrides: Mapping[str | Trading212Column, str] | None = None
+) -> list[str]:
+    """Build a GBP-account dividend of a USD stock with USD withholding tax."""
+    row: dict[str | Trading212Column, str] = {
+        Trading212Column.ACTION: "Dividend (Ordinary)",
+        Trading212Column.TIME: "2024-06-01 12:00:00",
+        Trading212Column.ISIN: "US0000000036",
+        Trading212Column.TICKER: "BAZ",
+        Trading212Column.NAME: "Baz Corp",
+        Trading212Column.NO_OF_SHARES: "10",
+        Trading212Column.PRICE_PER_SHARE: "1.00",
+        Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
+        Trading212Column.EXCHANGE_RATE: "1.25",
+        Trading212Column.TOTAL: total,
+        Trading212Column.CURRENCY_TOTAL: "GBP",
+        Trading212Column.WITHHOLDING_TAX: "1.50",
+        Trading212Column.CURRENCY_WITHHOLDING_TAX: "USD",
+        Trading212Column.TRANSACTION_ID: "dividend-withholding",
+    }
+    row.update(overrides or {})
+    return _make_row(HEADER_2024, row)
+
+
+def test_read_trading212_transactions_withholding_tax_price_consistent(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Stay quiet when only withholding tax separates the total from the price.
+
+    Trading 212 reports the gross Price per Share but a Total net of
+    withholding tax, so the tax has to be added back before comparing them.
+    """
+
+    # 10 shares at $1.00 less $1.50 tax is $8.50, or GBP 6.80 at 1.25.
+    folder = _prepare_file(tmp_path, [HEADER_2024, _make_dividend_row("6.80")])
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        transactions = Trading212Parser().load_from_dir(folder)
+
+    assert "does not add up" not in caplog.text
+    assert transactions[0].amount == Decimal("6.80")
+    # Withholding tax is not a dealing cost.
+    assert transactions[0].fees == Decimal(0)
+
+
+def test_read_trading212_transactions_withholding_tax_price_discrepancy(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Still warn when a dividend does not add up once tax is accounted for."""
+
+    folder = _prepare_file(tmp_path, [HEADER_2024, _make_dividend_row("6.00")])
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        Trading212Parser().load_from_dir(folder)
+
+    assert "does not add up" in caplog.text
+
+
+@pytest.mark.parametrize("tax_currency", ["GBP", ""])
+def test_read_trading212_transactions_account_currency_withholding_tax(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, tax_currency: str
+) -> None:
+    """Add back withholding tax charged in the account currency.
+
+    Some exports leave the tax currency blank, which means the currency of
+    the transaction.
+    """
+
+    row = _make_dividend_row(
+        "8.50",
+        {
+            Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+            Trading212Column.EXCHANGE_RATE: "",
+            Trading212Column.CURRENCY_WITHHOLDING_TAX: tax_currency,
+        },
+    )
+    folder = _prepare_file(tmp_path, [HEADER_2024, row])
 
     with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
         Trading212Parser().load_from_dir(folder)

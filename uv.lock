@@ -170,6 +170,7 @@ dependencies = [
     { name = "pyrate-limiter" },
     { name = "requests" },
     { name = "shtab" },
+    { name = "tzdata", marker = "sys_platform == 'emscripten' or sys_platform == 'win32'" },
     { name = "xlrd" },
     { name = "yfinance" },
 ]
@@ -211,6 +212,7 @@ requires-dist = [
     { name = "pyrate-limiter", specifier = ">=4.0.0" },
     { name = "requests", specifier = ">=2.27.1" },
     { name = "shtab", specifier = ">=1.12.0" },
+    { name = "tzdata", marker = "sys_platform == 'emscripten' or sys_platform == 'win32'", specifier = ">=2025.2" },
     { name = "xlrd", specifier = ">=2.0.2" },
     { name = "yfinance", specifier = ">=1.6.0" },
 ]

@@ -8,6 +8,7 @@ from enum import Enum
 import os
 from pathlib import Path
 from typing import Final
+from zoneinfo import ZoneInfo
 
 from dateutil.relativedelta import relativedelta
 
@@ -103,6 +104,11 @@ INTERNAL_START_DATE: Final = datetime.date(2010, 1, 1)
 BED_AND_BREAKFAST_DAYS: Final = 30
 
 UK_CURRENCY: Final = "GBP"
+
+# Tax dates are UK calendar days, so timestamped transactions are read
+# in UK time (GMT in winter, BST in summer) and not in UTC.
+UK_TIMEZONE: Final = ZoneInfo("Europe/London")
+
 ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 
 TICKER_RENAMES: Final[dict[str, str]] = {
