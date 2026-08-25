@@ -103,6 +103,12 @@ INTERNAL_START_DATE: Final = datetime.date(2010, 1, 1)
 # See: https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51560
 BED_AND_BREAKFAST_DAYS: Final = 30
 
+# How far from a dividend a withholding may be dated and still be treated as
+# taken from it. Brokers post a withholding, or a later correction of one, a
+# few days either side of the payment; beyond this the tax is left out of the
+# report rather than attributed to a payment it may not belong to.
+DIVIDEND_TAX_MATCH_DAYS: Final = 30
+
 UK_CURRENCY: Final = "GBP"
 
 # Tax dates are UK calendar days, so timestamped transactions are read
