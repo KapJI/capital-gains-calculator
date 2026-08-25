@@ -179,6 +179,48 @@ def test_late_correction_belongs_to_the_payment_it_corrects(
     assert _unattributed_warnings(transactions, caplog) == []
 
 
+def test_refund_never_belongs_to_a_payment_still_to_come(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A refund goes back to the payment it corrects, however near the next.
+
+    Tax given back can only answer for income already paid, so a credit two
+    days before the next payment still belongs to the last one, even though
+    that payment is four weeks behind it.
+    """
+    first = datetime.date(2024, 6, 3)
+    refund = datetime.date(2024, 7, 1)  # 28 days after first, 2 days before second
+    second = datetime.date(2024, 7, 3)
+    transactions = [
+        dividend_transaction(first, "FOO", 100),
+        dividend_tax_transaction(first, "FOO", 30),
+        dividend_tax_transaction(refund, "FOO", -15),
+        dividend_transaction(second, "FOO", 200),
+        dividend_tax_transaction(second, "FOO", 30),
+    ]
+
+    assert _reported(transactions) == [
+        (first, Decimal(100), Decimal(-15), True),
+        (second, Decimal(200), Decimal(-30), True),
+    ]
+    assert _unattributed_warnings(transactions, caplog) == []
+
+
+def test_unmatched_refund_warning_names_only_the_backward_window(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The warning describes the window actually searched, which differs."""
+    transactions = [
+        dividend_transaction(DIVIDEND_DATE + datetime.timedelta(days=6), "FOO", 100),
+        dividend_tax_transaction(DIVIDEND_DATE, "FOO", -15),
+    ]
+
+    warnings = _unattributed_warnings(transactions, caplog)
+
+    assert len(warnings) == 1
+    assert "in the 30 days before it, so" in warnings[0]
+
+
 def test_withholding_posted_before_its_dividend_waits_for_it(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -410,7 +452,7 @@ def test_withholding_beyond_the_limit_warns(
 
     assert len(warnings) == 1
     assert "-15.00 USD for FOO on 2024-07-04" in warnings[0]
-    assert "within 30 days" in warnings[0]
+    assert "in the 30 days before it or the 5 days after" in warnings[0]
 
 
 def test_withholding_without_any_dividend_warns(

@@ -2219,13 +2219,22 @@ class CapitalGainsCalculator:
         return DIVIDEND_CURRENCY_TO_COUNTRY.get(currency)
 
     def _warn_unattributed_dividend_tax(
-        self, symbol: str, date: datetime.date, tax: ForeignCurrencyAmount
+        self,
+        symbol: str,
+        date: datetime.date,
+        tax: ForeignCurrencyAmount,
+        lead_days: int,
     ) -> None:
         """Warn about withheld tax that belongs to no dividend."""
         # Withholding of another year is another year's problem, as for the
         # treaty warnings raised below.
         if not self.date_in_tax_year(date):
             return
+        # Name the window actually searched. It reaches forward only for tax
+        # taken, not for tax given back, so the two read differently.
+        searched = f"the {DIVIDEND_TAX_MATCH_DAYS} days before it"
+        if lead_days:
+            searched += f" or the {lead_days} days after"
         # Tax below half a unit would print as a bare "-0.00", so it is
         # shown as it stands instead. Whether it is material is a question
         # about its value in GBP, and answering it here would put a rate
@@ -2233,17 +2242,17 @@ class CapitalGainsCalculator:
         amount = round_decimal(tax.amount, 2) or tax.amount
         LOGGER.warning(
             "Dividend tax of %s %s for %s on %s is not attributed to any "
-            "dividend within %d days, so it is left out of the report!",
+            "dividend in %s, so it is left out of the report!",
             amount,
             tax.currency,
             symbol,
             date,
-            DIVIDEND_TAX_MATCH_DAYS,
+            searched,
         )
 
     @staticmethod
     def _nearest_dividend_date(
-        date: datetime.date, dividend_dates: set[datetime.date]
+        date: datetime.date, dividend_dates: set[datetime.date], lead_days: int
     ) -> datetime.date | None:
         """Return the date of the dividend a withholding was taken from.
 
@@ -2251,16 +2260,14 @@ class CapitalGainsCalculator:
         things. Tax follows the payment it was taken from, and a correction
         follows it by longer, so the search reaches back weeks. A payment
         after the withholding only means the broker posted the tax early,
-        which it does by days, so the search barely reaches forward. Looking
-        equally far both ways would let a monthly holding's next payment
-        claim a correction belonging to the last one.
+        which it does by days, so ``lead_days`` is short. Looking equally far
+        both ways would let a monthly holding's next payment claim a
+        correction belonging to the last one.
         """
         within = [
             candidate
             for candidate in dividend_dates
-            if -DIVIDEND_TAX_MATCH_DAYS
-            <= (candidate - date).days
-            <= DIVIDEND_TAX_LEAD_DAYS
+            if -DIVIDEND_TAX_MATCH_DAYS <= (candidate - date).days <= lead_days
         ]
         if not within:
             return None
@@ -2288,11 +2295,17 @@ class CapitalGainsCalculator:
         for (broker, symbol, date), tax in self.dividend_tax_list.items():
             if not tax.amount:
                 continue
+            # Tax given back can only answer for a payment already made: a
+            # broker does not refund tax on income it has yet to pay. So a
+            # credit looks no further forward than the day it lands on, which
+            # is what keeps a refund of last month's withholding off next
+            # month's payment when that payment is the nearer of the two.
+            lead_days = 0 if tax.amount > 0 else DIVIDEND_TAX_LEAD_DAYS
             match = self._nearest_dividend_date(
-                date, self.dividend_dates.get((broker, symbol), set())
+                date, self.dividend_dates.get((broker, symbol), set()), lead_days
             )
             if match is None:
-                self._warn_unattributed_dividend_tax(symbol, date, tax)
+                self._warn_unattributed_dividend_tax(symbol, date, tax, lead_days)
                 unmatched[symbol, date] += tax
                 continue
             matched[symbol, match] += tax
