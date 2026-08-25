@@ -646,8 +646,12 @@ def _filter_cancelled_buy_transactions(
                 file,
                 f"Found a {transaction.raw_action} for {transaction.symbol} on "
                 f"{transaction.date} with no Buy to match it in the "
-                f"{CANCEL_BUY_SEARCH_DAYS} days before. Check that the export "
-                "covers the purchase it reverses.",
+                f"{CANCEL_BUY_SEARCH_DAYS} days before. The purchase may be "
+                "missing from the export, older than that window, recorded "
+                "with a different quantity or price, or already reversed by "
+                "another cancellation. Remove this row; remove the purchase "
+                "with it only if the purchase is still in the export and no "
+                "other cancellation reverses it.",
             )
 
     if len(indices_to_remove) > 0:
