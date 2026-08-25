@@ -2345,6 +2345,19 @@ class CapitalGainsCalculator:
             currency = foreign_amount.currency
             assert currency is not None, f"Dividend for {symbol} has no currency"
 
+            # The tax is converted at the dividend's rate below, so the two
+            # have to be in one currency whichever way the tax runs and
+            # whatever the holding is. Checking this only for tax deducted
+            # from an ordinary holding let a refund, or any tax on a bond
+            # fund, be converted as though it were in the dividend's
+            # currency.
+            if tax.amount and tax.currency != currency:
+                raise CalculationError(
+                    f"Dividend and withholding tax currencies do not match "
+                    f"for {symbol} on {date}: dividend "
+                    f"{foreign_amount.currency}, tax {tax.currency}"
+                )
+
             treaty = None
             is_interest_fund = symbol in self.interest_fund_tickers
             if tax.amount < 0:
@@ -2353,12 +2366,6 @@ class CapitalGainsCalculator:
                         "Cannot apply taxation treaty for bond fund %s", symbol
                     )
                 else:
-                    if tax.currency != foreign_amount.currency:
-                        raise CalculationError(
-                            f"Dividend and withholding tax currencies do not match "
-                            f"for {symbol} on {date}: dividend "
-                            f"{foreign_amount.currency}, tax {tax.currency}"
-                        )
                     country = self.dividend_source_country(symbol, currency)
                     if country is None:
                         LOGGER.warning(

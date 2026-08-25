@@ -5,10 +5,12 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 import logging
-from typing import TYPE_CHECKING
+
+import pytest
 
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
+from cgt_calc.exceptions import CalculationError
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
@@ -16,9 +18,6 @@ from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 from .calc_test_data import dividend_tax_transaction, dividend_transaction
-
-if TYPE_CHECKING:
-    import pytest
 
 USD = CurrencyCode("USD")
 
@@ -201,6 +200,63 @@ def test_tax_on_a_payment_day_is_never_in_doubt(
         (second, Decimal(200), Decimal(-30), True),
     ]
     assert _unattributed_warnings(transactions, caplog) == []
+
+
+def _tax_in_currency(
+    date: datetime.date, amount: float, currency: CurrencyCode
+) -> BrokerTransaction:
+    """Create withholding denominated in a given currency."""
+    return BrokerTransaction(
+        date,
+        ActionType.DIVIDEND_TAX,
+        symbol="FOO",
+        description="Dividend tax",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(str(amount)),
+        currency=currency,
+        broker="A",
+    )
+
+
+@pytest.mark.parametrize(
+    ("amount", "tickers"),
+    [
+        pytest.param(15, [], id="refund"),
+        pytest.param(-15, [], id="withholding"),
+        pytest.param(-15, ["FOO"], id="withholding-on-a-bond-fund"),
+    ],
+)
+def test_tax_in_another_currency_than_its_dividend_is_refused(
+    amount: int, tickers: list[str]
+) -> None:
+    """Tax is converted at the dividend's rate, so the two must agree.
+
+    The check once sat inside the branch for tax deducted from an ordinary
+    holding, so a refund, or any tax on a bond fund, was converted as though
+    it were in the dividend's currency and came out at the wrong figure.
+    """
+    transactions = [
+        _dividend_at(DIVIDEND_DATE, 100, broker="A"),
+        _tax_in_currency(LATER_DATE, amount, CurrencyCode("GBP")),
+    ]
+    gbp_prices = {t.date: {USD: Decimal(2)} for t in transactions}
+    currency_converter = CurrencyConverter(None, gbp_prices)
+    calculator = CapitalGainsCalculator(
+        TAX_YEAR,
+        currency_converter,
+        IsinConverter(),
+        CurrentPriceFetcher(currency_converter, {}, {}),
+        SpinOffHandler(),
+        InitialPrices(),
+        interest_fund_tickers=tickers,
+        balance_check=False,
+    )
+    calculator.convert_to_hmrc_transactions(transactions)
+
+    with pytest.raises(CalculationError, match="currencies do not match"):
+        calculator.process_dividends()
 
 
 def test_ambiguous_tax_warns_in_the_year_of_each_payment(
