@@ -327,6 +327,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             str(csv_file),
             "--output",
             str(tmp_path / "out"),
+            keep_tex=True,
         )
         result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
         if result.returncode:
