@@ -24,7 +24,7 @@ class Trading212Column(StrEnum):
     """Columns exported in the Trading 212 transaction CSV."""
 
     ACTION = "Action"
-    TIME = "Time"
+    TIME = "Time (UTC)"
     ISIN = "ISIN"
     TICKER = "Ticker"
     NAME = "Name"
@@ -236,8 +236,7 @@ class Trading212Transaction(BrokerTransaction):
         }
 
         time_str = row[Trading212Column.TIME]
-        time_format = "%Y-%m-%d %H:%M:%S.%f" if "." in time_str else "%Y-%m-%d %H:%M:%S"
-        self.datetime = datetime.strptime(time_str, time_format)
+        self.datetime = datetime.strptime(time_str[:19], "%Y-%m-%d %H:%M:%S")
         date = self.datetime.date()
         self.raw_action = row[Trading212Column.ACTION]
         action = action_from_str(self.raw_action, file)
@@ -304,9 +303,16 @@ class Trading212Transaction(BrokerTransaction):
             exchange_rate = self.exchange_rate or Decimal(1)
             check_fees = self._checkable_fees(fees, foreign_fees, exchange_rate)
             if check_fees is not None:
-                check_price = abs(amount + check_fees) / quantity
-                calculated_price_foreign = check_price * exchange_rate
-                discrepancy = self.price_foreign - calculated_price_foreign
+                if action == ActionType.DIVIDEND:
+                    discrepancy = (
+                        self.price_foreign * quantity * exchange_rate
+                        - amount
+                        - check_fees
+                    )
+                else:
+                    check_price = abs(amount + check_fees) / quantity
+                    calculated_price_foreign = check_price * exchange_rate
+                    discrepancy = self.price_foreign - calculated_price_foreign
                 if abs(discrepancy) > Decimal("0.015"):
                     LOGGER.warning(
                         "The Price per Share for this transaction after converting "
