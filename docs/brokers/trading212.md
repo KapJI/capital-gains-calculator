@@ -69,8 +69,9 @@ The Trading 212 parser currently handles:
 
 ### Known limitations
 
-- Dividends are recorded at the CSV `Total`; the `Withholding tax` column is not used and does not
-  appear separately in the report.
+- Dividends are recorded at the CSV `Total`, which is net of withholding tax. The `Withholding tax`
+  column is only used to check the export for consistency and does not appear separately in the
+  report.
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
   supported.
 - Split transactions labelled `Stock split open` or `Stock split close` are not supported. Only the
