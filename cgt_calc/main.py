@@ -2223,57 +2223,68 @@ class CapitalGainsCalculator:
         symbol: str,
         date: datetime.date,
         tax: ForeignCurrencyAmount,
-        lead_days: int,
+        candidates: list[datetime.date],
     ) -> None:
-        """Warn about withheld tax that belongs to no dividend."""
+        """Warn about withheld tax that no single dividend can claim."""
         # Withholding of another year is another year's problem, as for the
         # treaty warnings raised below.
         if not self.date_in_tax_year(date):
             return
-        # Name the window actually searched. It reaches forward only for tax
-        # taken, not for tax given back, so the two read differently.
-        searched = f"the {DIVIDEND_TAX_MATCH_DAYS} days before it"
-        if lead_days:
-            searched += f" or the {lead_days} days after"
         # Tax below half a unit would print as a bare "-0.00", so it is
         # shown as it stands instead. Whether it is material is a question
         # about its value in GBP, and answering it here would put a rate
         # lookup, and the failure of one, in the way of a warning.
         amount = round_decimal(tax.amount, 2) or tax.amount
+        if candidates:
+            LOGGER.warning(
+                "Dividend tax of %s %s for %s on %s could have been taken "
+                "from the dividend on %s, so it is left out of the report! "
+                "Date it on the one it belongs to to have it counted.",
+                amount,
+                tax.currency,
+                symbol,
+                date,
+                " or ".join(str(candidate) for candidate in candidates),
+            )
+            return
         LOGGER.warning(
-            "Dividend tax of %s %s for %s on %s is not attributed to any "
-            "dividend in %s, so it is left out of the report!",
+            "Dividend tax of %s %s for %s on %s has no dividend in the %d "
+            "days before it or the %d days after, so it is left out of the "
+            "report!",
             amount,
             tax.currency,
             symbol,
             date,
-            searched,
+            DIVIDEND_TAX_MATCH_DAYS,
+            DIVIDEND_TAX_LEAD_DAYS,
         )
 
     @staticmethod
-    def _nearest_dividend_date(
-        date: datetime.date, dividend_dates: set[datetime.date], lead_days: int
-    ) -> datetime.date | None:
-        """Return the date of the dividend a withholding was taken from.
+    def _dividends_for_tax(
+        date: datetime.date, dividend_dates: set[datetime.date]
+    ) -> list[datetime.date]:
+        """Return the dividends a withholding could have been taken from.
 
-        The window is asymmetric because the two directions mean different
+        A payment on the day of the withholding is not in doubt, whatever
+        else lies nearby. Otherwise, every payment in the window counts as a
+        candidate, and it is for the caller to refuse when there is more
+        than one: which of two payments a correction belongs to cannot be
+        told from a date and a net amount.
+
+        The window is asymmetric because the directions mean different
         things. Tax follows the payment it was taken from, and a correction
-        follows it by longer, so the search reaches back weeks. A payment
-        after the withholding only means the broker posted the tax early,
-        which it does by days, so ``lead_days`` is short. Looking equally far
-        both ways would let a monthly holding's next payment claim a
-        correction belonging to the last one.
+        follows it by longer, so it reaches back weeks; a payment after the
+        withholding only means the broker posted the tax early, which it
+        does by days.
         """
-        within = [
+        if date in dividend_dates:
+            return [date]
+        return sorted(
             candidate
             for candidate in dividend_dates
-            if -DIVIDEND_TAX_MATCH_DAYS <= (candidate - date).days <= lead_days
-        ]
-        if not within:
-            return None
-        # Nearest wins, and a payment on or before the withholding takes a tie.
-        return min(
-            within, key=lambda candidate: (abs((candidate - date).days), candidate)
+            if -DIVIDEND_TAX_MATCH_DAYS
+            <= (candidate - date).days
+            <= DIVIDEND_TAX_LEAD_DAYS
         )
 
     def _attribute_dividend_tax(self) -> DividendTaxAttribution:
@@ -2281,10 +2292,17 @@ class CapitalGainsCalculator:
 
         Brokers do not always date a withholding, or a later correction of
         one such as a Schwab ``NRA Tax Adj``, on the day of the payment it
-        belongs to. Tax is matched to a dividend of the same broker and
-        symbol within ``DIVIDEND_TAX_MATCH_DAYS``, preferring the payment it
-        follows. Holding one symbol at two brokers therefore keeps each
-        broker's withholding with that broker's own payments.
+        belongs to, so tax is matched to a dividend of the same broker and
+        symbol nearby. Holding one symbol at two brokers therefore keeps
+        each broker's withholding with that broker's own payments.
+
+        Tax is attributed only where one payment can claim it. Where two
+        could, the export does not record which, and no arrangement of dates
+        and amounts recovers it: an adjustment reaching back to last month's
+        payment looks exactly like ordinary tax on next month's. Those are
+        left out of the report and warned about instead of guessed at. They
+        still reach the summary, and dating one on its dividend in the input
+        settles it.
 
         Matching runs over the whole history rather than the reported year,
         so a payment and its withholding either side of 5 April stay
@@ -2295,20 +2313,18 @@ class CapitalGainsCalculator:
         for (broker, symbol, date), tax in self.dividend_tax_list.items():
             if not tax.amount:
                 continue
-            # Tax given back can only answer for a payment already made: a
-            # broker does not refund tax on income it has yet to pay. So a
-            # credit looks no further forward than the day it lands on, which
-            # is what keeps a refund of last month's withholding off next
-            # month's payment when that payment is the nearer of the two.
-            lead_days = 0 if tax.amount > 0 else DIVIDEND_TAX_LEAD_DAYS
-            match = self._nearest_dividend_date(
-                date, self.dividend_dates.get((broker, symbol), set()), lead_days
+            candidates = self._dividends_for_tax(
+                date, self.dividend_dates.get((broker, symbol), set())
             )
-            if match is None:
-                self._warn_unattributed_dividend_tax(symbol, date, tax, lead_days)
-                unmatched[symbol, date] += tax
+            if len(candidates) == 1:
+                matched[symbol, candidates[0]] += tax
                 continue
-            matched[symbol, match] += tax
+            # Either nothing is near enough, or two payments are and the
+            # export does not say which one this is. Guessing between them
+            # puts a wrong figure in the report; leaving it out and saying so
+            # does not.
+            self._warn_unattributed_dividend_tax(symbol, date, tax, candidates)
+            unmatched[symbol, date] += tax
         return DividendTaxAttribution(matched, unmatched)
 
     def _dividend_tax_attribution(self) -> DividendTaxAttribution:

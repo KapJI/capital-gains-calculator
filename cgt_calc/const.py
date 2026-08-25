@@ -110,9 +110,10 @@ BED_AND_BREAKFAST_DAYS: Final = 30
 DIVIDEND_TAX_MATCH_DAYS: Final = 30
 
 # How far forward it may lie, for a broker that posts the tax just ahead of
-# the payment. This is deliberately short: reaching as far forward as back
-# would let the next payment of a monthly holding claim a correction that
-# belongs to the last one.
+# the payment. This is deliberately short: the further it reaches, the more
+# often a monthly holding's next payment is a candidate alongside the last
+# one, and a withholding two payments could claim is left out rather than
+# assigned to either.
 DIVIDEND_TAX_LEAD_DAYS: Final = 5
 
 UK_CURRENCY: Final = "GBP"

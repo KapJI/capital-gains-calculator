@@ -96,7 +96,7 @@ def _unattributed_warnings(
     return [
         record.message
         for record in caplog.records
-        if "is not attributed to any dividend" in record.message
+        if "left out of the report" in record.message
     ]
 
 
@@ -179,22 +179,19 @@ def test_late_correction_belongs_to_the_payment_it_corrects(
     assert _unattributed_warnings(transactions, caplog) == []
 
 
-def test_refund_never_belongs_to_a_payment_still_to_come(
+def test_tax_on_a_payment_day_is_never_in_doubt(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A refund goes back to the payment it corrects, however near the next.
+    """Tax dated on a payment belongs to it, whatever else lies nearby.
 
-    Tax given back can only answer for income already paid, so a credit two
-    days before the next payment still belongs to the last one, even though
-    that payment is four weeks behind it.
+    A monthly payer always has a second payment inside the window, and that
+    must not make the ordinary case ambiguous.
     """
     first = datetime.date(2024, 6, 3)
-    refund = datetime.date(2024, 7, 1)  # 28 days after first, 2 days before second
-    second = datetime.date(2024, 7, 3)
+    second = first + datetime.timedelta(days=30)
     transactions = [
         dividend_transaction(first, "FOO", 100),
-        dividend_tax_transaction(first, "FOO", 30),
-        dividend_tax_transaction(refund, "FOO", -15),
+        dividend_tax_transaction(first, "FOO", 15),
         dividend_transaction(second, "FOO", 200),
         dividend_tax_transaction(second, "FOO", 30),
     ]
@@ -206,45 +203,103 @@ def test_refund_never_belongs_to_a_payment_still_to_come(
     assert _unattributed_warnings(transactions, caplog) == []
 
 
-def test_unmatched_refund_warning_names_only_the_backward_window(
+def test_tax_two_payments_could_claim_is_left_out(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The warning describes the window actually searched, which differs."""
+    """A correction near two payments is refused rather than guessed at.
+
+    A credit four weeks after one payment and two days before the next could
+    be a late correction of the first or ordinary tax on the second. The
+    export does not say which, so neither payment is given it.
+    """
+    first = datetime.date(2024, 6, 3)
+    correction = datetime.date(2024, 7, 1)
+    second = datetime.date(2024, 7, 3)
     transactions = [
-        dividend_transaction(DIVIDEND_DATE + datetime.timedelta(days=6), "FOO", 100),
-        dividend_tax_transaction(DIVIDEND_DATE, "FOO", -15),
+        dividend_transaction(first, "FOO", 100),
+        dividend_tax_transaction(first, "FOO", 30),
+        dividend_tax_transaction(correction, "FOO", -15),
+        dividend_transaction(second, "FOO", 200),
+        dividend_tax_transaction(second, "FOO", 30),
+    ]
+
+    assert _reported(transactions) == [
+        (first, Decimal(100), Decimal(-30), False),
+        (second, Decimal(200), Decimal(-30), True),
     ]
 
     warnings = _unattributed_warnings(transactions, caplog)
 
     assert len(warnings) == 1
-    assert "in the 30 days before it, so" in warnings[0]
+    assert "the dividend on 2024-06-03 or 2024-07-03" in warnings[0]
+    assert "Date it on the one it belongs to" in warnings[0]
 
 
-def test_withholding_posted_before_its_dividend_waits_for_it(
+def test_further_withholding_two_payments_could_claim_is_left_out(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Tax posted just before a payment belongs to it, not the month before.
+    """A second debit near two payments is refused, as a credit would be.
 
-    A broker that posts the withholding a day ahead of the payment leaves it
-    near the end of the previous payment's window, so preferring an earlier
-    payment outright would hand it to the wrong month.
+    Brokers map an adjustment and an ordinary withholding to one action, so
+    a further debit cannot be told from tax on the payment that follows it.
     """
     first = datetime.date(2024, 6, 3)
-    early_tax = datetime.date(2024, 7, 2)  # 29 days after first, 1 day before second
+    adjustment = datetime.date(2024, 7, 1)
+    second = datetime.date(2024, 7, 3)
+    transactions = [
+        dividend_transaction(first, "FOO", 100),
+        dividend_tax_transaction(first, "FOO", 10),
+        dividend_tax_transaction(adjustment, "FOO", 5),
+        dividend_transaction(second, "FOO", 200),
+        dividend_tax_transaction(second, "FOO", 30),
+    ]
+
+    assert _reported(transactions) == [
+        (first, Decimal(100), Decimal(-10), False),
+        (second, Decimal(200), Decimal(-30), True),
+    ]
+    assert len(_unattributed_warnings(transactions, caplog)) == 1
+
+
+def test_tax_left_out_is_still_summarised(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Tax no payment can claim still shows the broker took it."""
+    first = datetime.date(2024, 6, 3)
+    correction = datetime.date(2024, 7, 1)
+    second = datetime.date(2024, 7, 3)
+    transactions = [
+        dividend_transaction(first, "FOO", 100),
+        dividend_tax_transaction(first, "FOO", 10),
+        dividend_tax_transaction(correction, "FOO", 5),
+        dividend_transaction(second, "FOO", 200),
+        dividend_tax_transaction(second, "FOO", 30),
+    ]
+
+    assert _summary_dividend_lines(transactions, capsys) == [
+        "  FOO: 300.00, excluding 45.00 taxed at source (USD)"
+    ]
+
+
+def test_withholding_between_two_payments_is_left_out(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Tax a day before one payment and weeks after another is refused."""
+    first = datetime.date(2024, 6, 3)
+    tax = datetime.date(2024, 7, 2)
     second = datetime.date(2024, 7, 3)
     transactions = [
         dividend_transaction(first, "FOO", 100),
         dividend_tax_transaction(first, "FOO", 15),
-        dividend_tax_transaction(early_tax, "FOO", 30),
+        dividend_tax_transaction(tax, "FOO", 30),
         dividend_transaction(second, "FOO", 200),
     ]
 
     assert _reported(transactions) == [
         (first, Decimal(100), Decimal(-15), True),
-        (second, Decimal(200), Decimal(-30), True),
+        (second, Decimal(200), Decimal(0), False),
     ]
-    assert _unattributed_warnings(transactions, caplog) == []
+    assert len(_unattributed_warnings(transactions, caplog)) == 1
 
 
 def test_withholding_too_far_before_its_dividend_is_not_claimed(
@@ -452,7 +507,7 @@ def test_withholding_beyond_the_limit_warns(
 
     assert len(warnings) == 1
     assert "-15.00 USD for FOO on 2024-07-04" in warnings[0]
-    assert "in the 30 days before it or the 5 days after" in warnings[0]
+    assert "has no dividend in the 30 days before it or the 5 days after" in warnings[0]
 
 
 def test_withholding_without_any_dividend_warns(
