@@ -13,7 +13,7 @@ export instructions.
 | [Morgan Stanley](morgan-stanley.md)           | `--mssb-dir`                           | Alphabet equity-award report folder |
 | [Sharesight](sharesight.md)                   | `--sharesight-dir`                     | Multi-broker portfolio tracker      |
 | [Trading 212](trading212.md)                  | `--trading212-dir`                     | Folder of yearly exports            |
-| [Vanguard](vanguard.md)                       | `--vanguard-file`                      | Excel export tab saved as CSV       |
+| [Vanguard](vanguard.md)                       | `--vanguard-file`                      | Client Transactions Listing CSV     |
 | [RAW format](raw.md)                          | `--raw-file`                           | Generic fallback for other brokers  |
 
 If your broker is not listed, try the [RAW format](raw.md). Contributions for new brokers are very

@@ -12,10 +12,13 @@ The following configuration files and options allow you to customize the calcula
 - **ISIN to ticker translation.** When your broker doesn't provide ticker symbols, the tool
   automatically translates ISIN codes using the
   [Open FIGI API](https://www.openfigi.com/api/overview). This is used for calculating Excess
-  Reportable Income (ERI) on offshore funds. The results are saved to `out/isin_translation.csv`.
-  Pre-packaged mappings are available in
+  Reportable Income (ERI) on offshore funds. The default read/write cache is
+  `out/isin_translation.csv`; `--isin-translation-file` selects a different cache path. Existing
+  entries are read, and cgt-calc can create or rewrite the file after a successful Open FIGI lookup
+  or after learning a mapping from broker transactions. Pre-packaged mappings are available in
   [`initial_isin_translation.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv),
-  which you can extend using `--isin-translation-file` option.
+  which you can extend using the cache file. A cache entry for an existing ISIN replaces the bundled
+  symbol set for that ISIN, so put every verified alias in additional columns on the same CSV row.
 
 ## Manual configuration files
 
