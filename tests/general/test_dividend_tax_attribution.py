@@ -203,6 +203,29 @@ def test_tax_on_a_payment_day_is_never_in_doubt(
     assert _unattributed_warnings(transactions, caplog) == []
 
 
+def test_ambiguous_tax_warns_in_the_year_of_each_payment(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A payment left short hears about it, in either year it falls in.
+
+    A withholding just after 5 April can belong to a payment on either side
+    of the boundary. Scoping the warning to the year the tax was taken in
+    left the earlier year reporting its dividend with no tax and saying
+    nothing about why.
+    """
+    transactions = [
+        dividend_transaction(datetime.date(2025, 4, 2), "FOO", 100),
+        dividend_tax_transaction(datetime.date(2025, 4, 6), "FOO", 15),
+        dividend_transaction(datetime.date(2025, 4, 10), "FOO", 200),
+    ]
+
+    assert _reported(transactions, tax_year=2024) == [
+        (datetime.date(2025, 4, 2), Decimal(100), Decimal(0), False)
+    ]
+    assert len(_unattributed_warnings(transactions, caplog, tax_year=2024)) == 1
+    assert len(_unattributed_warnings(transactions, caplog, tax_year=2025)) == 1
+
+
 def test_tax_two_payments_could_claim_is_left_out(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

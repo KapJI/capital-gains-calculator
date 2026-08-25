@@ -2226,9 +2226,12 @@ class CapitalGainsCalculator:
         candidates: list[datetime.date],
     ) -> None:
         """Warn about withheld tax that no single dividend can claim."""
-        # Withholding of another year is another year's problem, as for the
-        # treaty warnings raised below.
-        if not self.date_in_tax_year(date):
+        # The tax is missing from the report of every year that holds a
+        # payment which could have carried it, not only from the year it was
+        # taken in, and each of those years is entitled to hear so. A
+        # withholding just after 5 April can leave a payment short on either
+        # side of the boundary.
+        if not any(self.date_in_tax_year(affected) for affected in (date, *candidates)):
             return
         # Tax below half a unit would print as a bare "-0.00", so it is
         # shown as it stands instead. Whether it is material is a question
