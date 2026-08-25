@@ -119,12 +119,16 @@ def _make_row(
     return [row[column_name] for column_name in header]
 
 
-def _prepare_file(tmp_path: Path, rows: list[list[str]]) -> Path:
+def _prepare_files(tmp_path: Path, files: Mapping[str, list[list[str]]]) -> Path:
     folder = tmp_path / "inputs"
     folder.mkdir()
-    csv_file = folder / "trading212.csv"
-    _write_csv(csv_file, rows)
+    for name, rows in files.items():
+        _write_csv(folder / name, rows)
     return folder
+
+
+def _prepare_file(tmp_path: Path, rows: list[list[str]]) -> Path:
+    return _prepare_files(tmp_path, {"trading212.csv": rows})
 
 
 def test_load_from_dir_accepts_uppercase_csv_extension(tmp_path: Path) -> None:
@@ -997,6 +1001,137 @@ def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
     message = str(exc.value)
     assert "row 2" in message
     assert "Invalid decimal in Total" in message
+
+
+HEADER_2024_NO_ID = [
+    column for column in HEADER_2024 if column != Trading212Column.TRANSACTION_ID
+]
+
+# One fill, spelled out so tests below can repeat it verbatim across exports.
+BUY_ROW: Mapping[str | Trading212Column, str] = {
+    Trading212Column.ACTION: "Market buy",
+    Trading212Column.TIME: "2024-06-01 10:00:00",
+    Trading212Column.ISIN: "US0000000010",
+    Trading212Column.TICKER: "FOO",
+    Trading212Column.NAME: "Foo Inc",
+    Trading212Column.NO_OF_SHARES: "2",
+    Trading212Column.PRICE_PER_SHARE: "10.00",
+    Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+    Trading212Column.TOTAL: "20.00",
+    Trading212Column.CURRENCY_TOTAL: "GBP",
+}
+
+
+def _buy(header: list[str], transaction_id: str | None = None) -> list[str]:
+    overrides = dict(BUY_ROW)
+    if transaction_id is not None:
+        overrides[Trading212Column.TRANSACTION_ID] = transaction_id
+    return _make_row(header, overrides)
+
+
+def test_repeated_rows_in_one_export_are_separate_fills(tmp_path: Path) -> None:
+    """An export listing a fill twice recorded two fills, so keep both."""
+    folder = _prepare_file(
+        tmp_path, [HEADER_2024, _buy(HEADER_2024), _buy(HEADER_2024)]
+    )
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert len(transactions) == 2
+
+
+def test_overlapping_exports_collapse_on_the_shared_id(tmp_path: Path) -> None:
+    """One trade re-exported into a second file stays one trade."""
+    rows = [HEADER_2024, _buy(HEADER_2024, "buy-1")]
+    folder = _prepare_files(tmp_path, {"jan.csv": rows, "feb.csv": rows})
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert len(transactions) == 1
+
+
+def test_exports_catching_one_fill_each_keep_both(tmp_path: Path) -> None:
+    """Two IDs for one row's worth of detail are two trades, not one."""
+    folder = _prepare_files(
+        tmp_path,
+        {
+            "jan.csv": [HEADER_2024, _buy(HEADER_2024, "buy-1")],
+            "feb.csv": [HEADER_2024, _buy(HEADER_2024, "buy-2")],
+        },
+    )
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    first, second = transactions
+    assert isinstance(first, Trading212Transaction)
+    assert isinstance(second, Trading212Transaction)
+    assert {first.transaction_id, second.transaction_id} == {"buy-1", "buy-2"}
+
+
+def test_overlapping_exports_collapse_without_an_id_column(tmp_path: Path) -> None:
+    """The same trade re-exported by a format that omits IDs is still one."""
+    folder = _prepare_files(
+        tmp_path,
+        {
+            "jan.csv": [HEADER_2024, _buy(HEADER_2024, "buy-1")],
+            "feb.csv": [HEADER_2024_NO_ID, _buy(HEADER_2024_NO_ID)],
+        },
+    )
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    (kept,) = transactions
+    assert isinstance(kept, Trading212Transaction)
+    assert kept.transaction_id == "buy-1"
+
+
+def test_an_id_shared_by_a_buy_and_its_sell_merges_neither(
+    tmp_path: Path,
+) -> None:
+    """Exports reuse one ID across a position, so it cannot stand alone."""
+    folder = _prepare_files(
+        tmp_path,
+        {
+            "jan.csv": [HEADER_2024, _buy(HEADER_2024, "position-1")],
+            "feb.csv": [
+                HEADER_2024,
+                _make_row(
+                    HEADER_2024,
+                    {
+                        **BUY_ROW,
+                        Trading212Column.ACTION: "Limit sell",
+                        Trading212Column.TIME: "2024-06-02 10:00:00",
+                        Trading212Column.TRANSACTION_ID: "position-1",
+                    },
+                ),
+            ],
+        },
+    )
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert [t.action for t in transactions] == [ActionType.BUY, ActionType.SELL]
+
+
+def test_partial_overlap_keeps_the_fills_the_wider_export_shows(
+    tmp_path: Path,
+) -> None:
+    """Two ID-less fills reported by one export survive a narrower one."""
+    folder = _prepare_files(
+        tmp_path,
+        {
+            "jan.csv": [HEADER_2024_NO_ID, _buy(HEADER_2024_NO_ID)],
+            "feb.csv": [
+                HEADER_2024_NO_ID,
+                _buy(HEADER_2024_NO_ID),
+                _buy(HEADER_2024_NO_ID),
+            ],
+        },
+    )
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert len(transactions) == 2
 
 
 def test_run_with_trading212_2026_files(request: pytest.FixtureRequest) -> None:

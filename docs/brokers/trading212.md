@@ -38,8 +38,7 @@ trading212/
 
 The base filenames do not matter. cgt-calc reads every CSV file directly inside the directory, but
 it does not search subdirectories. Do not add unrelated CSV files, and make sure there are no gaps
-between date ranges. Overlaps are safe: exact repeated transactions are removed using their Trading
-212 transaction ID.
+between date ranges. Overlaps are safe: a transaction that two exports both list is kept once.
 
 You can compare the structure with this
 [sanitised example export](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/trading212/data/2024/inputs/transactions.csv).

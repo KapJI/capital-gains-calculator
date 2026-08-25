@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
@@ -318,6 +319,7 @@ class Trading212Transaction(BrokerTransaction):
 
         isin_raw = row[Trading212Column.ISIN]
         isin = Isin(isin_raw) if isin_raw else None
+        self.source_file = file
         self.transaction_id = row.get(Trading212Column.TRANSACTION_ID)
         self.notes = row.get(Trading212Column.NOTES)
         broker = "Trading212"
@@ -380,11 +382,6 @@ class Trading212Transaction(BrokerTransaction):
                 entries.append((fee_column.attribute, bare_amount, fee_currency))
         return entries
 
-    @override
-    def __hash__(self) -> int:
-        """Calculate hash."""
-        return hash(self.transaction_id)
-
 
 class Trading212Parser(BaseDirParser):
     """Trading 212 parser."""
@@ -440,12 +437,53 @@ class Trading212Parser(BaseDirParser):
         # we want to put the buy last to avoid negative balance errors
         return (transaction.datetime, transaction.action == ActionType.BUY)
 
+    @staticmethod
+    def _recorded_fields(
+        transaction: BrokerTransaction,
+    ) -> tuple[object, ...]:
+        """Summarise the fields two rows must agree on to be one trade."""
+        values = (getattr(transaction, field.name) for field in fields(transaction))
+        return tuple(
+            tuple(sorted(value.items())) if isinstance(value, dict) else value
+            for value in values
+        )
+
+    @classmethod
+    def _merge_exports(
+        cls, transactions: list[BrokerTransaction]
+    ) -> list[BrokerTransaction]:
+        """Drop the rows overlapping exports repeat about the same trade.
+
+        A row an export repeats is a second real fill, so a set() cannot do
+        this: rows agreeing on everything compared stand for as many trades
+        as the export listing the most of them reports. Distinct transaction
+        IDs name their trades outright and are kept whatever that count says.
+        """
+        groups: dict[tuple[object, ...], list[Trading212Transaction]] = defaultdict(
+            list
+        )
+        for transaction in transactions:
+            assert isinstance(transaction, Trading212Transaction)
+            groups[cls._recorded_fields(transaction)].append(transaction)
+
+        merged: list[BrokerTransaction] = []
+        for group in groups.values():
+            per_export = Counter(row.source_file for row in group)
+            identified = {
+                row.transaction_id: row for row in group if row.transaction_id
+            }
+            anonymous = [row for row in group if not row.transaction_id]
+            count = max(per_export.values())
+            merged += identified.values()
+            merged += anonymous[: max(count - len(identified), 0)]
+        return merged
+
     @classmethod
     @override
     def post_process_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:
-        """Remove duplicates and sort."""
-        transactions = list(set(transactions))
+        """Merge overlapping exports and sort."""
+        transactions = cls._merge_exports(transactions)
         transactions.sort(key=cls._by_date_and_action)
         return transactions
