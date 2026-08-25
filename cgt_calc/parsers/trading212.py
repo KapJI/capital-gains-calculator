@@ -10,7 +10,7 @@ from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
-from cgt_calc.const import TICKER_RENAMES
+from cgt_calc.const import TICKER_RENAMES, UK_TIMEZONE
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 
@@ -162,11 +162,11 @@ def decimal_or_none(
 
 
 def datetime_from_str(value: str) -> datetime:
-    """Convert a timestamp to datetime.
+    """Convert a timestamp to an aware UTC datetime.
 
     Exports have used whole seconds and milliseconds, and the column
-    renamed to "Time (UTC)" may spell the zone out. Zone-aware values are
-    converted to UTC and made naive so every transaction stays comparable.
+    renamed to "Time (UTC)" may spell the zone out. Every export states
+    its times in UTC, so a value without a zone is read as UTC too.
     """
 
     try:
@@ -174,8 +174,8 @@ def datetime_from_str(value: str) -> datetime:
     except ValueError as err:
         raise ValueError(f"Invalid timestamp: {value!r}") from err
     if parsed.tzinfo is None:
-        return parsed
-    return parsed.astimezone(UTC).replace(tzinfo=None)
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def action_from_str(label: str, file: Path) -> ActionType:
@@ -261,7 +261,9 @@ class Trading212Transaction(BrokerTransaction):
                 f"or {Trading212Column.TIME_UTC.value}"
             )
         self.datetime = datetime_from_str(time_str)
-        date = self.datetime.date()
+        # The instant is kept in UTC for ordering, but the date that drives
+        # the tax year and the matching rules is the UK one.
+        date = self.datetime.astimezone(UK_TIMEZONE).date()
         self.raw_action = row[Trading212Column.ACTION]
         action = action_from_str(self.raw_action, file)
 

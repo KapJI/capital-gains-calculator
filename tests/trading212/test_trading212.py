@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 import logging
 from pathlib import Path
@@ -977,17 +977,61 @@ def test_read_trading212_transactions_unconvertible_fee_skips_price_check(
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        ("2024-01-01 16:10:05", datetime(2024, 1, 1, 16, 10, 5)),
-        ("2024-01-01 16:10:05.175", datetime(2024, 1, 1, 16, 10, 5, 175000)),
-        ("2024-01-01T16:10:05Z", datetime(2024, 1, 1, 16, 10, 5)),
-        ("2024-01-01 16:10:05.175+00:00", datetime(2024, 1, 1, 16, 10, 5, 175000)),
-        ("2024-01-01 17:10:05+01:00", datetime(2024, 1, 1, 16, 10, 5)),
+        ("2024-01-01 16:10:05", datetime(2024, 1, 1, 16, 10, 5, tzinfo=UTC)),
+        (
+            "2024-01-01 16:10:05.175",
+            datetime(2024, 1, 1, 16, 10, 5, 175000, tzinfo=UTC),
+        ),
+        ("2024-01-01T16:10:05Z", datetime(2024, 1, 1, 16, 10, 5, tzinfo=UTC)),
+        (
+            "2024-01-01 16:10:05.175+00:00",
+            datetime(2024, 1, 1, 16, 10, 5, 175000, tzinfo=UTC),
+        ),
+        ("2024-01-01 17:10:05+01:00", datetime(2024, 1, 1, 16, 10, 5, tzinfo=UTC)),
     ],
 )
 def test_datetime_from_str(value: str, expected: datetime) -> None:
-    """Parse every timestamp shape the exports use, normalised to naive UTC."""
+    """Parse every timestamp shape the exports use, normalised to UTC."""
 
     assert datetime_from_str(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("time_str", "expected"),
+    [
+        # The tax year boundary always falls inside BST, so the last hour
+        # of 5 April in UTC already belongs to the next tax year.
+        ("2025-04-05 22:59:59+00:00", date(2025, 4, 5)),
+        ("2025-04-05 23:00:00+00:00", date(2025, 4, 6)),
+        ("2025-04-05 23:30:00", date(2025, 4, 6)),
+        # Outside summer time UK dates and UTC dates agree.
+        ("2026-01-15 23:30:00+00:00", date(2026, 1, 15)),
+        ("2026-11-01 23:30:00+00:00", date(2026, 11, 1)),
+    ],
+)
+def test_read_trading212_transactions_uses_uk_dates(
+    tmp_path: Path, time_str: str, expected: date
+) -> None:
+    """Take the tax date from the UK calendar, not the UTC one."""
+
+    rows = [
+        HEADER_2024,
+        _make_row(
+            HEADER_2024,
+            {
+                Trading212Column.ACTION: "Deposit",
+                Trading212Column.TIME: time_str,
+                Trading212Column.TOTAL: "100.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "deposit-boundary",
+            },
+        ),
+    ]
+    folder = _prepare_file(tmp_path, rows)
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert transactions[0].date == expected
 
 
 def test_read_trading212_transactions_supports_time_utc_column(
@@ -1022,7 +1066,7 @@ def test_read_trading212_transactions_supports_time_utc_column(
     assert len(transactions) == 1
     transaction = transactions[0]
     assert isinstance(transaction, Trading212Transaction)
-    assert transaction.datetime == datetime(2026, 5, 2, 14, 30, 5, 123000)
+    assert transaction.datetime == datetime(2026, 5, 2, 14, 30, 5, 123000, tzinfo=UTC)
     assert transaction.amount == Decimal("-1200.00")
 
 
