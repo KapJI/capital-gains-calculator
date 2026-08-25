@@ -9,7 +9,7 @@ import decimal
 from decimal import Decimal
 import logging
 import sys
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING
 
 from colorama import Fore, Style
 
@@ -59,6 +59,7 @@ from .model import (
     CapitalGainsReport,
     CurrencyCode,
     Dividend,
+    DividendTaxAttribution,
     ExcessReportedIncome,
     ExcessReportedIncomeDistribution,
     ExcessReportedIncomeDistributionLog,
@@ -176,20 +177,6 @@ def _match_gifts_to_rows(
                 return True
             available[reading] += 1
     return False
-
-
-class DividendTaxAttribution(NamedTuple):
-    """Withheld tax sorted by whether a dividend was found to carry it."""
-
-    matched: ForeignAmountLog
-    """Keyed by the symbol and date of the dividend the tax was taken from."""
-
-    unmatched: ForeignAmountLog
-    """Keyed by the symbol and date of the withholding itself.
-
-    No dividend row can carry this tax, but the broker took it all the same,
-    so the summary reports it against the year it was taken in.
-    """
 
 
 class CapitalGainsCalculator:
@@ -2242,7 +2229,8 @@ class CapitalGainsCalculator:
             LOGGER.warning(
                 "Dividend tax of %s %s for %s on %s could have been taken "
                 "from the dividend on %s, so it is left out of the report! "
-                "Date it on the one it belongs to to have it counted.",
+                "Date it in the export on the one it belongs to to have it "
+                "counted.",
                 amount,
                 tax.currency,
                 symbol,
