@@ -168,7 +168,7 @@ class VanguardTransaction(BrokerTransaction):
 
     is_reversal: bool
     details_text: str
-    source_file: Path
+    source_file: Path | None
 
     def __init__(
         self,
@@ -236,7 +236,7 @@ class VanguardTransaction(BrokerTransaction):
         txn = object.__new__(cls)
         txn.is_reversal = is_reversal
         txn.details_text = ""
-        txn.source_file = None  # type: ignore[assignment]
+        txn.source_file = None
         BrokerTransaction.__init__(
             txn,
             date,
@@ -480,7 +480,7 @@ class VanguardParser(BaseSingleFileParser):
                     raise ParsingError(file_path, str(err), row_index=index) from err
 
             # Resolve missing quantity/price with values from the investment table, see
-            # https://github.com/KapJI/capital-gains-calculator/issues/758
+            # https://github.com/cgt-calc/capital-gains-calculator/issues/758
             for txn in transactions:
                 matched_inv = _find_investment_match(txn, investment_lookup)
                 txn.enrich_details(matched_inv)

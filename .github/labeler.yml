@@ -1,15 +1,27 @@
+# Schema reference: https://github.com/actions/labeler#match-object
+# Options inside `all` are AND-ed, so each rule below reads as "touches these
+# files, and touches nothing from the excluded set".
+
 dependencies:
-  - any: ["uv.lock"]
-    all: ["!**/*.py"]
+  - all:
+      - changed-files:
+          - any-glob-to-any-file: "uv.lock"
+          - all-globs-to-all-files: "!**/*.py"
 
 documentation:
-  - any: ["**/*.md"]
-    all: ["!**/*.py", "!.github/**/*"]
+  - all:
+      - changed-files:
+          - any-glob-to-any-file: "**/*.md"
+          - all-globs-to-all-files: ["!**/*.py", "!.github/**/*"]
 
 github structure:
-  - any: [".github/**/*"]
-    all: ["!**/*.py"]
+  - all:
+      - changed-files:
+          - any-glob-to-any-file: ".github/**/*"
+          - all-globs-to-all-files: "!**/*.py"
 
 testing:
-  - any: ["tests/**"]
-    all: ["!cgt_calc/**"]
+  - all:
+      - changed-files:
+          - any-glob-to-any-file: "tests/**"
+          - all-globs-to-all-files: "!cgt_calc/**"

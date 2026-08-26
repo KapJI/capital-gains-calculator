@@ -12,7 +12,7 @@ permissions:
 jobs:
   labeler:
     name: Update labels
-    if: github.repository_owner == 'KapJI'
+    if: github.repository_owner == 'cgt-calc'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository

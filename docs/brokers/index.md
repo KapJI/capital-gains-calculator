@@ -13,8 +13,15 @@ export instructions.
 | [Morgan Stanley](morgan-stanley.md)           | `--mssb-dir`                           | Alphabet equity-award report folder |
 | [Sharesight](sharesight.md)                   | `--sharesight-dir`                     | Multi-broker portfolio tracker      |
 | [Trading 212](trading212.md)                  | `--trading212-dir`                     | Folder of yearly exports            |
-| [Vanguard](vanguard.md)                       | `--vanguard-file`                      | Excel export tab saved as CSV       |
+| [Vanguard](vanguard.md)                       | `--vanguard-file`                      | Client Transactions Listing CSV     |
 | [RAW format](raw.md)                          | `--raw-file`                           | Generic fallback for other brokers  |
+
+## Dates and time zones
+
+UK share matching and the tax year boundary run on UK calendar days. [Freetrade](freetrade.md) and
+[Trading 212](trading212.md) timestamp each transaction in UTC, and cgt-calc converts those to UK
+time before taking the date. Every other export above states a date with no time, so cgt-calc reads
+that date as the broker wrote it and cannot correct one that was recorded in another time zone.
 
 If your broker is not listed, try the [RAW format](raw.md). Contributions for new brokers are very
 welcome — see [Adding a broker](../development/adding-a-broker.md).

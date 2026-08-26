@@ -369,24 +369,26 @@ class TestCurrencyConverter(CurrencyConverter):
     @staticmethod
     @override
     def _write_exchange_rates_file(
-        _: Path | None, __: dict[datetime.date, dict[CurrencyCode, Decimal]]
+        exchange_rates_file: Path | None,
+        data: dict[datetime.date, dict[CurrencyCode, Decimal]],
     ) -> None:
-        return
+        pass
 
 
 class StrictTestCurrencyConverter(CurrencyConverter):
     """Sandboxed variant of CurrencyConverter that is used to run tests in CI."""
 
     @override
-    def _query_hmrc_api(self, _: datetime.date) -> None:
+    def _query_hmrc_api(self, date: datetime.date) -> None:
         raise RuntimeError(
-            "HMRC values should be provided for tests to avoid flakiness! "
+            f"HMRC values missing for {date:%Y-%m}! "
             "Run `pytest` (once) to populate them from HMRC data"
         )
 
     @staticmethod
     @override
     def _write_exchange_rates_file(
-        _: Path | None, __: dict[datetime.date, dict[CurrencyCode, Decimal]]
+        exchange_rates_file: Path | None,
+        data: dict[datetime.date, dict[CurrencyCode, Decimal]],
     ) -> None:
-        return
+        pass

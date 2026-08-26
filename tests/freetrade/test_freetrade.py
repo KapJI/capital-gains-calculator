@@ -1,6 +1,7 @@
 """Test Freetrade support."""
 
 import csv
+from datetime import date
 from decimal import Decimal
 import logging
 from pathlib import Path
@@ -240,6 +241,34 @@ def test_read_freetrade_transactions_success(tmp_path: Path) -> None:
     assert transaction.isin == "US0378331005"
 
 
+@pytest.mark.parametrize(
+    ("timestamp", "expected"),
+    [
+        # The tax year boundary always falls inside BST, so the last hour
+        # of 5 April in UTC already belongs to the next tax year.
+        ("2025-04-05T22:59:59.000Z", date(2025, 4, 5)),
+        ("2025-04-05T23:00:00.000Z", date(2025, 4, 6)),
+        ("2025-04-05T23:30:00.000", date(2025, 4, 6)),
+        # The clocks go back on 25 October 2026, so the last hour of the
+        # 26th is already GMT.
+        ("2026-10-26T23:30:00.000Z", date(2026, 10, 26)),
+        # Outside summer time UK dates and UTC dates agree.
+        ("2026-01-15T23:30:00.000Z", date(2026, 1, 15)),
+        ("2026-11-01T23:30:00.000Z", date(2026, 11, 1)),
+    ],
+)
+def test_read_freetrade_transactions_uses_uk_dates(
+    tmp_path: Path, timestamp: str, expected: date
+) -> None:
+    """Take the tax date from the UK calendar, not the UTC one."""
+    overrides = {FreetradeColumn.TIMESTAMP.value: timestamp}
+    path = _write_csv(tmp_path, COLUMNS, [_default_row(overrides)])
+
+    transactions = FreetradeParser().load_from_file(path)
+
+    assert transactions[0].date == expected
+
+
 @pytest.mark.parametrize("document_type", ["MONTHLY_STATEMENT", "TAX_CERTIFICATE"])
 def test_read_freetrade_ignores_document_rows(
     tmp_path: Path,
@@ -266,6 +295,18 @@ def test_read_freetrade_ignores_document_rows(
     assert (
         f"Skipping non-transaction Freetrade row 3 ({document_type})" in caplog.messages
     )
+
+
+def test_read_freetrade_skips_blank_rows(tmp_path: Path) -> None:
+    """Blank and comma-only lines in an export are not transactions."""
+    blank_row: list[str] = []
+    empty_fields_row = [""] * len(COLUMNS)
+    path = _write_csv(tmp_path, COLUMNS, [_default_row(), blank_row, empty_fields_row])
+
+    transactions = FreetradeParser().load_from_file(path)
+
+    assert len(transactions) == 1
+    assert transactions[0].action is ActionType.BUY
 
 
 @pytest.mark.parametrize(

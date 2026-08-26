@@ -7,7 +7,7 @@ the [bundled data](offshore-funds.md#bundled-data) first.
 
 - **CSV using the ERI_RAW format.** This is currently the only format supported for excess reported
   income.
-  [See example.](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+  [See example.](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
 
 Example usage for the tax year 2024/25:
 
@@ -28,7 +28,7 @@ Vanguard UK publishes the Reportable Income yearly report at the bottom of this 
 Vanguard Investment Series Plc reports are for traditional funds, Vanguard Funds Plc reports are for
 ETFs.
 
-Note this tool **already includes** Vanguard Funds ERI data from 2018 to 2024.
+Note this tool **already includes** Vanguard Funds ERI data from 2018 to 2025.
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** End date in the Reporting Period column

@@ -8,7 +8,7 @@ from decimal import Decimal
 from enum import Enum
 import re
 import sys
-from typing import TYPE_CHECKING, Final, Self, override
+from typing import TYPE_CHECKING, Final, NamedTuple, Self, override
 
 from colorama import Style
 
@@ -214,6 +214,20 @@ ExcessReportedIncomeDistributionLog = dict[
 ]
 
 
+class DividendTaxAttribution(NamedTuple):
+    """Withheld tax sorted by whether a dividend was found to carry it."""
+
+    matched: ForeignAmountLog
+    """Keyed by the symbol and date of the dividend the tax was taken from."""
+
+    unmatched: ForeignAmountLog
+    """Keyed by the symbol and date of the withholding itself.
+
+    No dividend row can carry this tax, but the broker took it all the same,
+    so the summary reports it against the year it was taken in.
+    """
+
+
 class ActionType(Enum):
     """Type of transaction action."""
 
@@ -247,6 +261,11 @@ class ActionType(Enum):
     GIFT = 24
     # The same, to someone who is not a connected person: a loss is ordinary.
     GIFT_UNCONNECTED = 25
+    # A purchase the broker reversed. Parsers are expected to drop it along
+    # with the purchase it reverses, so it never reaches the calculator; it
+    # exists so that a row which slips through is refused rather than booked
+    # as an acquisition.
+    CANCEL_BUY = 26
 
 
 class CalculationType(Enum):

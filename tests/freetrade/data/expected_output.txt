@@ -1,10 +1,11 @@
 Final portfolio
   GOOGL: 0.14
+  LLOY: 1000.00
   NDAQ: 2.12
   TSLA: 1.45
 
 Final balance
-  Freetrade: 8945.12 (GBP)
+  Freetrade: 8442.62 (GBP)
 
 Dividends
   NDAQ: 1.10, excluding 0.16 taxed at source (GBP)
@@ -14,6 +15,7 @@ Interest
 
 Portfolio at the end of 2023/2024 tax year
   GOOGL: 0.14, £279.59
+  LLOY: 1,000.00, £502.50
   NDAQ: 2.12, £279.59
   TSLA: 1.45, £944.88
 

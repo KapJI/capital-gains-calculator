@@ -5,7 +5,7 @@ You will need:
 - **Exported transaction history in CSV format.** Schwab only allows you to download transactions
   for the last 4 years. If you require more, you can download the history in 4-year chunks and
   combine them.
-  [See example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/schwab/data/schwab_transactions.csv).
+  [See example](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/schwab/data/schwab_transactions.csv).
 - **Exported transaction history from Schwab Equity Awards in CSV format.** Only applicable if you
   receive equity awards in your account (e.g. for Alphabet/Google employees). Follow the same
   procedure as in the normal transaction history but selecting your Equity Award account.
@@ -18,7 +18,7 @@ cgt-calc --year 2020 --schwab-file schwab_transactions.csv --schwab-award-file s
 
 _Note: For historic reasons, it is possible to provide the Equity Awards history in JSON format with
 `--schwab-equity-award-json`. Instructions are available at the top of this
-[parser file](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/parsers/schwab_equity_award_json.py).
+[parser file](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/parsers/schwab_equity_award_json.py).
 Please use the CSV method above if possible._
 
 ## NVIDIA equity awards
@@ -58,7 +58,7 @@ a share that fell that far looks the same.
 export becomes a mix of units and has to be downloaded again in full.
 
 Covered by
-[`tests/schwab/test_schwab_equity_award_nvda.py`](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/schwab/test_schwab_equity_award_nvda.py),
+[`tests/schwab/test_schwab_equity_award_nvda.py`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/schwab/test_schwab_equity_award_nvda.py),
 against a synthetic portfolio with real dates and prices and invented share counts.
 
 ## Gifted shares

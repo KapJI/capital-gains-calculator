@@ -15,12 +15,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE: ghcr.io/kapji/capital-gains-calculator
+  IMAGE: ghcr.io/cgt-calc/capital-gains-calculator
 
 jobs:
   build-amd64:
     name: Build amd64 image
-    if: github.repository_owner == 'KapJI'
+    if: github.repository_owner == 'cgt-calc'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -82,7 +82,7 @@ jobs:
 
   build-arm64:
     name: Build arm64 image
-    if: github.repository_owner == 'KapJI'
+    if: github.repository_owner == 'cgt-calc'
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -148,7 +148,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: ghcr
-      url: https://github.com/KapJI/capital-gains-calculator/pkgs/container/capital-gains-calculator
+      url: https://github.com/cgt-calc/capital-gains-calculator/pkgs/container/capital-gains-calculator
     permissions:
       packages: write
     steps:

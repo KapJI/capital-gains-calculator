@@ -38,7 +38,9 @@ def test_run_with_vanguard_files(request: pytest.FixtureRequest) -> None:
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
+    alerts = stderr_alerts(result.stderr)
+    assert len(alerts) == 1, f"Unexpected alerts: {alerts}"
+    assert "no ISIN mapping was found" in alerts[0]
     expected_file = Path("tests") / "vanguard" / "data" / "expected_output.txt"
     expected = expected_file.read_text(encoding="utf-8")
     cmd_str = " ".join([param or "''" for param in cmd])
@@ -264,7 +266,7 @@ def test_dual_table_enriches_fee_sale_with_positive_price(tmp_path: Path) -> Non
 
     Quantity comes from the investment table and the derived unit price must
     be positive even though the cash amount is an outflow.
-    See https://github.com/KapJI/capital-gains-calculator/issues/758.
+    See https://github.com/cgt-calc/capital-gains-calculator/issues/758.
     """
     fee_sale_details = (
         "Selling of account investments for payment of Account Fee "

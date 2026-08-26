@@ -13,7 +13,7 @@ from .args_validators import (
     VersionAction,
     date_type,
     existing_file_type,
-    optional_file_type,
+    optional_cache_file_type,
     output_path_type,
     set_completer,
     ticker_list_type,
@@ -105,7 +105,7 @@ Environment variables:
     set_completer(
         data_group.add_argument(
             "--exchange-rates-file",
-            type=optional_file_type,
+            type=optional_cache_file_type,
             metavar="PATH",
             default=DEFAULT_EXCHANGE_RATES_FILE,
             help="monthly exchange rates in CSV format (generated automatically if missing; default: %(default)s)",
@@ -115,7 +115,7 @@ Environment variables:
     set_completer(
         data_group.add_argument(
             "--isin-translation-file",
-            type=optional_file_type,
+            type=optional_cache_file_type,
             default=DEFAULT_ISIN_TRANSLATION_FILE,
             metavar="PATH",
             help="ISIN to ticker translations in CSV format (generated automatically if missing; default: %(default)s)",
@@ -125,7 +125,7 @@ Environment variables:
     set_completer(
         data_group.add_argument(
             "--spin-offs-file",
-            type=optional_file_type,
+            type=optional_cache_file_type,
             metavar="PATH",
             default=DEFAULT_SPIN_OFF_FILE,
             help="spin-offs data in CSV format (default: %(default)s)",
@@ -203,7 +203,8 @@ Environment variables:
         help="show version and exit",
     )
     shtab.add_argument_to(
-        general_group,  # type: ignore[arg-type]  # groups work like parsers here
+        # Argument groups support the same operation as parsers.
+        general_group,  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
         "--print-completion",
         help="print shell tab completion script and exit",
     )

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import csv
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
+from cgt_calc.const import UK_TIMEZONE
 from cgt_calc.exceptions import (
     ParsingError,
     UnsupportedBrokerActionError,
@@ -192,8 +193,16 @@ class FreetradeTransaction(BrokerTransaction):
         isin_raw = row.get(FreetradeColumn.ISIN)
         isin = Isin(isin_raw) if isin_raw else None
 
+        # The timestamp is in UTC, but the date that drives the tax year and
+        # the matching rules is the UK one.
+        timestamp = datetime.fromisoformat(row[FreetradeColumn.TIMESTAMP])
+        if timestamp.tzinfo is None:
+            # The export states its times in UTC, so a value without a zone
+            # is read as UTC too rather than as the machine's local time.
+            timestamp = timestamp.replace(tzinfo=UTC)
+
         super().__init__(
-            date=datetime.fromisoformat(row[FreetradeColumn.TIMESTAMP]).date(),
+            date=timestamp.astimezone(UK_TIMEZONE).date(),
             action=action,
             symbol=symbol,
             description=f"{row[FreetradeColumn.TITLE]} {action}",
@@ -261,6 +270,10 @@ class FreetradeParser(BaseSingleFileParser):
         indexed_rows.reverse()
         transactions: list[BrokerTransaction] = []
         for index, row_raw in indexed_rows:
+            # Exports may end with a blank line, which csv reads as an
+            # empty row rather than a transaction.
+            if not any(row_raw):
+                continue
             row = dict(zip(header, row_raw, strict=False))
             action_type = row.get(FreetradeColumn.TYPE)
             if action_type in IGNORED_TYPES:

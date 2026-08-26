@@ -20,7 +20,7 @@ from cgt_calc.args_validators import (
     STDIN_PATH,
     existing_directory_type,
     existing_file_type,
-    optional_file_type,
+    optional_cache_file_type,
 )
 from cgt_calc.const import (
     DEFAULT_EXCHANGE_RATES_FILE,
@@ -34,7 +34,7 @@ ReturnType = TextIO | IO[bytes]
 DirIterator = Iterator[Path]
 
 
-@pytest.mark.parametrize("shell", ["bash", "zsh", "fish", "tcsh"])
+@pytest.mark.parametrize("shell", ["bash", "zsh", "fish", "tcsh", "powershell"])
 def test_print_completion_outputs_script(
     shell: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -321,8 +321,8 @@ def test_existing_directory_type_rejects_unreadable_dir(
         ("--spin-offs-file", "spin_offs_file", DEFAULT_SPIN_OFF_FILE),
     ],
 )
-def test_optional_path_arguments_default(option: str, attr: str, default: Path) -> None:
-    """Ensure optional path arguments use their default when not provided."""
+def test_cache_path_arguments_default(option: str, attr: str, default: Path) -> None:
+    """Ensure cache path arguments use their default when not provided."""
     parser = create_parser()
     args = parser.parse_args([])
 
@@ -337,10 +337,10 @@ def test_optional_path_arguments_default(option: str, attr: str, default: Path) 
         ("--spin-offs-file", "spin_offs_file", "custom_spin_offs.csv"),
     ],
 )
-def test_optional_path_arguments_accept_custom_path(
+def test_cache_path_arguments_accept_custom_path(
     option: str, attr: str, value: str
 ) -> None:
-    """Ensure optional path arguments convert provided values to Path."""
+    """Ensure cache path arguments convert provided values to Path."""
     parser = create_parser()
     args = parser.parse_args([option, value])
 
@@ -355,8 +355,8 @@ def test_optional_path_arguments_accept_custom_path(
         ("--spin-offs-file", "spin_offs_file"),
     ],
 )
-def test_optional_path_arguments_allow_empty_string(option: str, attr: str) -> None:
-    """Ensure optional path arguments treat empty values as None."""
+def test_cache_path_arguments_allow_empty_string(option: str, attr: str) -> None:
+    """Ensure cache path arguments treat empty values as None."""
     parser = create_parser()
     args = parser.parse_args([option, ""])
 
@@ -371,10 +371,10 @@ def test_optional_path_arguments_allow_empty_string(option: str, attr: str) -> N
         ("--spin-offs-file", "spin_offs_file"),
     ],
 )
-def test_optional_path_arguments_reject_directory(
+def test_cache_path_arguments_reject_directory(
     tmp_path: Path, option: str, attr: str
 ) -> None:
-    """Ensure optional path arguments reject directories when they exist."""
+    """Ensure cache path arguments reject directories when they exist."""
     parser = create_parser()
     directory = tmp_path / "existing_dir"
     directory.mkdir()
@@ -387,10 +387,36 @@ def test_optional_path_arguments_reject_directory(
     assert getattr(args, attr) is not None
 
 
-def test_optional_file_type_rejects_unreadable_file(
+@pytest.mark.parametrize(
+    "option",
+    ["--exchange-rates-file", "--isin-translation-file", "--spin-offs-file"],
+)
+def test_cache_path_arguments_reject_stdin(
+    option: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Ensure cache path arguments reject '-' instead of writing a file named '-'."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args([option, "-"])
+
+    assert exc_info.value.code == 2
+    assert "got stdin marker" in capsys.readouterr().err
+
+
+def test_cache_path_arguments_accept_leading_dash() -> None:
+    """Only the bare stdin marker is rejected, not every leading-dash path."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--exchange-rates-file=-rates.csv"])
+
+    assert args.exchange_rates_file == Path("-rates.csv")
+
+
+def test_optional_cache_file_type_rejects_unreadable_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """optional_file_type raises when file cannot be read."""
+    """optional_cache_file_type raises when file cannot be read."""
     target = tmp_path / "data.csv"
     target.write_text("value,1\n", encoding="utf8")
     original_open = cast(
@@ -413,7 +439,7 @@ def test_optional_file_type_rejects_unreadable_file(
     monkeypatch.setattr(Path, "open", fake_open)
 
     with pytest.raises(argparse.ArgumentTypeError, match="unable to read file path"):
-        optional_file_type(str(target))
+        optional_cache_file_type(str(target))
 
 
 def test_existing_file_type_rejects_unreadable_file(

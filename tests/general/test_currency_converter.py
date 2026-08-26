@@ -373,7 +373,7 @@ def test_query_hmrc_api_old_endpoint_error_names_rates_file(
         def get(self, url: str, timeout: int) -> NoReturn:
             raise requests_exceptions.ConnectionError(f"offline: {url}")
 
-    converter.session = FailingSession()  # type: ignore[assignment]
+    converter.session = FailingSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     with pytest.raises(ExternalApiError, match=r"rates\.csv") as excinfo:
         converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2019, 5, 1))
@@ -385,7 +385,7 @@ def test_query_hmrc_api_http_error_includes_snippet() -> None:
     """Include a truncated response body in HTTP errors."""
     converter = CurrencyConverter()
     response = FakeResponse(ok=False, status_code=500, text="x" * 300)
-    converter.session = FakeSession(response)  # type: ignore[assignment]
+    converter.session = FakeSession(response)  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     with pytest.raises(ExternalApiError, match="HTTP 500") as excinfo:
         converter.currency_to_gbp_rate(CurrencyCode("USD"), DATE)
@@ -425,7 +425,7 @@ def test_test_converter_records_new_rates(tmp_path: Path) -> None:
     def fake_query(date: datetime.date) -> None:
         converter.cache[date] = {CurrencyCode("USD"): Decimal("1.25")}
 
-    converter._query_hmrc_api = fake_query  # type: ignore[method-assign]  # noqa: SLF001
+    converter._query_hmrc_api = fake_query  # type: ignore[method-assign]  # ty: ignore[invalid-assignment]  # noqa: SLF001
 
     assert converter.currency_to_gbp_rate(CurrencyCode("USD"), DATE) == Decimal("1.25")
     assert "2024-01-01,USD,1.25" in rates_file.read_text(encoding="utf-8")
@@ -441,5 +441,5 @@ def test_strict_converter_refuses_to_fetch() -> None:
     """The CI converter never calls the HMRC API."""
     converter = StrictTestCurrencyConverter()
 
-    with pytest.raises(RuntimeError, match="provided for tests"):
+    with pytest.raises(RuntimeError, match="HMRC values missing for 2024-01"):
         converter.currency_to_gbp_rate(CurrencyCode("USD"), DATE)

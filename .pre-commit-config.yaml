@@ -10,7 +10,7 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/scop/pre-commit-shfmt
-    rev: v3.12.0-2
+    rev: v3.13.1-1
     hooks:
       - id: shfmt
   - repo: local
@@ -50,7 +50,13 @@ repos:
         require_serial: true
       - id: mypy
         name: mypy
-        entry: uv run mypy cgt_calc tests
+        entry: uv run mypy cgt_calc tests scripts
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ty
+        name: ty
+        entry: uv run ty check cgt_calc tests scripts
         language: system
         types: [python]
         pass_filenames: false
@@ -60,14 +66,14 @@ repos:
         entry: env CGT_TEST_MODE_STRICT=1 uv run pytest
         pass_filenames: false
   - repo: https://github.com/tcort/markdown-link-check
-    rev: v3.14.1
+    rev: v3.15.0
     hooks:
       - id: markdown-link-check
         stages: [manual]
         name: markdown link check
         args: [-q, --config, .github/markdown-link-check.json]
   - repo: https://github.com/cdce8p/python-typing-update
-    rev: v0.7.2
+    rev: v0.8.1
     hooks:
       # Run `python-typing-update` hook manually from time to time
       # to update python typing syntax.

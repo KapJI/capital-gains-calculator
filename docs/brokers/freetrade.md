@@ -24,7 +24,7 @@ is the safest range for UK share matching; see [Before you start](../usage.md#be
 
 Use the Activity Feed CSV, not a monthly statement PDF or a yearly tax statement. Keep the exported
 columns unchanged. You can compare the layout with this
-[sanitised example export](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/freetrade/data/transactions.csv).
+[sanitised example export](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/freetrade/data/transactions.csv).
 
 ## Generate the report
 
@@ -60,6 +60,13 @@ transactions, so cgt-calc ignores them.
 For trades in a foreign instrument currency, cgt-calc uses the price and total already expressed in
 the GBP account currency. It records the exported stamp duty and FX fee as costs. Foreign dividend
 amounts and their tax at source are converted to GBP using the exported `Base FX Rate`.
+
+### Dates and time zones
+
+Freetrade timestamps every transaction in UTC. cgt-calc converts each one to UK time, GMT in winter
+and BST in summer, before taking the date. The tax year boundary and the same-day and 30-day
+matching rules all run on UK calendar days, and the boundary always falls inside BST, so a
+transaction stamped after 23:00 UTC on 5 April belongs to the following tax year.
 
 ### Check for missing activity
 
@@ -110,8 +117,8 @@ Identify any other named row in Freetrade before deciding what to do with it:
 
 If the row is an executed transaction not covered by [Supported activity](#supported-activity),
 first upgrade cgt-calc using the same method you used to install it. If it still fails, open a
-[GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with the complete error
-and a sanitised copy of the row.
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the complete
+error and a sanitised copy of the row.
 
 ### `Missing columns` or `Unknown columns`
 

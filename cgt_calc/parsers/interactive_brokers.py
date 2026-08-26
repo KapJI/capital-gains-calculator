@@ -82,12 +82,17 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
         return ActionType.SELL
     if action_type == "Foreign Tax Withholding":
         return ActionType.DIVIDEND_TAX
-    if action_type in {"Forex Trade Component", "Other Fee"}:
+    if action_type == "Other Fee":
         return ActionType.FEE
-    # "FX Translations P&L": the revaluation of a foreign currency balance, not
-    # a trade. It moves the cash balance and creates no taxable event, which is
-    # what ADJUSTMENT means here and how the Schwab parser treats its own.
-    if action_type == "Adjustment":
+    # "FX Translations P&L" arrives as an Adjustment: the revaluation of a
+    # foreign currency balance. A "Forex Trade Component" is the base-currency
+    # net of a conversion, filed under the currency pair. Neither is a trade in
+    # a security: both move the cash balance and create no taxable event, which
+    # is what ADJUSTMENT means here and how the Schwab parser treats its own.
+    # Read as a fee instead, a component that brings base currency in is
+    # refused outright, and one that takes some out opens a pooled cost under
+    # the currency pair.
+    if action_type in {"Adjustment", "Forex Trade Component"}:
         return ActionType.ADJUSTMENT
 
     raise ParsingError(file_path, f"Unknown type: '{action_type}'")
@@ -157,6 +162,22 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         # that the internal validation (quantity x price + fees ≈ |amount|) holds.
         if price is not None and price_currency != "GBP" and exchange_rate is not None:
             price = price * exchange_rate
+            price_currency = CurrencyCode("GBP")
+
+        # An adjustment moves the cash balance and nothing else: the calculator
+        # reads its amount and never its symbol, quantity or price. IBKR files a
+        # Forex Trade Component under the currency pair and gives it both a
+        # quantity and a price, so clear the columns that describe a security
+        # rather than leave a currency pair looking like a holding. All that is
+        # left is the Net Amount, which is in the account's base currency, so
+        # the transaction currency is that rather than whatever priced the leg:
+        # a row carrying Price Currency without an Exchange Rate keeps its
+        # foreign price_currency above and would otherwise move a USD balance.
+        if action is ActionType.ADJUSTMENT:
+            symbol = None
+            quantity = None
+            price = None
+            fees = Decimal(0)
             price_currency = CurrencyCode("GBP")
 
         super().__init__(
