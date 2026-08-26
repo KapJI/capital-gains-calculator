@@ -114,6 +114,10 @@ The importer recognises these exact values from the main CSV's `Action` column:
 | `Spin-off`                                                         | Adds the new holding and moves part of the old holding's pooled cost to it          |
 | `Cash Merger` followed by `Cash Merger Adj`                        | A disposal for cash, built from the adjacent amount and quantity rows               |
 | `Full Redemption Adj` followed by `Full Redemption`                | A disposal for cash, built from the adjacent amount and quantity rows               |
+| `Sell to Open`                                                     | Writing an equity option: a disposal of the option on the grant date                |
+| `Buy to Close`                                                     | Closing a written option: an allowable cost of the original grant                   |
+| `Expired`                                                          | A written option that lapsed; the grant keeps the premium as its gain               |
+| `Assigned`                                                         | A written option that was assigned; the premium moves into the share transaction    |
 
 An `NRA Tax Adj`, `NRA Withholding` or `Foreign Tax Paid` row is treated as tax on account interest
 only when its `Symbol` is blank and its `Description` contains `SCHWAB1 INT`. Otherwise, it is
@@ -183,6 +187,46 @@ reorganisation documents.
 Cash mergers are supported only when the exported pair represents shares leaving in return for cash.
 cgt-calc warns because a merger that also gives you replacement shares needs different treatment and
 is not covered.
+
+## Written equity options
+
+The importer supports standard US equity options written with `Sell to Open`, including covered
+calls. It reconciles these outcomes:
+
+- **`Buy to Close`:** the closing debit is an allowable cost of the original option grant. The gain
+    remains dated when the option was written.
+- **`Expired`:** the premium, less the opening transaction costs, remains the gain on the grant.
+- **`Assigned`:** a call premium is added to the proceeds from selling the underlying shares; a put
+    premium reduces the acquisition cost of the shares bought on assignment. The usual share
+    identification rules then apply.
+
+This follows HMRC's guidance for investors in
+[traded options (CG55536)](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg55536),
+[closing out a written option (CG55545)](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg55545),
+and
+[exercise by the grantor (CG12313)](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg12313).
+It assumes the activity is investment activity taxed under the capital gains rules rather than a
+trade.
+
+Both Schwab option-symbol formats are accepted, for example `META 09/20/2024 500.00 C` and
+`META  240920C00500000`. Support assumes a standard contract delivering 100 shares.
+
+Include the complete history from each `Sell to Open` through its close, expiry or assignment, even
+where that crosses 5 April. A later close changes the gain on the original grant; a later assignment
+replaces that option gain with the combined share transaction. Re-run earlier tax years when a
+previously open option reaches either outcome, and amend a submitted return if necessary.
+
+Schwab posts the underlying share transaction of an assignment on its own settlement date, which can
+be a few days after the assignment and can fall in the next tax year. cgt-calc dates the share
+transaction on the assignment instead, and uses the exported settlement row's amounts. Where more
+than one exported row could be that settlement, or where the only candidate does not reconcile with
+the strike, quantity and fees, the import stops rather than guess.
+
+Purchased options (`Buy to Open`, `Sell to Close`, `Exercised`), cash-settled index options and
+adjusted contracts that do not deliver 100 shares are not supported. The parser stops with an
+explicit error for those rows instead of treating contracts as shares. Box spreads are not
+recognised as financing: their legs are read as ordinary written and purchased options, and the
+purchased legs stop the import.
 
 ## Equity awards
 

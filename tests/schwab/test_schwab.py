@@ -9,11 +9,10 @@ import subprocess
 import pytest
 
 from cgt_calc.exceptions import ParsingError, SymbolMissingError
-from cgt_calc.model import ActionType
+from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers.schwab import (
     AwardPrices,
     SchwabParser,
-    SchwabTransaction,
     _read_schwab_awards,
     action_from_str,
 )
@@ -282,7 +281,7 @@ def test_run_with_schwab_interest_tax_files(request: pytest.FixtureRequest) -> N
 SCHWAB_HEADER = "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
 
 
-def _read(content: str) -> list[SchwabTransaction]:
+def _read(content: str) -> list[BrokerTransaction]:
     """Parse a Schwab CSV from a string."""
     return SchwabParser.read_transactions(
         io.StringIO(content), Path("transactions.csv")
@@ -294,6 +293,10 @@ def _read(content: str) -> list[SchwabTransaction]:
     [
         ("Buy", ActionType.BUY),
         ("Sell", ActionType.SELL),
+        ("Sell to Open", ActionType.OPTION_GRANT),
+        ("Buy to Close", ActionType.OPTION_CLOSE),
+        ("Expired", ActionType.OPTION_EXPIRY),
+        ("Assigned", ActionType.OPTION_ASSIGNMENT),
         ("Qualified Dividend", ActionType.DIVIDEND),
         ("Cash Dividend", ActionType.DIVIDEND),
         ("Qual Div Reinvest", ActionType.DIVIDEND),

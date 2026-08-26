@@ -37,6 +37,7 @@ from .model import (
     CurrencyCode,
     ExcessReportedIncome,
     ForeignCurrencyAmount,
+    OptionDisposalData,
     Position,
     SpinOff,
 )
@@ -324,10 +325,18 @@ class TransactionIngester:
                 raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
             amount = -amount
 
+        capital_adjustment, capital_fee_adjustment = self._capital_adjustments_gbp(
+            transaction
+        )
+        source_adjustment = self._capital_adjustments_in_transaction_currency(
+            transaction
+        )
         quantity = self._pooled_quantity(transaction)
-        self.state.portfolio[symbol] += Position(quantity, amount)
+        self.state.portfolio[symbol] += Position(quantity, amount - source_adjustment)
 
-        gbp_amount = self.currency_converter.to_gbp_for(amount, transaction)
+        gbp_amount = (
+            self.currency_converter.to_gbp_for(amount, transaction) - capital_adjustment
+        )
         if transaction.action is ActionType.SPIN_OFF:
             self.state.spin_off_estimates[transaction.date, symbol] += gbp_amount
         add_to_list(
@@ -336,7 +345,8 @@ class TransactionIngester:
             symbol,
             quantity,
             gbp_amount,
-            self.currency_converter.to_gbp_for(transaction.fees, transaction),
+            self.currency_converter.to_gbp_for(transaction.fees, transaction)
+            + capital_fee_adjustment,
         )
 
     def _available_units(
@@ -996,15 +1006,114 @@ class TransactionIngester:
             CalculationType.DISPOSAL,
         ):
             raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
+        capital_adjustment, capital_fee_adjustment = self._capital_adjustments_gbp(
+            transaction
+        )
         add_to_list(
             self.state.disposal_list,
             transaction.date,
             symbol,
             pooled_quantity,
-            self.currency_converter.to_gbp_for(amount, transaction),
-            self.currency_converter.to_gbp_for(transaction.fees, transaction),
+            self.currency_converter.to_gbp_for(amount, transaction)
+            + capital_adjustment,
+            self.currency_converter.to_gbp_for(transaction.fees, transaction)
+            + capital_fee_adjustment,
         )
         self.state.sale_days.add((transaction.date, symbol))
+
+    def _capital_adjustments_gbp(
+        self, transaction: BrokerTransaction
+    ) -> tuple[Decimal, Decimal]:
+        """Convert assigned-option adjustments at each premium's own date."""
+        amount = Decimal(0)
+        fees = Decimal(0)
+        for adjustment in transaction.capital_adjustments:
+            amount += self.currency_converter.to_gbp(
+                adjustment.net_amount,
+                adjustment.currency,
+                adjustment.date,
+            )
+            fees += self.currency_converter.to_gbp(
+                adjustment.fees,
+                adjustment.currency,
+                adjustment.date,
+            )
+        return amount, fees
+
+    @staticmethod
+    def _capital_adjustments_in_transaction_currency(
+        transaction: BrokerTransaction,
+    ) -> Decimal:
+        """Return adjustments for first-pass bookkeeping in broker currency."""
+        if any(
+            adjustment.currency != transaction.currency
+            for adjustment in transaction.capital_adjustments
+        ):
+            raise InvalidTransactionError(
+                transaction,
+                "Assigned option and underlying share use different currencies",
+            )
+        return sum(
+            (adjustment.net_amount for adjustment in transaction.capital_adjustments),
+            Decimal(0),
+        )
+
+    def add_written_option_grant(self, transaction: BrokerTransaction) -> None:
+        """Record the taxable part of a written option grant."""
+        contract = transaction.option_contract
+        tax_data = transaction.written_option_tax
+        quantity = get_quantity_or_fail(transaction)
+        amount = get_amount_or_fail(transaction)
+        if contract is None or tax_data is None:
+            raise InvalidTransactionError(
+                transaction, "Written option is missing its reconciled tax details"
+            )
+        if quantity <= 0 or tax_data.taxable_quantity < 0:
+            raise QuantityNotPositiveError(transaction)
+        if tax_data.taxable_quantity == 0:
+            return
+
+        proportion = tax_data.taxable_quantity / quantity
+        proceeds = self.currency_converter.to_gbp_for(
+            (amount + transaction.fees) * proportion,
+            transaction,
+        )
+        allowable_cost = self.currency_converter.to_gbp_for(
+            transaction.fees * proportion,
+            transaction,
+        )
+        allowable_cost += sum(
+            (
+                self.currency_converter.to_gbp(
+                    cost.amount,
+                    cost.currency,
+                    cost.date,
+                )
+                for cost in tax_data.close_costs
+            ),
+            Decimal(0),
+        )
+        option_name = str(contract)
+        current = self.state.option_disposal_list[transaction.date].setdefault(
+            option_name, OptionDisposalData()
+        )
+        self.state.option_disposal_list[transaction.date][option_name] = (
+            current
+            + OptionDisposalData(
+                quantity=tax_data.taxable_quantity,
+                proceeds=proceeds,
+                allowable_cost=allowable_cost,
+            )
+        )
+
+    def process_written_option_transaction(
+        self, transaction: BrokerTransaction
+    ) -> Decimal:
+        """Record a written-option row and return its cash movement."""
+        amount = get_amount_or_fail(transaction)
+        if transaction.action is ActionType.OPTION_GRANT:
+            self.add_written_option_grant(transaction)
+        return amount
 
     def add_transfer_to_spouse(
         self,
@@ -1504,6 +1613,24 @@ class TransactionIngester:
                 source_account(transaction)
             )
 
+    def _record_interest(
+        self,
+        transaction: BrokerTransaction,
+        interests: dict[tuple[str, CurrencyCode], Decimal],
+        interest_taxes: dict[tuple[str, CurrencyCode], Decimal],
+    ) -> Decimal:
+        """Record interest, or tax withheld from it, and return its cash move."""
+        amount = get_amount_or_fail(transaction)
+        key = (transaction.broker, transaction.currency, transaction.date)
+        if transaction.action is ActionType.INTEREST:
+            log, year_totals = self.state.interest_list, interests
+        else:
+            log, year_totals = self.state.interest_tax_list, interest_taxes
+        log[key] += ForeignCurrencyAmount(amount, transaction.currency)
+        if self.date_in_tax_year(transaction.date):
+            year_totals[transaction.broker, transaction.currency] += amount
+        return amount
+
     def convert_to_hmrc_transactions(
         self,
         transactions: list[BrokerTransaction],
@@ -1554,6 +1681,14 @@ class TransactionIngester:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
                 self.add_disposal(transaction)
+            elif transaction.action in {
+                ActionType.OPTION_GRANT,
+                ActionType.OPTION_CLOSE,
+            }:
+                # TCGA 1992 s148 makes this an allowable cost of the original
+                # grant. The Schwab parser has already attached that cost to
+                # the grant; the closing row only moves the cash balance.
+                new_balance += self.process_written_option_transaction(transaction)
             elif transaction.action is ActionType.FEE:
                 new_balance += self.add_management_fee(transaction)
             elif transaction.action in {
@@ -1603,22 +1738,13 @@ class TransactionIngester:
                 ActionType.WIRE_FUNDS_RECEIVED,
             }:
                 new_balance += get_amount_or_fail(transaction)
-            elif transaction.action is ActionType.INTEREST:
-                amount = get_amount_or_fail(transaction)
-                new_balance += amount
-                self.state.interest_list[
-                    transaction.broker, transaction.currency, transaction.date
-                ] += ForeignCurrencyAmount(amount, transaction.currency)
-                if self.date_in_tax_year(transaction.date):
-                    interests[transaction.broker, transaction.currency] += amount
-            elif transaction.action is ActionType.INTEREST_TAX:
-                amount = get_amount_or_fail(transaction)
-                new_balance += amount
-                self.state.interest_tax_list[
-                    transaction.broker, transaction.currency, transaction.date
-                ] += ForeignCurrencyAmount(amount, transaction.currency)
-                if self.date_in_tax_year(transaction.date):
-                    interest_taxes[transaction.broker, transaction.currency] += amount
+            elif transaction.action in {
+                ActionType.INTEREST,
+                ActionType.INTEREST_TAX,
+            }:
+                new_balance += self._record_interest(
+                    transaction, interests, interest_taxes
+                )
             elif transaction.action is ActionType.RENAME:
                 self.add_rename(transaction)
             elif transaction.action in {

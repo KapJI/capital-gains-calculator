@@ -11,6 +11,7 @@ from decimal import Decimal
 from enum import StrEnum
 import itertools
 import logging
+import re
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 import shtab
@@ -33,11 +34,16 @@ from cgt_calc.logging import parsing_msg
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
+    CapitalAdjustment,
     CurrencyCode,
+    DatedAmount,
+    OptionContract,
+    OptionType,
     TransactionSource,
+    WrittenOptionTaxData,
 )
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
-from cgt_calc.util import parse_decimal
+from cgt_calc.util import approx_equal, parse_decimal
 
 from .base_parsers import BaseSingleFileParser, next_account_token
 
@@ -52,6 +58,23 @@ LOGGER = logging.getLogger(__name__)
 # how far to search backward from a Cancel Buy to find the original Buy transaction.
 # This is not based on any documented Schwab settlement period - just a practical limit.
 CANCEL_BUY_SEARCH_DAYS: Final = 5
+OPTION_ASSIGNMENT_SHARES: Final = Decimal(100)
+OPTION_ASSIGNMENT_MATCH_DAYS: Final = 3
+
+_HUMAN_OPTION_SYMBOL: Final = re.compile(
+    r"^\s*(?P<underlying>[A-Z][A-Z0-9.\-]{0,9})\s+"
+    r"(?P<expiry>\d{2}/\d{2}/\d{4})\s+"
+    r"\$?(?P<strike>\d+(?:\.\d+)?)\s+"
+    r"(?P<option_type>[CP])\s*$",
+    re.IGNORECASE,
+)
+_OCC_OPTION_SYMBOL: Final = re.compile(
+    r"^\s*(?P<underlying>[A-Z][A-Z0-9.\-]{0,9})\s*"
+    r"(?P<expiry>\d{6})(?P<option_type>[CP])"
+    r"(?P<strike>\d{8})\s*$",
+    re.IGNORECASE,
+)
+
 
 
 class RequiredTransactionsColumn(StrEnum):
@@ -114,6 +137,26 @@ def action_from_str(label: str, file: Path) -> ActionType:
 
     if label == "Sell":
         return ActionType.SELL
+
+    if label == "Sell to Open":
+        return ActionType.OPTION_GRANT
+
+    if label == "Buy to Close":
+        return ActionType.OPTION_CLOSE
+
+    if label == "Expired":
+        return ActionType.OPTION_EXPIRY
+
+    if label == "Assigned":
+        return ActionType.OPTION_ASSIGNMENT
+
+    if label in {"Buy to Open", "Sell to Close", "Exercised"}:
+        raise ParsingError(
+            file,
+            f"Schwab action '{label}' is a purchased-option transaction. "
+            "Only written equity options (Sell to Open followed by Buy to "
+            "Close, Expired or Assigned) are currently supported.",
+        )
 
     if label in {
         "MoneyLink Transfer",
@@ -193,7 +236,49 @@ def _parse_decimal(
     if raw_value.strip(" $,") == "":
         return None
 
-    return parse_decimal(raw_value, f"column '{column.value}'", strip="$,")
+    # An option debit is written in accounting notation: (100.65) is -100.65.
+    value = raw_value.strip()
+    if value.startswith("(") and value.endswith(")"):
+        value = f"-{value[1:-1]}"
+
+    return parse_decimal(value, f"column '{column.value}'", strip="$,")
+
+
+def parse_option_contract(symbol: str) -> OptionContract | None:
+    """Parse Schwab's human-readable or OCC equity-option symbol."""
+    human_match = _HUMAN_OPTION_SYMBOL.fullmatch(symbol)
+    if human_match:
+        expiry = datetime.datetime.strptime(
+            human_match.group("expiry"), "%m/%d/%Y"
+        ).date()
+        strike = Decimal(human_match.group("strike"))
+        option_type = (
+            OptionType.CALL
+            if human_match.group("option_type").upper() == "C"
+            else OptionType.PUT
+        )
+        underlying = human_match.group("underlying").upper()
+    else:
+        occ_match = _OCC_OPTION_SYMBOL.fullmatch(symbol)
+        if not occ_match:
+            return None
+        expiry = datetime.datetime.strptime(occ_match.group("expiry"), "%y%m%d").date()
+        strike = Decimal(occ_match.group("strike")) / Decimal(1000)
+        option_type = (
+            OptionType.CALL
+            if occ_match.group("option_type").upper() == "C"
+            else OptionType.PUT
+        )
+        underlying = occ_match.group("underlying").upper()
+
+    return OptionContract(
+        underlying=TICKER_RENAMES.get(underlying, underlying),
+        expiry=expiry,
+        strike=strike,
+        option_type=option_type,
+        multiplier=OPTION_ASSIGNMENT_SHARES,
+    )
+
 
 
 class SchwabTransaction(BrokerTransaction):
@@ -230,7 +315,24 @@ class SchwabTransaction(BrokerTransaction):
         action = action_from_str(self.raw_action, file)
         symbol_header = RequiredTransactionsColumn.SYMBOL.value
         symbol = row_dict[symbol_header] if row_dict[symbol_header] != "" else None
-        if symbol is not None:
+        option_contract = None
+        if action in {
+            ActionType.OPTION_GRANT,
+            ActionType.OPTION_CLOSE,
+            ActionType.OPTION_EXPIRY,
+            ActionType.OPTION_ASSIGNMENT,
+        }:
+            if (
+                symbol is None
+                or (option_contract := parse_option_contract(symbol)) is None
+            ):
+                raise ParsingError(
+                    file,
+                    f"Cannot parse the option contract symbol {symbol!r} for "
+                    f"Schwab action '{self.raw_action}'",
+                )
+            symbol = str(option_contract)
+        elif symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
         description = row_dict[RequiredTransactionsColumn.DESCRIPTION.value]
         if (
@@ -263,6 +365,7 @@ class SchwabTransaction(BrokerTransaction):
             amount,
             currency,
             broker,
+            option_contract=option_contract,
         )
 
     @staticmethod
@@ -714,6 +817,348 @@ def _reject_overlapping_exports(exports: list[_Export]) -> None:
             )
 
 
+def _row_file(transaction: SchwabTransaction) -> Path:
+    """Return the file one row was read from, for pointing an error at it."""
+    source = transaction.source
+    if source is None or source.file is None:
+        raise TypeError("Schwab row has no stamped source file")
+    return source.file
+
+
+
+
+@dataclass
+class _WrittenOptionLot:
+    """Unsettled quantity from one Sell to Open row."""
+
+    transaction: SchwabTransaction
+    remaining: Decimal
+    assigned: Decimal = Decimal(0)
+
+
+@dataclass
+class _OptionAssignment:
+    """An assignment row and the grants whose contracts it consumed."""
+
+    transaction: SchwabTransaction
+    allocations: list[tuple[_WrittenOptionLot, Decimal]]
+
+
+def _option_quantity(transaction: SchwabTransaction, file: Path) -> Decimal:
+    """Return and validate a Schwab option contract count."""
+    quantity = transaction.quantity
+    if (
+        quantity is None
+        or not quantity.is_finite()
+        or quantity <= 0
+        or quantity != quantity.to_integral_value()
+    ):
+        raise ParsingError(
+            file,
+            f"Invalid contract quantity for {transaction.raw_action} of "
+            f"{transaction.symbol} on {transaction.date}: {quantity}",
+        )
+    return quantity
+
+
+def _validate_written_option_row(
+    transaction: SchwabTransaction,
+    file: Path,
+) -> None:
+    """Validate the cash fields used to reconcile a written option."""
+    quantity = _option_quantity(transaction, file)
+    amount = transaction.amount
+    price = transaction.price
+    fees = transaction.fees
+    if not fees.is_finite() or fees < 0:
+        raise ParsingError(
+            file,
+            f"Invalid fees for {transaction.raw_action} of {transaction.symbol} "
+            f"on {transaction.date}: {fees}",
+        )
+
+    if transaction.action is ActionType.OPTION_GRANT:
+        valid = (
+            amount is not None
+            and amount.is_finite()
+            and amount >= 0
+            and price is not None
+            and price.is_finite()
+            and price >= 0
+        )
+        sign_description = "non-negative premium proceeds"
+    elif transaction.action is ActionType.OPTION_CLOSE:
+        valid = (
+            amount is not None
+            and amount.is_finite()
+            and amount <= 0
+            and price is not None
+            and price.is_finite()
+            and price >= 0
+        )
+        sign_description = "non-positive closing cost"
+    else:
+        valid = (amount is None or amount == 0) and price is None and fees == 0
+        sign_description = "no price, fees or cash amount"
+
+    if not valid:
+        raise ParsingError(
+            file,
+            f"Invalid {transaction.raw_action} row for {transaction.symbol} on "
+            f"{transaction.date}: expected {sign_description} and a positive "
+            f"whole contract quantity, got quantity {quantity}, price {price}, "
+            f"fees {fees}, amount {amount}",
+        )
+
+    if transaction.action in {ActionType.OPTION_GRANT, ActionType.OPTION_CLOSE}:
+        assert amount is not None
+        assert price is not None
+        contract = transaction.option_contract
+        assert contract is not None
+        gross_premium = quantity * contract.multiplier * price
+        expected_amount = (
+            gross_premium - fees
+            if transaction.action is ActionType.OPTION_GRANT
+            else -(gross_premium + fees)
+        )
+        implied_price = (
+            (amount + fees) / (quantity * contract.multiplier)
+            if transaction.action is ActionType.OPTION_GRANT
+            else (-amount - fees) / (quantity * contract.multiplier)
+        )
+        if not approx_equal(amount, expected_amount) and abs(
+            implied_price - price
+        ) >= Decimal("0.0001"):
+            raise ParsingError(
+                file,
+                f"Option premium does not match quantity, price and fees for "
+                f"{transaction.raw_action} of {transaction.symbol} on "
+                f"{transaction.date}: expected {expected_amount}, got {amount}",
+            )
+
+
+def _allocate_option_outcome(
+    outcome: SchwabTransaction,
+    open_lots: dict[OptionContract, list[_WrittenOptionLot]],
+    file: Path,
+) -> list[tuple[_WrittenOptionLot, Decimal]]:
+    """Allocate a close, expiry or assignment to earlier grants FIFO."""
+    contract = outcome.option_contract
+    assert contract is not None
+    needed = _option_quantity(outcome, file)
+    allocations: list[tuple[_WrittenOptionLot, Decimal]] = []
+    for lot in open_lots.get(contract, []):
+        if lot.transaction.date > outcome.date or lot.remaining == 0:
+            continue
+        quantity = min(needed, lot.remaining)
+        allocations.append((lot, quantity))
+        lot.remaining -= quantity
+        needed -= quantity
+        if needed == 0:
+            break
+
+    if needed:
+        raise ParsingError(
+            file,
+            f"Schwab reports {outcome.raw_action} of {outcome.quantity} contract(s) "
+            f"for {contract} on {outcome.date}, but only "
+            f"{_option_quantity(outcome, file) - needed} earlier written "
+            "contract(s) are available. Include the missing Sell to Open rows "
+            "in the export.",
+        )
+    return allocations
+
+
+def _assignment_adjustments(
+    allocations: list[tuple[_WrittenOptionLot, Decimal]],
+) -> list[CapitalAdjustment]:
+    """Return grant premiums to fold into an assigned share transaction."""
+    adjustments = []
+    for lot, quantity in allocations:
+        opening = lot.transaction
+        opening_quantity = opening.quantity
+        assert opening_quantity is not None
+        amount = opening.amount
+        assert amount is not None
+        proportion = quantity / opening_quantity
+        adjustments.append(
+            CapitalAdjustment(
+                date=opening.date,
+                net_amount=amount * proportion,
+                fees=opening.fees * proportion,
+                currency=opening.currency,
+            )
+        )
+    return adjustments
+
+
+def _find_assignment_share_transaction(
+    transactions: list[SchwabTransaction],
+    assignment: SchwabTransaction,
+    assigned_shares: Decimal,
+    used: set[int],
+    file: Path,
+) -> SchwabTransaction | None:
+    """Find Schwab's separate stock row created by an option assignment."""
+    contract = assignment.option_contract
+    assert contract is not None
+    expected_action = (
+        ActionType.SELL if contract.option_type is OptionType.CALL else ActionType.BUY
+    )
+    candidates = [
+        transaction
+        for transaction in transactions
+        if id(transaction) not in used
+        and transaction.option_contract is None
+        and transaction.action is expected_action
+        and transaction.symbol == contract.underlying
+        and transaction.quantity == assigned_shares
+        and transaction.price == contract.strike
+        and assignment.date
+        <= transaction.date
+        <= assignment.date + datetime.timedelta(days=OPTION_ASSIGNMENT_MATCH_DAYS)
+    ]
+    if len(candidates) > 1:
+        raise ParsingError(
+            file,
+            f"Cannot identify which {contract.underlying} stock transaction "
+            f"belongs to the assignment of {contract} on {assignment.date}",
+        )
+    return candidates[0] if candidates else None
+
+
+def _apply_option_assignment(
+    transactions: list[SchwabTransaction],
+    assignment: _OptionAssignment,
+    used_share_transactions: set[int],
+    file: Path,
+) -> BrokerTransaction | None:
+    """Fold written-option premium into the assigned underlying shares."""
+    transaction = assignment.transaction
+    contract = transaction.option_contract
+    assert contract is not None
+    contracts = sum((quantity for _, quantity in assignment.allocations), Decimal(0))
+    assigned_shares = contracts * contract.multiplier
+    share_transaction = _find_assignment_share_transaction(
+        transactions,
+        transaction,
+        assigned_shares,
+        used_share_transactions,
+        file,
+    )
+    adjustments = _assignment_adjustments(assignment.allocations)
+
+    if share_transaction is not None:
+        share_transaction.capital_adjustments.extend(adjustments)
+        used_share_transactions.add(id(share_transaction))
+        return None
+
+    fees = transaction.fees
+    gross_amount = assigned_shares * contract.strike
+    if contract.option_type is OptionType.CALL:
+        action = ActionType.SELL
+        amount = gross_amount - fees
+    else:
+        action = ActionType.BUY
+        amount = -(gross_amount + fees)
+    return BrokerTransaction(
+        date=transaction.date,
+        action=action,
+        symbol=contract.underlying,
+        description=f"Shares delivered on assignment of {contract}",
+        quantity=assigned_shares,
+        price=contract.strike,
+        fees=fees,
+        amount=amount,
+        currency=transaction.currency,
+        broker=transaction.broker,
+        capital_adjustments=adjustments,
+    )
+
+
+def _reconcile_written_options(
+    transactions: list[SchwabTransaction],
+) -> list[BrokerTransaction]:
+    """Resolve Schwab written-option lifecycles for UK capital gains."""
+    open_lots: dict[OptionContract, list[_WrittenOptionLot]] = defaultdict(list)
+    assignments: dict[tuple[datetime.date, OptionContract], _OptionAssignment] = {}
+
+    for transaction in transactions:
+        if transaction.option_contract is None:
+            continue
+        _validate_written_option_row(transaction, _row_file(transaction))
+        if transaction.action is ActionType.OPTION_GRANT:
+            quantity = _option_quantity(transaction, _row_file(transaction))
+            transaction.written_option_tax = WrittenOptionTaxData(quantity)
+            open_lots[transaction.option_contract].append(
+                _WrittenOptionLot(transaction, quantity)
+            )
+            continue
+
+        allocations = _allocate_option_outcome(
+            transaction, open_lots, _row_file(transaction)
+        )
+        if transaction.action is ActionType.OPTION_CLOSE:
+            amount = transaction.amount
+            assert amount is not None
+            total_cost = -amount
+            allocated_cost = Decimal(0)
+            total_quantity = _option_quantity(
+                transaction, _row_file(transaction)
+            )
+            for index, (lot, quantity) in enumerate(allocations):
+                cost = (
+                    total_cost - allocated_cost
+                    if index == len(allocations) - 1
+                    else total_cost * quantity / total_quantity
+                )
+                allocated_cost += cost
+                tax_data = lot.transaction.written_option_tax
+                assert tax_data is not None
+                tax_data.close_costs.append(
+                    DatedAmount(transaction.date, cost, transaction.currency)
+                )
+        elif transaction.action is ActionType.OPTION_ASSIGNMENT:
+            for lot, quantity in allocations:
+                lot.assigned += quantity
+            contract = transaction.option_contract
+            assert contract is not None
+            key = (transaction.date, contract)
+            if key in assignments:
+                assignments[key].allocations.extend(allocations)
+            else:
+                assignments[key] = _OptionAssignment(transaction, allocations)
+
+    for lots in open_lots.values():
+        for lot in lots:
+            tax_data = lot.transaction.written_option_tax
+            assert tax_data is not None
+            tax_data.taxable_quantity -= lot.assigned
+
+    used_share_transactions: set[int] = set()
+    synthetic_share_transactions = [
+        synthetic
+        for assignment in assignments.values()
+        if (
+            synthetic := _apply_option_assignment(
+                transactions,
+                assignment,
+                used_share_transactions,
+                _row_file(assignment.transaction),
+            )
+        )
+        is not None
+    ]
+    reconciled: list[BrokerTransaction] = [
+        transaction
+        for transaction in transactions
+        if transaction.action
+        not in {ActionType.OPTION_EXPIRY, ActionType.OPTION_ASSIGNMENT}
+    ]
+    reconciled.extend(synthetic_share_transactions)
+    return reconciled
+
+
 def _read_schwab_awards(
     schwab_award_transactions_file: Path | None,
 ) -> AwardPrices:
@@ -821,7 +1266,7 @@ def _read_schwab_awards(
     return AwardPrices(award_prices=dict(initial_prices))
 
 
-class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
+class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
     """Parser for Charles Schwab transaction files."""
 
     arg_name = "schwab"
@@ -899,16 +1344,31 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
     @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
-    ) -> list[SchwabTransaction]:
+    ) -> list[BrokerTransaction]:
         """Read Schwab transactions from file."""
         transactions = cls._read_rows(file, file_path)
         transactions = _unify_schwab_paired_transactions(transactions, file_path)
         transactions = _filter_cancelled_buy_transactions(transactions, file_path)
         transactions.reverse()
-        return transactions
+        return list(transactions)
 
     @classmethod
-    def load_from_dir(cls, dir_path: Path) -> list[SchwabTransaction]:
+    @override
+    def finalize_transactions(
+        cls, transactions: list[BrokerTransaction]
+    ) -> list[BrokerTransaction]:
+        """Reconcile option lifecycles once the whole account is read.
+
+        An opening row and its outcome can sit in different files of one
+        `--schwab-dir` export, so this cannot run per file. The boundary hook
+        runs exactly once, after every file has been read and stamped.
+        """
+        return _reconcile_written_options(
+            [row for row in transactions if isinstance(row, SchwabTransaction)]
+        )
+
+    @classmethod
+    def load_from_dir(cls, dir_path: Path) -> list[BrokerTransaction]:
         """Read every CSV in the directory as one export.
 
         Schwab limits how much history one export can cover, so a long history
@@ -991,7 +1451,12 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
                 dir_path,
                 cls.pretty_name,
             )
-        return cls.post_process_transactions(transactions)
+        # A directory is one account boundary and does not go through
+        # load_from_file, so it finalizes here instead.
+        parsed_transactions: list[BrokerTransaction] = list(transactions)
+        return cls.finalize_transactions(
+            cls.post_process_transactions(parsed_transactions)
+        )
 
     @classmethod
     def _directory_help(cls, file_path: Path) -> str:

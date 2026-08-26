@@ -1367,6 +1367,43 @@ class Matcher:
             eris=[eri],
         )
 
+    def _record_option_disposals(
+        self,
+        date_index: datetime.date,
+        calculation_log: CalculationLog,
+    ) -> tuple[int, Decimal, Decimal, Decimal, Decimal]:
+        """Add one day's written-option grants to the report totals and log."""
+        count = 0
+        proceeds = Decimal(0)
+        costs = Decimal(0)
+        gains = Decimal(0)
+        losses = Decimal(0)
+        for option_name, option in self.state.option_disposal_list.get(
+            date_index, {}
+        ).items():
+            raw_gain = option.proceeds - option.allowable_cost
+            gain = round_decimal(raw_gain, 2)
+            count += 1
+            proceeds += option.proceeds
+            costs += option.proceeds - gain
+            calculation_log[date_index][f"option${option_name}"] = [
+                CalculationEntry(
+                    rule_type=RuleType.OPTION,
+                    quantity=option.quantity,
+                    amount=option.proceeds,
+                    fees=Decimal(0),
+                    gain=raw_gain,
+                    allowable_cost=option.allowable_cost,
+                    new_quantity=Decimal(0),
+                    new_pool_cost=Decimal(0),
+                )
+            ]
+            if gain > 0:
+                gains += gain
+            else:
+                losses += gain
+        return count, proceeds, costs, gains, losses
+
     def walk(self) -> WalkResult:
         """Replay every day from the start of history to the tax year end."""
         begin_index = INTERNAL_START_DATE
@@ -1493,6 +1530,20 @@ class Matcher:
                                 gift_loss += transaction_capital_gain
                             else:
                                 capital_loss += transaction_capital_gain
+
+            if date_index >= tax_year_start_index:
+                (
+                    option_count,
+                    option_proceeds,
+                    option_costs,
+                    option_gains,
+                    option_losses,
+                ) = self._record_option_disposals(date_index, calculation_log)
+                disposal_count += option_count
+                disposal_proceeds += option_proceeds
+                allowable_costs += option_costs
+                capital_gain += option_gains
+                capital_loss += option_losses
 
             if date_index in self.state.rename_list:
                 for old, new in self.state.rename_list[date_index].items():

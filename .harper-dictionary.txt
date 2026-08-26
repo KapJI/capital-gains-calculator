@@ -28,6 +28,7 @@ BST
 calc
 CalculationEntry
 Center
+CG12313
 CG12920
 CG14530
 CG14561
@@ -43,6 +44,8 @@ CG51875
 CG51892
 CG51976
 CG52742
+CG55536
+CG55545
 CG57800
 CG57835
 CG59562
@@ -91,6 +94,7 @@ gbp
 GIA
 GOOG
 GOOGL
+grantor
 GSU
 hashable
 HL
@@ -113,6 +117,8 @@ json
 Lansdown
 len
 LF
+lifecycle
+lifecycles
 LSE
 Luhn
 lychee
@@ -135,6 +141,7 @@ num
 NVD
 NVDA
 NVIDIA
+OCC
 OCI
 OpenFIGI
 OPRA
@@ -177,6 +184,8 @@ s122
 s127
 s128
 s129
+s144
+s148
 s17
 s18
 s19

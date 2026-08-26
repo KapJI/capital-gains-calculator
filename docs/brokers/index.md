@@ -10,7 +10,7 @@ plan, and Sharesight requires equity grants to be recorded in a particular way.
 
 | Broker                                        | CLI option                                                                             | Notes                               |
 | --------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------- |
-| [Charles Schwab](schwab.md)                   | `--schwab-file` or `--schwab-dir`, `--schwab-award-file`, `--schwab-equity-award-json` | Some Equity Awards formats          |
+| [Charles Schwab](schwab.md)                   | `--schwab-file` or `--schwab-dir`, `--schwab-award-file`, `--schwab-equity-award-json` | Written equity options, some Equity Awards formats |
 | [Freetrade](freetrade.md)                     | `--freetrade-file`                                                                     | Activity CSV export                 |
 | [Hargreaves Lansdown](hargreaves-lansdown.md) | `--hl-dir`                                                                             | Tax Centre CSVs plus contract notes |
 | [Interactive Brokers](interactive-brokers.md) | `--interactive-brokers-file`                                                           | Transaction history CSV             |
