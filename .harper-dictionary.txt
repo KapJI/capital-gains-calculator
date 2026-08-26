@@ -13,6 +13,7 @@ ArgumentParser
 ArgumentTypeError
 arm64
 autosale
+BaseSingleFileParser
 BGF
 BGIF
 blackrock
@@ -49,6 +50,7 @@ CSVs
 CurrencyConverter
 currentPrice
 cusip
+dest
 DictReader
 DictReader's
 dprint
@@ -62,6 +64,7 @@ ETFs
 f
 FeesAndCommissions
 FIGI
+FileNotFoundError
 freetrade
 FX
 GA
@@ -148,6 +151,7 @@ Shareworks
 shfmt
 shtab
 SIPP
+SLF001
 SOLV
 SpinOff
 SpinOffs
