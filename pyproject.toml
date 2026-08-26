@@ -84,7 +84,7 @@ dev = [
   "types-requests>=2.33.0.20260712",
 ]
 docs = [
-  "zensical>=0.0.56",
+  "zensical>=0.0.57",
 ]
 
 [tool.uv.build-backend]
