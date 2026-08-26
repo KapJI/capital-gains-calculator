@@ -49,7 +49,7 @@ def test_uses_current_price_when_present(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_falls_back_to_regular_market_price(monkeypatch: pytest.MonkeyPatch) -> None:
     """ETFs like VTI lack currentPrice but carry regularMarketPrice and navPrice.
 
-    See https://github.com/KapJI/capital-gains-calculator/issues/801.
+    See https://github.com/cgt-calc/capital-gains-calculator/issues/801.
     """
     monkeypatch.setattr(
         "cgt_calc.current_price_fetcher.yf.Ticker",

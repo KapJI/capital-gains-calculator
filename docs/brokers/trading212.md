@@ -42,7 +42,7 @@ between date ranges. Overlaps are safe: exact repeated transactions are removed 
 212 transaction ID.
 
 You can compare the structure with this
-[sanitised example export](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/trading212/data/2024/inputs/transactions.csv).
+[sanitised example export](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/trading212/data/2024/inputs/transactions.csv).
 
 ## Generate the report
 
@@ -96,7 +96,7 @@ activity could make the resulting holdings and gains incorrect.
 
 Trading 212 occasionally changes its export format. First, upgrade cgt-calc using the same method
 you used to install it and try again. If the error remains, open a
-[GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) containing:
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) containing:
 
 - your cgt-calc version from `cgt-calc --version`;
 - the complete error message;

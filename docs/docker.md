@@ -7,7 +7,7 @@ shell with `cgt-calc` installed on `$PATH`:
 
 ```shell
 $ cd ~/Taxes/Transactions
-$ docker run --rm -it -v "$PWD":/data ghcr.io/kapji/capital-gains-calculator
+$ docker run --rm -it -v "$PWD":/data ghcr.io/cgt-calc/capital-gains-calculator
 a4800eca1914:/data# cgt-calc [...]
 ```
 
@@ -19,7 +19,7 @@ host, with your output report PDF etc.
 You can also run a single command directly:
 
 ```shell
-$ docker run --rm -v "$PWD":/data ghcr.io/kapji/capital-gains-calculator -lc "cgt-calc [...]"
+$ docker run --rm -v "$PWD":/data ghcr.io/cgt-calc/capital-gains-calculator -lc "cgt-calc [...]"
 ```
 
 ## Available tags
