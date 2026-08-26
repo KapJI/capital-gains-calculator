@@ -81,8 +81,6 @@ transaction stamped after 23:00 UTC on 5 April belongs to the following tax year
   report.
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
   supported.
-- Split transactions labelled `Stock split open` or `Stock split close` are not supported. Only the
-  single-row `Stock Split` action is recognised.
 - The
   [export for a Trading 212 contract for difference account](https://helpcentre.trading212.com/hc/en-us/articles/36243765206301-How-to-export-the-trading-data-from-my-CFD-account)
   uses a different, record-based CSV format that this parser does not support.

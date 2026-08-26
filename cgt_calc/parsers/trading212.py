@@ -72,6 +72,8 @@ class Trading212Column(StrEnum):
     CURRENCY_FINRA_FEE = "Currency (Finra fee)"
     MERCHANT_CATEGORY = "Merchant category"
     MERCHANT_NAME = "Merchant name"
+    STOCK_SPLIT_OPEN = "Stock split open"
+    STOCK_SPLIT_CLOSE = "Stock split close"
 
 
 COLUMNS: Final[list[str]] = [column.value for column in Trading212Column]
@@ -224,7 +226,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
     }:
         return ActionType.INTEREST
 
-    if label == "Stock Split":
+    if label in {"Stock Split", "Stock split open", "Stock split close"}:
         return ActionType.STOCK_SPLIT
 
     if label == "Spin off":
@@ -452,12 +454,28 @@ class Trading212Parser(BaseDirParser):
         transactions: list[BrokerTransaction] = []
         for index, row in enumerate(lines, start=2):
             try:
-                transactions.append(Trading212Transaction(header, row, file_path))
+                new = Trading212Transaction(header, row, file_path)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
+            if new.raw_action == "Stock split close":
+                if transactions[-1].raw_action != "Stock split open":  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+                    raise ParsingError(
+                        file_path,
+                        "Stock split close without matching stock split open",
+                    )
+                if not isinstance(transactions[-1].quantity, Decimal) or not isinstance(
+                    new.quantity, Decimal
+                ):
+                    raise ParsingError(
+                        file_path,
+                        "Stock split open/close with non-numeric quantity",
+                    )
+                transactions[-1].quantity -= new.quantity
+            else:
+                transactions.append(new)
         return transactions
 
     @staticmethod
