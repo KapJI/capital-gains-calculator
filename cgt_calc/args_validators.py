@@ -60,6 +60,21 @@ def output_path_type(value: str) -> Path:
     return Path(value)
 
 
+def _expand_user(value: str) -> Path:
+    """Convert to Path, expanding a leading '~'.
+
+    Path.expanduser raises RuntimeError when the home directory cannot be
+    resolved, e.g. for an unknown '~user'. Argument parsing runs outside the
+    exception handling in main(), so that would surface as a traceback.
+    """
+    try:
+        return Path(value).expanduser()
+    except RuntimeError as err:
+        raise argparse.ArgumentTypeError(
+            f"unable to expand user path: '{value}': {err}"
+        ) from err
+
+
 def _ensure_readable_file(path: Path, value: str) -> None:
     """Raise ArgumentTypeError when file cannot be read."""
     try:
@@ -87,17 +102,24 @@ def optional_cache_file_type(value: str) -> Path | None:
 
     An empty value disables the cache. The stdin marker is rejected: a cache is
     read and written, so '-' would create a file literally named '-' and later
-    be read back as the cache.
+    be read back as the cache. Anything that is not a regular file is rejected
+    for the same reason.
     """
     if value.strip() == "":
         return None
     if value == "-":
         raise argparse.ArgumentTypeError("expected file path, got stdin marker: '-'")
-    path = Path(value)
+    path = _expand_user(value)
     if path.exists():
-        if not (path.is_file() or path.is_fifo()):
+        if path.is_dir():
             raise argparse.ArgumentTypeError(
                 f"expected file path, got directory: '{value}'"
+            )
+        if not path.is_file():
+            # Every cache is read back through Path.is_file(), so a pipe,
+            # socket or device would be written to and then never read again.
+            raise argparse.ArgumentTypeError(
+                f"expected regular file path, got: '{value}'"
             )
         _ensure_readable_file(path, value)
     return path
@@ -105,7 +127,7 @@ def optional_cache_file_type(value: str) -> Path | None:
 
 def _existing_path_type(value: str, *, require_dir: bool) -> Path:
     """Ensure provided path exists and matches expected type."""
-    path = Path(value).expanduser()
+    path = _expand_user(value)
     if not path.exists():
         raise argparse.ArgumentTypeError(f"path does not exist: '{value}'")
     if require_dir and not path.is_dir():
@@ -114,7 +136,9 @@ def _existing_path_type(value: str, *, require_dir: bool) -> Path:
         raise argparse.ArgumentTypeError(f"expected file path, got: '{value}'")
     if require_dir:
         _ensure_readable_directory(path, value)
-    else:
+    elif not path.is_fifo():
+        # Opening a pipe blocks until a writer attaches, and the probe would
+        # consume from the stream the real read needs.
         _ensure_readable_file(path, value)
     return path
 
