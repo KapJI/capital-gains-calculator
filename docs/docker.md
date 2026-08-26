@@ -28,6 +28,13 @@ $ docker run --rm -v "$PWD":/data ghcr.io/cgt-calc/capital-gains-calculator -lc 
 - `X.Y.Z`: specific releases, pin one to reproduce a previously generated report
 - `edge`: the latest development build from the `main` branch
 
+## Other container runtimes
+
+These are ordinary Linux OCI images, so they also work with Podman, Colima, or Apple's
+[`container`](https://github.com/apple/container): substitute the runtime name for `docker` in the
+commands above. There are no separate macOS or Windows images because these runtimes all run Linux
+containers in a lightweight VM.
+
 ## Building locally
 
 To build the image locally instead, run this with the cloned repository as the current working
