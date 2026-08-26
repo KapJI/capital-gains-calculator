@@ -183,12 +183,14 @@ def bullet(stream: TextIO) -> str:
 
 
 def force_utf8_stdio() -> None:
-    """Emit UTF-8 regardless of the platform's locale.
+    """Read and emit UTF-8 regardless of the platform's locale.
 
     Windows encodes piped output with the legacy code page by default,
-    which cannot hold every character the reports use.
+    which cannot hold every character the reports use, and decodes piped
+    input the same way, turning a UTF-8 broker export read from stdin
+    into mojibake.
     """
-    for stream in (sys.stdout, sys.stderr):
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
         if isinstance(stream, io.TextIOWrapper):
             stream.reconfigure(encoding="utf-8")
 

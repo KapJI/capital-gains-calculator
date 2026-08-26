@@ -96,6 +96,7 @@ matchable
 md
 MiKTeX
 MMM
+mojibake
 msg
 mypy
 NameChange

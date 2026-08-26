@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import io
 import logging
+import sys
 from typing import TYPE_CHECKING, TextIO, cast
 
 import colorama
 
-from cgt_calc.logging import ColourMessageFormatter, ConsoleUI
+from cgt_calc.logging import ColourMessageFormatter, ConsoleUI, force_utf8_stdio
 
 if TYPE_CHECKING:
     import pytest
@@ -125,3 +127,14 @@ def test_formatter_plain_info() -> None:
     formatter = ColourMessageFormatter("%(message)s", use_colour=False, use_emoji=False)
 
     assert formatter.format(_record(logging.INFO, "hello")) == "hello"
+
+
+def test_force_utf8_stdio_reconfigures_stdin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Piped input decodes as UTF-8 whatever the platform locale reports."""
+    stream = io.TextIOWrapper(io.BytesIO("CAFÉ".encode()), encoding="cp1252")
+    monkeypatch.setattr(sys, "stdin", stream)
+
+    force_utf8_stdio()
+
+    assert sys.stdin.encoding == "utf-8"
+    assert sys.stdin.read() == "CAFÉ"
