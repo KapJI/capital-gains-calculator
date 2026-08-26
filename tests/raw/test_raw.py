@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import csv
 from decimal import Decimal
+import io
 import logging
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 
+from cgt_calc.args_validators import STDIN_PATH
 from cgt_calc.exceptions import ParsingError
+from cgt_calc.logging import force_utf8_stdio
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.raw import COLUMNS, RawColumn, RawParser, _parse_decimal
 from tests.utils import build_cmd, report_path, stderr_alerts
@@ -114,6 +118,28 @@ def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
         "if you added new features update the test with:\n"
         f"cat {csv_file} | {cmd_str} > {expected_file}"
     )
+
+
+def test_stdin_decodes_utf8_under_a_legacy_locale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A UTF-8 export piped in keeps its characters on a legacy code page.
+
+    Windows decodes redirected stdin with the ANSI code page, so a symbol
+    outside ASCII would otherwise arrive as mojibake.
+    """
+    csv_bytes = (
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-02-09,DIVIDEND,CAFÉ,4200,0.80,0.0,USD\n"
+    ).encode()
+    monkeypatch.setattr(
+        sys, "stdin", io.TextIOWrapper(io.BytesIO(csv_bytes), encoding="cp1252")
+    )
+    force_utf8_stdio()
+
+    transactions = RawParser.load_from_file(STDIN_PATH, show_parsing_msg=False)
+
+    assert [txn.symbol for txn in transactions] == ["CAFÉ"]
 
 
 def test_run_with_nonexistent_file() -> None:
