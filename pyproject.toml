@@ -64,7 +64,7 @@ cgt-calc = "cgt_calc.main:init"
 [dependency-groups]
 dev = [
   "codespell>=2.4.1",
-  "dprint-py>=0.56.0.0",
+  "dprint-py>=0.56.1.0",
   "harper-cli>=2.8.0.post1",
   "mypy>=2.3.1",
   "packaging>=26.3",
