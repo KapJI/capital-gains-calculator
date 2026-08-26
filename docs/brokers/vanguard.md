@@ -102,7 +102,7 @@ cgt-calc does not assign that row to a purchase or disposal as an allowable cost
 ## Tax information outside the transaction listing
 
 The transaction listing is not a complete tax certificate. In particular, it does not supply Excess
-Reportable Income (ERI). See the
+Reported Income (ERI). See the
 [Vanguard section of the custom ERI data guide](../custom-eri-data.md#vanguard) for Vanguard's
 published reports and the distinction between its traditional funds and ETFs.
 
@@ -136,8 +136,8 @@ file when it learns a mapping from a transaction or a successful Open FIGI looku
 copy of manually curated data if you need an immutable record; see
 [Configuration files](../configuration.md#automatic-data-fetching).
 
-A missing mapping currently produces no warning: ERI for that holding is simply absent. Check the
-report rather than assuming that bundled ERI data was matched. Some bond-fund distributions are
+A missing mapping produces a warning naming each affected Vanguard symbol. Check that warning and
+the report rather than assuming that bundled ERI data was matched. Some bond-fund distributions are
 taxed as interest rather than dividends; see
 [Interest fund tickers](../configuration.md#manual-configuration-files).
 
