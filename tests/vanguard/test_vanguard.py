@@ -9,7 +9,7 @@ import subprocess
 import pytest
 
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.vanguard import COLUMNS, VanguardParser
 from tests.utils import build_cmd, report_path, stderr_alerts
@@ -375,54 +375,6 @@ def test_dual_table_blank_transaction_details_does_not_crash(tmp_path: Path) -> 
     assert buys[0].quantity == Decimal(10)
 
 
-def test_investment_only_blank_transaction_details_uses_quantity_sign(
-    tmp_path: Path,
-) -> None:
-    """With no TransactionDetails, action comes from Quantity's sign and symbol from InvestmentName."""
-    content = (
-        "Investment Transactions\n"
-        "\n"
-        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
-        "10/03/2022,Foo ETF (FOO),,10,9.5,95\n"
-        "15/03/2022,Foo ETF (FOO),,-5,10.0,50\n"
-    )
-    vanguard_file = tmp_path / "inv_only_blank.csv"
-    vanguard_file.write_text(content, encoding="utf-8")
-
-    transactions = VanguardParser().load_from_file(vanguard_file)
-
-    assert len(transactions) == 2
-    assert transactions[0].action == ActionType.BUY
-    assert transactions[0].symbol == "FOO"
-    assert transactions[0].quantity == Decimal(10)
-    assert transactions[0].price == Decimal("9.5")
-
-    assert transactions[1].action == ActionType.SELL
-    assert transactions[1].symbol == "FOO"
-    assert transactions[1].quantity == Decimal(5)
-
-
-def test_investment_only_table(tmp_path: Path) -> None:
-    """File with only an Investment Transactions table is parsed correctly."""
-    content = (
-        "Investment Transactions\n"
-        "\n"
-        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
-        "10/03/2022,Foo ETF (FOO),Bought 10 Foo ETF (FOO),10,9.5,95\n"
-        "15/03/2022,Foo ETF (FOO),Sold 5 Foo ETF (FOO),5,10.0,50\n"
-    )
-    vanguard_file = tmp_path / "inv_only.csv"
-    vanguard_file.write_text(content, encoding="utf-8")
-
-    transactions = VanguardParser().load_from_file(vanguard_file)
-
-    assert len(transactions) == 2
-    assert transactions[0].action == ActionType.BUY
-    assert transactions[0].quantity == Decimal(10)
-    assert transactions[0].price == Decimal("9.5")
-    assert transactions[1].action == ActionType.SELL
-
-
 def test_namechange_emits_rename_transaction(tmp_path: Path) -> None:
     """NameChange in dual-table CSV emits one RENAME; pre-rename BUY stays under OLD."""
     content = (
@@ -453,26 +405,498 @@ def test_namechange_emits_rename_transaction(tmp_path: Path) -> None:
     assert buys[0].symbol == "VDXX"
 
 
-def test_namechange_in_investment_only_table(tmp_path: Path) -> None:
-    """NameChange in investment-only CSV emits one RENAME, not a BUY/SELL."""
+@pytest.mark.parametrize(
+    "transaction_details",
+    ["", "Bought 10 Foo ETF (FOO)"],
+)
+def test_investment_only_table_is_rejected(
+    tmp_path: Path, transaction_details: str
+) -> None:
+    """Reject an investment-only table because it has no signed cash amounts."""
     content = (
         "Investment Transactions\n"
         "\n"
         "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
-        "01/03/2022,Old Fund (VDXX),Bought 10 Old Fund (VDXX),10,10,100\n"
-        "15/03/2022,Old Fund (VDXX),NameChange: VDXX,0,0,0\n"
-        "15/03/2022,New Fund (VGER),NameChange: VDXX replaced with VGER,0,0,0\n"
+        f"10/03/2022,Foo ETF (FOO),{transaction_details},10,9.5,95\n"
     )
-    vanguard_file = tmp_path / "namechange_inv.csv"
+    vanguard_file = tmp_path / "inv_only.csv"
     vanguard_file.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ParsingError, match="must include the Cash Transactions table"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_conflicting_repeated_header_is_rejected(tmp_path: Path) -> None:
+    """Reject a repeated header whose column order differs from the active table."""
+    vanguard_file = tmp_path / "conflicting_repeated_header.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "Date,Amount,Details,Balance\n"
+        "02/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError, match="Multiple Cash Transactions table headers"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_date_shaped_row_is_not_treated_as_footer(
+    tmp_path: Path,
+) -> None:
+    """Report a malformed dated row instead of closing the table before it."""
+    vanguard_file = tmp_path / "padded_date.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "02/01/2022,,50,150\n"
+        "03/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError, match=r"row 3: Missing action text"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_error_uses_physical_line_after_quoted_newline(
+    tmp_path: Path,
+) -> None:
+    """Count embedded CSV newlines when reporting the later malformed row."""
+    vanguard_file = tmp_path / "quoted_newline.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        '01/01/2022,Regular Deposit,100,"100\n'
+        'continued"\n'
+        "02/01/2022,Regular Deposit,50\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(UnexpectedColumnCountError, match=r"row 4:"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+@pytest.mark.parametrize("suffix", [".xls", ".xlsx", ".xlsm", ".xlsb"])
+def test_read_vanguard_excel_workbook_has_clear_error(
+    tmp_path: Path, suffix: str
+) -> None:
+    """Reject an Excel workbook before attempting to decode it as CSV text."""
+    vanguard_file = tmp_path / f"vanguard{suffix}"
+    vanguard_file.write_bytes(b"PK\x03\x04\xff")
+
+    with pytest.raises(ParsingError, match="Excel workbooks are not supported"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_ignores_cosmetic_trailing_empty_cells(tmp_path: Path) -> None:
+    """Accept rows with or without the export header's empty padding columns."""
+    vanguard_file = tmp_path / "trailing_empty_cells.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance,,\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "02/01/2022,Regular Deposit,50,150,,\n",
+        encoding="utf-8",
+    )
 
     transactions = VanguardParser().load_from_file(vanguard_file)
 
-    renames = [t for t in transactions if t.action is ActionType.RENAME]
-    assert len(renames) == 1
-    assert renames[0].symbol == "VGER"
-    assert renames[0].description == f"{RENAME_DESCRIPTION_PREFIX}VDXX"
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal(100),
+        Decimal(50),
+    ]
 
-    buys = [t for t in transactions if t.action is ActionType.BUY]
-    assert len(buys) == 1
-    assert buys[0].symbol == "VDXX"
+
+def test_read_vanguard_invalid_utf8_has_clear_error(tmp_path: Path) -> None:
+    """Wrap decoding failures in the normal parsing error type."""
+    vanguard_file = tmp_path / "vanguard.csv"
+    vanguard_file.write_bytes(b"Date,Details,Amount,Balance\n\xff")
+
+    with pytest.raises(ParsingError, match="must be a UTF-8 CSV text file"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_legacy_footer_is_ignored(tmp_path: Path) -> None:
+    """Ignore a single-cell footer after a legacy cash-only table."""
+    vanguard_file = tmp_path / "legacy_footer.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "This report is not advice\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 1
+    assert transactions[0].amount == Decimal(100)
+
+
+def test_read_vanguard_page_footer_between_transactions_is_ignored(
+    tmp_path: Path,
+) -> None:
+    """Do not let a pagination label truncate an active table."""
+    vanguard_file = tmp_path / "page_footer.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "Page 1 of 2\n"
+        "02/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal(100),
+        Decimal(50),
+    ]
+
+
+def test_read_vanguard_collapsed_cash_row_is_rejected(tmp_path: Path) -> None:
+    """Reject a transaction whose lost separators leave it in a single cell."""
+    vanguard_file = tmp_path / "collapsed_cash.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        '"02/01/2022,Regular Deposit,50,150"\n'
+        "03/01/2022,Regular Deposit,25,175\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(UnexpectedColumnCountError, match="row 3"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_collapsed_final_cash_row_is_rejected(tmp_path: Path) -> None:
+    """Do not accept a collapsed last row as the trailing footer it resembles."""
+    vanguard_file = tmp_path / "collapsed_last.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        '"02/01/2022,Regular Deposit,50,150"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(UnexpectedColumnCountError, match="row 3"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_unlabelled_mid_table_text_is_rejected(tmp_path: Path) -> None:
+    """Only pagination labels may interrupt a table; other text is not skipped."""
+    vanguard_file = tmp_path / "mid_table_text.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "Continued overleaf\n"
+        "02/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(UnexpectedColumnCountError, match="row 3"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_page_label_outside_first_column_is_ignored(
+    tmp_path: Path,
+) -> None:
+    """Recognise a pagination label wherever the export centres it."""
+    vanguard_file = tmp_path / "centred_label.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        ",,Page 1 of 2,\n"
+        "02/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal(100),
+        Decimal(50),
+    ]
+
+
+def test_read_vanguard_header_under_wrong_section_title_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """Do not read a cash table announced as the Investment Transactions one."""
+    vanguard_file = tmp_path / "mismatched_section.csv"
+    vanguard_file.write_text(
+        "Investment Transactions\n"
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match="Cash Transactions table header under the Investment Transactions",
+    ):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_unrecognised_header_under_title_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """Reject an announced table whose header lost a column."""
+    vanguard_file = tmp_path / "lost_column.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "Investment Transactions\n"
+        "InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        "Foo Fund (FOO),Sold 1 Foo Fund (FOO),1,10,10\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ParsingError, match="row 4: Found a row outside the Investment Transactions"
+    ):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_transaction_above_first_header_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """Reject an export that lost the header above its opening transactions."""
+    vanguard_file = tmp_path / "lost_first_header.csv"
+    vanguard_file.write_text(
+        "01/01/2022,Regular Deposit,100,100\n"
+        "Date,Details,Amount,Balance\n"
+        "02/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match="row 1: Found a transaction row above the first table header",
+    ):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_collapsed_row_above_first_header_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """Reject a collapsed transaction above the header, which has no fields."""
+    vanguard_file = tmp_path / "collapsed_above_header.csv"
+    vanguard_file.write_text(
+        '"01/01/2022,Regular Deposit,100,100"\n'
+        "Date,Details,Amount,Balance\n"
+        "02/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match="row 1: Found a transaction row above the first table header",
+    ):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    ["01/01/2022", "01/01/2022 - 31/12/2022", "Statement produced 01/01/2022"],
+)
+def test_read_vanguard_dated_metadata_above_header_is_accepted(
+    tmp_path: Path, metadata: str
+) -> None:
+    """Keep accepting the dated preamble an export prints above its table."""
+    vanguard_file = tmp_path / "dated_preamble.csv"
+    vanguard_file.write_text(
+        f"{metadata}\nDate,Details,Amount,Balance\n02/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert [transaction.amount for transaction in transactions] == [Decimal(50)]
+
+
+def test_read_vanguard_missing_header_still_reports_the_columns(
+    tmp_path: Path,
+) -> None:
+    """Keep the column error when no table header is recognised at all."""
+    vanguard_file = tmp_path / "no_header.csv"
+    vanguard_file.write_text(
+        "Date,Detail,Amount,Balance\n01/01/2022,Regular Deposit,100,100\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError, match="Expected column 2 to be 'Details'"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_padded_header_cells_are_accepted(tmp_path: Path) -> None:
+    """Match column names that the export spaced out for readability."""
+    vanguard_file = tmp_path / "padded_header.csv"
+    vanguard_file.write_text(
+        "Date, Details, Amount, Balance\n01/01/2022,Regular Deposit,100,100\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert [transaction.amount for transaction in transactions] == [Decimal(100)]
+
+
+def test_read_vanguard_repeated_page_header_tolerates_spacing(tmp_path: Path) -> None:
+    """Treat a respaced repeat of the same header as pagination, not a conflict."""
+    vanguard_file = tmp_path / "respaced_header.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "Date,Details,Amount,Balance \n"
+        "02/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal(100),
+        Decimal(50),
+    ]
+
+
+def test_read_vanguard_ragged_cash_row_is_rejected(tmp_path: Path) -> None:
+    """Do not silently omit a cash row with the wrong field count."""
+    vanguard_file = tmp_path / "ragged_cash.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n09/03/2022,Bought 10 Foo Fund (FOO),-100.00\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(UnexpectedColumnCountError, match="doesn't have 4 columns"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_ragged_investment_row_is_rejected(tmp_path: Path) -> None:
+    """Do not silently omit an investment row with the wrong field count."""
+    vanguard_file = tmp_path / "ragged_investment.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "09/03/2022,Bought 10 Foo Fund (FOO),-100.00,0\n"
+        "\n"
+        "Investment Transactions\n"
+        "\n"
+        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        "10/03/2022,Foo Fund (FOO),Bought 10 Foo Fund (FOO),10,10\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        UnexpectedColumnCountError, match=r"row 7:.*doesn't have 6 columns"
+    ):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_repeated_page_header_continues_table(tmp_path: Path) -> None:
+    """Append rows after repeated pagination titles and unchanged headers."""
+    vanguard_file = tmp_path / "repeated_header.csv"
+    vanguard_file.write_text(
+        "Cash Transactions\n"
+        "Date,Details,Amount,Balance,,\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "Page 1 of 2\n"
+        "Cash Transactions\n"
+        "Date,Details,Amount,Balance\n"
+        "02/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal(100),
+        Decimal(50),
+    ]
+
+
+def test_read_vanguard_running_summary_before_page_header_continues_table(
+    tmp_path: Path,
+) -> None:
+    """Treat a summary followed by a repeated page header as pagination."""
+    vanguard_file = tmp_path / "running_summary.csv"
+    vanguard_file.write_text(
+        "Cash Transactions\n"
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "Balance,100\n"
+        "Page 1 of 2\n"
+        "Cash Transactions\n"
+        "Date,Details,Amount,Balance\n"
+        "02/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal(100),
+        Decimal(50),
+    ]
+
+
+def test_read_vanguard_section_title_updates_error_context(tmp_path: Path) -> None:
+    """Name the section containing a transaction row that lacks its table header."""
+    vanguard_file = tmp_path / "missing_investment_header.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "Balance,100\n"
+        "Investment Transactions\n"
+        "02/01/2022,Foo Fund (FOO),Bought 1 Foo Fund (FOO),1,1,1\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError, match="outside the Investment Transactions"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_tab_delimited_full_export(tmp_path: Path) -> None:
+    """Detect tabs from a table header even when the title row has one cell."""
+    vanguard_file = tmp_path / "vanguard.tsv"
+    vanguard_file.write_text(
+        "Bob's General investment\n"
+        "\n"
+        "Cash Transactions\n"
+        "\n"
+        "Date\tDetails\tAmount\tBalance\n"
+        "09/03/2022\tBought 10 Foo Fund (FOO)\t-100.00\t0\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 1
+    assert transactions[0].symbol == "FOO"
+
+
+def test_read_vanguard_transaction_after_summary_is_rejected(tmp_path: Path) -> None:
+    """Do not discard a transaction-shaped row after a premature summary."""
+    vanguard_file = tmp_path / "mid_table_summary.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "Balance,100\n"
+        "02/01/2022,Regular Deposit,50,150\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError, match="transaction row after the Cash"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_utf8_bom(tmp_path: Path) -> None:
+    """Accept the BOM written by Excel's CSV UTF-8 format."""
+    vanguard_file = tmp_path / "bom.csv"
+    vanguard_file.write_text(
+        "\ufeffDate,Details,Amount,Balance\n"
+        "09/03/2022,Bought 10 Foo Fund (FOO),-100.00,0\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 1
+    assert transactions[0].symbol == "FOO"

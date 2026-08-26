@@ -20,3 +20,5 @@
 ^main\.py:.*MissingPreposition
 # "CR CR LF" spells out the doubled carriage return; the repeat is the point.
 ^util\.py:.*RepeatedWords
+# "a header that does not match" is a relative clause, not a comparison.
+^vanguard\.md:.*ThatThan
