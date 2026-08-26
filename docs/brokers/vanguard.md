@@ -29,7 +29,7 @@ summarises dividends and tax deducted at source, but does not provide a Capital 
 calculation.
 
 You can compare the expected worksheet structure with the
-[sanitised example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/vanguard/data/cash_investment_report.csv).
+[sanitised example](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/vanguard/data/cash_investment_report.csv).
 The filename does not matter. Use commas: tab-separated full worksheets are not reliably detected.
 
 ### Why both tables matter
@@ -197,7 +197,7 @@ Keep the original export unchanged. A name-based `NameChange` row is unsupported
 ticker-based rename is recognised. If the row is another real transaction not listed under
 [Supported activity](#supported-activity), first upgrade cgt-calc using the same method you used to
 install it. If it still fails, open a
-[GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with your cgt-calc
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with your cgt-calc
 version, the complete error and a sanitised copy of the row.
 
 Do not assume that every unsupported row raises this error. A row beginning `Reversal of` can be
@@ -224,7 +224,7 @@ created by an incomplete spreadsheet conversion.
 Also inspect every `Reversal of` row. Only dividend reversals have been validated; a reversed buy or
 sell can be imported with the wrong action, quantity or amount instead of being rejected. Keep the
 original export unchanged and report an unchanged Vanguard row that behaves this way in a
-[GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new).
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new).
 
 ### `Reached a negative balance` or `Tried to sell not owned symbol`
 

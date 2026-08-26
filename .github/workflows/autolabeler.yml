@@ -17,7 +17,7 @@ permissions:
 jobs:
   autolabel:
     name: Autolabeler
-    if: github.repository_owner == 'KapJI'
+    if: github.repository_owner == 'cgt-calc'
     runs-on: ubuntu-latest
     steps:
       - name: Run release-drafter autolabeler

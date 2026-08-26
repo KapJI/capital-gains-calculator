@@ -480,7 +480,7 @@ class VanguardParser(BaseSingleFileParser):
                     raise ParsingError(file_path, str(err), row_index=index) from err
 
             # Resolve missing quantity/price with values from the investment table, see
-            # https://github.com/KapJI/capital-gains-calculator/issues/758
+            # https://github.com/cgt-calc/capital-gains-calculator/issues/758
             for txn in transactions:
                 matched_inv = _find_investment_match(txn, investment_lookup)
                 txn.enrich_details(matched_inv)

@@ -16,7 +16,7 @@ The following configuration files and options allow you to customize the calcula
   `out/isin_translation.csv`; `--isin-translation-file` selects a different cache path. Existing
   entries are read, and cgt-calc can create or rewrite the file after a successful Open FIGI lookup
   or after learning a mapping from broker transactions. Pre-packaged mappings are available in
-  [`initial_isin_translation.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv),
+  [`initial_isin_translation.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv),
   which you can extend using the cache file. A cache entry for an existing ISIN replaces the bundled
   symbol set for that ISIN, so put every verified alias in additional columns on the same CSV row.
 
@@ -24,7 +24,7 @@ The following configuration files and options allow you to customize the calcula
 
 - **Initial stock prices.** Required for special events like vesting, splits, or spin-offs when
   historical prices aren't available from your broker. Prices should be in USD.
-  [`initial_prices.csv`](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv)
+  [`initial_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv)
   comes pre-packaged. The program will inform you when a required price is missing, and you can
   supply custom data with `--initial-prices-file`.
 

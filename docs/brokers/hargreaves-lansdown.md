@@ -38,7 +38,7 @@ PDF for each reference. If HL downloaded it under another name, retain the origi
 and rename a copy; do not edit or convert the PDF itself.
 
 You can compare the CSV layout with the
-[sanitised example](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/hl/data/inputs/hl-transaction-summary.csv).
+[sanitised example](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/hl/data/inputs/hl-transaction-summary.csv).
 The tests create synthetic contract notes rather than publishing real account PDFs.
 
 ## Generate the report
@@ -121,7 +121,7 @@ Keep the original export unchanged. For activity whose complete details and UK t
 independently verify, make a separate working copy without the unsupported row and add one
 equivalent transaction through another supported export or the [RAW format](raw.md). Make sure the
 activity appears exactly once. Otherwise, open a
-[GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with your cgt-calc
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with your cgt-calc
 version, the complete error and a sanitised copy of the row.
 
 ### `Could not find the 'Trade date' header` or `CSV header mismatch`

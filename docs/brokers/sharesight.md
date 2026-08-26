@@ -53,7 +53,7 @@ files or search subdirectories.
 Do not rename or delete columns when converting the worksheets. In addition to the legacy headings,
 cgt-calc accepts aliases including `Market Code`, `Qty`, `Instrument Currency` and `Exch. Rate`. You
 can compare the legacy structure with the
-[sanitised example reports](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/sharesight/data/inputs).
+[sanitised example reports](https://github.com/cgt-calc/capital-gains-calculator/tree/main/tests/sharesight/data/inputs).
 
 ## Generate the report
 
@@ -118,7 +118,8 @@ cgt-calc found the report's header row but not every column it needs. This happe
 were edited during conversion, or when Sharesight has changed the report format.
 
 First upgrade cgt-calc using the same method you used to install it and try again. If the error
-remains, open a [GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with:
+remains, open a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new)
+with:
 
 - your cgt-calc version from `cgt-calc --version`;
 - the complete error message; and
