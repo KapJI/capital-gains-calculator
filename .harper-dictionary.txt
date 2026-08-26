@@ -39,6 +39,7 @@ CMF5
 CRLF
 codepage
 codespell
+Colima
 colorama
 colorama's
 ConsoleUI
@@ -99,6 +100,7 @@ noqa
 num
 NVDA
 NVIDIA
+OCI
 OPRA
 OTGLY
 pdf
@@ -106,6 +108,7 @@ pdflatex
 pipx
 Plc
 png
+Podman
 prek
 presplit
 py
