@@ -61,6 +61,7 @@ ESPP
 etc
 ETF
 ETFs
+expanduser
 f
 FeesAndCommissions
 FIGI
@@ -128,6 +129,7 @@ restkey
 restval
 roundings
 RowIterator
+RuntimeError
 RuntimeMode
 s105
 s106A

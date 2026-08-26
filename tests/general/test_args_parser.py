@@ -7,8 +7,10 @@ from collections.abc import Callable, Iterator
 import datetime
 from decimal import localcontext
 import logging
+import os
 from pathlib import Path
 import sys
+import threading
 from typing import IO, TextIO, cast
 
 import pytest
@@ -369,16 +371,10 @@ def test_cache_path_arguments_allow_empty_string(option: str, attr: str) -> None
 
 
 @pytest.mark.parametrize(
-    ("option", "attr"),
-    [
-        ("--exchange-rates-file", "exchange_rates_file"),
-        ("--isin-translation-file", "isin_translation_file"),
-        ("--spin-offs-file", "spin_offs_file"),
-    ],
+    "option",
+    ["--exchange-rates-file", "--isin-translation-file", "--spin-offs-file"],
 )
-def test_cache_path_arguments_reject_directory(
-    tmp_path: Path, option: str, attr: str
-) -> None:
+def test_cache_path_arguments_reject_directory(tmp_path: Path, option: str) -> None:
     """Ensure cache path arguments reject directories when they exist."""
     parser = create_parser()
     directory = tmp_path / "existing_dir"
@@ -388,8 +384,6 @@ def test_cache_path_arguments_reject_directory(
         parser.parse_args([option, str(directory)])
 
     assert exc_info.value.code == 2
-    args = parser.parse_args([])
-    assert getattr(args, attr) is not None
 
 
 @pytest.mark.parametrize(
@@ -409,13 +403,120 @@ def test_cache_path_arguments_reject_stdin(
     assert "got stdin marker" in capsys.readouterr().err
 
 
-def test_cache_path_arguments_accept_leading_dash() -> None:
+@pytest.mark.parametrize(
+    ("option", "attr"),
+    [
+        ("--exchange-rates-file", "exchange_rates_file"),
+        ("--isin-translation-file", "isin_translation_file"),
+        ("--spin-offs-file", "spin_offs_file"),
+    ],
+)
+def test_cache_path_arguments_accept_leading_dash(option: str, attr: str) -> None:
     """Only the bare stdin marker is rejected, not every leading-dash path."""
     parser = create_parser()
 
-    args = parser.parse_args(["--exchange-rates-file=-rates.csv"])
+    args = parser.parse_args([f"{option}=-rates.csv"])
 
-    assert args.exchange_rates_file == Path("-rates.csv")
+    assert getattr(args, attr) == Path("-rates.csv")
+
+
+VALIDATOR_DEADLINE_SECONDS = 10.0
+
+needs_fifo = pytest.mark.skipif(
+    not hasattr(os, "mkfifo"), reason="named pipes are POSIX only"
+)
+
+
+def _validate_without_blocking(
+    validator: Callable[[str], Path | None], value: str
+) -> Path | None:
+    """Run a validator off-thread so a blocking open fails instead of hanging."""
+    done: list[Path | None] = []
+    failed: list[BaseException] = []
+
+    def run() -> None:
+        try:
+            done.append(validator(value))
+        except BaseException as err:  # noqa: BLE001
+            failed.append(err)
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(VALIDATOR_DEADLINE_SECONDS)
+
+    assert not worker.is_alive(), f"validation blocked on '{value}'"
+    if failed:
+        raise failed[0]
+    return done[0]
+
+
+@needs_fifo
+def test_cache_path_arguments_reject_fifo(tmp_path: Path) -> None:
+    """A cache is read back with Path.is_file(), so a pipe can never be one."""
+    fifo = tmp_path / "cache.csv"
+    os.mkfifo(fifo)
+
+    with pytest.raises(argparse.ArgumentTypeError, match="expected regular file path"):
+        _validate_without_blocking(optional_cache_file_type, str(fifo))
+
+
+@needs_fifo
+@pytest.mark.parametrize(
+    "validator",
+    [existing_file_or_stdin_type, existing_file_type],
+    ids=["with_stdin", "without_stdin"],
+)
+def test_existing_file_types_accept_fifo_without_blocking(
+    validator: Callable[[str], Path], tmp_path: Path
+) -> None:
+    """Input files may be pipes, and probing one would block or steal data."""
+    fifo = tmp_path / "transactions.csv"
+    os.mkfifo(fifo)
+
+    assert _validate_without_blocking(validator, str(fifo)) == fifo
+
+
+@pytest.mark.parametrize(
+    "validator",
+    [optional_cache_file_type, existing_file_or_stdin_type, existing_file_type],
+    ids=["cache", "with_stdin", "without_stdin"],
+)
+def test_path_validators_reject_unresolvable_home(
+    validator: Callable[[str], Path | None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unresolvable '~user' must be a parse error, not a RuntimeError."""
+
+    def refuse_expansion(self: Path) -> Path:
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr(Path, "expanduser", refuse_expansion)
+
+    with pytest.raises(argparse.ArgumentTypeError, match="unable to expand user path"):
+        validator("~nonexistent-user/data.csv")
+
+
+@pytest.mark.skipif(
+    os.name == "nt", reason="'~user' always expands to a sibling path on Windows"
+)
+def test_cache_path_arguments_reject_unknown_user(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The real unknown-user case exits instead of printing a traceback."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--exchange-rates-file", "~nonexistent-user/rates.csv"])
+
+    assert exc_info.value.code == 2
+    assert "unable to expand user path" in capsys.readouterr().err
+
+
+def test_cache_path_arguments_expand_user() -> None:
+    """A quoted '~' must expand, not become a directory literally named '~'."""
+    path = optional_cache_file_type("~/rates.csv")
+
+    assert path == Path.home() / "rates.csv"
+    assert "~" not in path.parts
 
 
 def test_optional_cache_file_type_rejects_unreadable_file(
