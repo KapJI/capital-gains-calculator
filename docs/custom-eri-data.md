@@ -7,7 +7,7 @@ the [bundled data](offshore-funds.md#bundled-data) first.
 
 - **CSV using the ERI_RAW format.** This is currently the only format supported for excess reported
   income.
-  [See example.](https://github.com/KapJI/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+  [See example.](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
 
 Example usage for the tax year 2024/25:
 

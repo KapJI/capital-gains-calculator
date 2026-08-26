@@ -2,7 +2,7 @@
 
 Thanks for your interest in improving **cgt-calc** — contributions of all kinds are welcome! If you
 find a bug or have feature ideas, please open an
-[issue](https://github.com/KapJI/capital-gains-calculator/issues) or pull request.
+[issue](https://github.com/cgt-calc/capital-gains-calculator/issues) or pull request.
 
 ## Getting started
 
@@ -19,7 +19,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### 2. Clone the repository
 
 ```shell
-git clone https://github.com/KapJI/capital-gains-calculator.git
+git clone https://github.com/cgt-calc/capital-gains-calculator.git
 cd capital-gains-calculator
 ```
 

@@ -10,7 +10,7 @@ env:
 jobs:
   publish:
     name: Publish
-    if: github.repository_owner == 'KapJI'
+    if: github.repository_owner == 'cgt-calc'
     runs-on: ubuntu-latest
     environment:
       name: pypi

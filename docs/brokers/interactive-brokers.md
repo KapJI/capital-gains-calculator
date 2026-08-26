@@ -32,7 +32,7 @@ Do not substitute an Activity Statement or a Flex Query CSV: their sections and 
 different even though they are also available from **Performance & Reports**.
 
 You can compare the file's structure with the
-[synthetic example CSV](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/interactive_brokers/data/test_basic.csv).
+[synthetic example CSV](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/interactive_brokers/data/test_basic.csv).
 
 ## Generate the report
 
@@ -111,7 +111,7 @@ columns. `Price Currency` and `Exchange Rate` are accepted optional columns.
 
 If an unchanged export still fails, first upgrade cgt-calc using the same method you used to install
 it. If the error remains, open a
-[GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with:
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with:
 
 - your cgt-calc version from `cgt-calc --version`;
 - the complete error message; and

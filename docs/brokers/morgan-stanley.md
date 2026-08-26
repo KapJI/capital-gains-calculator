@@ -29,7 +29,7 @@ tax year you are calculating. Earlier vesting establishes the cost and quantity 
 later, and acquisitions in the following 30 days can affect UK share matching.
 
 You can compare the two recognised files with the
-[sanitised example reports](https://github.com/KapJI/capital-gains-calculator/tree/main/tests/morgan_stanley/data).
+[sanitised example reports](https://github.com/cgt-calc/capital-gains-calculator/tree/main/tests/morgan_stanley/data).
 
 ## Generate the report
 
@@ -94,7 +94,7 @@ Keep the downloaded reports unchanged: do not delete the row, change its proceed
 guessed RAW transactions.
 
 First upgrade cgt-calc using the same method you used to install it. If the error remains, open a
-[GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with your cgt-calc
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with your cgt-calc
 version, the complete error, and sanitised copies of the failing release row and its corresponding
 Autosale record.
 

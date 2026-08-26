@@ -235,7 +235,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Journal",
         "Cash In Lieu",
         # Proceeds of the historical autosale programme wired out of the
-        # account, see https://github.com/KapJI/capital-gains-calculator/issues/488
+        # account, see https://github.com/cgt-calc/capital-gains-calculator/issues/488
         "Forced Disbursement",
     }:
         return ActionType.TRANSFER
