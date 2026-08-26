@@ -128,30 +128,6 @@ def test_vanguard_warning_omits_cache_path_when_flag_is_cleared(
     assert "--isin-translation-file cache. " in warning
 
 
-def test_vanguard_warning_omits_stdin_sentinel_as_cache_path(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """The stdin sentinel is not a usable cache location, so do not name it."""
-    vanguard_file = _write_vanguard_csv(tmp_path)
-    args = create_parser().parse_args(
-        [
-            "--year",
-            "2023",
-            "--vanguard-file",
-            str(vanguard_file),
-            "--isin-translation-file",
-            "-",
-        ]
-    )
-    converter = IsinConverter(isin_translation_file=args.isin_translation_file)
-
-    with caplog.at_level(logging.WARNING):
-        BrokerRegistry.load_all_transactions(args, converter)
-
-    warning = _vanguard_warning(caplog)
-    assert "--isin-translation-file cache. " in warning
-
-
 def test_vanguard_symbol_with_isin_mapping_does_not_warn(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

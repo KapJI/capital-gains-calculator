@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, ClassVar
 
 from colorama import Fore
 
-from cgt_calc.args_validators import STDIN_PATH
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.logging import style_text
 from cgt_calc.model import ActionType
@@ -180,16 +179,10 @@ class BrokerRegistry:
         isin_map = isin_converter.get_symbol_to_isin_map()
         isins, unmapped_vanguard_symbols = _resolve_isins(all_transactions, isin_map)
         if unmapped_vanguard_symbols:
-            # Name the cache the converter read. The flag can be cleared, and
-            # the stdin sentinel is not a usable cache location: IsinConverter
-            # treats it as an ordinary relative path and would write a file
-            # literally named "-". Neither is somewhere to send the user.
+            # Name the cache the converter actually read; the flag can be
+            # cleared, leaving no location to point the user to.
             cache_path = isin_converter.isin_translation_file
-            location = (
-                f" at {cache_path}"
-                if cache_path is not None and cache_path != STDIN_PATH
-                else ""
-            )
+            location = f" at {cache_path}" if cache_path is not None else ""
             LOGGER.warning(
                 "Vanguard transactions do not contain ISINs, and no ISIN mapping "
                 "was found for: %s. cgt-calc cannot match Excess Reported "

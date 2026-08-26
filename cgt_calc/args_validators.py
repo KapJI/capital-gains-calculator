@@ -82,12 +82,17 @@ def _ensure_readable_directory(path: Path, value: str) -> None:
         ) from err
 
 
-def optional_file_type(value: str) -> Path | None:
-    """Convert non-empty value to Path and ensure file semantics."""
+def optional_cache_file_type(value: str) -> Path | None:
+    """Convert non-empty value to a cache Path and ensure file semantics.
+
+    An empty value disables the cache. The stdin marker is rejected: a cache is
+    read and written, so '-' would create a file literally named '-' and later
+    be read back as the cache.
+    """
     if value.strip() == "":
         return None
     if value == "-":
-        return STDIN_PATH
+        raise argparse.ArgumentTypeError("expected file path, got stdin marker: '-'")
     path = Path(value)
     if path.exists():
         if not (path.is_file() or path.is_fifo()):
