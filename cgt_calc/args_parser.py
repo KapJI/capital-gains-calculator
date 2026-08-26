@@ -9,9 +9,11 @@ import logging
 import shtab
 
 from .args_validators import (
+    STDIN_PATH,
     DeprecatedAction,
     VersionAction,
     date_type,
+    existing_file_or_stdin_type,
     existing_file_type,
     optional_cache_file_type,
     output_path_type,
@@ -221,6 +223,33 @@ Environment variables:
         help=argparse.SUPPRESS,
     )
     return parser
+
+
+def reject_duplicate_stdin(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> None:
+    """Reject the stdin marker passed to more than one option.
+
+    Only one option can consume stdin. Whichever parser runs second sees an
+    exhausted stream and fails with an error naming the wrong file, or reports
+    no transactions at all.
+    """
+    # existing_file_or_stdin_type is exactly the set of options wired to a stdin
+    # consumer, so the parser itself is the source of truth here.
+    options: dict[str, str] = {}
+    for action in parser._actions:  # noqa: SLF001
+        if action.type is not existing_file_or_stdin_type:
+            continue
+        if getattr(args, action.dest, None) != STDIN_PATH:
+            continue
+        # Deprecated aliases share a dest, so keep the canonical flag only.
+        options.setdefault(action.dest, action.option_strings[0])
+    if len(options) > 1:
+        named = ", ".join(sorted(options.values()))
+        parser.error(
+            "'-' reads from stdin and can only be given to one option, "
+            f"but was given to {named}"
+        )
 
 
 def resolve_reporting_period(

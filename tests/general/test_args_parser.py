@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable, Iterator
 import datetime
+from decimal import localcontext
 import logging
 from pathlib import Path
+import sys
 from typing import IO, TextIO, cast
 
 import pytest
@@ -14,11 +16,13 @@ import pytest
 from cgt_calc.args_parser import (
     create_parser,
     get_last_elapsed_tax_year,
+    reject_duplicate_stdin,
     resolve_reporting_period,
 )
 from cgt_calc.args_validators import (
     STDIN_PATH,
     existing_directory_type,
+    existing_file_or_stdin_type,
     existing_file_type,
     optional_cache_file_type,
 )
@@ -29,6 +33,7 @@ from cgt_calc.const import (
     DEFAULT_SPIN_OFF_FILE,
     INTERNAL_START_DATE,
 )
+from cgt_calc.main import main
 
 ReturnType = TextIO | IO[bytes]
 DirIterator = Iterator[Path]
@@ -442,10 +447,10 @@ def test_optional_cache_file_type_rejects_unreadable_file(
         optional_cache_file_type(str(target))
 
 
-def test_existing_file_type_rejects_unreadable_file(
+def test_existing_file_or_stdin_type_rejects_unreadable_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """existing_file_type raises when file cannot be read."""
+    """existing_file_or_stdin_type raises when file cannot be read."""
     target = tmp_path / "data.csv"
     target.write_text("value,1\n", encoding="utf8")
     original_open = cast(
@@ -468,7 +473,7 @@ def test_existing_file_type_rejects_unreadable_file(
     monkeypatch.setattr(Path, "open", fake_open)
 
     with pytest.raises(argparse.ArgumentTypeError, match="unable to read file path"):
-        existing_file_type(str(target))
+        existing_file_or_stdin_type(str(target))
 
 
 def test_no_report_alone_works() -> None:
@@ -610,9 +615,9 @@ def test_interest_fund_tickers_empty_items_filtered() -> None:
     assert args.interest_fund_tickers == ["VGOV", "VBMFX"]
 
 
-def test_existing_file_type_stdin() -> None:
-    """Ensure existing_file_type returns STDIN_PATH when passed '-'."""
-    assert existing_file_type("-") == STDIN_PATH
+def test_existing_file_or_stdin_type_accepts_stdin() -> None:
+    """Ensure existing_file_or_stdin_type returns STDIN_PATH when passed '-'."""
+    assert existing_file_or_stdin_type("-") == STDIN_PATH
 
 
 def test_raw_file_stdin() -> None:
@@ -620,6 +625,112 @@ def test_raw_file_stdin() -> None:
     parser = create_parser()
     args = parser.parse_args(["--raw-file", "-"])
     assert args.raw_file == STDIN_PATH
+
+
+@pytest.mark.parametrize(
+    "option",
+    [
+        "--initial-prices-file",
+        "--initial-prices",
+        "--schwab-award-file",
+        "--schwab-award",
+    ],
+)
+def test_options_without_a_stdin_consumer_reject_stdin(
+    option: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Ensure options that never read stdin reject '-' at parse time."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args([option, "-"])
+
+    assert exc_info.value.code == 2
+    assert "got stdin marker" in capsys.readouterr().err
+
+
+def test_existing_file_type_rejects_stdin() -> None:
+    """Ensure existing_file_type refuses the stdin marker."""
+    with pytest.raises(argparse.ArgumentTypeError, match="got stdin marker"):
+        existing_file_type("-")
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--raw-file", "-", "--schwab-file", "-"],
+        ["--raw-file", "-", "--eri-raw-file", "-"],
+        ["--vanguard-file", "-", "--freetrade-file", "-", "--raw-file", "-"],
+    ],
+)
+def test_reject_duplicate_stdin_rejects_several_options(
+    argv: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Ensure '-' given to more than one option fails with a helpful error."""
+    parser = create_parser()
+    args = parser.parse_args(argv)
+
+    with pytest.raises(SystemExit) as exc_info:
+        reject_duplicate_stdin(parser, args)
+
+    assert exc_info.value.code == 2
+    message = capsys.readouterr().err
+    assert "can only be given to one option" in message
+    for option in argv[::2]:
+        assert option in message
+
+
+def test_reject_duplicate_stdin_allows_a_single_option() -> None:
+    """Ensure a single '-' is still accepted."""
+    parser = create_parser()
+    args = parser.parse_args(["--raw-file", "-"])
+
+    reject_duplicate_stdin(parser, args)
+
+    assert args.raw_file == STDIN_PATH
+
+
+def test_reject_duplicate_stdin_allows_an_option_and_its_alias() -> None:
+    """A deprecated alias shares its dest, so it is not a second stdin reader."""
+    parser = create_parser()
+    args = parser.parse_args(["--schwab-file", "-", "--schwab", "-"])
+
+    reject_duplicate_stdin(parser, args)
+
+    assert args.schwab_file == STDIN_PATH
+
+
+def test_reject_duplicate_stdin_ignores_ordinary_paths(tmp_path: Path) -> None:
+    """Ensure real paths never count towards the stdin limit."""
+    first = tmp_path / "raw.csv"
+    first.write_text("", encoding="utf-8")
+    second = tmp_path / "schwab.csv"
+    second.write_text("", encoding="utf-8")
+    parser = create_parser()
+    args = parser.parse_args(["--raw-file", str(first), "--schwab-file", str(second)])
+
+    reject_duplicate_stdin(parser, args)
+
+    assert args.raw_file == first
+
+
+def test_main_rejects_stdin_given_to_several_options(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The duplicate stdin check runs before any work is done."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["cgt-calc", "--year", "2021", "--raw-file", "-", "--schwab-file", "-"],
+    )
+
+    # main() enables the FloatOperation trap on the active decimal context;
+    # keep that from leaking into other tests in the same worker.
+    with localcontext(), pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 2
+    assert "can only be given to one option" in capsys.readouterr().err
 
 
 def test_initial_prices_alias_warns_deprecated(

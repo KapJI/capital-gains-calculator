@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from colorama import Fore, Style
 
 from . import render_latex
-from .args_parser import create_parser, resolve_reporting_period
+from .args_parser import create_parser, reject_duplicate_stdin, resolve_reporting_period
 from .const import (
     BALANCE_CHECK_CONTEXT_ROWS,
     BED_AND_BREAKFAST_DAYS,
@@ -2728,6 +2728,7 @@ def main() -> int:
         return 0
 
     args = parser.parse_args()
+    reject_duplicate_stdin(parser, args)
     resolve_reporting_period(parser, args)
 
     if args.verbose:

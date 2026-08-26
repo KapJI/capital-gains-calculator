@@ -119,10 +119,22 @@ def _existing_path_type(value: str, *, require_dir: bool) -> Path:
     return path
 
 
-def existing_file_type(value: str) -> Path:
+def existing_file_or_stdin_type(value: str) -> Path:
     """Validate that provided value points to an existing file, or '-' for stdin."""
     if value == "-":
         return STDIN_PATH
+    return _existing_path_type(value, require_dir=False)
+
+
+def existing_file_type(value: str) -> Path:
+    """Validate that provided value points to an existing file.
+
+    The stdin marker is rejected: options using this validator open the path
+    directly instead of going through BaseSingleFileParser, so '-' would raise
+    FileNotFoundError mid-run, or silently read a file literally named '-'.
+    """
+    if value == "-":
+        raise argparse.ArgumentTypeError("expected file path, got stdin marker: '-'")
     return _existing_path_type(value, require_dir=False)
 
 

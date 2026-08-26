@@ -15,7 +15,7 @@ from cgt_calc.args_validators import (
     STDIN_PATH,
     DeprecatedAction,
     existing_directory_type,
-    existing_file_type,
+    existing_file_or_stdin_type,
     set_completer,
 )
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
@@ -65,7 +65,7 @@ class BaseSingleFileParser(BaseParser):
         set_completer(
             arg_group.add_argument(
                 f"--{cls.full_arg}",
-                type=existing_file_type,
+                type=existing_file_or_stdin_type,
                 default=None,
                 metavar="PATH",
                 help=f"{cls.pretty_name} transaction history "
@@ -78,7 +78,7 @@ class BaseSingleFileParser(BaseParser):
                 deprecated_flag,
                 action=DeprecatedAction,
                 dest=cls.full_arg.replace("-", "_"),
-                type=existing_file_type,
+                type=existing_file_or_stdin_type,
                 help=argparse.SUPPRESS,
             )
 
