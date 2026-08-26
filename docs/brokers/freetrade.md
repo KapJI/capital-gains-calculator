@@ -24,7 +24,7 @@ is the safest range for UK share matching; see [Before you start](../usage.md#be
 
 Use the Activity Feed CSV, not a monthly statement PDF or a yearly tax statement. Keep the exported
 columns unchanged. You can compare the layout with this
-[sanitised example export](https://github.com/KapJI/capital-gains-calculator/blob/main/tests/freetrade/data/transactions.csv).
+[sanitised example export](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/freetrade/data/transactions.csv).
 
 ## Generate the report
 
@@ -110,8 +110,8 @@ Identify any other named row in Freetrade before deciding what to do with it:
 
 If the row is an executed transaction not covered by [Supported activity](#supported-activity),
 first upgrade cgt-calc using the same method you used to install it. If it still fails, open a
-[GitHub issue](https://github.com/KapJI/capital-gains-calculator/issues/new) with the complete error
-and a sanitised copy of the row.
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the complete
+error and a sanitised copy of the row.
 
 ### `Missing columns` or `Unknown columns`
 

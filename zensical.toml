@@ -3,8 +3,8 @@ site_name = "UK Capital Gains Calculator"
 site_url = "https://cgt-calc.uk/"
 site_description = "Calculate UK capital gains from your investment transaction history and generate a detailed PDF report."
 site_author = "Ruslan Sayfutdinov"
-repo_url = "https://github.com/KapJI/capital-gains-calculator"
-repo_name = "KapJI/capital-gains-calculator"
+repo_url = "https://github.com/cgt-calc/capital-gains-calculator"
+repo_name = "cgt-calc/capital-gains-calculator"
 edit_uri = "edit/main/docs/"
 
 nav = [
@@ -87,7 +87,7 @@ toggle.name = "Switch to system preference"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/KapJI/capital-gains-calculator"
+link = "https://github.com/cgt-calc/capital-gains-calculator"
 
 [project.markdown_extensions]
 admonition = {}

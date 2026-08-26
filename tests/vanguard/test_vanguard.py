@@ -266,7 +266,7 @@ def test_dual_table_enriches_fee_sale_with_positive_price(tmp_path: Path) -> Non
 
     Quantity comes from the investment table and the derived unit price must
     be positive even though the cash amount is an outflow.
-    See https://github.com/KapJI/capital-gains-calculator/issues/758.
+    See https://github.com/cgt-calc/capital-gains-calculator/issues/758.
     """
     fee_sale_details = (
         "Selling of account investments for payment of Account Fee "

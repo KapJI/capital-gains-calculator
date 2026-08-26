@@ -54,9 +54,9 @@ dependencies = [
 
 [project.urls]
 "Homepage" = "https://cgt-calc.uk"
-"Repository" = "https://github.com/KapJI/capital-gains-calculator"
-"Bug Tracker" = "https://github.com/KapJI/capital-gains-calculator/issues"
-"Release Notes" = "https://github.com/KapJI/capital-gains-calculator/releases"
+"Repository" = "https://github.com/cgt-calc/capital-gains-calculator"
+"Bug Tracker" = "https://github.com/cgt-calc/capital-gains-calculator/issues"
+"Release Notes" = "https://github.com/cgt-calc/capital-gains-calculator/releases"
 
 [project.scripts]
 cgt-calc = "cgt_calc.main:init"
