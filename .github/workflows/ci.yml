@@ -123,8 +123,19 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v7
 
+      # Only the links dependency group is needed, so the full dev toolchain
+      # is not installed here.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache-suffix: ${{ github.job }}
+
       # Only successful checks are cached, so a broken link is re-checked on
-      # every run and a fix is picked up immediately. See lychee.toml.
+      # every run and a fix is picked up immediately. actions/cache never
+      # overwrites an existing key, so the key is unique per run and the most
+      # recent cache is restored by prefix.
       - name: Restore lychee cache
         uses: actions/cache@v6
         with:
@@ -132,17 +143,12 @@ jobs:
           key: lychee-${{ github.run_id }}
           restore-keys: lychee-
 
-      # Settings live in lychee.toml. The remap resolves cgt-calc.uk URLs
-      # against the local docs sources, so links to a page added in the same
-      # change are checked before the site is deployed. This job is not one of
-      # the required status checks: it reports broken links without blocking a
-      # merge.
-      - name: Run lychee
-        uses: lycheeverse/lychee-action@v2.9.0
-        with:
-          args: >-
-            --remap "https://cgt-calc\.uk/(.*) file://${{ github.workspace }}/docs/\$1"
-            './**/*.md'
+      # Not one of the required status checks: broken links are reported
+      # without blocking a merge.
+      - name: Check links
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/check_links.sh
 
   docker-build:
     name: Docker build

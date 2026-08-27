@@ -86,6 +86,11 @@ dev = [
 docs = [
   "zensical>=0.0.57",
 ]
+# Kept out of the dev group: the Linux wheel is large and only the link check
+# job needs it.
+links = [
+  "lychee-bin>=0.24.2",
+]
 
 [tool.uv.build-backend]
 module-root = "."

@@ -1,6 +1,5 @@
-# Configuration for the lychee link checker, which runs in CI only.
-# To check links locally, `brew install lychee` and run `lychee .` from the
-# repository root; this file is picked up automatically.
+# Shared configuration for the lychee link checker.
+# Both passes in scripts/check_links.sh pick this file up automatically.
 
 # Retry timeouts and rate limits. Neither indicates a broken link, and both are
 # the usual cause of a spurious CI failure.

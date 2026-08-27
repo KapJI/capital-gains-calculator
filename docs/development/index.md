@@ -50,9 +50,10 @@ We use:
 
 `prek` can be used to run all checks with one command (see below).
 
-Links in Markdown are checked separately by [lychee](https://lychee.cli.rs/), which runs in CI. To
-check them locally, install lychee and run `lychee .` from the repository root; its settings live in
-`lychee.toml`.
+Links in Markdown are checked separately by [lychee](https://lychee.cli.rs/), which runs in CI. Run
+`scripts/check_links.sh` to check them locally. It makes two passes: an offline one over local files
+and heading anchors, then a network one over external links. Pass `offline` or `external` to run
+just one. Shared settings live in `lychee.toml`.
 
 The project uses **Python 3.12** as the minimum supported version.
 
