@@ -19,6 +19,7 @@ from cgt_calc.parsers.hl import HargreavesLansdownParser
 from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
 from cgt_calc.parsers.mssb import MSSBParser
 from cgt_calc.parsers.raw import RawParser
+from cgt_calc.parsers.revolut import RevolutParser
 from cgt_calc.parsers.schwab import SchwabParser
 from cgt_calc.parsers.schwab_equity_award_json import SchwabEquityAwardsJSONParser
 from cgt_calc.parsers.sharesight import SharesightParser
@@ -149,6 +150,7 @@ class BrokerRegistry:
         HargreavesLansdownParser,
         InteractiveBrokersParser,
         MSSBParser,
+        RevolutParser,
         SharesightParser,
         Trading212Parser,
         VanguardParser,
