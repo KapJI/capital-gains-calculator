@@ -155,9 +155,21 @@ def _parse_details(
 
 
 def _strip_reversal(details: str) -> tuple[str, bool]:
-    """Strip reversal prefix from details, returning cleaned string and flag."""
+    """Strip the prefix from a reversal of income or of a cash movement.
+
+    Reversing those negates one exported amount and needs no matching. A
+    reversed purchase or disposal instead has to undo an acquisition, so
+    stripping the prefix would import it as a fresh trade in the wrong
+    direction. Leave it prefixed and let it stop as an unknown action.
+    """
     if details.startswith(REVERSAL_STR):
-        return details[len(REVERSAL_STR) :], True
+        reversed_details = details[len(REVERSAL_STR) :]
+        if (
+            DIV_RE.match(reversed_details)
+            or reversed_details == INTEREST_STR
+            or TRANSFER_RE.match(reversed_details)
+        ):
+            return reversed_details, True
     return details, False
 
 
@@ -614,15 +626,18 @@ def _split_tables(
 
 def _find_investment_match(
     txn: VanguardTransaction,
-    investment_lookup: dict[str, list[dict[str, str]]],
+    investment_lookup: dict[tuple[str, bool], list[dict[str, str]]],
 ) -> dict[str, str] | None:
     """Find the best matching investment row for a cash transaction.
+
+    Rows are keyed by their activity text and whether they reverse it, so a
+    reversal is enriched from the matching reversal rather than the original.
 
     When multiple investment rows share the same TransactionDetails key:
     - BUY: earliest investment date on or after the cash date (cash transaction happen first, then investment buy)
     - SELL: latest investment date on or before the cash date (investment sell happen first, then cash in)
     """
-    candidates = investment_lookup.get(txn.details_text)
+    candidates = investment_lookup.get((txn.details_text, txn.is_reversal))
     if not candidates:
         return None
     if len(candidates) == 1:
@@ -717,7 +732,7 @@ class VanguardParser(BaseSingleFileParser):
             )
 
         # RENAMEs emit immediately; other investment rows populate the cash lookup.
-        investment_lookup: dict[str, list[dict[str, str]]] = {}
+        investment_lookup: dict[tuple[str, bool], list[dict[str, str]]] = {}
         transactions: list[VanguardTransaction] = []
         if investment_lines is not None:
             _, investment_header = investment_lines[0]
@@ -749,8 +764,13 @@ class VanguardParser(BaseSingleFileParser):
                 if txn.action is ActionType.RENAME:
                     transactions.append(txn)
                     continue
-                key = investment_row[InvestmentColumn.TRANSACTION_DETAILS]
-                if key:
+                # Key on the same normalisation the cash side looks up with,
+                # otherwise a reversal never finds its investment row.
+                details, is_reversal = _strip_reversal(
+                    investment_row[InvestmentColumn.TRANSACTION_DETAILS]
+                )
+                if details:
+                    key = (details, is_reversal)
                     investment_lookup.setdefault(key, []).append(investment_row)
 
         _, cash_header = cash_lines[0]
