@@ -123,19 +123,32 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v7
 
-      - name: Prepare and install deps
-        uses: ./.github/actions/install-deps
+      # Only the links dependency group is needed, so the full dev toolchain
+      # is not installed here.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
+          enable-cache: true
           python-version: ${{ env.PYTHON_VERSION }}
+          cache-suffix: ${{ github.job }}
 
-      - name: Setup prek cache
-        uses: ./.github/actions/prek-cache
+      # Only successful checks are cached, so a broken link is re-checked on
+      # every run and a fix is picked up immediately. actions/cache never
+      # overwrites an existing key, so the key is unique per run and the most
+      # recent cache is restored by prefix.
+      - name: Restore lychee cache
+        uses: actions/cache@v6
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          path: .lycheecache
+          key: lychee-${{ github.run_id }}
+          restore-keys: lychee-
 
-      - name: Run markdown-link-check
-        run: |
-          uvx prek run --hook-stage manual markdown-link-check --all-files --show-diff-on-failure --color=always
+      # Not one of the required status checks: broken links are reported
+      # without blocking a merge.
+      - name: Check links
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/check_links.sh
 
   docker-build:
     name: Docker build
