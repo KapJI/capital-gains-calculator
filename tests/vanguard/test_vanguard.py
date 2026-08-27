@@ -394,11 +394,7 @@ def test_dual_table_reversal_handling() -> None:
 
 @pytest.mark.parametrize(
     "details",
-    [
-        "Bought 10 Foo Fund (FOO)",
-        "Sold 10 Foo Fund (FOO)",
-        "Frobnicated 10 Foo Fund (FOO)",
-    ],
+    ["Bought 10 Foo Fund (FOO)", "Sold 10 Foo Fund (FOO)"],
 )
 def test_read_vanguard_reversal_of_a_trade_is_rejected(
     tmp_path: Path, details: str
@@ -410,9 +406,22 @@ def test_read_vanguard_reversal_of_a_trade_is_rejected(
         encoding="utf-8",
     )
 
-    expected = re.escape(f"Unknown action: Reversal of {details}")
-    with pytest.raises(ParsingError, match=expected):
+    expected = re.escape(f"Cannot import a reversed trade: Reversal of {details}")
+    with pytest.raises(ParsingError, match=expected) as exc:
         VanguardParser().load_from_file(vanguard_file)
+
+    message = str(exc.value)
+    # The row is understood; it is the trade it cancels that is missing. Ask
+    # for it to be reported, so the format can eventually be read, and do not
+    # prescribe an edit: what the row means has not been established, so any
+    # deletion could drop activity that turns out to be chargeable.
+    assert "Keep the export unchanged" in message
+    assert "please report this row" in message
+    assert "remove" not in message.lower()
+    assert "delete" not in message.lower()
+    assert "https://cgt-calc.uk/brokers/vanguard/#a-reversed-purchase-or-disposal" in (
+        message
+    )
 
 
 @pytest.mark.parametrize(
@@ -441,6 +450,23 @@ def test_read_vanguard_reversal_of_income_is_still_read(
     assert isinstance(transaction, VanguardTransaction)
     assert transaction.action is action
     assert transaction.is_reversal is True
+
+
+def test_read_vanguard_reversal_of_unknown_activity_stays_generic(
+    tmp_path: Path,
+) -> None:
+    """Do not call a reversal a trade when the activity itself is unrecognised."""
+    vanguard_file = tmp_path / "reversed_unknown.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "09/03/2022,Reversal of Corporate Action,100.00,0\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ParsingError, match="Unknown action: Reversal of Corporate Action"
+    ):
+        VanguardParser().load_from_file(vanguard_file)
 
 
 def test_read_vanguard_reversed_fee_sale_is_enriched(tmp_path: Path) -> None:

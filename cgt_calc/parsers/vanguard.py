@@ -111,6 +111,24 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label == INTEREST_STR:
         return ActionType.INTEREST
 
+    if label.startswith(REVERSAL_STR):
+        reversed_label = label[len(REVERSAL_STR) :]
+        # Supported reversals were stripped before this, so a trade reaching
+        # here is one nothing can be done with. The row itself is understood,
+        # unlike an unknown action, so say what is actually missing from it.
+        if BOUGHT_RE.match(reversed_label) or SOLD_RE.match(reversed_label):
+            raise ParsingError(
+                file,
+                f"Cannot import a reversed trade: {label}. A reversed purchase "
+                "or disposal has to be reconciled with the original trade, "
+                "which this row does not identify, and no export containing "
+                "one has been examined, so cgt-calc cannot establish the "
+                "correct treatment. Keep the export unchanged and please "
+                "report this row so that the format can be supported. See "
+                "https://cgt-calc.uk/brokers/vanguard/"
+                "#a-reversed-purchase-or-disposal",
+            )
+
     raise ParsingError(file, f"Unknown action: {label}")
 
 
@@ -158,9 +176,10 @@ def _strip_reversal(details: str) -> tuple[str, bool]:
     """Strip the prefix from a reversal of income or of a cash movement.
 
     Reversing those negates one exported amount and needs no matching. A
-    reversed purchase or disposal instead has to undo an acquisition, so
-    stripping the prefix would import it as a fresh trade in the wrong
-    direction. Leave it prefixed and let it stop as an unknown action.
+    reversed purchase or disposal instead has to be reconciled with the trade
+    it refers to, so stripping the prefix would import it as a fresh trade in
+    the wrong direction. Leave it prefixed: `action_from_str` recognises the
+    prefix and reports what the row is missing.
     """
     if details.startswith(REVERSAL_STR):
         reversed_details = details[len(REVERSAL_STR) :]
