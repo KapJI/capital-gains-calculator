@@ -45,10 +45,11 @@ Selling of account investments for payment of Account Fee for the period ...
 
 That cash row omits the investment and quantity, while the matching Investment Transactions row
 contains them. The importer joins the rows only when `Details` and `TransactionDetails` contain
-exactly the same text. Where several investment rows share that text, it picks the one nearest the
-cash row's own date and skips the join entirely if none qualifies. It copies the quantity and
-derives a unit price from the cash amount, but it does not copy the investment symbol and still
-classifies the result as a cash movement rather than a disposal.
+exactly the same text and both either reverse that activity or neither does. Where several
+investment rows qualify, it picks the one nearest the cash row's own date and skips the join
+entirely if none qualifies. It copies the quantity and derives a unit price from the cash amount,
+but it does not copy the investment symbol and still classifies the result as a cash movement rather
+than a disposal.
 
 Keep the complete, unchanged worksheet so that enrichment is not lost and ticker-renaming events
 remain available. See [Automatic sales to pay fees](#automatic-sales-to-pay-fees).
@@ -72,16 +73,16 @@ reconcile the file and any unsupported activity as described under
 
 The importer recognises these forms in the `Details` or `TransactionDetails` column:
 
-| Exported text or pattern                                           | How cgt-calc handles it                                 |
-| ------------------------------------------------------------------ | ------------------------------------------------------- |
-| `Bought <quantity> <investment> (<ticker>)`                        | A GBP purchase                                          |
-| `Sold <quantity> <investment> (<ticker>)`                          | A GBP disposal                                          |
-| `DIV: <ticker>.<market>... @ <currency> <rate>`                    | Dividend income using the GBP cash amount               |
-| `Reversal of DIV: ...`                                             | A reversing dividend using the exported negative amount |
-| `Cash Account Interest`                                            | GBP interest income                                     |
-| Supported deposit, transfer and payment phrases                    | GBP cash movements used by the balance check            |
-| Text containing `Account fee`, `Account Fee` or `ETF dealing fee`  | GBP cash movements only                                 |
-| `NameChange: <OLD> replaced with <NEW>` in Investment Transactions | A rename between uppercase ticker codes                 |
+| Exported text or pattern                                           | How cgt-calc handles it                             |
+| ------------------------------------------------------------------ | --------------------------------------------------- |
+| `Bought <quantity> <investment> (<ticker>)`                        | A GBP purchase                                      |
+| `Sold <quantity> <investment> (<ticker>)`                          | A GBP disposal                                      |
+| `DIV: <ticker>.<market>... @ <currency> <rate>`                    | Dividend income using the GBP cash amount           |
+| `Reversal of` a dividend, interest or cash movement                | The same activity, using the exported signed amount |
+| `Cash Account Interest`                                            | GBP interest income                                 |
+| Supported deposit, transfer and payment phrases                    | GBP cash movements used by the balance check        |
+| Text containing `Account fee`, `Account Fee` or `ETF dealing fee`  | GBP cash movements only                             |
+| `NameChange: <OLD> replaced with <NEW>` in Investment Transactions | A rename between uppercase ticker codes             |
 
 For ordinary buys and sells in a full worksheet, the cash table supplies the total amount and the
 exported text supplies the quantity and symbol. cgt-calc treats the final text in parentheses as the
@@ -93,9 +94,11 @@ included in that trade's `Amount` is folded into the derived price.
 
 Deposit and withdrawal wording is recognised through phrases such as `Regular Deposit`,
 `Cash transfer`, `Deposit via`, `Deposit for` and `Payment by`. Capitalisation and punctuation can
-matter. Most other text stops the import with `Unknown action`, but `Reversal of` is stripped before
-classification. Only dividend reversals have been validated; a reversed buy or sell can be imported
-incorrectly instead of stopping.
+matter. Most other text stops the import with `Unknown action`. `Reversal of` is stripped only when
+what follows is a dividend, interest or a cash movement, which the exported signed amount alone
+reverses: a reversed dividend is exported as a debit and a reversed fee as a credit. A reversed
+purchase or disposal stops with `Unknown action` rather than being read as a fresh trade in the
+wrong direction.
 
 By contrast, a separate account-fee or ETF-dealing-fee row only changes the tracked cash balance.
 cgt-calc does not assign that row to a purchase or disposal as an allowable cost.
@@ -158,8 +161,8 @@ taxed as interest rather than dividends; see
   `Unknown action`.
 - The dividend reader expects Vanguard's `DIV: ... @ ...` text layout. Changed dividend wording or
   another income type is not mapped merely because it appears in the workbook.
-- `Reversal of` is removed from every details string before classification. Only reversing dividends
-  have been validated; a reversal of a buy, sell or another activity can be silently misclassified.
+- A reversed purchase or disposal stops the import. Undoing one needs the acquisition it cancels,
+  which the row does not identify, so cgt-calc refuses it instead of guessing.
 - The importer treats every transaction amount as GBP. Foreign-currency dividend text has not been
   validated and is not converted.
 - The final text in parentheses is always treated as the ticker. For example, an investment ending
@@ -203,9 +206,12 @@ install it. If it still fails, open a
 [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with your cgt-calc
 version, the complete error and a sanitised copy of the row.
 
-Do not assume that every unsupported row raises this error. A row beginning `Reversal of` can be
-misclassified, and a row with the wrong number of fields stops the import with a different message
-naming its physical file line; check the source workbook as described below.
+A row beginning `Reversal of` reaches this error when it reverses anything other than a dividend,
+interest or a cash movement. Report the row rather than deleting it: undoing a purchase or disposal
+has to be recorded against the acquisition it cancels, which the export does not name.
+
+A row with the wrong number of fields stops the import too, with a different message naming its
+physical file line; check the source workbook as described below.
 
 ### Automatic sales to pay fees
 
@@ -227,10 +233,9 @@ summary now stop the import naming the physical file line, rather than being ski
 inside a table stops the import for the same reason: a transaction that lost its separators arrives
 as a single cell and must not pass as a footer.
 
-Also inspect every `Reversal of` row. Only dividend reversals have been validated; a reversed buy or
-sell can be imported with the wrong action, quantity or amount instead of being rejected. Keep the
-original export unchanged and report an unchanged Vanguard row that behaves this way in a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new).
+A reversed purchase or disposal no longer imports silently either; it stops with `Unknown action`.
+Keep the original export unchanged and report an unchanged Vanguard row that behaves unexpectedly in
+a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new).
 
 ### `Reached a negative balance` or `Tried to sell not owned symbol`
 

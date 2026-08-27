@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
+import re
 import subprocess
 
 import pytest
@@ -11,7 +12,7 @@ import pytest
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType
-from cgt_calc.parsers.vanguard import COLUMNS, VanguardParser
+from cgt_calc.parsers.vanguard import COLUMNS, VanguardParser, VanguardTransaction
 from tests.utils import build_cmd, report_path, stderr_alerts
 
 
@@ -341,6 +342,86 @@ def test_dual_table_reversal_handling() -> None:
     assert len(reversals) == 1
     assert reversals[0].action == ActionType.DIVIDEND
     assert reversals[0].amount == Decimal("-170.83")
+
+
+@pytest.mark.parametrize(
+    "details",
+    [
+        "Bought 10 Foo Fund (FOO)",
+        "Sold 10 Foo Fund (FOO)",
+        "Frobnicated 10 Foo Fund (FOO)",
+    ],
+)
+def test_read_vanguard_reversal_of_a_trade_is_rejected(
+    tmp_path: Path, details: str
+) -> None:
+    """Refuse a reversed trade instead of importing it the wrong way round."""
+    vanguard_file = tmp_path / "reversed_trade.csv"
+    vanguard_file.write_text(
+        f"Date,Details,Amount,Balance\n09/03/2022,Reversal of {details},100.00,0\n",
+        encoding="utf-8",
+    )
+
+    expected = re.escape(f"Unknown action: Reversal of {details}")
+    with pytest.raises(ParsingError, match=expected):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+@pytest.mark.parametrize(
+    ("details", "action"),
+    [
+        ("DIV: FOO.XLON.GB @ GBP 0.3106", ActionType.DIVIDEND),
+        ("Cash Account Interest", ActionType.INTEREST),
+        ("Regular Deposit", ActionType.TRANSFER),
+        ("Account Fee", ActionType.TRANSFER),
+    ],
+)
+def test_read_vanguard_reversal_of_income_is_still_read(
+    tmp_path: Path, details: str, action: ActionType
+) -> None:
+    """Keep reading the reversals that only negate one exported amount."""
+    vanguard_file = tmp_path / "reversed_income.csv"
+    vanguard_file.write_text(
+        f"Date,Details,Amount,Balance\n09/03/2022,Reversal of {details},-10.00,0\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert isinstance(transaction, VanguardTransaction)
+    assert transaction.action is action
+    assert transaction.is_reversal is True
+
+
+def test_read_vanguard_reversed_fee_sale_is_enriched(tmp_path: Path) -> None:
+    """Enrich a reversal from its own investment row, not only plain rows."""
+    fee = "Selling of account investments for payment of Account Fee"
+    vanguard_file = tmp_path / "reversed_fee_sale.csv"
+    vanguard_file.write_text(
+        "Cash Transactions\n"
+        "Date,Details,Amount,Balance\n"
+        f"19/07/2022,{fee},-13.91,100\n"
+        f"20/07/2022,Reversal of {fee},13.91,113.91\n"
+        "Investment Transactions\n"
+        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        f"19/07/2022,Foo Fund (FOO),{fee},1.391,10,13.91\n"
+        f"20/07/2022,Foo Fund (FOO),Reversal of {fee},2.5,20,50\n",
+        encoding="utf-8",
+    )
+
+    transactions = VanguardParser().load_from_file(vanguard_file)
+
+    assert all(isinstance(t, VanguardTransaction) for t in transactions)
+    by_reversal = {
+        transaction.is_reversal: transaction
+        for transaction in transactions
+        if isinstance(transaction, VanguardTransaction)
+    }
+    # Each row takes its own quantity, so neither is enriched from the other.
+    assert by_reversal[False].quantity == Decimal("1.391")
+    assert by_reversal[True].quantity == Decimal("2.5")
 
 
 def test_dual_table_sorted_by_date() -> None:
