@@ -28,14 +28,42 @@ lychee=(uv run --only-group links lychee --remap "$remap")
 
 status=0
 
+# Run one pass. Under GitHub Actions the report is also appended to the job
+# summary, so broken links are visible without opening the log. `--output`
+# silences stdout, so the report is echoed to the console as well.
+run_pass() {
+    local title="$1"
+    shift
+
+    echo "==> $title"
+
+    if [ -z "${GITHUB_STEP_SUMMARY:-}" ]; then
+        "${lychee[@]}" "$@" || status=1
+        return
+    fi
+
+    local report rc
+    report="$(mktemp)" || return 1
+    "${lychee[@]}" --format markdown --output "$report" "$@"
+    rc=$?
+    cat "$report"
+    {
+        echo "## $title"
+        # Drop lychee's own top level heading so each pass sits under its
+        # own heading in the job summary.
+        sed -e '1{/^# Summary$/d;}' -e '2{/^$/d;}' "$report"
+    } >>"$GITHUB_STEP_SUMMARY"
+    rm -f "$report"
+    [ "$rc" -eq 0 ] || status=1
+}
+
 check_offline() {
-    echo "==> Checking local files and heading anchors"
-    "${lychee[@]}" --offline --include-fragments=anchor-only './**/*.md' || status=1
+    run_pass "Local files and heading anchors" \
+        --offline --include-fragments=anchor-only './**/*.md'
 }
 
 check_external() {
-    echo "==> Checking external links"
-    "${lychee[@]}" './**/*.md' || status=1
+    run_pass "External links" './**/*.md'
 }
 
 case "${1:-all}" in
