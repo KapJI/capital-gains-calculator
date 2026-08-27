@@ -10,7 +10,10 @@ dependencies:
       - changed-files:
           # A dependency update only: nothing outside these files changed.
           - any-glob-to-any-file: "uv.lock"
-          - any-glob-to-all-files: ["uv.lock", "pyproject.toml"]
+          # One combined pattern: any-glob-to-all-files asks whether a
+          # single glob matches every changed file, so a list of two would
+          # never match the usual pair.
+          - any-glob-to-all-files: "{uv.lock,pyproject.toml}"
 
 github structure:
   - all:
