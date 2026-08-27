@@ -55,6 +55,16 @@ class TableType(StrEnum):
     INVESTMENT = "investment"
 
 
+_SECTION_TYPES: Final[dict[str, TableType]] = {
+    "Cash Transactions": TableType.CASH,
+    "Investment Transactions": TableType.INVESTMENT,
+}
+# Errors name a table the way the export does, so both come from one mapping.
+_SECTION_NAMES: Final[dict[TableType, str]] = {
+    table_type: name for name, table_type in _SECTION_TYPES.items()
+}
+
+
 # Backward-compatible alias used by tests
 COLUMNS: Final[list[str]] = [c.value for c in CashColumn]
 
@@ -70,6 +80,10 @@ NAMECHANGE_RE = re.compile(
     r"(?:\s+replaced with\s+([A-Z0-9]+)(?:\.\S+)?)?\s*$"
 )
 INVESTMENT_NAME_RE = re.compile(r"^(.+?)(?:\s*\(([^()]+)\))?$")
+# A cell opening with a date is the Date column of a row whose separators were
+# lost, not decoration, however few cells the row was split into.
+_DATE_PREFIX_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{4}\b")
+_PAGE_LABEL_RE = re.compile(r"^page\s+\d+(?:\s*(?:of|/)\s*\d+)?$", re.IGNORECASE)
 
 INTEREST_STR = "Cash Account Interest"
 REVERSAL_STR = "Reversal of "
@@ -78,6 +92,9 @@ LOGGER = logging.getLogger(__name__)
 
 def action_from_str(label: str, file: Path) -> ActionType:
     """Convert label to ActionType."""
+
+    if not label:
+        raise ParsingError(file, "Missing action text in Details or TransactionDetails")
 
     if TRANSFER_RE.match(label):
         return ActionType.TRANSFER
@@ -320,51 +337,279 @@ def by_date_and_action(
 
 def _detect_delimiter(text: str) -> str:
     """Detect whether the file uses comma or tab as delimiter."""
+    for delimiter in (",", "\t"):
+        rows = csv.reader(io.StringIO(text), delimiter=delimiter)
+        for row in rows:
+            stripped = {cell.strip() for cell in row}
+            if stripped >= CASH_COLUMNS or stripped >= INVESTMENT_COLUMNS:
+                return delimiter
+
+    # Header validation still produces the useful column error when the file
+    # does not contain an exported header.
     first_line = text.split("\n", 1)[0]
     if "\t" in first_line:
         return "\t"
     return ","
 
 
-def _split_tables(
-    lines: list[list[str]],
-) -> tuple[list[list[str]] | None, list[list[str]] | None]:
-    """Split parsed CSV lines into cash and investment table sections by header detection."""
-    cash_table: list[list[str]] | None = None
-    investment_table: list[list[str]] | None = None
+def _trim_trailing_empty_cells(row: list[str], minimum_length: int = 0) -> list[str]:
+    """Remove cosmetic empty columns without dropping required blank fields."""
+    end = len(row)
+    while end > minimum_length and not row[end - 1].strip():
+        end -= 1
+    return row[:end]
 
-    current: list[list[str]] = []
-    current_type: TableType | None = None
 
-    def _flush() -> None:
-        nonlocal cash_table, investment_table
-        if current_type == TableType.CASH:
-            cash_table = list(current)
-        elif current_type == TableType.INVESTMENT:
-            investment_table = list(current)
+def _is_table_boundary(row: list[str]) -> bool:
+    """Report whether the row starts a table, as a header or a section title."""
+    stripped = {cell.strip() for cell in row}
+    first = row[0].strip() if row else ""
+    return (
+        stripped >= CASH_COLUMNS
+        or stripped >= INVESTMENT_COLUMNS
+        or first in _SECTION_TYPES
+    )
 
-    for row in lines:
-        stripped = {c.strip() for c in row}
+
+def _decoration_text(row: list[str]) -> str | None:
+    """Return the lone text of a row that carries no transaction fields.
+
+    A row whose separators were lost also collapses to one cell, so a cell
+    opening with a date is reported as data rather than as decoration.
+    """
+    populated = [cell.strip() for cell in row if cell.strip()]
+    if len(populated) != 1 or _DATE_PREFIX_RE.match(populated[0]):
+        return None
+    return populated[0]
+
+
+def _is_collapsed_transaction(row: list[str]) -> bool:
+    """Report whether a lone cell holds a row that lost its field separators.
+
+    Used above the first header, where the columns are still unknown. A report
+    date and a covered period are dated single cells too, so a delimiter after
+    the date is required as evidence: a delimiter survives inside one cell only
+    when the row was quoted whole or written with the wrong separator. Within a
+    table the shape alone is enough, which is what `_decoration_text` reports.
+    """
+    populated = [cell.strip() for cell in row if cell.strip()]
+    if len(populated) != 1:
+        return False
+    match = _DATE_PREFIX_RE.match(populated[0])
+    if match is None:
+        return False
+    remainder = populated[0][match.end() :]
+    return any(delimiter in remainder for delimiter in (",", ";", "\t"))
+
+
+def _trailing_decoration(lines: list[tuple[int, list[str]]]) -> set[int]:
+    """Find the positions of decorative rows that no table data follows.
+
+    Legacy footers sit below the last transaction of their table. A decorative
+    row anywhere above one is only ignored when it is a recognised pagination
+    label, so that a mangled transaction cannot pass as a footer.
+    """
+    trailing: set[int] = set()
+    below_last_row = True
+    for position in reversed(range(len(lines))):
+        row = lines[position][1]
+        if not any(cell.strip() for cell in row):
+            continue
+        if _is_table_boundary(row):
+            below_last_row = True
+        elif _decoration_text(row) is not None:
+            if below_last_row:
+                trailing.add(position)
+        else:
+            below_last_row = False
+    return trailing
+
+
+def _looks_like_transaction(row: list[str]) -> bool:
+    """Report whether the row opens with a parsable date and an activity."""
+    cells = iter(row)
+    date_text = next(cells, "")
+    details = next(cells, "")
+    if not details.strip():
+        return False
+    try:
+        datetime.datetime.strptime(date_text.strip(), "%d/%m/%Y")
+    except ValueError:
+        return False
+    return True
+
+
+class _TableSplitter:
+    """Split an export into its tables, refusing shapes that would lose rows.
+
+    A Vanguard worksheet pages its tables, so section titles, headers, running
+    summaries and footers repeat throughout the file. Each is only accepted
+    where it cannot hide a transaction that the reader would otherwise drop.
+    """
+
+    def __init__(self, lines: list[tuple[int, list[str]]], file_path: Path):
+        """Prepare to read the rows of one exported file."""
+        self.lines = lines
+        self.file_path = file_path
+        self.trailing = _trailing_decoration(lines)
+        self.tables: dict[TableType, list[tuple[int, list[str]]]] = {}
+        self.current: list[tuple[int, list[str]]] = []
+        self.current_type: TableType | None = None
+        # A section title whose header has not been recognised yet.
+        self.closed_type: TableType | None = None
+        self.after_summary = False
+        self.seen_types: set[TableType] = set()
+        self.seen_sections: set[TableType] = set()
+        self.orphan_row_index: int | None = None
+
+    def split(
+        self,
+    ) -> tuple[
+        list[tuple[int, list[str]]] | None,
+        list[tuple[int, list[str]]] | None,
+    ]:
+        """Return the cash and investment tables, or None where absent."""
+        for position, (row_index, row) in enumerate(self.lines):
+            self._read_row(row, position, row_index)
+        self._flush()
+        if self.orphan_row_index is not None and self.tables:
+            raise ParsingError(
+                self.file_path,
+                "Found a transaction row above the first table header",
+                row_index=self.orphan_row_index,
+            )
+        return self.tables.get(TableType.CASH), self.tables.get(TableType.INVESTMENT)
+
+    def _read_row(self, row: list[str], position: int, row_index: int) -> None:
+        stripped = {cell.strip() for cell in row}
+        first = row[0].strip() if row else ""
+        section_type = _SECTION_TYPES.get(first)
         if stripped >= CASH_COLUMNS:
-            _flush()
-            current = [row]
-            current_type = TableType.CASH
+            self._start_table(TableType.CASH, row, row_index)
         elif stripped >= INVESTMENT_COLUMNS:
-            _flush()
-            current = [row]
-            current_type = TableType.INVESTMENT
-        elif current_type and row and any(c.strip() for c in row):
-            first = row[0].strip()
-            if first in _SUMMARY_LABELS:
-                # Summary/footer row (e.g. "Balance,23.59") — end current table.
-                _flush()
-                current = []
-                current_type = None
-            else:
-                current.append(row)
+            self._start_table(TableType.INVESTMENT, row, row_index)
+        elif section_type is not None:
+            self._start_section(section_type, row_index)
+        elif not any(cell.strip() for cell in row):
+            return
+        elif self.current_type is not None:
+            self._add_row(row, position, row_index, first)
+        elif self.closed_type is not None:
+            self._reject_row_under_title(row, position, row_index)
+        elif self.orphan_row_index is None and (
+            _looks_like_transaction(row) or _is_collapsed_transaction(row)
+        ):
+            # Remember rather than raise: when no table is found at all, the
+            # header validator has the more useful message about the columns.
+            self.orphan_row_index = row_index
 
-    _flush()
-    return cash_table, investment_table
+    def _flush(self) -> None:
+        if self.current_type is not None:
+            self.tables[self.current_type] = list(self.current)
+
+    def _start_table(
+        self, table_type: TableType, row: list[str], row_index: int
+    ) -> None:
+        # Header cells become the row keys, so pad them out here rather than
+        # letting a cosmetically spaced heading miss its column.
+        header = [cell.strip() for cell in _trim_trailing_empty_cells(row)]
+        if self.closed_type is not None and self.closed_type is not table_type:
+            raise ParsingError(
+                self.file_path,
+                f"Found the {_SECTION_NAMES[table_type]} table header under the "
+                f"{_SECTION_NAMES[self.closed_type]} section title",
+                row_index=row_index,
+            )
+        if table_type in self.seen_types:
+            if (
+                self.current_type is table_type
+                and self.current
+                and header == self.current[0][1]
+            ):
+                # Paginated exports can repeat the unchanged table header.
+                self.after_summary = False
+                return
+            raise ParsingError(
+                self.file_path,
+                f"Multiple {_SECTION_NAMES[table_type]} table headers found",
+                row_index=row_index,
+            )
+        self._flush()
+        self.seen_types.add(table_type)
+        self.current = [(row_index, header)]
+        self.current_type = table_type
+        self.closed_type = None
+        self.after_summary = False
+
+    def _start_section(self, section_type: TableType, row_index: int) -> None:
+        self.after_summary = False
+        if self.current_type is section_type:
+            # A page can repeat its section title before repeating the
+            # unchanged header. Keep appending to the active table.
+            return
+        if section_type in self.seen_sections or section_type in self.seen_types:
+            raise ParsingError(
+                self.file_path,
+                f"Multiple {_SECTION_NAMES[section_type]} section titles found",
+                row_index=row_index,
+            )
+        self.seen_sections.add(section_type)
+        self._flush()
+        self.current = []
+        self.current_type = None
+        self.closed_type = section_type
+
+    def _add_row(
+        self, row: list[str], position: int, row_index: int, first: str
+    ) -> None:
+        assert self.current_type is not None
+        if first in _SUMMARY_LABELS:
+            # A running summary can end a page. Require a repeated title or
+            # header before accepting more transactions from the same table.
+            self.after_summary = True
+        elif self._is_decoration(row, position):
+            return
+        elif self.after_summary and _looks_like_transaction(row):
+            raise ParsingError(
+                self.file_path,
+                "Found a transaction row after the "
+                f"{_SECTION_NAMES[self.current_type]} summary",
+                row_index=row_index,
+            )
+        else:
+            width = len(self.current[0][1])
+            self.current.append((row_index, _trim_trailing_empty_cells(row, width)))
+
+    def _reject_row_under_title(
+        self, row: list[str], position: int, row_index: int
+    ) -> None:
+        # The section title was announced but its header was not recognised, so
+        # the columns of everything below it are unknown.
+        assert self.closed_type is not None
+        if self._is_decoration(row, position):
+            return
+        raise ParsingError(
+            self.file_path,
+            f"Found a row outside the {_SECTION_NAMES[self.closed_type]} table",
+            row_index=row_index,
+        )
+
+    def _is_decoration(self, row: list[str], position: int) -> bool:
+        text = _decoration_text(row)
+        return text is not None and (
+            position in self.trailing or bool(_PAGE_LABEL_RE.fullmatch(text))
+        )
+
+
+def _split_tables(
+    lines: list[tuple[int, list[str]]],
+    file_path: Path,
+) -> tuple[
+    list[tuple[int, list[str]]] | None,
+    list[tuple[int, list[str]]] | None,
+]:
+    """Split tables while rejecting structures that could discard transactions."""
+    return _TableSplitter(lines, file_path).split()
 
 
 def _find_investment_match(
@@ -403,6 +648,34 @@ class VanguardParser(BaseSingleFileParser):
     deprecated_flags: ClassVar[list[str]] = ["--vanguard"]
 
     @classmethod
+    @override
+    def load_from_file(
+        cls,
+        file_path: Path,
+        *,
+        warn_on_empty: bool = True,
+        show_parsing_msg: bool = True,
+    ) -> list[BrokerTransaction]:
+        """Load a text CSV and report Excel or encoding mistakes clearly."""
+        if file_path.suffix.casefold() in {".xls", ".xlsx", ".xlsm", ".xlsb"}:
+            raise ParsingError(
+                file_path,
+                "Vanguard Excel workbooks are not supported; save the General "
+                "Account worksheet as a CSV file.",
+            )
+        try:
+            return super().load_from_file(
+                file_path,
+                warn_on_empty=warn_on_empty,
+                show_parsing_msg=show_parsing_msg,
+            )
+        except UnicodeDecodeError as err:
+            raise ParsingError(
+                file_path,
+                "Vanguard input must be a UTF-8 CSV text file.",
+            ) from err
+
+    @classmethod
     def _validate_cash_header(cls, header: list[str], file: Path) -> None:
         """Check if header matches the cash transactions columns."""
         expected = [c.value for c in CashColumn]
@@ -422,68 +695,86 @@ class VanguardParser(BaseSingleFileParser):
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
         """Read Vanguard transactions from exported transaction report file."""
-        raw_text = file.read()
+        raw_text = file.read().removeprefix("\ufeff")
         delimiter = _detect_delimiter(raw_text)
-        lines = list(csv.reader(io.StringIO(raw_text), delimiter=delimiter))
+        csv_reader = csv.reader(io.StringIO(raw_text), delimiter=delimiter)
+        lines = [(csv_reader.line_num, row) for row in csv_reader]
 
         if not lines:
             raise ParsingError(file_path, "Vanguard CSV file is empty")
 
-        cash_lines, investment_lines = _split_tables(lines)
+        cash_lines, investment_lines = _split_tables(lines, file_path)
 
-        if cash_lines is None and investment_lines is None:
-            # Fallback: treat entire file as a plain cash table (old format)
-            cls._validate_cash_header(lines[0], file_path)
-            cash_lines = lines
+        if cash_lines is None:
+            if investment_lines is None:
+                cls._validate_cash_header(
+                    _trim_trailing_empty_cells(lines[0][1]), file_path
+                )
+            raise ParsingError(
+                file_path,
+                "Vanguard input must include the Cash Transactions table; "
+                "an Investment Transactions table cannot be calculated alone.",
+            )
 
-        # RENAMEs emit immediately; other rows go to lookup (cash mode) or directly (investment-only).
+        # RENAMEs emit immediately; other investment rows populate the cash lookup.
         investment_lookup: dict[str, list[dict[str, str]]] = {}
         transactions: list[VanguardTransaction] = []
         if investment_lines is not None:
-            investment_header = investment_lines[0]
-            for index, row in enumerate(investment_lines[1:], start=2):
+            _, investment_header = investment_lines[0]
+            investment_rows: list[tuple[int, dict[str, str]]] = []
+            for row_index, row in investment_lines[1:]:
                 if len(row) != len(investment_header):
-                    continue
-                investment_row = dict(zip(investment_header, row, strict=False))
+                    raise UnexpectedColumnCountError(
+                        row,
+                        len(investment_header),
+                        file_path,
+                        row_index=row_index,
+                    )
+                investment_rows.append(
+                    (row_index, dict(zip(investment_header, row, strict=False)))
+                )
+
+            for row_index, investment_row in investment_rows:
                 try:
                     txn = _make_transaction_from_investment(investment_row, file_path)
                 except ParsingError as err:
-                    err.add_row_context(index)
+                    err.add_row_context(row_index)
                     raise
                 except ValueError as err:
-                    raise ParsingError(file_path, str(err), row_index=index) from err
+                    raise ParsingError(
+                        file_path, str(err), row_index=row_index
+                    ) from err
                 if txn is None:
                     continue  # zero-out half of a NameChange pair
                 if txn.action is ActionType.RENAME:
                     transactions.append(txn)
                     continue
-                if cash_lines is not None:
-                    key = investment_row[InvestmentColumn.TRANSACTION_DETAILS]
-                    if key:
-                        investment_lookup.setdefault(key, []).append(investment_row)
-                else:
-                    transactions.append(txn)
+                key = investment_row[InvestmentColumn.TRANSACTION_DETAILS]
+                if key:
+                    investment_lookup.setdefault(key, []).append(investment_row)
 
-        if cash_lines is not None:
-            cash_header = cash_lines[0]
-            for index, row in enumerate(cash_lines[1:], start=2):
-                if len(row) != len(cash_header):
-                    continue
-                try:
-                    transactions.append(
-                        VanguardTransaction(cash_header, row, file_path)
-                    )
-                except ParsingError as err:
-                    err.add_row_context(index)
-                    raise
-                except ValueError as err:
-                    raise ParsingError(file_path, str(err), row_index=index) from err
+        _, cash_header = cash_lines[0]
+        for row_index, row in cash_lines[1:]:
+            if len(row) != len(cash_header):
+                raise UnexpectedColumnCountError(
+                    row,
+                    len(cash_header),
+                    file_path,
+                    row_index=row_index,
+                )
+            try:
+                transactions.append(VanguardTransaction(cash_header, row, file_path))
+            except ParsingError as err:
+                err.add_row_context(row_index)
+                raise
+            except ValueError as err:
+                raise ParsingError(file_path, str(err), row_index=row_index) from err
 
-            # Resolve missing quantity/price with values from the investment table, see
-            # https://github.com/cgt-calc/capital-gains-calculator/issues/758
-            for txn in transactions:
-                matched_inv = _find_investment_match(txn, investment_lookup)
-                txn.enrich_details(matched_inv)
+        # Resolve missing quantity/price with values from the investment table, see
+        # https://github.com/cgt-calc/capital-gains-calculator/issues/758
+        for txn in transactions:
+            matched_inv = _find_investment_match(txn, investment_lookup)
+            txn.enrich_details(matched_inv)
 
         transactions.sort(key=by_date_and_action)
         return cast("list[BrokerTransaction]", transactions)

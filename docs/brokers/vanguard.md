@@ -30,7 +30,8 @@ calculation.
 
 You can compare the expected worksheet structure with the
 [sanitised example](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/vanguard/data/cash_investment_report.csv).
-The filename does not matter. Use commas: tab-separated full worksheets are not reliably detected.
+The filename does not matter. Both comma- and tab-separated files are accepted, including the byte
+order mark written by the **CSV UTF-8** format in Excel.
 
 ### Why both tables matter
 
@@ -164,28 +165,30 @@ taxed as interest rather than dividends; see
 - The final text in parentheses is always treated as the ticker. For example, an investment ending
   in `(Accumulation)` is assigned the symbol `Accumulation`, which can silently combine different
   funds in one holding.
-- Rows whose number of fields differs from their table header are silently skipped. A malformed or
-  ragged CSV can therefore omit transactions without an error.
-- A legacy cash-only table can be calculated, but an investment-only table cannot. Although its rows
-  parse, the unsigned `Cost` of a purchase fails the calculator's amount check. Use the complete
-  worksheet with its Cash Transactions table.
+- A row cgt-calc cannot place stops the import instead of being skipped, and the error names the
+  file line. That covers a row with the wrong number of fields, a header that does not match the
+  section title above it, a conflicting header or section title, a transaction row above the first
+  header or after a `Balance` or `Cost` summary, and stray text inside a table.
+- Cosmetic rows are still ignored: trailing empty columns, a repeated page title or header, a
+  `Page 1 of 2` label in any column, and a text footer below the last row of its table.
+- A legacy cash-only table can be calculated, but an investment-only table is rejected because its
+  unsigned `Cost` values do not provide usable cash movements. Use the complete worksheet with its
+  Cash Transactions table.
 
 ## Troubleshooting
 
-### `Vanguard CSV file is empty`, a header error or `UnicodeDecodeError`
+### `Vanguard CSV file is empty` or a file-format error
 
 Pass the CSV saved from the General Account worksheet, not the `.xlsx` workbook, a PDF statement or
-the Consolidated Tax Certificate. An `.xlsx` file is binary and can produce a raw
-`UnicodeDecodeError` rather than a friendly file-type message. Keep the headings unchanged. A usable
-export must contain the `Date,Details,Amount,Balance` Cash Transactions header; retain the
+the Consolidated Tax Certificate. Excel workbooks are rejected before parsing; save the General
+Account worksheet as CSV. Keep the headings unchanged. A usable export must contain the
+`Date,Details,Amount,Balance` Cash Transactions header; retain the
 `Date,InvestmentName,TransactionDetails,Quantity,Price,Cost` Investment Transactions table as well.
 
-The current parser requires a comma-separated UTF-8 file. A tab-separated full worksheet can fail
-because cgt-calc chooses the delimiter from the first line only. A byte order mark is harmless in a
-full worksheet, where it lands on the title cell, but breaks a legacy cash-only export whose first
-line is the header: if an error says that column 1 should be `Date` but found what appears to be the
-same `Date`, save that file again as UTF-8 without a BOM. Do not manually concatenate rows from
-different account worksheets.
+The parser accepts UTF-8 with or without a byte order mark and detects comma- or tab-separated table
+headers throughout a full worksheet. A semicolon-delimited or another non-UTF-8 file is rejected. Do
+not manually concatenate rows from different account worksheets. Cosmetic trailing empty columns do
+not need to be preserved.
 
 ### `Unknown action`
 
@@ -201,8 +204,8 @@ install it. If it still fails, open a
 version, the complete error and a sanitised copy of the row.
 
 Do not assume that every unsupported row raises this error. A row beginning `Reversal of` can be
-misclassified, and a row with the wrong number of fields is skipped; check the source workbook as
-described below.
+misclassified, and a row with the wrong number of fields stops the import with a different message
+naming its physical file line; check the source workbook as described below.
 
 ### Automatic sales to pay fees
 
@@ -217,9 +220,12 @@ Make sure the disposal appears exactly once and retain the original workbook as 
 
 ### Transactions are missing without an error
 
-Compare the activity and row counts in both CSV tables with the original workbook. cgt-calc silently
-skips a row whose number of fields differs from its table header, including a short or overlong row
-created by an incomplete spreadsheet conversion.
+Compare the activity and row counts in both CSV tables with the original workbook. A row whose field
+count differs from its table header, a header that does not match the section title above it, a
+conflicting header or section title, and a transaction-shaped row above the first header or after a
+summary now stop the import naming the physical file line, rather than being skipped. Stray text
+inside a table stops the import for the same reason: a transaction that lost its separators arrives
+as a single cell and must not pass as a footer.
 
 Also inspect every `Reversal of` row. Only dividend reversals have been validated; a reversed buy or
 sell can be imported with the wrong action, quantity or amount instead of being rejected. Keep the
