@@ -750,6 +750,10 @@ class VanguardParser(BaseSingleFileParser):
                 )
 
             for row_index, investment_row in investment_rows:
+                # Only a RENAME keeps its transaction, but every row is read:
+                # reading is what rejects an unknown action or an unreadable
+                # number here. Skipping it for the rest would accept them
+                # silently, so do not narrow this call to NameChange rows.
                 try:
                     txn = _make_transaction_from_investment(investment_row, file_path)
                 except ParsingError as err:

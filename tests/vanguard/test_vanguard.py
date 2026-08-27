@@ -220,6 +220,54 @@ def test_read_vanguard_transactions_empty_file(tmp_path: Path) -> None:
 INVESTMENT_DATA_DIR = Path("tests/vanguard/data")
 
 
+def _dual_table_csv(investment_row: str) -> str:
+    """Build a minimal two-table export around one Investment Transactions row."""
+    return (
+        "Cash Transactions\n"
+        "Date,Details,Amount,Balance\n"
+        "01/01/2022,Regular Deposit,100,100\n"
+        "Investment Transactions\n"
+        "Date,InvestmentName,TransactionDetails,Quantity,Price,Cost\n"
+        f"{investment_row}\n"
+    )
+
+
+# An investment row is validated while it is read, even though only a RENAME
+# produces a transaction. These pin that, so removing the read stops the suite.
+def test_read_vanguard_investment_row_unknown_action_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """Refuse activity in the investment table that the cash table would refuse."""
+    vanguard_file = tmp_path / "unknown_investment_action.csv"
+    vanguard_file.write_text(
+        _dual_table_csv("01/02/2022,Foo Fund (FOO),Frobnicated 10 Foo Fund,10,1,10"),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ParsingError, match="row 6: Unknown action: Frobnicated 10 Foo Fund"
+    ):
+        VanguardParser().load_from_file(vanguard_file)
+
+
+def test_read_vanguard_investment_row_invalid_decimal_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """Refuse an unreadable investment quantity instead of ignoring the row."""
+    vanguard_file = tmp_path / "invalid_investment_quantity.csv"
+    vanguard_file.write_text(
+        _dual_table_csv(
+            "01/02/2022,Foo Fund (FOO),Bought 10 Foo Fund (FOO),not-a-number,1,10"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ParsingError, match="row 6: Invalid decimal in Quantity: 'not-a-number'"
+    ):
+        VanguardParser().load_from_file(vanguard_file)
+
+
 def test_dual_table_enriches_buy_with_investment_data() -> None:
     """Cash BUY transactions are enriched with precise quantity/price from investment table."""
     transactions = VanguardParser().load_from_file(
