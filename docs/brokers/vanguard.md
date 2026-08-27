@@ -97,8 +97,8 @@ Deposit and withdrawal wording is recognised through phrases such as `Regular De
 matter. Most other text stops the import with `Unknown action`. `Reversal of` is stripped only when
 what follows is a dividend, interest or a cash movement, which the exported signed amount alone
 reverses: a reversed dividend is exported as a debit and a reversed fee as a credit. A reversed
-purchase or disposal stops with `Unknown action` rather than being read as a fresh trade in the
-wrong direction.
+purchase or disposal stops the import rather than being read as a fresh trade in the wrong
+direction.
 
 By contrast, a separate account-fee or ETF-dealing-fee row only changes the tracked cash balance.
 cgt-calc does not assign that row to a purchase or disposal as an allowable cost.
@@ -161,7 +161,7 @@ taxed as interest rather than dividends; see
   `Unknown action`.
 - The dividend reader expects Vanguard's `DIV: ... @ ...` text layout. Changed dividend wording or
   another income type is not mapped merely because it appears in the workbook.
-- A reversed purchase or disposal stops the import. Undoing one needs the acquisition it cancels,
+- A reversed purchase or disposal stops the import. It has to be reconciled with the original trade,
   which the row does not identify, so cgt-calc refuses it instead of guessing.
 - The importer treats every transaction amount as GBP. Foreign-currency dividend text has not been
   validated and is not converted.
@@ -206,12 +206,28 @@ install it. If it still fails, open a
 [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with your cgt-calc
 version, the complete error and a sanitised copy of the row.
 
-A row beginning `Reversal of` reaches this error when it reverses anything other than a dividend,
-interest or a cash movement. Report the row rather than deleting it: undoing a purchase or disposal
-has to be recorded against the acquisition it cancels, which the export does not name.
-
 A row with the wrong number of fields stops the import too, with a different message naming its
-physical file line; check the source workbook as described below.
+physical file line; check the source workbook as described below. A reversed purchase or disposal
+has its own message, described next.
+
+### A reversed purchase or disposal
+
+`Reversal of Bought ...` and `Reversal of Sold ...` stop the import. Reversing a dividend, interest
+or a cash movement only negates one exported amount, so cgt-calc reads those. Reversing a trade
+instead has to be reconciled with the original trade, and the row does not say which purchase or
+disposal that is, so the share matching cannot be worked out from it.
+
+Keep the export unchanged, and please report the row with your cgt-calc version and a sanitised copy
+in a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new). No export
+containing a reversed trade has been examined, so what the row means is not established: it may
+cancel a trade that never stood, or record something that is itself a disposal. A real example is
+what would let cgt-calc handle it for you instead of stopping.
+
+Do not simply delete the rows to get the import to run. Deleting the reversal alone leaves a trade
+in the pool that may have been cancelled; deleting it together with the original removes activity
+that may be chargeable, and the original may not even be in the export if your period starts after
+it. Establish the correct treatment for the event first, then record it through the
+[RAW format](raw.md) or calculate it separately, and retain the original workbook as evidence.
 
 ### Automatic sales to pay fees
 
@@ -233,9 +249,10 @@ summary now stop the import naming the physical file line, rather than being ski
 inside a table stops the import for the same reason: a transaction that lost its separators arrives
 as a single cell and must not pass as a footer.
 
-A reversed purchase or disposal no longer imports silently either; it stops with `Unknown action`.
-Keep the original export unchanged and report an unchanged Vanguard row that behaves unexpectedly in
-a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new).
+A reversed purchase or disposal no longer imports silently either; see
+[A reversed purchase or disposal](#a-reversed-purchase-or-disposal). Keep the original export
+unchanged and report an unchanged Vanguard row that behaves unexpectedly in a
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new).
 
 ### `Reached a negative balance` or `Tried to sell not owned symbol`
 
