@@ -26,6 +26,7 @@ nav = [
       { "Hargreaves Lansdown" = "brokers/hargreaves-lansdown.md" },
       { "Interactive Brokers" = "brokers/interactive-brokers.md" },
       { "Morgan Stanley" = "brokers/morgan-stanley.md" },
+      { "Revolut" = "brokers/revolut.md" },
       { "Sharesight" = "brokers/sharesight.md" },
       { "Trading 212" = "brokers/trading212.md" },
       { "Vanguard" = "brokers/vanguard.md" },
