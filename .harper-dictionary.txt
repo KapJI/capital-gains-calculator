@@ -91,6 +91,7 @@ LF
 len
 LSE
 Luhn
+lychee
 markdown
 matchable
 md

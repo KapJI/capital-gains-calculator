@@ -123,19 +123,26 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v7
 
-      - name: Prepare and install deps
-        uses: ./.github/actions/install-deps
+      # Only successful checks are cached, so a broken link is re-checked on
+      # every run and a fix is picked up immediately. See lychee.toml.
+      - name: Restore lychee cache
+        uses: actions/cache@v6
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          path: .lycheecache
+          key: lychee-${{ github.run_id }}
+          restore-keys: lychee-
 
-      - name: Setup prek cache
-        uses: ./.github/actions/prek-cache
+      # Settings live in lychee.toml. The remap resolves cgt-calc.uk URLs
+      # against the local docs sources, so links to a page added in the same
+      # change are checked before the site is deployed. This job is not one of
+      # the required status checks: it reports broken links without blocking a
+      # merge.
+      - name: Run lychee
+        uses: lycheeverse/lychee-action@v2.9.0
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Run markdown-link-check
-        run: |
-          uvx prek run --hook-stage manual markdown-link-check --all-files --show-diff-on-failure --color=always
+          args: >-
+            --remap "https://cgt-calc\.uk/(.*) file://${{ github.workspace }}/docs/\$1"
+            './**/*.md'
 
   docker-build:
     name: Docker build

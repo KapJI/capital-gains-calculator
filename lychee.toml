@@ -1,0 +1,29 @@
+# Configuration for the lychee link checker, which runs in CI only.
+# To check links locally, `brew install lychee` and run `lychee .` from the
+# repository root; this file is picked up automatically.
+
+# Retry timeouts and rate limits. Neither indicates a broken link, and both are
+# the usual cause of a spurious CI failure.
+max_retries = 3
+retry_wait_time = 2
+timeout = 20
+
+# Several broker and fund manager sites bot-filter non-browser agents. Setting
+# this globally replaces the per-host User-Agent override that the old
+# markdown-link-check config needed for the Trade Tariff site.
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+# Reuse results between runs so unchanged links are not fetched again.
+cache = true
+max_cache_age = "1d"
+# Never cache a transient failure as a failure.
+cache_exclude_status = "429, 500.."
+
+# A 429 means the server is up and rate-limiting us, not that the link is dead.
+accept = ["200..=204", "429"]
+
+# mkdocs serves docs/foo.md at /foo/ and docs/foo/index.md at /foo/.
+fallback_extensions = ["md"]
+index_files = ["index.md"]
+
+no_progress = true

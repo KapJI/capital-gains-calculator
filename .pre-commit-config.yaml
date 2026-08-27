@@ -65,13 +65,6 @@ repos:
         language: system
         entry: env CGT_TEST_MODE_STRICT=1 uv run pytest
         pass_filenames: false
-  - repo: https://github.com/tcort/markdown-link-check
-    rev: v3.15.0
-    hooks:
-      - id: markdown-link-check
-        stages: [manual]
-        name: markdown link check
-        args: [-q, --config, .github/markdown-link-check.json]
   - repo: https://github.com/cdce8p/python-typing-update
     rev: v0.8.1
     hooks:

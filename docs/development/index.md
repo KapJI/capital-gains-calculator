@@ -44,13 +44,15 @@ We use:
 - [pytest](https://docs.pytest.org/) — for running tests
 - [dprint](https://dprint.dev/) — for formatting Markdown, YAML, TOML, JSON, and Dockerfiles
 - [shfmt](https://github.com/mvdan/sh#shfmt) - for formatting shell scripts
-- [markdown-link-check](https://github.com/tcort/markdown-link-check) - for checking links in
-  Markdown
 - [codespell](https://github.com/codespell-project/codespell) - for catching common misspellings
 - [Harper](https://writewithharper.com/) - for grammar and spell checking of comments, docstrings,
   and Markdown docs
 
 `prek` can be used to run all checks with one command (see below).
+
+Links in Markdown are checked separately by [lychee](https://lychee.cli.rs/), which runs in CI. To
+check them locally, install lychee and run `lychee .` from the repository root; its settings live in
+`lychee.toml`.
 
 The project uses **Python 3.12** as the minimum supported version.
 
