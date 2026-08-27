@@ -1,27 +1,34 @@
 # Schema reference: https://github.com/actions/labeler#match-object
-# Options inside `all` are AND-ed, so each rule below reads as "touches these
-# files, and touches nothing from the excluded set".
+# Options inside `all` are AND-ed. The rules are mutually exclusive, so a pull
+# request gets at most one of them: each excludes the paths claimed by the rules
+# above it. Dependabot labels its own pull requests, so its branches are skipped
+# here. Anything touching Python source is left for a manual type label.
 
 dependencies:
   - all:
+      - head-branch: ["^(?!dependabot/)"]
       - changed-files:
+          # A dependency update only: nothing outside these files changed.
           - any-glob-to-any-file: "uv.lock"
-          - all-globs-to-all-files: "!**/*.py"
-
-documentation:
-  - all:
-      - changed-files:
-          - any-glob-to-any-file: "**/*.md"
-          - all-globs-to-all-files: ["!**/*.py", "!.github/**/*"]
+          - any-glob-to-all-files: ["uv.lock", "pyproject.toml"]
 
 github structure:
   - all:
+      - head-branch: ["^(?!dependabot/)"]
       - changed-files:
           - any-glob-to-any-file: ".github/**/*"
           - all-globs-to-all-files: "!**/*.py"
 
 testing:
   - all:
+      - head-branch: ["^(?!dependabot/)"]
       - changed-files:
           - any-glob-to-any-file: "tests/**"
-          - all-globs-to-all-files: "!cgt_calc/**"
+          - all-globs-to-all-files: ["!cgt_calc/**", "!.github/**/*"]
+
+documentation:
+  - all:
+      - head-branch: ["^(?!dependabot/)"]
+      - changed-files:
+          - any-glob-to-any-file: "**/*.md"
+          - all-globs-to-all-files: ["!**/*.py", "!.github/**/*", "!tests/**"]
