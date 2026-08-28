@@ -9,7 +9,7 @@ from enum import StrEnum
 import io
 import logging
 import re
-from typing import TYPE_CHECKING, ClassVar, Final, TextIO, cast, override
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
@@ -670,7 +670,7 @@ def _find_investment_match(
     return max(before, key=_investment_date) if before else None
 
 
-class VanguardParser(BaseSingleFileParser):
+class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
     """Parser for Vanguard transaction files."""
 
     arg_name = "vanguard"
@@ -686,7 +686,7 @@ class VanguardParser(BaseSingleFileParser):
         *,
         warn_on_empty: bool = True,
         show_parsing_msg: bool = True,
-    ) -> list[BrokerTransaction]:
+    ) -> list[VanguardTransaction]:
         """Load a text CSV and report Excel or encoding mistakes clearly."""
         if file_path.suffix.casefold() in {".xls", ".xlsx", ".xlsm", ".xlsb"}:
             raise ParsingError(
@@ -724,7 +724,7 @@ class VanguardParser(BaseSingleFileParser):
     @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
+    ) -> list[VanguardTransaction]:
         """Read Vanguard transactions from exported transaction report file."""
         raw_text = file.read().removeprefix("\ufeff")
         delimiter = _detect_delimiter(raw_text)
@@ -817,4 +817,4 @@ class VanguardParser(BaseSingleFileParser):
             txn.enrich_details(matched_inv)
 
         transactions.sort(key=by_date_and_action)
-        return cast("list[BrokerTransaction]", transactions)
+        return transactions

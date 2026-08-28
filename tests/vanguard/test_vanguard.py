@@ -487,12 +487,7 @@ def test_read_vanguard_reversed_fee_sale_is_enriched(tmp_path: Path) -> None:
 
     transactions = VanguardParser().load_from_file(vanguard_file)
 
-    assert all(isinstance(t, VanguardTransaction) for t in transactions)
-    by_reversal = {
-        transaction.is_reversal: transaction
-        for transaction in transactions
-        if isinstance(transaction, VanguardTransaction)
-    }
+    by_reversal = {transaction.is_reversal: transaction for transaction in transactions}
     # Each row takes its own quantity, so neither is enriched from the other.
     assert by_reversal[False].quantity == Decimal("1.391")
     assert by_reversal[True].quantity == Decimal("2.5")

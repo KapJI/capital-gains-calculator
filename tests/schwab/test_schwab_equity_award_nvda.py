@@ -26,13 +26,13 @@ from cgt_calc.parsers import schwab_equity_award_json
 from cgt_calc.parsers.schwab_equity_award_json import JsonRowType, split_multiplier
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
 FIXTURE = Path("tests/schwab/data/equity_award/nvda_synthetic.json")
 
 
 @pytest.fixture(name="transactions")
-def transactions_fixture() -> list[BrokerTransaction]:
+def transactions_fixture() -> list[schwab_equity_award_json.SchwabTransaction]:
     """Parse the synthetic NVDA portfolio."""
     return schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
         FIXTURE
@@ -40,7 +40,9 @@ def transactions_fixture() -> list[BrokerTransaction]:
 
 
 def on(
-    transactions: list[BrokerTransaction], date: datetime.date, action: ActionType
+    transactions: Sequence[BrokerTransaction],
+    date: datetime.date,
+    action: ActionType,
 ) -> BrokerTransaction:
     """Return the single transaction of that kind on that date."""
     found = [t for t in transactions if t.date == date and t.action == action]
@@ -245,7 +247,7 @@ def mutated(tmp_path: Path, change: Callable[[list[JsonRowType]], None]) -> Path
     return path
 
 
-def parse(path: Path) -> list[BrokerTransaction]:
+def parse(path: Path) -> list[schwab_equity_award_json.SchwabTransaction]:
     """Parse an export, whatever it contains."""
     return schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(path)
 

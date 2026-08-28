@@ -75,7 +75,7 @@ class ERIRaw(ERITransaction):
         )
 
 
-class ERIRawParser(BaseSingleFileParser):
+class ERIRawParser(BaseSingleFileParser[ERIRaw]):
     """Parser for ERI (Excess Reported Income) CSV data files."""
 
     arg_name = "eri-raw"
@@ -109,9 +109,7 @@ class ERIRawParser(BaseSingleFileParser):
 
     @classmethod
     @override
-    def read_transactions(
-        cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
+    def read_transactions(cls, file: TextIO, file_path: Path) -> list[ERIRaw]:
         """Read ERI raw transactions from file."""
 
         lines = list(csv.reader(file))
@@ -123,7 +121,7 @@ class ERIRawParser(BaseSingleFileParser):
 
         ERIRawParser._validate_header(header, file_path, COLUMNS)
 
-        transactions: list[BrokerTransaction] = []
+        transactions: list[ERIRaw] = []
         for index, row in enumerate(lines[1:], start=2):
             try:
                 transactions.append(ERIRaw(header, row, file_path))

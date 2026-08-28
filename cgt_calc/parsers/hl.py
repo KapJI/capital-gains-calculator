@@ -41,7 +41,9 @@ class HLPdfData:
     fees: Decimal
 
 
-class HargreavesLansdownParser(StandardCSVParser, BaseDirParser):
+class HargreavesLansdownParser(
+    StandardCSVParser[BrokerTransaction], BaseDirParser[BrokerTransaction]
+):
     """Parser for Hargreaves Lansdown transaction exports and contract note PDFs."""
 
     arg_name = "hl"

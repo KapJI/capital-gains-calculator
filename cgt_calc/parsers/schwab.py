@@ -759,7 +759,7 @@ def _read_schwab_awards(
     return AwardPrices(award_prices=dict(initial_prices))
 
 
-class SchwabParser(BaseSingleFileParser):
+class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
     """Parser for Charles Schwab transaction files."""
 
     arg_name = "schwab"
@@ -804,7 +804,7 @@ class SchwabParser(BaseSingleFileParser):
     @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
+    ) -> list[SchwabTransaction]:
         """Read Schwab transactions from file."""
 
         lines = list(csv.reader(file))

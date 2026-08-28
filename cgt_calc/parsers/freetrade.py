@@ -244,7 +244,7 @@ def _dividend_tax_transaction(
     )
 
 
-class FreetradeParser(BaseSingleFileParser):
+class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
     """Parser for Freetrade transaction files."""
 
     arg_name = "freetrade"

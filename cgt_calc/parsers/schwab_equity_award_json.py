@@ -877,7 +877,7 @@ class SchwabTransaction(BrokerTransaction):
             self.price = round_decimal(self.price / multiplier, ROUND_DIGITS)
 
 
-class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
+class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabTransaction]):
     """Parser for Charles Schwab Equity Awards JSON files."""
 
     arg_name = "schwab-equity-award"
@@ -889,7 +889,7 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser):
     @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
+    ) -> list[SchwabTransaction]:
         """Read Schwab Equity Awards transactions from JSON."""
         try:
             data = json.load(file, parse_float=Decimal, parse_int=Decimal)
