@@ -719,6 +719,60 @@ def test_interest_fund_tickers_empty_items_filtered() -> None:
     assert args.interest_fund_tickers == ["VGOV", "VBMFX"]
 
 
+def test_cgt_exempt_tickers_single() -> None:
+    """Test that a single exempt ticker is parsed correctly."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--cgt-exempt-tickers", "T26"])
+
+    assert args.cgt_exempt_tickers == ["T26"]
+
+
+def test_cgt_exempt_tickers_multiple() -> None:
+    """Test that multiple exempt tickers are parsed correctly."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--cgt-exempt-tickers", "T26,TN28,TR32"])
+
+    assert args.cgt_exempt_tickers == ["T26", "TN28", "TR32"]
+
+
+def test_cgt_exempt_tickers_with_spaces() -> None:
+    """Test that exempt tickers with spaces are trimmed correctly."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--cgt-exempt-tickers", " T26 , TN28 , TR32 "])
+
+    assert args.cgt_exempt_tickers == ["T26", "TN28", "TR32"]
+
+
+def test_cgt_exempt_tickers_lowercase() -> None:
+    """Test that lowercase exempt tickers are converted to uppercase."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--cgt-exempt-tickers", "t26,tn28"])
+
+    assert args.cgt_exempt_tickers == ["T26", "TN28"]
+
+
+def test_cgt_exempt_tickers_empty_default() -> None:
+    """Test that default is an empty list when not specified."""
+    parser = create_parser()
+
+    args = parser.parse_args([])
+
+    assert args.cgt_exempt_tickers == []
+
+
+def test_cgt_exempt_tickers_empty_items_filtered() -> None:
+    """Test that empty items (e.g., trailing commas) are filtered out."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--cgt-exempt-tickers", "T26,,TN28,"])
+
+    assert args.cgt_exempt_tickers == ["T26", "TN28"]
+
+
 def test_existing_file_or_stdin_type_accepts_stdin() -> None:
     """Ensure existing_file_or_stdin_type returns STDIN_PATH when passed '-'."""
     assert existing_file_or_stdin_type("-") == STDIN_PATH

@@ -135,6 +135,7 @@ py
 pyproject
 pytest
 python3
+QCBs
 rata
 regularMarketPrice
 reportable
@@ -147,6 +148,7 @@ RuntimeError
 RuntimeMode
 s105
 s106A
+s115
 s122
 s127
 s17

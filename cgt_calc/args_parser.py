@@ -155,6 +155,13 @@ Environment variables:
         default=[],
         help="tickers of bond funds/ETFs whose dividends are taxed as interest in the UK",
     )
+    calc_group.add_argument(
+        "--cgt-exempt-tickers",
+        type=ticker_list_type,
+        metavar="TICKER[,TICKER...]",
+        default=[],
+        help="tickers of assets exempt from CGT (e.g. UK gilts, qualifying corporate bonds)",
+    )
 
     # Output Options
     output_group = parser.add_argument_group("Output")

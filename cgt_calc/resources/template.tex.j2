@@ -48,6 +48,9 @@
     \BLOCK{ set symbol = symbol[17:] }
     \BLOCK{ set is_disposal = True }
     \BLOCK{ set is_gift = True }
+\BLOCK{ elif symbol.startswith("exempt$") }
+    \BLOCK{ set symbol = symbol[7:] }
+    \BLOCK{ set is_exempt = True }
 \BLOCK{ endif }
 \BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
 \BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
@@ -132,6 +135,23 @@
         new pool cost: £\VAR{ "{:,}".format(round_decimal(pool.new_pool_cost, 2)) }
         (£\VAR{ "{:,}".format(round_decimal(pool.new_pool_cost/pool.new_quantity, 2)) }/unit)%
     \BLOCK{ endif }.
+\BLOCK{ elif is_exempt } % if is_exempt
+    \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount") + entries|sum(attribute="fees"), 2) }
+    \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
+    \subsubsection*{
+        Exempt disposal: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }
+        (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
+        \BLOCK{ if overall_fees > 0 }
+            , £\VAR{ "{:,}".format(overall_fees) } fees allowed as cost
+        \BLOCK{ endif }
+    }
+    \BLOCK{ if overall_gain > 0 -}
+        Gain is £\VAR{ "{:,}".format(overall_gain) }; the gain or loss is disregarded (exempt asset).
+    \BLOCK{ elif overall_gain == 0 }
+        Neither a gain nor a loss; the gain or loss is disregarded (exempt asset).
+    \BLOCK{ else }
+        Loss is £\VAR{ "{:,}".format(-overall_gain) }; the gain or loss is disregarded (exempt asset).
+    \BLOCK{ endif }
 \BLOCK{ endif }
 
 \BLOCK{ if not is_rename and not is_transfer_to_spouse }
@@ -154,6 +174,22 @@
     \BLOCK{ else }
         \mbox{loss: £\VAR{ "{:,}".format(round_decimal(-entry.gain, 2)) }.}
     \BLOCK{ endif }
+\BLOCK{ elif is_exempt }
+    \BLOCK{ if entry.quantity < overall_quantity }
+        disposal proceeds: £\VAR{ "{:,}".format(round_decimal(entry.amount + entry.fees, 2)) },
+    \BLOCK{ endif }
+    allowable
+    \BLOCK{ if entry.rule_type.name == "BED_AND_BREAKFAST" }
+        cost on \mbox{\VAR{ entry.bed_and_breakfast_date_index.strftime("%d %b %Y") }:}
+    \BLOCK{ else }
+        cost:
+    \BLOCK{ endif }
+    £\VAR{ "{:,}".format(round_decimal(entry.allowable_cost, 2)) },
+    \BLOCK{ if entry.gain > 0}
+        \mbox{disregarded gain: £\VAR{ "{:,}".format(round_decimal(entry.gain, 2)) }.}
+    \BLOCK{ else }
+        \mbox{disregarded loss: £\VAR{ "{:,}".format(round_decimal(-entry.gain, 2)) }.}
+    \BLOCK{ endif }
 \BLOCK{ elif is_spin_off }
     original cost of \VAR{ entry.spin_off.source }: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2))}, after spin-off: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2))}
 \BLOCK{ elif is_eri }
@@ -162,7 +198,7 @@
     actual cost: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2)) }.
 \BLOCK{ endif}
 
-\BLOCK{ if is_disposal }
+\BLOCK{ if is_disposal or is_exempt }
     Number of units left in the pool:
 \BLOCK{ else }
     Number of units in the pool:
@@ -271,6 +307,9 @@
 \subsection*{Total capital loss: £\VAR{ "{:,}".format(total_loss.value) }}
 \BLOCK{ if gift_loss.value > 0 }
 \subsection*{Losses on gifts, kept separate: £\VAR{ "{:,}".format(gift_loss.value) }}
+\BLOCK{ endif }
+\BLOCK{ if report.exempt_disposal_proceeds > 0 }
+\subsection*{Exempt disposals: £\VAR{ "{:,}".format(report.exempt_disposal_proceeds) }}
 \BLOCK{ endif }
 \subsection*{Total capital gain after loss: £\VAR{ "{:,}".format(total_gain.value - total_loss.value) }}
 \vspace{1em}

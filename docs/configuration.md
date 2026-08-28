@@ -34,3 +34,7 @@ The following configuration files and options allow you to customize the calcula
 - **Interest fund tickers.** Some bond funds and ETFs should be taxed as interest rather than
   dividends. Specify these funds via the `--interest-fund-tickers` CLI option, using a
   comma-separated list of ticker symbols.
+
+- **CGT-exempt tickers.** Disposals of UK gilts and qualifying corporate bonds (QCBs) are exempt
+  from Capital Gains Tax (TCGA 1992 s115). Specify these assets via the `--cgt-exempt-tickers` CLI
+  option, using a comma-separated list of ticker symbols.

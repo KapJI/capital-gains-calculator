@@ -72,7 +72,10 @@ def get_report(
 
 
 def create_calculator(
-    *, tax_year: int, balance_check: bool = True
+    *,
+    tax_year: int,
+    balance_check: bool = True,
+    cgt_exempt_tickers: list[str] | None = None,
 ) -> CapitalGainsCalculator:
     """Create a calculator with standard test configuration.
 
@@ -93,6 +96,7 @@ def create_calculator(
         SpinOffHandler(),
         InitialPrices(),
         interest_fund_tickers=[],
+        cgt_exempt_tickers=cgt_exempt_tickers,
         balance_check=balance_check,
     )
 

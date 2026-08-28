@@ -559,6 +559,18 @@ class CapitalGainsReport:
     # Losses on gifts, kept out of capital_loss: a loss on a disposal to a
     # connected person is a clogged loss (TCGA 1992 s18(3)). Negative or zero.
     gift_loss: Decimal = Decimal(0)
+    exempt_disposal_count: int = 0
+    exempt_disposal_proceeds: Decimal = Decimal(0)
+
+    @property
+    def exempt_disposals(self) -> int:
+        """Alias for exempt_disposal_count."""
+        return self.exempt_disposal_count
+
+    @property
+    def exempt_proceeds(self) -> Decimal:
+        """Alias for exempt_disposal_proceeds."""
+        return self.exempt_disposal_proceeds
 
     def period_label(self) -> str | None:
         """Label for a custom reporting period, None for a full tax year."""
@@ -707,6 +719,11 @@ class CapitalGainsReport:
             ("Gain", f"£{self.capital_gain:,}"),
             ("Loss", f"£{-self.capital_loss:,}"),
             *([("Losses on gifts", f"£{-self.gift_loss:,}")] if self.gift_loss else []),
+            *(
+                [("Exempt disposals", f"£{self.exempt_disposal_proceeds:,}")]
+                if self.exempt_disposal_proceeds
+                else []
+            ),
             ("Total gain", f"£{self.total_gain():,}"),
         ]
         capital_notes: list[str] = []
