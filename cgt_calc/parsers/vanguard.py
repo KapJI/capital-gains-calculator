@@ -216,7 +216,6 @@ class VanguardTransaction(BrokerTransaction):
 
     is_reversal: bool
     details_text: str
-    source_file: Path | None
 
     def __init__(
         self,
@@ -232,7 +231,6 @@ class VanguardTransaction(BrokerTransaction):
 
         date = datetime.datetime.strptime(row[CashColumn.DATE], "%d/%m/%Y").date()
         self.details_text, self.is_reversal = _strip_reversal(row[CashColumn.DETAILS])
-        self.source_file = file
         self.action = action_from_str(self.details_text, file)
         self.amount = _parse_decimal(row[CashColumn.AMOUNT], CashColumn.AMOUNT.value)
         self.symbol, self.quantity, self.price, self.currency = _parse_details(
@@ -284,7 +282,6 @@ class VanguardTransaction(BrokerTransaction):
         txn = object.__new__(cls)
         txn.is_reversal = is_reversal
         txn.details_text = ""
-        txn.source_file = None
         BrokerTransaction.__init__(
             txn,
             date,
