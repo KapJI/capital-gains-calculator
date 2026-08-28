@@ -8,7 +8,6 @@ import io
 import json
 import logging
 from pathlib import Path
-import re
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -1135,11 +1134,12 @@ def test_schwab_json_v1_empty_fees(tmp_path: Path) -> None:
 
 def test_run_with_schwab_equity_award_json(request: pytest.FixtureRequest) -> None:
     """Run cgt-calc end-to-end with schwab-equity-award-json file."""
+    input_file_base = "schwab_equity_award_v2"
     cmd = build_cmd(
         "--year",
         "2023",
         "--schwab-equity-award-json",
-        "tests/schwab/data/equity_award/schwab_equity_award_v2.json",
+        f"tests/schwab/data/equity_award/{input_file_base}.json",
         "--output",
         report_path(request),
     )
@@ -1150,11 +1150,20 @@ def test_run_with_schwab_equity_award_json(request: pytest.FixtureRequest) -> No
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
-    assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
-    proceeds_regex = r"Disposal proceeds:\s*[^0-9]1,541\.02"
-    assert re.search(proceeds_regex, result.stdout) is not None, (
-        f"Unexpected disposable proceeds: {result.stdout}"
+    assert stderr_alerts(result.stderr) == [], (
+        f"Run with example file {input_file_base}.json generated errors"
     )
-    assert re.search(r"Gain:\s*[^0-9]44\.69", result.stdout) is not None, (
-        f"Unexpected gains: {result.stdout}"
+    expected_file = (
+        Path("tests")
+        / "schwab"
+        / "data"
+        / "equity_award"
+        / f"{input_file_base}-expected_output.txt"
+    )
+    expected = expected_file.read_text(encoding="utf-8")
+    cmd_str = " ".join([param or "''" for param in cmd])
+    assert result.stdout == expected, (
+        "Run with example files generated unexpected outputs, "
+        "if you added new features update the test with:\n"
+        f"{cmd_str} > {expected_file}"
     )
