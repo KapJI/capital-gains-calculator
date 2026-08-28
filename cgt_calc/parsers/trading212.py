@@ -428,7 +428,7 @@ class Trading212Transaction(BrokerTransaction):
         return hash(self.transaction_id)
 
 
-class Trading212Parser(BaseDirParser):
+class Trading212Parser(BaseDirParser[Trading212Transaction]):
     """Trading 212 parser."""
 
     arg_name = "trading212"
@@ -441,7 +441,7 @@ class Trading212Parser(BaseDirParser):
     @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
+    ) -> list[Trading212Transaction]:
         """Parse Trading 212 transactions from CSV file."""
         lines = list(csv.reader(file))
         if not lines:
@@ -449,7 +449,7 @@ class Trading212Parser(BaseDirParser):
         header = lines[0]
         cls._validate_header(header, file_path)
         lines = lines[1:]
-        transactions: list[BrokerTransaction] = []
+        transactions: list[Trading212Transaction] = []
         for index, row in enumerate(lines, start=2):
             try:
                 transactions.append(Trading212Transaction(header, row, file_path))
@@ -471,11 +471,9 @@ class Trading212Parser(BaseDirParser):
 
     @staticmethod
     def _by_date_and_action(
-        transaction: BrokerTransaction,
+        transaction: Trading212Transaction,
     ) -> tuple[datetime, bool]:
         """Sort by date and action type."""
-
-        assert isinstance(transaction, Trading212Transaction)
 
         # If there's a deposit in the same second as a buy
         # (happens with the referral award at least)
@@ -485,8 +483,8 @@ class Trading212Parser(BaseDirParser):
     @classmethod
     @override
     def post_process_transactions(
-        cls, transactions: list[BrokerTransaction]
-    ) -> list[BrokerTransaction]:
+        cls, transactions: list[Trading212Transaction]
+    ) -> list[Trading212Transaction]:
         """Remove duplicates and sort."""
         transactions = list(set(transactions))
         transactions.sort(key=cls._by_date_and_action)

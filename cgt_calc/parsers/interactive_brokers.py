@@ -195,7 +195,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         )
 
 
-class InteractiveBrokersParser(StandardCSVParser):
+class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction]):
     """Parser for Interactive Brokers format transaction files."""
 
     arg_name = "interactive-brokers"
@@ -210,7 +210,9 @@ class InteractiveBrokersParser(StandardCSVParser):
 
     @classmethod
     @override
-    def read_row(cls, row: dict[str, str], file_path: Path) -> BrokerTransaction | None:
+    def read_row(
+        cls, row: dict[str, str], file_path: Path
+    ) -> InteractiveBrokersTransaction | None:
         """Read a single transaction from a row in the CSV."""
         return InteractiveBrokersTransaction(row, file_path)
 
@@ -256,8 +258,8 @@ class InteractiveBrokersParser(StandardCSVParser):
     @classmethod
     @override
     def post_process_transactions(
-        cls, transactions: list[BrokerTransaction]
-    ) -> list[BrokerTransaction]:
+        cls, transactions: list[InteractiveBrokersTransaction]
+    ) -> list[InteractiveBrokersTransaction]:
         """Sort transactions by date, buys and withheld tax last."""
         transactions.sort(key=cls._by_date_and_action)
         return transactions

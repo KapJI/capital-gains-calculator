@@ -179,7 +179,7 @@ class RowIterator(Iterator[list[str]]):
         return self
 
 
-class SharesightParser(BaseDirParser):
+class SharesightParser(BaseDirParser[SharesightTransaction]):
     """Sharesight parser."""
 
     arg_name = "sharesight"
@@ -194,7 +194,7 @@ class SharesightParser(BaseDirParser):
     @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
+    ) -> list[SharesightTransaction]:
         """Parse Sharesight transactions from reports."""
         if file_path.match("Taxable Income Report*.csv", case_sensitive=False):
             return list(cls._parse_income_report(file, file_path))
@@ -206,8 +206,8 @@ class SharesightParser(BaseDirParser):
     @classmethod
     @override
     def post_process_transactions(
-        cls, transactions: list[BrokerTransaction]
-    ) -> list[BrokerTransaction]:
+        cls, transactions: list[SharesightTransaction]
+    ) -> list[SharesightTransaction]:
         """Sort transactions by date."""
         transactions.sort(key=lambda t: t.date)
         return transactions

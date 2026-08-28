@@ -101,7 +101,9 @@ def _parse_decimal(row: dict[str, str], column: StrEnum) -> Decimal:
         ) from err
 
 
-class MSSBParser(StandardCSVParser, BaseDirParser):
+class MSSBParser(
+    StandardCSVParser[BrokerTransaction], BaseDirParser[BrokerTransaction]
+):
     """Morgan Stanley parser."""
 
     arg_name = "mssb"

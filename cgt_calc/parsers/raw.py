@@ -168,7 +168,7 @@ class RawTransaction(BrokerTransaction):
         )
 
 
-class RawParser(BaseSingleFileParser):
+class RawParser(BaseSingleFileParser[RawTransaction]):
     """Parser for RAW format transaction files."""
 
     arg_name = "raw"
@@ -206,9 +206,7 @@ class RawParser(BaseSingleFileParser):
 
     @classmethod
     @override
-    def read_transactions(
-        cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
+    def read_transactions(cls, file: TextIO, file_path: Path) -> list[RawTransaction]:
         """Read Raw transactions from file."""
         lines = list(csv.reader(file))
 
@@ -227,7 +225,7 @@ class RawParser(BaseSingleFileParser):
                 file_path,
             )
 
-        transactions: list[BrokerTransaction] = []
+        transactions: list[RawTransaction] = []
         for index, row in enumerate(data_rows, start=start_index):
             try:
                 transactions.append(RawTransaction(row, file_path))

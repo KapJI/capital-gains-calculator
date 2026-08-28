@@ -41,7 +41,7 @@ class BaseParser(ABC):
         """Load broker data from parsed arguments."""
 
 
-class BaseSingleFileParser(BaseParser):
+class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
     """Parser for single transaction file."""
 
     arg_name: str
@@ -88,7 +88,9 @@ class BaseSingleFileParser(BaseParser):
         """Load broker data from parsed arguments."""
         file_path = getattr(args, cls.full_arg.replace("-", "_"))
         if file_path:
-            return cls.load_from_file(file_path)
+            # list is invariant, so widen explicitly rather than return list[T].
+            transactions: list[BrokerTransaction] = list(cls.load_from_file(file_path))
+            return transactions
         return []
 
     @classmethod
@@ -98,7 +100,7 @@ class BaseSingleFileParser(BaseParser):
         *,
         warn_on_empty: bool = True,
         show_parsing_msg: bool = True,
-    ) -> list[BrokerTransaction]:
+    ) -> list[T]:
         """Load broker data from file path."""
         if file_path == STDIN_PATH:
             if show_parsing_msg:
@@ -115,20 +117,16 @@ class BaseSingleFileParser(BaseParser):
 
     @classmethod
     @abstractmethod
-    def read_transactions(
-        cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
+    def read_transactions(cls, file: TextIO, file_path: Path) -> list[T]:
         """Parse broker transactions from open file."""
 
     @classmethod
-    def post_process_transactions(
-        cls, transactions: list[BrokerTransaction]
-    ) -> list[BrokerTransaction]:
+    def post_process_transactions(cls, transactions: list[T]) -> list[T]:
         """Do any required post processing after loading the transactions."""
         return transactions
 
 
-class StandardCSVParser(BaseSingleFileParser):
+class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     """Base parser for CSV files with a fixed set of expected columns."""
 
     columns: ClassVar[set[str]]
@@ -149,7 +147,7 @@ class StandardCSVParser(BaseSingleFileParser):
 
     @classmethod
     @abstractmethod
-    def read_row(cls, row: dict[str, str], file_path: Path) -> BrokerTransaction | None:
+    def read_row(cls, row: dict[str, str], file_path: Path) -> T | None:
         """Read a single transaction from a row in the CSV."""
 
     @classmethod
@@ -159,9 +157,7 @@ class StandardCSVParser(BaseSingleFileParser):
 
     @classmethod
     @override
-    def read_transactions(
-        cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
+    def read_transactions(cls, file: TextIO, file_path: Path) -> list[T]:
         """Read transactions from a CSV file."""
         reader = csv.DictReader(cls.pre_reading(file, file_path))
         if reader.fieldnames is None:
@@ -171,7 +167,7 @@ class StandardCSVParser(BaseSingleFileParser):
         cls._validate_header(reader.fieldnames, file_path)
         expected_col_count = len(reader.fieldnames)
 
-        transactions: list[BrokerTransaction] = []
+        transactions: list[T] = []
         saw_row = False
         # Row numbers are 1-based file lines; the header is line 1.
         for index, row in enumerate(reader, start=2):
@@ -209,7 +205,7 @@ class StandardCSVParser(BaseSingleFileParser):
         return transactions
 
 
-class BaseDirParser(BaseSingleFileParser):
+class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     """Parser for loading all files within a directory."""
 
     glob_dir: str
@@ -252,13 +248,15 @@ class BaseDirParser(BaseSingleFileParser):
         """Load broker data from parsed arguments."""
         dir_path = getattr(args, cls.full_arg.replace("-", "_"))
         if dir_path:
-            return cls.load_from_dir(dir_path)
+            # list is invariant, so widen explicitly rather than return list[T].
+            transactions: list[BrokerTransaction] = list(cls.load_from_dir(dir_path))
+            return transactions
         return []
 
     @classmethod
-    def load_from_dir(cls, dir_path: Path) -> list[BrokerTransaction]:
+    def load_from_dir(cls, dir_path: Path) -> list[T]:
         """Load broker data from dir path."""
-        transactions: list[BrokerTransaction] = []
+        transactions: list[T] = []
         for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False)):
             if cls.file_path_filter(file_path):
                 transactions += cls.load_from_file(file_path, warn_on_empty=False)
@@ -277,8 +275,6 @@ class BaseDirParser(BaseSingleFileParser):
 
     @classmethod
     @override
-    def post_process_transactions(
-        cls, transactions: list[BrokerTransaction]
-    ) -> list[BrokerTransaction]:
+    def post_process_transactions(cls, transactions: list[T]) -> list[T]:
         """Do any required post processing after loading all the transactions in the dir."""
         return transactions

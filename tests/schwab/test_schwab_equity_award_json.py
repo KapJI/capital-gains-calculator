@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.model import ActionType, BrokerTransaction
+from cgt_calc.model import ActionType
 from cgt_calc.parsers import schwab_equity_award_json
 
 # ruff: noqa: SLF001 "Private member accessed"
@@ -304,7 +304,9 @@ def test_action_from_str_unknown() -> None:
         schwab_equity_award_json.action_from_str("Dance", Path("awards.json"))
 
 
-def _read_json(content: str) -> list[BrokerTransaction]:
+def _read_json(
+    content: str,
+) -> list[schwab_equity_award_json.SchwabTransaction]:
     """Parse Schwab equity award JSON from a string."""
     parser = schwab_equity_award_json.SchwabEquityAwardsJSONParser
     return parser.read_transactions(io.StringIO(content), Path("awards.json"))
