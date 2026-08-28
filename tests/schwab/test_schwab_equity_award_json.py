@@ -1151,5 +1151,10 @@ def test_run_with_schwab_equity_award_json(request: pytest.FixtureRequest) -> No
             f"stderr:\n{result.stderr}"
         )
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
-    assert re.search(r"Disposal proceeds:\s*[^0-9]1,541\.02", result.stdout) is not None
-    assert re.search(r"Gain:\s*[^0-9]44\.69", result.stdout) is not None
+    proceeds_regex = r"Disposal proceeds:\s*[^0-9]1,541\.02"
+    assert re.search(proceeds_regex, result.stdout) is not None, (
+        f"Unexpected disposable proceeds: {result.stdout}"
+    )
+    assert re.search(r"Gain:\s*[^0-9]44\.69", result.stdout) is not None, (
+        f"Unexpected gains: {result.stdout}"
+    )
