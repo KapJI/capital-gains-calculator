@@ -54,6 +54,7 @@ def test_print_completion_outputs_script(
     assert exc_info.value.code == 0
     output = capsys.readouterr().out
     assert "--trading212-dir" in output
+    assert "--schwab-dir" in output
     assert "--initial-prices-file" in output
 
 
@@ -242,6 +243,7 @@ def test_broker_file_arguments_reject_missing_path(
     [
         ("--hl-dir", "hl_dir", "hl"),
         ("--mssb-dir", "mssb_dir", "mssb"),
+        ("--schwab-dir", "schwab_dir", "schwab"),
         ("--sharesight-dir", "sharesight_dir", "sharesight"),
         ("--trading212-dir", "trading212_dir", "trading212"),
     ],
@@ -263,6 +265,7 @@ def test_broker_dir_arguments_accept_existing_directory(
     ("option", "attr"),
     [
         ("--mssb-dir", "mssb_dir"),
+        ("--schwab-dir", "schwab_dir"),
         ("--sharesight-dir", "sharesight_dir"),
         ("--trading212-dir", "trading212_dir"),
     ],

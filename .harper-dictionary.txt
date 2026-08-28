@@ -162,6 +162,7 @@ Shareworks
 shfmt
 shtab
 SIPP
+classmethod
 SLF001
 SOLV
 SpinOff
@@ -200,3 +201,5 @@ VTI
 worktree
 xtrackers
 yfinance
+schwab
+cls

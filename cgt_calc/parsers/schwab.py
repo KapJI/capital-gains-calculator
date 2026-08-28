@@ -9,12 +9,18 @@ from dataclasses import dataclass
 import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
+import itertools
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 import shtab
 
-from cgt_calc.args_validators import DeprecatedAction, existing_file_type, set_completer
+from cgt_calc.args_validators import (
+    DeprecatedAction,
+    existing_directory_type,
+    existing_file_type,
+    set_completer,
+)
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
     ParsingError,
@@ -31,7 +37,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
 
-from .base_parsers import BaseSingleFileParser
+from .base_parsers import BaseSingleFileParser, next_account_token
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -668,6 +674,55 @@ def _filter_cancelled_buy_transactions(
     return [txn for i, txn in enumerate(transactions) if i not in indices_to_remove]
 
 
+@dataclass(frozen=True)
+class _Export:
+    """One Schwab CSV from a directory, with the dates it actually covers."""
+
+    rows: list[SchwabTransaction]
+    file_path: Path
+
+    @property
+    def oldest(self) -> datetime.date:
+        """Earliest transaction date in the file."""
+        return min(row.date for row in self.rows)
+
+    @property
+    def newest(self) -> datetime.date:
+        """Latest transaction date in the file."""
+        return max(row.date for row in self.rows)
+
+
+def _reject_overlapping_exports(exports: list[_Export]) -> None:
+    """Refuse two exports whose transaction dates overlap.
+
+    A Schwab CSV carries no transaction id, so a row repeated by an overlap is
+    indistinguishable from a genuine repeat of the same trade: two identical
+    buys of the same size and price on one day are a real thing. Continuing
+    would report a disposal or acquisition that never happened, and would leave
+    the order of a shared date decided by the filename.
+
+    The comparison is over the dates present in each file rather than the range
+    the user asked Schwab for. That is the stricter reading of what matters: if
+    two requested ranges overlap but no transaction falls in the shared window,
+    nothing is duplicated and there is nothing to refuse.
+    """
+    ordered = sorted(exports, key=lambda export: (export.oldest, export.newest))
+    for earlier, later in itertools.pairwise(ordered):
+        if later.oldest <= earlier.newest:
+            raise ParsingError(
+                later.file_path,
+                f"has transactions from {later.oldest} to {later.newest}, "
+                f"overlapping {earlier.file_path.name} ({earlier.oldest} to "
+                f"{earlier.newest}). A Schwab CSV has no transaction id, so "
+                "cgt-calc cannot tell a row repeated by the overlap from a "
+                "genuine repeat of the same trade, and would count both. "
+                "Re-export the ranges so they do not overlap, or remove the "
+                "redundant file. If these are exports from two different "
+                "Schwab accounts, cgt-calc cannot combine them: the CSV does "
+                "not say which account a row belongs to.",
+            )
+
+
 def _read_schwab_awards(
     schwab_award_transactions_file: Path | None,
 ) -> AwardPrices:
@@ -794,6 +849,19 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
             type=existing_file_type,
             help=argparse.SUPPRESS,
         )
+        # Schwab keeps both forms: `--schwab-file` predates the directory
+        # support, so removing it would break every existing command. The
+        # other directory brokers replaced their file flag instead.
+        set_completer(
+            arg_group.add_argument(
+                "--schwab-dir",
+                type=existing_directory_type,
+                default=None,
+                metavar="DIR",
+                help="directory with Charles Schwab transaction history in CSV format",
+            ),
+            shtab.DIRECTORY,
+        )
         super().register_arguments(arg_group)
 
     @classmethod
@@ -802,6 +870,12 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
         """Load broker data from parsed arguments."""
         award_path = args.schwab_award_file
         cls.awards_prices = _read_schwab_awards(award_path)
+        if args.schwab_dir:
+            # list is invariant, so widen explicitly rather than return list[T].
+            transactions: list[BrokerTransaction] = list(
+                cls.load_from_dir(args.schwab_dir)
+            )
+            return transactions
         return super().load_from_args(args)
 
     @classmethod
@@ -810,7 +884,73 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
         cls, file: TextIO, file_path: Path
     ) -> list[SchwabTransaction]:
         """Read Schwab transactions from file."""
+        transactions = cls._read_rows(file, file_path)
+        transactions = _unify_schwab_paired_transactions(transactions, file_path)
+        transactions = _filter_cancelled_buy_transactions(transactions, file_path)
+        transactions.reverse()
+        return transactions
 
+    @classmethod
+    def load_from_dir(cls, dir_path: Path) -> list[SchwabTransaction]:
+        """Read every CSV in the directory as one export.
+
+        Schwab limits how much history one export can cover, so a long history
+        arrives as several date-range files. They are parsed separately and
+        then treated as a single export.
+
+        Corporate-action pairing stays per file: both shapes it recognises are
+        same-date by construction, and refusing overlapping exports guarantees
+        one date lives in exactly one file, so a pair can never be split.
+        Cancellation matching is the opposite: the Buy a Cancel Buy reverses is
+        up to CANCEL_BUY_SEARCH_DAYS away, so it routinely sits in the
+        neighbouring file and can only be found once everything is merged.
+        """
+        # One directory is one declared account boundary, as it is for the
+        # other directory brokers, so every file in it shares a token.
+        account = next_account_token(cls.pretty_name)
+        exports: list[_Export] = []
+        for file_path in sorted(dir_path.glob("*.csv", case_sensitive=False)):
+            with file_path.open(encoding=cls.encoding) as file:
+                parsing_msg(file_path)
+                rows = cls._read_rows(file, file_path)
+            rows = _unify_schwab_paired_transactions(rows, file_path)
+            # Rows are still newest-first here, so stamp a reversed view: index
+            # has to rise with time, as it does on the single-file path where
+            # stamping happens after the reverse.
+            cls.stamp_source(list(reversed(rows)), file_path, account)
+            if rows:
+                exports.append(_Export(rows=rows, file_path=file_path))
+
+        _reject_overlapping_exports(exports)
+        # Every export is newest-first and no date spans two of them, so
+        # ordering whole exports by their newest date makes the concatenation
+        # newest-first without disturbing row order inside a file. Sorting the
+        # rows themselves would have to break ties between files, and the only
+        # tiebreak available is the filename.
+        exports.sort(key=lambda export: export.newest, reverse=True)
+
+        transactions = [row for export in exports for row in export.rows]
+        transactions = _filter_cancelled_buy_transactions(transactions, dir_path)
+        transactions.reverse()
+
+        # Checked after filtering, not before: a directory whose only rows are
+        # a Buy and the Cancel Buy that reverses it ends up empty, and has to
+        # warn like any other empty result.
+        if not transactions:
+            LOGGER.warning(
+                "No transactions detected in directory %s for broker %s",
+                dir_path,
+                cls.pretty_name,
+            )
+        return cls.post_process_transactions(transactions)
+
+    @classmethod
+    def _read_rows(cls, file: TextIO, file_path: Path) -> list[SchwabTransaction]:
+        """Parse the rows of one Schwab CSV, without any cross-row pass.
+
+        A ``classmethod`` because pricing a vest needs ``cls.awards_prices``,
+        which ``load_from_args`` fills in from ``--schwab-award-file``.
+        """
         lines = list(csv.reader(file))
         if not lines:
             raise ParsingError(
@@ -851,7 +991,4 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
 
             transaction.source = TransactionSource(row=index)
             transactions.append(transaction)
-        transactions = _unify_schwab_paired_transactions(transactions, file_path)
-        transactions = _filter_cancelled_buy_transactions(transactions, file_path)
-        transactions.reverse()
         return transactions
