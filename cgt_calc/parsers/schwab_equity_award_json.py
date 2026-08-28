@@ -592,11 +592,11 @@ def _check_disposal_units(
             )
 
 
-class SchwabTransaction(BrokerTransaction):
-    """Represent single Schwab transaction."""
+class SchwabAwardTransaction(BrokerTransaction):
+    """Represent a single Schwab equity award transaction."""
 
     def __init__(self, row: JsonRowType, file: Path, field_names: FieldNames) -> None:
-        """Create a new SchwabTransaction from a JSON row."""
+        """Create a new SchwabAwardTransaction from a JSON row."""
         names = field_names
         description = row[names.description]
         self.raw_action = row[names.action]
@@ -877,7 +877,7 @@ class SchwabTransaction(BrokerTransaction):
             self.price = round_decimal(self.price / multiplier, ROUND_DIGITS)
 
 
-class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabTransaction]):
+class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabAwardTransaction]):
     """Parser for Charles Schwab Equity Awards JSON files."""
 
     arg_name = "schwab-equity-award"
@@ -889,7 +889,7 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabTransaction]):
     @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
-    ) -> list[SchwabTransaction]:
+    ) -> list[SchwabAwardTransaction]:
         """Read Schwab Equity Awards transactions from JSON."""
         try:
             data = json.load(file, parse_float=Decimal, parse_int=Decimal)
@@ -923,7 +923,7 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabTransaction]):
         _check_lapse_units(data[fields.transactions], file_path, fields)
 
         transactions = [
-            SchwabTransaction(transac, file_path, fields)
+            SchwabAwardTransaction(transac, file_path, fields)
             for transac in data[fields.transactions]
             # Journal and Wire Transfer move cash between accounts.
             #

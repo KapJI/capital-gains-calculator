@@ -23,7 +23,11 @@ import pytest
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers import schwab_equity_award_json
-from cgt_calc.parsers.schwab_equity_award_json import JsonRowType, split_multiplier
+from cgt_calc.parsers.schwab_equity_award_json import (
+    JsonRowType,
+    SchwabAwardTransaction,
+    split_multiplier,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -32,7 +36,7 @@ FIXTURE = Path("tests/schwab/data/equity_award/nvda_synthetic.json")
 
 
 @pytest.fixture(name="transactions")
-def transactions_fixture() -> list[schwab_equity_award_json.SchwabTransaction]:
+def transactions_fixture() -> list[SchwabAwardTransaction]:
     """Parse the synthetic NVDA portfolio."""
     return schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
         FIXTURE
@@ -247,7 +251,7 @@ def mutated(tmp_path: Path, change: Callable[[list[JsonRowType]], None]) -> Path
     return path
 
 
-def parse(path: Path) -> list[schwab_equity_award_json.SchwabTransaction]:
+def parse(path: Path) -> list[SchwabAwardTransaction]:
     """Parse an export, whatever it contains."""
     return schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(path)
 
