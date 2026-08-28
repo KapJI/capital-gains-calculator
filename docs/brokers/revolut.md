@@ -95,11 +95,12 @@ install it and try again. If the error remains, open a
 Do not upload an unredacted account statement: it contains your holdings and other financial
 information.
 
-### `Expected column ... but found ...` or `doesn't have 8 columns`
+### `CSV header mismatch`
 
-Make sure the file is an unchanged CSV account statement rather than a PDF converted to a
-spreadsheet, and that the eight columns are still `Date`, `Ticker`, `Type`, `Quantity`,
-`Price per share`, `Total Amount`, `Currency` and `FX Rate`, in that order.
+The message names the columns that are missing and any it did not expect. Make sure the file is an
+unchanged CSV account statement rather than a PDF converted to a spreadsheet, and that the eight
+columns are still `Date`, `Ticker`, `Type`, `Quantity`, `Price per share`, `Total Amount`,
+`Currency` and `FX Rate`. Their order does not matter, as each row is read by column name.
 
 ### `missing header row`
 

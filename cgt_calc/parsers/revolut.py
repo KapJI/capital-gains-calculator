@@ -6,17 +6,19 @@ import csv
 import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
+from itertools import chain
 import logging
 import re
-from typing import TYPE_CHECKING, Final, Literal, TextIO, overload, override
+from typing import TYPE_CHECKING, ClassVar, Final, Literal, TextIO, overload, override
 
 from cgt_calc.const import TICKER_RENAMES, UK_TIMEZONE
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 
-from .base_parsers import BaseSingleFileParser
+from .base_parsers import StandardCSVParser
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
 
@@ -34,7 +36,7 @@ class RevolutColumn(StrEnum):
 
 
 COLUMNS: Final[list[str]] = [column.value for column in RevolutColumn]
-CSV_COLUMNS_NUM: Final = len(COLUMNS)
+HEADER_LINE: Final = ",".join(COLUMNS) + "\n"
 LOGGER = logging.getLogger(__name__)
 
 
@@ -79,7 +81,7 @@ def _action_from_str(label: str, file: Path) -> ActionType:
 
 @overload
 def _parse_decimal(
-    row: dict[RevolutColumn, str],
+    row: dict[str, str],
     column: RevolutColumn,
     *,
     allow_empty: Literal[True],
@@ -89,7 +91,7 @@ def _parse_decimal(
 
 @overload
 def _parse_decimal(
-    row: dict[RevolutColumn, str],
+    row: dict[str, str],
     column: RevolutColumn,
     *,
     allow_empty: Literal[True],
@@ -99,7 +101,7 @@ def _parse_decimal(
 
 @overload
 def _parse_decimal(
-    row: dict[RevolutColumn, str],
+    row: dict[str, str],
     column: RevolutColumn,
     *,
     allow_empty: Literal[False],
@@ -108,7 +110,7 @@ def _parse_decimal(
 
 
 def _parse_decimal(
-    row: dict[RevolutColumn, str],
+    row: dict[str, str],
     column: RevolutColumn,
     *,
     allow_empty: bool,
@@ -136,16 +138,12 @@ class RevolutTransaction(BrokerTransaction):
 
     def __init__(
         self,
-        row: list[str],
+        row: dict[str, str],
         file: Path,
     ):
-        """Create transaction from CSV row."""
-        if len(row) != CSV_COLUMNS_NUM:
-            raise UnexpectedColumnCountError(row, CSV_COLUMNS_NUM, file)
-
-        row_values: dict[RevolutColumn, str] = {
-            column: row[i] for i, column in enumerate(RevolutColumn)
-        }
+        """Create transaction from a CSV row keyed by column name."""
+        # copied due to in-place removal of currency prefix from some columns
+        row_values = dict(row)
         currency = CurrencyCode(row_values[RevolutColumn.CURRENCY])
         for money_column in (RevolutColumn.PRICE_PER_SHARE, RevolutColumn.TOTAL_AMOUNT):
             if row_values[money_column]:
@@ -195,72 +193,56 @@ class RevolutTransaction(BrokerTransaction):
         )
 
 
-class RevolutParser(BaseSingleFileParser):
+class RevolutParser(StandardCSVParser[RevolutTransaction]):
     """Parser for Revolut format transaction files."""
 
     arg_name = "revolut"
     pretty_name = "Revolut format"
     format_name = "CSV"
 
-    @staticmethod
-    def _validate_header(header: list[str], file: Path) -> None:
-        """Validate optional header row."""
-
-        if len(header) != CSV_COLUMNS_NUM:
-            raise UnexpectedColumnCountError(header, CSV_COLUMNS_NUM, file, row_index=1)
-
-        for index, (exp, act) in enumerate(zip(COLUMNS, header, strict=True), start=1):
-            if exp != act:
-                raise ParsingError(
-                    file,
-                    f"Expected column {index} to be '{exp}' but found '{header[index - 1]}' ('{act}')",
-                    row_index=1,
-                )
+    columns: ClassVar[set[str]] = set(COLUMNS)
 
     @staticmethod
-    def _has_header(first_row: list[str]) -> bool:
-        """Return True if the first row is likely a Revolut header."""
+    def _has_header(line: str) -> bool:
+        """Return True if the first line is likely a Revolut header."""
+        first_row = next(csv.reader([line]), [])
         if not first_row:
             return False
         return all(re.sub("\\s+", "", value).isalpha() for value in first_row)
 
     @classmethod
     @override
-    def read_transactions(
-        cls, file: TextIO, file_path: Path
-    ) -> list[BrokerTransaction]:
-        """Read Revolut transactions from file."""
-        lines = list(csv.reader(file))
+    def pre_reading(cls, file: TextIO, file_path: Path) -> tuple[Iterable[str], int]:
+        """Supply the header row for an export that omits it.
 
-        if not lines:
+        The columns are then assumed to be in the standard order. A supplied
+        header is not part of the file, so it sits before its first line and
+        the rows keep the physical line numbers they have in the export.
+        """
+        lines = iter(file)
+        first_line = next(lines, None)
+        if first_line is None:
             raise ParsingError(file_path, "Revolut CSV file is empty")
+        if cls._has_header(first_line):
+            return chain([first_line], lines), 1
+        LOGGER.warning(
+            "Revolut CSV file %s is missing header row. "
+            "The header is required but will be inferred for now.",
+            file_path,
+        )
+        return chain([HEADER_LINE, first_line], lines), 0
 
-        data_rows = lines
-        start_index = 1
-        if cls._has_header(lines[0]):
-            cls._validate_header(lines[0], file_path)
-            data_rows = lines[1:]
-            start_index = 2
-        else:
-            LOGGER.warning(
-                "Revolut CSV file %s is missing header row. The header is required but will be inferred for now.",
-                file_path,
-            )
-
-        transactions: list[BrokerTransaction] = []
-        for index, row in enumerate(data_rows, start=start_index):
-            try:
-                new = RevolutTransaction(row, file_path)
-            except ParsingError as err:
-                err.add_row_context(index)
-                raise
-            except ValueError as err:
-                raise ParsingError(file_path, str(err), row_index=index) from err
-            if new.action == ActionType.TRANSFER and new.description.startswith(
-                "TRANSFER FROM REVOLUT"
-            ):
-                LOGGER.debug("Skipping row %d: %s", index, new.description)
-            else:
-                transactions.append(new)
-
-        return transactions
+    @classmethod
+    @override
+    def read_row(
+        cls, row: dict[str, str], file_path: Path
+    ) -> RevolutTransaction | None:
+        """Read a single Revolut transaction from a CSV row."""
+        transaction = RevolutTransaction(row, file_path)
+        if (
+            transaction.action == ActionType.TRANSFER
+            and transaction.description.startswith("TRANSFER FROM REVOLUT")
+        ):
+            LOGGER.debug("Skipping %s", transaction.description)
+            return None
+        return transaction
