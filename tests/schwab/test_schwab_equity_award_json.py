@@ -5,8 +5,10 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 import io
+import json
 import logging
 from pathlib import Path
+import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
@@ -14,6 +16,7 @@ import pytest
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers import schwab_equity_award_json
+from tests.utils import build_cmd, report_path, stderr_alerts
 
 if TYPE_CHECKING:
     from cgt_calc.parsers.schwab_equity_award_json import SchwabAwardTransaction
@@ -527,3 +530,625 @@ def test_lot_shares_and_price_helpers() -> None:
         ]
     }
     assert schwab_equity_award_json._lot_price(different_prices, names) is None
+
+
+def test_schwab_json_invalid_json(tmp_path: Path) -> None:
+    """Ensure malformed JSON raises ParsingError."""
+    json_path = tmp_path / "invalid.json"
+    json_path.write_text("{invalid json", encoding="utf-8")
+
+    with pytest.raises(ParsingError, match="Could not parse content as JSON"):
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+
+
+def test_schwab_json_missing_top_level_key(tmp_path: Path) -> None:
+    """Ensure JSON missing expected top-level keys raises ParsingError."""
+    json_path = tmp_path / "missing_keys.json"
+    json_path.write_text(json.dumps({"someOtherKey": []}), encoding="utf-8")
+
+    with pytest.raises(
+        ParsingError,
+        match=r"Expected top level field \(transactions, Transactions\) not found",
+    ):
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+
+
+def test_schwab_json_transactions_not_a_list(tmp_path: Path) -> None:
+    """Ensure non-list Transactions field raises ParsingError."""
+    json_path = tmp_path / "not_a_list.json"
+    json_path.write_text(json.dumps({"Transactions": "not-a-list"}), encoding="utf-8")
+
+    with pytest.raises(ParsingError, match=r"'Transactions' is not a list"):
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+
+
+def test_schwab_json_buy_transaction_fails(tmp_path: Path) -> None:
+    """Ensure loading a json with a buy transaction fails as unsupported (we expect Deposit)."""
+    json_path = tmp_path / "buy_transaction.json"
+    data = {
+        "Transactions": [
+            {
+                "Date": "01/01/2023",
+                "Action": "Buy",
+                "Symbol": "GOOG",
+                "Description": "Bought shares",
+                "Quantity": "10",
+                "Amount": "",
+                "FeesAndCommissions": "",
+                "TransactionDetails": [],
+            }
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(
+        ParsingError, match=r"Parsing for action Buy is not implemented!"
+    ):
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+
+
+def test_schwab_json_unknown_action_fails(tmp_path: Path) -> None:
+    """Ensure unknown actions in JSON raise ParsingError."""
+    json_path = tmp_path / "unknown_action.json"
+    data: dict[str, object] = {
+        "Transactions": [
+            {
+                "Date": "01/01/2023",
+                "Action": "UnknownAction",
+                "Symbol": "GOOG",
+                "Description": "Unknown",
+                "Quantity": "10",
+                "Amount": "$100.00",
+                "FeesAndCommissions": None,
+                "TransactionDetails": [],
+            }
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(ParsingError, match=r"Unknown action: UnknownAction"):
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+
+
+def test_schwab_json_deposit_missing_details_fails(tmp_path: Path) -> None:
+    """Deposit transaction with missing TransactionDetails raises ParsingError."""
+    json_path = tmp_path / "deposit_no_details.json"
+    data: dict[str, object] = {
+        "Transactions": [
+            {
+                "Date": "01/01/2023",
+                "Action": "Deposit",
+                "Symbol": "GOOG",
+                "Description": "RS",
+                "Quantity": "10",
+                "Amount": None,
+                "FeesAndCommissions": "",
+                "TransactionDetails": [],
+            }
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(
+        ParsingError,
+        match=r"Expected a single Transaction Details for a Deposit, but found 0",
+    ):
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+
+
+def test_schwab_json_deposit_multiple_details_fails(tmp_path: Path) -> None:
+    """Deposit transaction with multiple TransactionDetails raises ParsingError."""
+    json_path = tmp_path / "deposit_multi_details.json"
+    detail = {
+        "Details": {
+            "AwardDate": "01/01/2020",
+            "AwardId": "C123",
+            "VestDate": "01/01/2023",
+            "VestFairMarketValue": "$100.00",
+        }
+    }
+    data = {
+        "Transactions": [
+            {
+                "Date": "01/01/2023",
+                "Action": "Deposit",
+                "Symbol": "GOOG",
+                "Description": "RS",
+                "Quantity": "10",
+                "Amount": None,
+                "FeesAndCommissions": None,
+                "TransactionDetails": [detail, detail],
+            }
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(
+        ParsingError,
+        match=r"Expected a single Transaction Details for a Deposit, but found 2",
+    ):
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+
+
+def test_schwab_json_deposit_empty_and_null_amount(tmp_path: Path) -> None:
+    """Deposit transaction amount is calculated when Amount is empty string or null."""
+    json_path = tmp_path / "deposit_empty_amount.json"
+    data = {
+        "Transactions": [
+            {
+                "Date": "01/01/2023",
+                "Action": "Deposit",
+                "Symbol": "GOOG",
+                "Description": "RS",
+                "Quantity": "10",
+                "Amount": "",
+                "FeesAndCommissions": "",
+                "TransactionDetails": [
+                    {
+                        "Details": {
+                            "AwardDate": "01/01/2020",
+                            "AwardId": "C123",
+                            "VestDate": "01/01/2023",
+                            "VestFairMarketValue": "$150.00",
+                        }
+                    }
+                ],
+            },
+            {
+                "Date": "02/01/2023",
+                "Action": "Deposit",
+                "Symbol": "GOOG",
+                "Description": "RS",
+                "Quantity": "5",
+                "Amount": None,
+                "FeesAndCommissions": None,
+                "TransactionDetails": [
+                    {
+                        "Details": {
+                            "AwardDate": "01/01/2020",
+                            "AwardId": "C124",
+                            "VestDate": "02/01/2023",
+                            "VestFairMarketValue": "$200.00",
+                        }
+                    }
+                ],
+            },
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    transactions = (
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+    )
+
+    assert len(transactions) == 2
+    # Note: load_from_file reverses the transactions list
+    assert transactions[0].date == datetime.date(2023, 2, 1)
+    assert transactions[0].amount == Decimal(1000)
+    assert transactions[0].fees == Decimal(0)
+    assert transactions[1].date == datetime.date(2023, 1, 1)
+    assert transactions[1].amount == Decimal(1500)
+    assert transactions[1].fees == Decimal(0)
+
+
+@pytest.mark.parametrize(
+    (
+        "quantity_str",
+        "amount_str",
+        "fees_str",
+        "transac_details",
+        "expected_quantity",
+        "expected_price",
+    ),
+    [
+        pytest.param(
+            "12.549",  # quantity_str
+            "$1,254.40",  # amount_str
+            "$0.50",  # fees_str
+            [{"Details": {"SalePrice": "$100.00"}}],
+            Decimal("12.549"),  # expected_quantity
+            Decimal(100),  # expected_price
+            id="non_integer_quantity",
+        ),
+        pytest.param(
+            "12",  # quantity_str
+            "$1,254.40",  # amount_str
+            "$0.50",  # fees_str
+            [
+                {"Details": {"Shares": "3.549", "SalePrice": "$100.00"}},
+                {"Details": {"Shares": "9", "SalePrice": "$100.00"}},
+            ],
+            Decimal("12.549"),  # expected_quantity
+            Decimal(100),  # expected_price
+            id="integer_quantity_with_fractional_subtransaction_shares",
+        ),
+        pytest.param(
+            "12",  # quantity_str
+            "$1,200.00",  # amount_str
+            "",  # fees_str
+            [
+                {"Details": {"Shares": "3", "SalePrice": "$100.00"}},
+                {"Details": {"Shares": "9", "SalePrice": "$100.00"}},
+            ],
+            Decimal(12),  # expected_quantity
+            Decimal(100),  # expected_price
+            id="integer_quantity_with_integer_subtransaction_shares_exact",
+        ),
+        pytest.param(
+            "12",  # quantity_str
+            "$1,254.90",  # amount_str
+            "",  # fees_str
+            [
+                {"Details": {"Shares": "3", "SalePrice": "$100.00"}},
+                {"Details": {"Shares": "9", "SalePrice": "$100.00"}},
+            ],
+            Decimal("12.549"),  # expected_quantity
+            Decimal(100),  # expected_price
+            id="integer_quantity_with_integer_subtransaction_shares_truncated",
+        ),
+        pytest.param(
+            "10",  # quantity_str
+            "$1,000.00",  # amount_str
+            "",  # fees_str
+            [{"Details": {"SalePrice": "$100.00"}}],
+            Decimal(10),  # expected_quantity
+            Decimal(100),  # expected_price
+            id="integer_quantity_without_subtransaction_shares_exact",
+        ),
+        pytest.param(
+            "10",  # quantity_str
+            "$1,054.90",  # amount_str
+            "",  # fees_str
+            [{"Details": {"SalePrice": "$100.00"}}],
+            Decimal("10.549"),  # expected_quantity
+            Decimal(100),  # expected_price
+            id="integer_quantity_without_subtransaction_shares_truncated",
+        ),
+    ],
+)
+def test_schwab_json_sale_variations(
+    tmp_path: Path,
+    quantity_str: str,
+    amount_str: str,
+    fees_str: str,
+    transac_details: list[dict[str, object]],
+    expected_quantity: Decimal,
+    expected_price: Decimal,
+) -> None:
+    """Test Sale parsing variations across integer/non-integer quantities and subtransaction shares."""
+    json_path = tmp_path / "sale_variation.json"
+    data: dict[str, object] = {
+        "Transactions": [
+            {
+                "Date": "08/31/2023",
+                "Action": "Sale",
+                "Symbol": "GOOG",
+                "Quantity": quantity_str,
+                "Description": "Share Sale",
+                "FeesAndCommissions": fees_str,
+                "Amount": amount_str,
+                "TransactionDetails": transac_details,
+            }
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    transactions = (
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+    )
+
+    assert len(transactions) == 1
+    assert transactions[0].action == ActionType.SELL
+    assert transactions[0].symbol == "GOOG"
+    assert transactions[0].quantity == expected_quantity
+    assert transactions[0].price == expected_price
+
+
+def test_schwab_json_sale_missing_details_fails(tmp_path: Path) -> None:
+    """Sale transaction with missing TransactionDetails raises ParsingError."""
+    json_path = tmp_path / "sale_no_details.json"
+    data: dict[str, object] = {
+        "Transactions": [
+            {
+                "Date": "08/31/2023",
+                "Action": "Sale",
+                "Symbol": "GOOG",
+                "Description": "Share Sale",
+                "Quantity": "10",
+                "Amount": "$1,000.00",
+                "FeesAndCommissions": "",
+                "TransactionDetails": [],
+            }
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(ParsingError, match=r"Expected transaction details for Sale"):
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+
+
+def test_schwab_json_deposit_empty_vest_price_raises(tmp_path: Path) -> None:
+    """Deposit with empty amount and empty VestFairMarketValue raises ParsingError."""
+    json_path = tmp_path / "deposit_empty_price.json"
+    data = {
+        "Transactions": [
+            {
+                "Date": "01/01/2023",
+                "Action": "Deposit",
+                "Symbol": "GOOG",
+                "Description": "RS",
+                "Quantity": "10",
+                "Amount": "",
+                "FeesAndCommissions": "",
+                "TransactionDetails": [
+                    {
+                        "Details": {
+                            "AwardDate": "01/01/2020",
+                            "AwardId": "C123",
+                            "VestDate": "01/01/2023",
+                            "VestFairMarketValue": "",
+                        }
+                    }
+                ],
+            }
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(
+        ParsingError,
+        match=r"Missing or empty VestFairMarketValue for Deposit on 2023-01-01",
+    ):
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+
+
+def test_schwab_json_sale_differing_subtransac_prices_fails(
+    tmp_path: Path,
+) -> None:
+    """Sale with differing sub-transaction prices raises ParsingError."""
+    json_path = tmp_path / "sale_differing_prices.json"
+    data = {
+        "Transactions": [
+            {
+                "Date": "08/31/2023",
+                "Action": "Sale",
+                "Symbol": "GOOG",
+                "Quantity": "20",
+                "Description": "Share Sale",
+                "FeesAndCommissions": "$0.02",
+                "Amount": "$2,000.00",
+                "TransactionDetails": [
+                    {
+                        "Details": {
+                            "SalePrice": "$100.00",
+                        }
+                    },
+                    {
+                        "Details": {
+                            "SalePrice": "$105.00",
+                        }
+                    },
+                ],
+            }
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(ParsingError, match=r"Impossible to work out quantity of sale"):
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+
+
+@pytest.mark.parametrize(
+    ("qty", "saleprice", "fees_and_commissions", "amount", "expected_fees"),
+    [
+        ("10", "$100.00", "", "$1,000.00", Decimal(0)),
+        ("10", "$100.00", None, "$1,000.00", Decimal(0)),
+        ("10", "$100.00", "$1.50", "$998.50", Decimal("1.50")),
+    ],
+)
+def test_schwab_json_sale_fees_variations(
+    tmp_path: Path,
+    qty: str,
+    saleprice: str,
+    fees_and_commissions: str | None,
+    amount: str,
+    expected_fees: Decimal,
+) -> None:
+    """Test sale parsing with empty string, null, and populated fees."""
+    json_path = tmp_path / "sale_fees.json"
+    data = {
+        "Transactions": [
+            {
+                "Date": "08/31/2023",
+                "Action": "Sale",
+                "Symbol": "GOOG",
+                "Quantity": qty,
+                "Description": "Share Sale",
+                "FeesAndCommissions": fees_and_commissions,
+                "Amount": amount,
+                "TransactionDetails": [
+                    {
+                        "Details": {
+                            "SalePrice": saleprice,
+                        }
+                    }
+                ],
+            }
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    transactions = (
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+    )
+
+    assert len(transactions) == 1
+    assert transactions[0].action == ActionType.SELL
+    assert transactions[0].fees == expected_fees
+
+
+def test_schwab_json_dividend_empty_amount_fails(tmp_path: Path) -> None:
+    """Dividend transaction with empty Amount raises ParsingError."""
+    json_path = tmp_path / "dividend_empty_amount.json"
+    data = {
+        "Transactions": [
+            {
+                "Date": "06/17/2024",
+                "Action": "Dividend",
+                "Symbol": "GOOG",
+                "Description": "Credit",
+                "FeesAndCommissions": "",
+                "Amount": "",
+                "TransactionDetails": [],
+            }
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(
+        ParsingError,
+        match=r"Missing or empty Amount for Dividend on 2024-06-17",
+    ):
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+
+
+def test_schwab_json_skipped_actions(tmp_path: Path) -> None:
+    """Journal and Wire Transfer transactions are skipped during parsing."""
+    json_path = tmp_path / "skipped_actions.json"
+    data = {
+        "Transactions": [
+            {
+                "Date": "09/01/2023",
+                "Action": "Journal",
+                "Symbol": "GOOG",
+                "Quantity": None,
+                "Description": "Journal To Account",
+                "FeesAndCommissions": "",
+                "Amount": "-$1,000.00",
+                "TransactionDetails": [],
+            },
+            {
+                "Date": "09/02/2023",
+                "Action": "Wire Transfer",
+                "Symbol": "GOOG",
+                "Quantity": None,
+                "Description": "Wire Transfer",
+                "FeesAndCommissions": None,
+                "Amount": "-$500.00",
+                "TransactionDetails": [],
+            },
+            {
+                "Date": "09/25/2023",
+                "Action": "Deposit",
+                "Symbol": "GOOG",
+                "Quantity": "10",
+                "Description": "RS",
+                "FeesAndCommissions": "",
+                "Amount": None,
+                "TransactionDetails": [
+                    {
+                        "Details": {
+                            "AwardDate": "01/01/2020",
+                            "AwardId": "C123",
+                            "VestDate": "09/25/2023",
+                            "VestFairMarketValue": "$130.00",
+                        }
+                    }
+                ],
+            },
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    transactions = (
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+    )
+
+    assert len(transactions) == 1
+    assert transactions[0].action == ActionType.STOCK_ACTIVITY
+
+
+def test_schwab_json_v1_empty_fees(tmp_path: Path) -> None:
+    """Test schema v1 with empty string and null fees."""
+    json_path = tmp_path / "v1_empty_fees.json"
+    data = {
+        "transactions": [
+            {
+                "eventDate": "06/14/2022",
+                "action": "Sale",
+                "symbol": "GOOG",
+                "quantity": "10",
+                "description": "Sale",
+                "totalCommissionsAndFees": "",
+                "amount": "$1,000.00",
+                "transactionDetails": [
+                    {
+                        "salePrice": "$100.00",
+                    }
+                ],
+            }
+        ]
+    }
+    json_path.write_text(json.dumps(data), encoding="utf-8")
+
+    transactions = (
+        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
+            json_path
+        )
+    )
+
+    assert len(transactions) == 1
+    assert transactions[0].fees == Decimal(0)
+    assert transactions[0].action == ActionType.SELL
+
+
+def test_run_with_schwab_equity_award_json(request: pytest.FixtureRequest) -> None:
+    """Run cgt-calc end-to-end with schwab-equity-award-json file."""
+    cmd = build_cmd(
+        "--year",
+        "2023",
+        "--schwab-equity-award-json",
+        "tests/schwab/data/equity_award/schwab_equity_award_v2.json",
+        "--output",
+        report_path(request),
+    )
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode:
+        pytest.fail(
+            "Integration test failed\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
+    assert "Disposal proceeds:  £1,541.02" in result.stdout
+    assert "Gain:                  £44.69" in result.stdout
