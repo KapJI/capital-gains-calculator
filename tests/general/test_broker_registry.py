@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import csv
 import datetime
 from decimal import Decimal
+import io
 import logging
 from typing import TYPE_CHECKING
+
+import pytest
 
 from cgt_calc.args_parser import create_parser
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
@@ -16,8 +20,6 @@ from cgt_calc.parsers.vanguard import VanguardTransaction
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 
 def _vanguard_warning(caplog: pytest.LogCaptureFixture) -> str:
@@ -31,13 +33,14 @@ def _vanguard_warning(caplog: pytest.LogCaptureFixture) -> str:
     return warnings[0]
 
 
-def _write_vanguard_csv(tmp_path: Path) -> Path:
+def _write_vanguard_csv(tmp_path: Path, fund_name: str = "Foo Fund") -> Path:
     """Write a one-row Vanguard cash table whose symbol is a fund name."""
     vanguard_file = tmp_path / "vanguard.csv"
-    vanguard_file.write_text(
-        "Date,Details,Amount,Balance\n09/03/2022,Bought 10 Foo Fund,-100.00,0\n",
-        encoding="utf-8",
-    )
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["Date", "Details", "Amount", "Balance"])
+    writer.writerow(["09/03/2022", f"Bought 10 {fund_name}", "-100.00", "0"])
+    vanguard_file.write_text(buffer.getvalue(), encoding="utf-8")
     return vanguard_file
 
 
@@ -76,6 +79,32 @@ def test_load_all_transactions_from_raw_file(
         "2022-11-14",
         "2023-02-09",
     ]
+
+
+@pytest.mark.parametrize(
+    "fund_name",
+    ["Foo Fund", "World ex-U.K. Equity Index Fund, Acc", 'Fund "A" Shares'],
+)
+def test_vanguard_warning_lists_symbols_as_usable_csv_fields(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, fund_name: str
+) -> None:
+    """List each symbol as text that can be pasted into the cache verbatim."""
+    vanguard_file = _write_vanguard_csv(tmp_path, fund_name)
+    args = create_parser().parse_args(
+        ["--year", "2023", "--vanguard-file", str(vanguard_file)]
+    )
+
+    with caplog.at_level(logging.WARNING):
+        BrokerRegistry.load_all_transactions(
+            args, IsinConverter(isin_translation_file=tmp_path / "isin.csv")
+        )
+
+    warning = _vanguard_warning(caplog)
+    listed = warning.split("was found for: ")[1].split(". cgt-calc")[0]
+    # The user copies this into the cache, so reading it back as CSV has to
+    # return the symbol unchanged: a bare name that a comma would split, or
+    # a quote kept as part of the symbol, would never match.
+    assert next(csv.reader([f"IE00B50MZ724,{listed}"])) == ["IE00B50MZ724", fund_name]
 
 
 def test_vanguard_symbol_without_isin_mapping_warns(
