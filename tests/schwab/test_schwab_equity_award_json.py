@@ -7,12 +7,16 @@ from decimal import Decimal
 import io
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers import schwab_equity_award_json
+
+if TYPE_CHECKING:
+    from cgt_calc.parsers.schwab_equity_award_json import SchwabAwardTransaction
 
 # ruff: noqa: SLF001 "Private member accessed"
 
@@ -306,7 +310,7 @@ def test_action_from_str_unknown() -> None:
 
 def _read_json(
     content: str,
-) -> list[schwab_equity_award_json.SchwabTransaction]:
+) -> list[SchwabAwardTransaction]:
     """Parse Schwab equity award JSON from a string."""
     parser = schwab_equity_award_json.SchwabEquityAwardsJSONParser
     return parser.read_transactions(io.StringIO(content), Path("awards.json"))

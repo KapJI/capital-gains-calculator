@@ -148,6 +148,7 @@ SA106
 SalePrice
 Schwab
 Schwab's
+SchwabAwardTransaction
 SchwabTransaction
 Sharesight
 Sharesight's
