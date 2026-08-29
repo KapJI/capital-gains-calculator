@@ -1515,10 +1515,15 @@ class CapitalGainsCalculator:
                 )
             )
         self.rename_list[transaction.date][old_symbol] = new_symbol
-        self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
-        # The units keep the accounts that put them there; only the name changes.
+        position = self.portfolio.pop(old_symbol, Position())
+        self.portfolio[new_symbol] += position
+        # The units keep the accounts that put them there; only the name
+        # changes. A rename that moves no units carries no accounts with it:
+        # its sources are dropped rather than mixed into a destination whose
+        # own units never came from them, and which may hold too much for the
+        # day-boundary sweep to ever clear them.
         moved = self.holding_sources.pop(old_symbol, set())
-        if moved:
+        if moved and position.quantity != 0:
             self.holding_sources[new_symbol] |= moved
 
     def add_management_fee(self, transaction: BrokerTransaction) -> Decimal:

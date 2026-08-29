@@ -1437,6 +1437,28 @@ def test_a_sold_out_holding_renamed_the_same_day_frees_its_sources() -> None:
     assert calculator.portfolio["NEW"].amount == Decimal(80)
 
 
+def test_a_rename_that_moves_no_units_carries_no_accounts() -> None:
+    """An empty holding renamed onto a live one must not taint it.
+
+    The old name was bought and sold out at other accounts before the
+    rename, so the rename moves nothing, and the destination's units all
+    came from the account whose split row later states their change. The
+    day-boundary sweep cannot clean the destination, because it holds real
+    units, so the stale accounts must never arrive there at all.
+    """
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10", source=elsewhere(0)),
+            trade(POOL_DAY, ActionType.BUY, "NEW", "4", "20"),
+            trade(RENAME_DAY, ActionType.SELL, "OLD", "10", "12", source=elsewhere(1)),
+            rename(RENAME_DAY, "OLD", "NEW"),
+            legacy_split(LATER_DAY, "NEW", "4"),
+        ]
+    )
+    assert calculator.portfolio["NEW"].quantity == Decimal(8)
+    assert calculator.portfolio["NEW"].amount == Decimal(80)
+
+
 def test_a_rename_carries_the_accounts_over_with_the_units() -> None:
     """Only the name changes, so the units keep the accounts that put them there.
 
