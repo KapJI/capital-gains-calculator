@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 import logging
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -187,6 +188,33 @@ def test_csv_named_subdirectory_is_refused(tmp_path: Path) -> None:
     assert "Remove or move it" in message
 
 
+@pytest.mark.skipif(
+    os.name == "nt" or os.geteuid() == 0,
+    reason="permission bits are POSIX only and root ignores them",
+)
+def test_unreadable_csv_in_directory_is_refused(tmp_path: Path) -> None:
+    """A file the current user cannot open gets a ParsingError, not a crash.
+
+    The directory-named-*.csv case above is one way opening a directory
+    entry can fail; a permission-denied file is another. Both must raise
+    ParsingError rather than let the underlying OSError escape.
+    """
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    locked = directory / "locked.csv"
+    locked.write_text(HEADER + OLDER)
+    locked.chmod(0o000)
+    try:
+        with pytest.raises(ParsingError) as exc_info:
+            _load(schwab_dir=str(directory))
+    finally:
+        locked.chmod(0o644)
+
+    message = str(exc_info.value)
+    assert "locked.csv" in message
+    assert "Remove or move it" in message
+
+
 def test_awards_csv_in_directory_points_to_award_flag(tmp_path: Path) -> None:
     """An award-shaped CSV explains where it belongs."""
     directory = tmp_path / "schwab"
@@ -217,6 +245,21 @@ def test_foreign_csv_in_directory_says_to_remove_it(tmp_path: Path) -> None:
     message = str(exc_info.value)
     assert "freetrade.csv" in message
     assert "every *.csv" in message.lower()
+    assert "remove or move this file" in message
+
+
+def test_empty_csv_in_directory_says_to_remove_it(tmp_path: Path) -> None:
+    """A zero-byte stray CSV gets the same directory guidance as a bad header."""
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "empty.csv").write_text("")
+
+    with pytest.raises(ParsingError) as exc_info:
+        _load(schwab_dir=str(directory))
+
+    message = str(exc_info.value)
+    assert "empty.csv" in message
+    assert "is empty" in message
     assert "remove or move this file" in message
 
 
@@ -419,6 +462,31 @@ def test_load_from_args_refuses_file_and_dir_without_argparse(
 
     with pytest.raises(CgtError, match="cannot be used together"):
         _load(schwab_file=str(whole), schwab_dir=str(directory))
+
+
+def test_both_flags_are_refused_before_the_award_file_is_read(
+    tmp_path: Path,
+) -> None:
+    """The flag conflict is reported even when the award file is broken too.
+
+    load_from_args used to read --schwab-award-file before checking the
+    flags, so a bad award file masked the real problem: fix the argument
+    error before doing any I/O on the arguments.
+    """
+    whole = tmp_path / "whole.csv"
+    whole.write_text(HEADER + NEWER)
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "transactions.csv").write_text(HEADER + OLDER)
+    bad_award_file = tmp_path / "bad-award.csv"
+    bad_award_file.write_text("")  # would itself raise "CSV file is empty"
+
+    with pytest.raises(CgtError, match="cannot be used together"):
+        _load(
+            schwab_file=str(whole),
+            schwab_dir=str(directory),
+            schwab_award_file=str(bad_award_file),
+        )
 
 
 def test_directory_load_honours_the_file_path_filter(

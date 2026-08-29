@@ -80,6 +80,7 @@ GOOGL
 GSU
 HL
 Hmrc
+I/O
 IBKR
 IBKR's
 idx
@@ -88,6 +89,7 @@ InvalidTransactionError
 Invesco
 InvestmentName
 iShares
+IsADirectoryError
 ISIN
 IsinConverter
 ISINs
@@ -117,6 +119,7 @@ NVDA
 NVIDIA
 OCI
 OPRA
+OSError
 OTGLY
 ParsingError
 pdf
@@ -124,6 +127,7 @@ pdflatex
 pipx
 Plc
 png
+PermissionError
 Podman
 prek
 presplit

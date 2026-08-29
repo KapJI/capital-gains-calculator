@@ -877,17 +877,18 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
     @override
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
         """Load broker data from parsed arguments."""
-        award_path = args.schwab_award_file
-        cls.awards_prices = _read_schwab_awards(award_path)
         if args.schwab_dir and args.schwab_file:
             # main() rejects this through argparse, for the usage message and
             # exit code 2. Repeated here because this is the layer that knows
             # both flags: taking the directory branch silently would drop
-            # every transaction in the file.
+            # every transaction in the file. Checked before any I/O so a bad
+            # award file can't mask the real problem.
             raise CgtError(
                 "--schwab-file and --schwab-dir cannot be used together. Pass "
                 "the directory holding every export, or the single file."
             )
+        award_path = args.schwab_award_file
+        cls.awards_prices = _read_schwab_awards(award_path)
         if args.schwab_dir:
             # list is invariant, so widen explicitly rather than return list[T].
             transactions: list[BrokerTransaction] = list(
@@ -930,15 +931,25 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
         for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False)):
             if not cls.file_path_filter(file_path):
                 continue
-            if not file_path.is_file():
+            try:
+                with file_path.open(encoding=cls.encoding) as file:
+                    parsing_msg(file_path)
+                    rows = cls._read_rows(file, file_path, from_directory=True)
+            except OSError as exc:
+                # Branch on what the path is, not on the exception type:
+                # opening a directory raises IsADirectoryError on POSIX but
+                # PermissionError on Windows.
+                if file_path.is_dir():
+                    raise ParsingError(
+                        file_path,
+                        "is not a regular file. Remove or move it out of the "
+                        "Schwab directory.",
+                    ) from exc
                 raise ParsingError(
                     file_path,
-                    "is not a regular file. Remove or move it out of the Schwab "
-                    "directory.",
-                )
-            with file_path.open(encoding=cls.encoding) as file:
-                parsing_msg(file_path)
-                rows = cls._read_rows(file, file_path, from_directory=True)
+                    f"could not be read ({exc.strerror or exc}). Remove or move "
+                    "it out of the Schwab directory.",
+                ) from exc
             if rows:
                 exports.append(_Export(rows=rows, file_path=file_path))
 
@@ -985,6 +996,14 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
         return cls.post_process_transactions(transactions)
 
     @classmethod
+    def _directory_help(cls, file_path: Path) -> str:
+        return (
+            f" Every {cls.glob_dir} in the directory is parsed as Schwab "
+            f"transaction history; remove or move this file ({file_path.name}) "
+            "out of the directory."
+        )
+
+    @classmethod
     def _read_rows(
         cls, file: TextIO, file_path: Path, *, from_directory: bool = False
     ) -> list[SchwabTransaction]:
@@ -995,20 +1014,17 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
         """
         lines = list(csv.reader(file))
         if not lines:
-            raise ParsingError(
-                file_path, "Charles Schwab transactions CSV file is empty"
-            )
+            message = "Charles Schwab transactions CSV file is empty."
+            if from_directory:
+                message += cls._directory_help(file_path)
+            raise ParsingError(file_path, message)
         header = lines[0]
 
         required_headers = {column.value for column in RequiredTransactionsColumn}
         if not required_headers.issubset(header):
             directory_help = ""
             if from_directory:
-                directory_help = (
-                    f" Every *.csv in the directory is parsed as Schwab transaction "
-                    f"history; remove or move this file ({file_path.name}) out of the "
-                    "directory."
-                )
+                directory_help = cls._directory_help(file_path)
                 award_headers = {column.value for column in RequiredAwardColumn}
                 if award_headers.issubset(header):
                     directory_help += " Pass it with --schwab-award-file instead."

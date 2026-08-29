@@ -285,8 +285,16 @@ Make sure `--schwab-file` points to the main transaction-history CSV and `--schw
 points to the supported award-price CSV. A positions export, realised gain/loss report, statement,
 JSON file or spreadsheet converted from PDF has a different layout.
 
+With `--schwab-dir`, this error names the offending file: take it out of the directory (or, if it is
+the Equity Awards CSV, pass it with `--schwab-award-file` instead).
+
 If you combined several history ranges, confirm that there is one header, every data row has the
 same number of fields, and none of the source files used a different export format.
+
+### `is not a regular file` or `could not be read`
+
+With `--schwab-dir`, every entry matching `*.csv` must be a plain, readable file. Remove or move out
+a subdirectory, broken symlink, or file the current user lacks permission to read.
 
 ### `Unknown action`
 
