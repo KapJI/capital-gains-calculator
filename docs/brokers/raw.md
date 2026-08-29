@@ -251,11 +251,11 @@ A RAW `STOCK_SPLIT` row is the answer to that refusal, and you do not have to ed
 to use it: where a date has both, the RAW row states the change to the whole holding, so cgt-calc
 uses it and ignores the broker's own row for the same event.
 
-Which accounts a holding is built from is remembered until the whole pooled holding reaches zero. So
-after one account sells all of its units, a single-row split reported by the other is still refused
-while the pool holds anything bought in the first: cgt-calc does not track which account each
-remaining unit came from, so it will not assume they are all at the reporting one. The RAW row above
-is the answer there too.
+Which accounts a holding is built from is remembered until a day closes with the whole pooled
+holding at zero. So after one account sells all of its units, a single-row split reported by the
+other is still refused while the pool holds anything bought in the first: cgt-calc does not track
+which account each remaining unit came from, so it will not assume they are all at the reporting
+one. The RAW row above is the answer there too.
 
 ## Transfers to a spouse or civil partner
 

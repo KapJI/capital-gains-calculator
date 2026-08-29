@@ -322,9 +322,9 @@ class CapitalGainsCalculator:
         # so it may only be read as a change to the whole pool when the whole
         # pool came from that one source. Only rows that add units count: a
         # sale or a hand-written gift takes units out of the pool and supplies
-        # none, and a source is forgotten again once the holding empties, so
-        # that a ticker traded at one broker years ago cannot veto a
-        # reorganisation of a pool rebuilt entirely at another.
+        # none, and the sources are forgotten again once a day closes with
+        # the holding empty, so that a ticker traded at one broker years ago
+        # cannot veto a reorganisation of a pool rebuilt entirely at another.
         self.holding_sources: dict[str, set[str]] = defaultdict(set)
         # Stores old->new mapping when a symbol changes its name.
         self.rename_list: dict[datetime.date, dict[str, str]] = defaultdict(dict)
@@ -497,17 +497,19 @@ class CapitalGainsCalculator:
         return normalize_amount(position.amount * quantity / position.quantity)
 
     def _drop_empty_holding(self, symbol: str) -> None:
-        """Forget a holding that has just run out, and where it came from.
+        """Drop a holding whose running count has just reached zero.
 
-        A reorganisation stated as one account's own change is checked against
-        the accounts that put the units now in the pool there. A holding sold,
-        given or transferred down to nothing keeps none of them, so a ticker
-        held at one broker and later rebuilt at another is a single-source
-        holding again rather than one both accounts are recorded against.
+        Which accounts the units came from is deliberately not forgotten
+        here. The merged stream's order within a day is not chronology:
+        Trading 212 sorts equal-instant sells ahead of buys, so a running
+        count can touch zero on a day the holding never emptied, and
+        forgetting the other accounts then lets one account's later split
+        row restate a pool that still holds their units. The sources are
+        cleared when a day closes with nothing held, in
+        ``_open_transaction_day``.
         """
         if self.portfolio[symbol].quantity == 0:
             del self.portfolio[symbol]
-            self.holding_sources.pop(symbol, None)
 
     def _pooled_quantity(self, transaction: BrokerTransaction) -> Decimal:
         """Return the count to pool, in the units in force at the day's end."""
@@ -1598,6 +1600,13 @@ class CapitalGainsCalculator:
         """Plan the day's reorganisations, and note where units came from."""
         if transaction.date not in planned:
             planned.add(transaction.date)
+            # Every earlier day has closed, so a holding absent from the
+            # portfolio now is one that really emptied rather than one whose
+            # running count touched zero between a same-day sale and buy.
+            for symbol in [
+                held for held in self.holding_sources if held not in self.portfolio
+            ]:
+                del self.holding_sources[symbol]
             self.plan_stock_splits(transaction.date, days[transaction.date])
         if quantity_sign(transaction.action) > 0 and transaction.symbol:
             self.holding_sources[transaction.symbol].add(source_account(transaction))

@@ -1370,6 +1370,51 @@ def test_an_account_sold_out_of_is_no_longer_a_source() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(80)
 
 
+def test_a_running_count_touching_zero_within_a_day_forgets_nothing() -> None:
+    """A same-day sell processed ahead of a buy is not the holding emptying.
+
+    Trading 212 sorts equal-instant sells ahead of buys, so account B's sale
+    of ten arrives before its purchase of fifteen and the running count
+    touches zero while account A's ten units are still in the pool all day.
+    Forgetting A there let B's later single-row split, its own five shares
+    doubling, restate the whole fifteen by a 4/3 ratio that was never the
+    corporate one.
+    """
+    with pytest.raises(CalculationError, match="also has units from"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10", source=elsewhere(0)),
+                trade(EVENT_DAY, ActionType.SELL, "FOO", "10", "12"),
+                trade(EVENT_DAY, ActionType.BUY, "FOO", "15", "12"),
+                legacy_split(LATER_DAY, "FOO", "5"),
+            ]
+        )
+
+
+def test_a_holding_that_closes_a_day_empty_clears_its_sources() -> None:
+    """Emptied at the day's end, not merely mid-day, the accounts are gone.
+
+    The mirror of the test above: the same sale and purchase a day apart
+    really do empty the holding overnight, so the pool the purchase rebuilds
+    is the buying account's alone and its own split row states the change.
+    """
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10", source=elsewhere(0)),
+            trade(EVENT_DAY, ActionType.SELL, "FOO", "10", "12"),
+            trade(
+                EVENT_DAY + datetime.timedelta(days=1),
+                ActionType.BUY,
+                "FOO",
+                "15",
+                "12",
+            ),
+            legacy_split(LATER_DAY, "FOO", "15"),
+        ]
+    )
+    assert calculator.portfolio["FOO"].quantity == Decimal(30)
+
+
 def test_a_rename_carries_the_accounts_over_with_the_units() -> None:
     """Only the name changes, so the units keep the accounts that put them there.
 
