@@ -1265,10 +1265,13 @@ calc_basic_data = [
                 ],
             },
             datetime.date(day=15, month=5, year=2023): {
-                "buy$FOO": [
+                # A reorganisation, not a free acquisition: nothing is bought
+                # or sold, the pool cost is untouched, and only the number of
+                # units it is spread over changes (TCGA 1992 s127).
+                "split$FOO": [
                     CalculationEntry(
-                        RuleType.SECTION_104,
-                        quantity=Decimal(10),
+                        RuleType.STOCK_SPLIT,
+                        quantity=Decimal(0),
                         amount=Decimal(0),
                         allowable_cost=Decimal(0),
                         new_quantity=Decimal(20),
@@ -1379,10 +1382,13 @@ calc_basic_data = [
                 ],
             },
             datetime.date(day=15, month=5, year=2023): {
-                "buy$FOO": [
+                # A reorganisation, not a free acquisition: nothing is bought
+                # or sold, the pool cost is untouched, and only the number of
+                # units it is spread over changes (TCGA 1992 s127).
+                "split$FOO": [
                     CalculationEntry(
-                        RuleType.SECTION_104,
-                        quantity=Decimal(10),
+                        RuleType.STOCK_SPLIT,
+                        quantity=Decimal(0),
                         amount=Decimal(0),
                         allowable_cost=Decimal(0),
                         new_quantity=Decimal(20),

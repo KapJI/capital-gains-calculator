@@ -7,9 +7,10 @@ from collections import Counter, defaultdict
 import datetime
 import decimal
 from decimal import Decimal
+from fractions import Fraction
 import logging
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from colorama import Fore, Style
 
@@ -79,14 +80,80 @@ from .model import (
     SpinOff,
 )
 from .parsers.broker_registry import BrokerRegistry
+from .parsers.raw import RawTransaction
 from .spin_off_handler import SpinOffHandler
+from .stock_splits import (
+    SplitMode,
+    SplitTransformation,
+    StockSplitDetail,
+    StockSplitEvent,
+    StockSplitTransaction,
+    UnresolvedRatio,
+    quantity_sign,
+    scale_quantity,
+    unscale_quantity,
+)
 from .transaction_log import add_to_list, has_key
 from .util import approx_equal, normalize_amount, round_decimal, strip_zeros
 
 if TYPE_CHECKING:
     import argparse
 
+    from .model import TransactionSource
+
 LOGGER = logging.getLogger(__name__)
+
+
+def source_account(transaction: BrokerTransaction) -> str:
+    """Return the declared account boundary this transaction was loaded under.
+
+    Every parser records one, so a transaction without provenance is
+    hand-built. Those fall back to the broker name, which groups them, and
+    the safe reading of that is a boundary shared by everything from that
+    broker rather than a boundary of its own.
+    """
+    if transaction.source is not None and transaction.source.account is not None:
+        return transaction.source.account
+    return f"{transaction.broker} (source unrecorded)"
+
+
+def relative_to_split(
+    instants: tuple[datetime.datetime, ...],
+    split_source: TransactionSource | None,
+    other_source: TransactionSource | None,
+) -> Literal["before", "after"] | None:
+    """Say whether a row happened before or after a reorganisation.
+
+    An exported instant settles it wherever both rows carry one. Failing
+    that, the only other evidence is a source that documents its same-date
+    rows as being in the order they happened, which a hand-written RAW
+    history does and a broker export does not. Nothing else will do: several
+    parsers reorder their rows for the calculation's sake, and the registry's
+    stable ordering and its action priorities for gifts, spouse transfers and
+    vests are calculation plumbing rather than evidence of corporate-action
+    chronology. Returns None when it cannot be told.
+    """
+    if instants and other_source is not None and other_source.timestamp is not None:
+        if other_source.timestamp < min(instants):
+            return "before"
+        if other_source.timestamp > max(instants):
+            return "after"
+        # At or between the two halves of the reorganisation, where neither
+        # unit system can be proved.
+        return None
+    if (
+        split_source is not None
+        and other_source is not None
+        and split_source.rows_in_time_order
+        and other_source.rows_in_time_order
+        and split_source.account is not None
+        and split_source.index is not None
+        and other_source.index is not None
+        and (split_source.parser, split_source.account, split_source.file)
+        == (other_source.parser, other_source.account, other_source.file)
+    ):
+        return "before" if other_source.index < split_source.index else "after"
+    return None
 
 
 def get_amount_or_fail(transaction: BrokerTransaction) -> Decimal:
@@ -236,15 +303,25 @@ class CapitalGainsCalculator:
         # disposal_list so they never enter the taxable disposal totals.
         self.transfer_to_spouse_list: HmrcTransactionLog = {}
         self.bnb_list: HmrcTransactionLog = {}
-        self.split_list: dict[tuple[str, datetime.date], Decimal] = {}
-        # Shares a split added, by symbol and date. They sit in
-        # acquisition_list so they reach the pool, but they cost nothing and
-        # are not an acquisition a disposal can be identified against
-        # (TCGA 1992 s127), so they have to stay distinguishable from a real
-        # purchase made the same day.
-        self.split_shares: dict[tuple[str, datetime.date], Decimal] = defaultdict(
-            Decimal
+        # What each share reorganisation does to a holding, by date and
+        # symbol. Decided once from the chronological source view and
+        # replayed by both passes: deciding again in the second pass is how
+        # one pass ends up substituting the broker's count while the other
+        # scales by the ratio.
+        self.splits: dict[datetime.date, dict[str, SplitTransformation]] = defaultdict(
+            dict
         )
+        # What a decrease may still take, on a day a reorganisation restated
+        # a holding. The recorded replay puts the day's increases and its
+        # reconciliation before its decreases, and this pass meets them
+        # interleaved, so its running count dips below what the day really
+        # holds on one side or the other of the correction.
+        self.split_day_capacity: dict[tuple[str, datetime.date], Decimal] = {}
+        # Which declared account boundaries have contributed units to each
+        # holding. A broker's own single-row split states a change to its own
+        # account, so it may only be read as a change to the whole pool when
+        # the whole pool came from that one source.
+        self.holding_sources: dict[str, set[str]] = defaultdict(set)
         # Stores old->new mapping when a symbol changes its name.
         self.rename_list: dict[datetime.date, dict[str, str]] = defaultdict(dict)
 
@@ -321,7 +398,13 @@ class CapitalGainsCalculator:
         self,
         transaction: BrokerTransaction,
     ) -> None:
-        """Record an acquisition in the portfolio and the acquisition list."""
+        """Record an acquisition in the portfolio and the acquisition list.
+
+        Every figure in money comes from the row's own quantity and price. A
+        row that a later reorganisation on the same day has restated pools a
+        different number of units for the same money, so only the count
+        changes.
+        """
         symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
         price = transaction.price
@@ -343,9 +426,6 @@ class CapitalGainsCalculator:
             amount = round_decimal(quantity * price, 2)
         elif transaction.action is ActionType.SPIN_OFF:
             price, amount = self.handle_spin_off(transaction)
-        elif transaction.action is ActionType.STOCK_SPLIT:
-            price = Decimal(0)
-            amount = Decimal(0)
         else:
             if price is None:
                 raise PriceMissingError(transaction)
@@ -362,6 +442,7 @@ class CapitalGainsCalculator:
                 raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
             amount = -amount
 
+        quantity = self._pooled_quantity(transaction)
         self.portfolio[symbol] += Position(quantity, amount)
 
         gbp_amount = self.currency_converter.to_gbp_for(amount, transaction)
@@ -376,20 +457,300 @@ class CapitalGainsCalculator:
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
 
-    def add_stock_split(self, transaction: BrokerTransaction) -> None:
-        """Record a stock split during the first pass.
+    def _available_units(
+        self, symbol: str, date_index: datetime.date
+    ) -> Decimal | None:
+        """Units a decrease may take now, or None when nothing is held.
 
-        The multiplier is kept for the bed and breakfast quantity adjustment,
-        and the new shares are added as a zero-cost acquisition.
+        On an ordinary day this is the running count. On the day of a share
+        reorganisation it is not: the recorded replay puts the day's increases
+        and its reconciliation ahead of its decreases, while the merged
+        history reaches this pass interleaved. Checking a running count there
+        refuses valid histories on both sides — a positive reconciliation
+        drains the count before the day's last sale, a negative one holds it
+        below zero until the day's purchases land — so the day's whole
+        capacity answers instead, which its decreases cannot exceed because
+        planning refused a day that closes below zero.
         """
-        acquired_quantity = get_quantity_or_fail(transaction)
-        symbol = get_symbol_or_fail(transaction)
-        holding_quantity = self.portfolio[symbol].quantity
-        self.split_list[symbol, transaction.date] = (
-            acquired_quantity + holding_quantity
-        ) / holding_quantity
-        self.split_shares[symbol, transaction.date] += acquired_quantity
-        self.add_acquisition(transaction)
+        capacity = self.split_day_capacity.get((symbol, date_index))
+        if capacity is not None:
+            return capacity
+        if symbol not in self.portfolio:
+            return None
+        return self.portfolio[symbol].quantity
+
+    def _provisional_cost(self, symbol: str, quantity: Decimal) -> Decimal:
+        """Cost to take out of the first-pass pool for shares leaving it.
+
+        Only bookkeeping, so that later same-symbol rows validate; the second
+        pass works the real figure out from the rebuilt pool. On a
+        reorganisation day the running count can sit at or below zero here,
+        and there is then nothing to apportion.
+        """
+        position = self.portfolio[symbol]
+        if position.quantity <= 0:
+            return Decimal(0)
+        return normalize_amount(position.amount * quantity / position.quantity)
+
+    def _pooled_quantity(self, transaction: BrokerTransaction) -> Decimal:
+        """Return the count to pool, in the units in force at the day's end."""
+        quantity = transaction.pool_quantity
+        if quantity is None:
+            raise QuantityMissingError(transaction)
+        return quantity
+
+    def plan_stock_splits(
+        self,
+        date_index: datetime.date,
+        day_transactions: list[BrokerTransaction],
+    ) -> None:
+        """Decide what each of the day's reorganisations does to a holding.
+
+        Runs before any of the day's rows are processed, so the portfolio
+        still holds the day-opening pool and every source row and its ordering
+        are still to hand. Both passes replay what is recorded here.
+        """
+        splits: dict[str, list[BrokerTransaction]] = defaultdict(list)
+        for transaction in day_transactions:
+            if transaction.action is ActionType.STOCK_SPLIT:
+                splits[get_symbol_or_fail(transaction)].append(transaction)
+        for symbol, rows in sorted(splits.items()):
+            if len(rows) > 1:
+                raise CalculationError(
+                    self._two_splits_message(symbol, date_index, rows)
+                )
+            self._plan_stock_split(date_index, symbol, rows[0], day_transactions)
+
+    def _plan_stock_split(
+        self,
+        date_index: datetime.date,
+        symbol: str,
+        row: BrokerTransaction,
+        day_transactions: list[BrokerTransaction],
+    ) -> None:
+        """Work out and record one reorganisation."""
+        instants = self._split_instants(row)
+        before_rows: list[BrokerTransaction] = []
+        after_rows: list[BrokerTransaction] = []
+        for other in day_transactions:
+            if (
+                other is row
+                or other.symbol != symbol
+                or quantity_sign(other.action) == 0
+            ):
+                continue
+            placement = relative_to_split(instants, row.source, other.source)
+            if placement is None:
+                raise CalculationError(
+                    self._split_chronology_message(symbol, date_index, row, other)
+                )
+            (before_rows if placement == "before" else after_rows).append(other)
+
+        day_open_quantity = self.portfolio[symbol].quantity
+        holding_at_event = day_open_quantity + sum(
+            (
+                quantity_sign(other.action) * get_quantity_or_fail(other)
+                for other in before_rows
+            ),
+            Decimal(0),
+        )
+        if holding_at_event <= 0:
+            raise CalculationError(
+                f"Cannot apply the reorganisation of {symbol} on {date_index}: "
+                f"the holding is {strip_zeros(holding_at_event)} units at that "
+                "point, so there is nothing to restate. The history is missing "
+                f"the {symbol} shares it acts on."
+            )
+
+        event = self._stock_split_event(
+            row, symbol, date_index, holding_at_event, instants, before_rows
+        )
+        ratio = event.ratio
+        if isinstance(ratio, UnresolvedRatio):
+            if before_rows:
+                raise CalculationError(
+                    self._unresolved_same_day_message(event, before_rows[0])
+                )
+            if holding_at_event != event.before_quantity:
+                raise CalculationError(self._unresolved_scaling_message(event))
+            mode = SplitMode.DIRECT_SUBSTITUTION
+            exact_ratio = None
+            scaled_day_open_quantity = event.after_quantity
+        else:
+            exact_ratio = ratio
+            scaled_day_open_quantity = scale_quantity(day_open_quantity, ratio)
+            mode = (
+                SplitMode.BROKER_EXACT
+                if holding_at_event == event.before_quantity
+                else SplitMode.RATIO_ONLY
+            )
+            # Restate the day's earlier rows into the units the day ends in,
+            # exactly once and without touching their cost, proceeds or fees.
+            # A buy of 10 shares for £100 followed by a 2-for-1 split that day
+            # becomes an acquisition of 20 shares for £100, which is the same
+            # pool by another route and needs no special case anywhere else.
+            for other in before_rows:
+                other.calculation_quantity = scale_quantity(
+                    get_quantity_or_fail(other), exact_ratio
+                )
+
+        # What the event leaves of the holding it acts on. The day-opening
+        # pool is deliberately not the test: a holding first acquired earlier
+        # the same day opens at nothing and is still restated normally.
+        resulting_holding = (
+            event.after_quantity
+            if exact_ratio is None
+            else scale_quantity(holding_at_event, exact_ratio)
+        )
+        if resulting_holding <= 0:
+            raise CalculationError(
+                f"Cannot apply the reorganisation of {symbol} on {date_index}: "
+                f"it leaves {strip_zeros(resulting_holding)} units of a holding "
+                f"of {strip_zeros(holding_at_event)}."
+            )
+
+        post_split_delta = self._signed_quantity(after_rows)
+        normalised_day_delta = post_split_delta + self._signed_quantity(before_rows)
+        if mode is SplitMode.BROKER_EXACT:
+            expected_day_close = event.after_quantity + post_split_delta
+            reconciliation_delta = expected_day_close - (
+                scaled_day_open_quantity + normalised_day_delta
+            )
+        else:
+            # One broker's rounded count must not adjust a pool built from
+            # more than one source, and a substitution has nothing to round.
+            reconciliation_delta = Decimal(0)
+            expected_day_close = scaled_day_open_quantity + normalised_day_delta
+        if expected_day_close < 0:
+            raise CalculationError(
+                f"Cannot apply the reorganisation of {symbol} on {date_index}: "
+                f"the day's activity would leave {strip_zeros(expected_day_close)} "
+                "units."
+            )
+
+        self.splits[date_index][symbol] = SplitTransformation(
+            event=event,
+            mode=mode,
+            ratio=exact_ratio,
+            day_open_quantity=day_open_quantity,
+            scaled_day_open_quantity=scaled_day_open_quantity,
+            reconciliation_delta=reconciliation_delta,
+            expected_day_close=expected_day_close,
+        )
+        # The reorganisation belongs at the start of its day: the rows before
+        # it are now stated in the units it leaves behind, so the pool has to
+        # be in those units before any of them is processed. The pooled cost
+        # is untouched, because a reorganisation only changes how many units
+        # the same money bought (TCGA 1992 s127).
+        #
+        # The reconciliation goes on at the same moment, which is not where
+        # the recorded replay puts it. That order -- increases, reconcile,
+        # decreases -- is what the second pass follows, and the second pass is
+        # what works out the tax. All this pool does is refuse a history that
+        # sells shares it does not have, and for that the day's closing count
+        # is the honest figure to check against: a day whose reconciliation is
+        # positive can otherwise drain to nothing partway through and refuse
+        # its own last disposal. A negative reconciliation can leave the count
+        # briefly below zero here, ahead of the day's acquisitions, which
+        # nothing reads.
+        position = self.portfolio[symbol]
+        self.portfolio[symbol] = Position(
+            scaled_day_open_quantity + reconciliation_delta, position.amount
+        )
+        # Everything the day can give up, in the order the replay puts it:
+        # the restated opening, then every increase, then the reconciliation.
+        # Decreases draw on this rather than on the running count.
+        self.split_day_capacity[symbol, date_index] = (
+            scaled_day_open_quantity
+            + self._signed_quantity(
+                [
+                    other
+                    for other in (*before_rows, *after_rows)
+                    if quantity_sign(other.action) > 0
+                ]
+            )
+            + reconciliation_delta
+        )
+
+    @staticmethod
+    def _signed_quantity(transactions: list[BrokerTransaction]) -> Decimal:
+        """Net units these rows add to a holding, in their pooled counts."""
+        total = Decimal(0)
+        for transaction in transactions:
+            quantity = transaction.pool_quantity
+            if quantity is None:
+                raise QuantityMissingError(transaction)
+            total += quantity_sign(transaction.action) * quantity
+        return total
+
+    @staticmethod
+    def _split_instants(row: BrokerTransaction) -> tuple[datetime.datetime, ...]:
+        """Instants the export stamped on the rows behind a reorganisation."""
+        if isinstance(row, StockSplitTransaction):
+            return row.event.instants
+        if row.source is not None and row.source.timestamp is not None:
+            return (row.source.timestamp,)
+        return ()
+
+    def _stock_split_event(
+        self,
+        row: BrokerTransaction,
+        symbol: str,
+        date_index: datetime.date,
+        holding_at_event: Decimal,
+        instants: tuple[datetime.datetime, ...],
+        before_rows: list[BrokerTransaction],
+    ) -> StockSplitEvent:
+        """Return the reorganisation this row states.
+
+        A paired export states both counts itself. A single row states only a
+        net change, which is a change to the whole pooled holding in a RAW
+        history by definition, and a change to one account's holding when a
+        broker wrote it. The second may only be read as the first once the
+        whole holding is known to have come from that one account: adding one
+        account's delta to a pool built from several derives a ratio that was
+        never the corporate one.
+        """
+        if isinstance(row, StockSplitTransaction):
+            return row.event
+        delta = get_quantity_or_fail(row)
+        if not delta.is_finite():
+            raise CalculationError(
+                f"Cannot apply the reorganisation of {symbol} on {date_index}: "
+                f"it states a change of {delta} units, which is not a number "
+                "of shares."
+            )
+        after_quantity = holding_at_event + delta
+        if after_quantity <= 0:
+            raise CalculationError(
+                f"Cannot apply the reorganisation of {symbol} on {date_index}: "
+                f"a change of {strip_zeros(delta)} units leaves "
+                f"{strip_zeros(after_quantity)} of a holding of "
+                f"{strip_zeros(holding_at_event)}."
+            )
+        if not isinstance(row, RawTransaction):
+            contributors = self.holding_sources.get(symbol, set()) | {
+                source_account(other) for other in before_rows
+            }
+            account = source_account(row)
+            if contributors - {account}:
+                raise CalculationError(
+                    self._broker_split_delta_message(
+                        symbol, date_index, account, sorted(contributors - {account})
+                    )
+                )
+        return StockSplitEvent(
+            date=date_index,
+            broker=row.broker,
+            symbol_before=symbol,
+            symbol_after=symbol,
+            isin_before=row.isin,
+            isin_after=row.isin,
+            before_quantity=holding_at_event,
+            after_quantity=after_quantity,
+            ratio=Fraction(after_quantity) / Fraction(holding_at_event),
+            instants=instants,
+        )
 
     def handle_spin_off(
         self,
@@ -451,7 +812,7 @@ class CapitalGainsCalculator:
         MMM shares will be used as the acquisition date for the SOLV shares.
         """
         symbol = get_symbol_or_fail(transaction)
-        quantity = get_quantity_or_fail(transaction)
+        quantity = self._pooled_quantity(transaction)
 
         ticker = self.spin_off_handler.get_spin_off_source(
             symbol, transaction.date, self.portfolio
@@ -519,26 +880,32 @@ class CapitalGainsCalculator:
         self,
         transaction: BrokerTransaction,
     ) -> None:
-        """Record a disposal in the portfolio and the disposal list."""
+        """Record a disposal in the portfolio and the disposal list.
+
+        The proceeds are the row's own, worked out from the count and price it
+        states. Only the count leaving the pool follows a same-day
+        reorganisation.
+        """
         symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
-        if symbol not in self.portfolio:
+        available = self._available_units(symbol, transaction.date)
+        if available is None:
             raise InvalidTransactionError(
                 transaction, "Tried to sell not owned symbol, reversed order?"
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
-        if self.portfolio[symbol].quantity < quantity:
+        pooled_quantity = self._pooled_quantity(transaction)
+        if available < pooled_quantity:
             raise InvalidTransactionError(
                 transaction,
-                "Tried to sell more than the available "
-                f"balance({self.portfolio[symbol].quantity})",
+                f"Tried to sell more than the available balance({available})",
             )
 
         amount = get_amount_or_fail(transaction)
         price = transaction.price
 
-        self.portfolio[symbol] -= Position(quantity, amount)
+        self.portfolio[symbol] -= Position(pooled_quantity, amount)
 
         if self.portfolio[symbol].quantity == 0:
             del self.portfolio[symbol]
@@ -564,7 +931,7 @@ class CapitalGainsCalculator:
             self.disposal_list,
             transaction.date,
             symbol,
-            quantity,
+            pooled_quantity,
             self.currency_converter.to_gbp_for(amount, transaction),
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
@@ -583,17 +950,19 @@ class CapitalGainsCalculator:
         """
         symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
-        if symbol not in self.portfolio:
+        available = self._available_units(symbol, transaction.date)
+        if available is None:
             raise InvalidTransactionError(
                 transaction, "Tried to transfer to spouse a not owned symbol"
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
-        if self.portfolio[symbol].quantity < quantity:
+        quantity = self._pooled_quantity(transaction)
+        if available < quantity:
             raise InvalidTransactionError(
                 transaction,
                 "Tried to transfer to spouse more than the available "
-                f"balance({self.portfolio[symbol].quantity})",
+                f"balance({available})",
             )
         # A gift has no consideration, so whatever is in the price column
         # cannot affect the result. Say so rather than dropping it silently.
@@ -610,9 +979,9 @@ class CapitalGainsCalculator:
         # cost. Reduce the first-pass holding so later same-symbol transactions
         # validate correctly; the actual pool cost is recomputed in the second
         # pass.
-        position = self.portfolio[symbol]
-        cost = normalize_amount(position.amount * quantity / position.quantity)
-        self.portfolio[symbol] -= Position(quantity, cost)
+        self.portfolio[symbol] -= Position(
+            quantity, self._provisional_cost(symbol, quantity)
+        )
         if self.portfolio[symbol].quantity == 0:
             del self.portfolio[symbol]
         add_to_list(
@@ -642,18 +1011,13 @@ class CapitalGainsCalculator:
         """
         symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
-        if symbol not in self.portfolio:
+        available = self._available_units(symbol, transaction.date)
+        if available is None:
             raise InvalidTransactionError(
                 transaction, "Tried to give away a not owned symbol"
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
-        if self.portfolio[symbol].quantity < quantity:
-            raise InvalidTransactionError(
-                transaction,
-                "Tried to give away more than the available "
-                f"balance({self.portfolio[symbol].quantity})",
-            )
         if transaction.price is None:
             raise PriceMissingError(transaction)
         # Zero is a real market value: a holding can become worthless, and
@@ -662,6 +1026,15 @@ class CapitalGainsCalculator:
         if transaction.price < 0:
             raise InvalidTransactionError(
                 transaction, "A gift cannot have a negative market value"
+            )
+        # The market value is what the row states, for the count it states.
+        # Only the count leaving the pool follows a same-day reorganisation.
+        market_value = quantity * transaction.price
+        quantity = self._pooled_quantity(transaction)
+        if available < quantity:
+            raise InvalidTransactionError(
+                transaction,
+                f"Tried to give away more than the available balance({available})",
             )
         connected = transaction.action is ActionType.GIFT
         key = (transaction.date, symbol)
@@ -690,9 +1063,9 @@ class CapitalGainsCalculator:
                 )
         # Reduce the first-pass holding so later same-symbol transactions
         # validate; the pool cost is recomputed in the second pass.
-        position = self.portfolio[symbol]
-        cost = normalize_amount(position.amount * quantity / position.quantity)
-        self.portfolio[symbol] -= Position(quantity, cost)
+        self.portfolio[symbol] -= Position(
+            quantity, self._provisional_cost(symbol, quantity)
+        )
         if self.portfolio[symbol].quantity == 0:
             del self.portfolio[symbol]
         # Recorded like a sale: the amount net of fees, the fees alongside, so
@@ -704,7 +1077,7 @@ class CapitalGainsCalculator:
             symbol,
             quantity,
             self.currency_converter.to_gbp_for(
-                quantity * transaction.price - transaction.fees, transaction
+                market_value - transaction.fees, transaction
             ),
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
@@ -1027,6 +1400,29 @@ class CapitalGainsCalculator:
                 abs(transaction.amount + transaction.fees) / transaction.quantity
             )
 
+    @staticmethod
+    def _group_by_date(
+        transactions: list[BrokerTransaction],
+    ) -> dict[datetime.date, list[BrokerTransaction]]:
+        """Group the history by date, so a day can be planned before it runs."""
+        days: dict[datetime.date, list[BrokerTransaction]] = defaultdict(list)
+        for transaction in transactions:
+            days[transaction.date].append(transaction)
+        return days
+
+    def _open_transaction_day(
+        self,
+        transaction: BrokerTransaction,
+        days: dict[datetime.date, list[BrokerTransaction]],
+        planned: set[datetime.date],
+    ) -> None:
+        """Plan the day's reorganisations, and note where units came from."""
+        if transaction.date not in planned:
+            planned.add(transaction.date)
+            self.plan_stock_splits(transaction.date, days[transaction.date])
+        if quantity_sign(transaction.action) and transaction.symbol:
+            self.holding_sources[transaction.symbol].add(source_account(transaction))
+
     def convert_to_hmrc_transactions(
         self,
         transactions: list[BrokerTransaction],
@@ -1046,8 +1442,15 @@ class CapitalGainsCalculator:
             self.isin_converter.add_from_transaction(transaction)
 
         transactions = self._resolve_gifts(transactions)
+        # Reorganisations are planned a day at a time, before any of that
+        # day's rows is processed: what a row's count means depends on
+        # whether a reorganisation followed it that day, and the pool has to
+        # be in the day's closing units before the first of them is pooled.
+        days = self._group_by_date(transactions)
+        planned: set[datetime.date] = set()
 
         for i, transaction in enumerate(transactions):
+            self._open_transaction_day(transaction, days, planned)
             self._convert_foreign_fees(transaction)
             if transaction.action == ActionType.EXCESS_REPORTED_INCOME:
                 self.add_eri(transaction)
@@ -1079,8 +1482,11 @@ class CapitalGainsCalculator:
                 ActionType.TRANSFER_FROM_SPOUSE,
             }:
                 self.add_acquisition(transaction)
-            elif transaction.action == ActionType.STOCK_SPLIT:
-                self.add_stock_split(transaction)
+            elif transaction.action is ActionType.STOCK_SPLIT:
+                # Already applied, to the day-opening pool, by
+                # plan_stock_splits. No cash moves and no shares are acquired
+                # or disposed of (TCGA 1992 s127).
+                pass
             elif transaction.action in {ActionType.DIVIDEND, ActionType.CAPITAL_GAIN}:
                 amount = get_amount_or_fail(transaction)
                 symbol = get_symbol_or_fail(transaction)
@@ -1473,7 +1879,13 @@ class CapitalGainsCalculator:
             if eri:
                 eris.append(eri)
 
-            split_multiplier = Decimal(1)
+            # A reorganisation between the disposal and the repurchase
+            # leaves the two counted in different units. The ratios compose
+            # exactly, as one fraction, and are divided by once at the end:
+            # multiplying rounded decimal multipliers day by day compounds the
+            # very error the exact ratio removed.
+            cumulative_ratio = Fraction(1)
+            unresolved_splits: list[tuple[datetime.date, StockSplitEvent]] = []
             effective_symbol = symbol
 
             for i in range(BED_AND_BREAKFAST_DAYS):
@@ -1483,20 +1895,14 @@ class CapitalGainsCalculator:
                     effective_symbol, effective_symbol
                 )
 
-                # Check if there was any stock split, in which case we need to adjust the B&B quantity
-                split_multiplier *= self.split_list.get(
-                    (effective_symbol, search_index), Decimal(1)
-                )
-
-                # ERI is distributed annually, but when a fund closes we might have
-                # multiple ERI distributions in close succession
-                eri = self.get_eri(effective_symbol, search_index)
-                if eri:
-                    eris.append(eri)
-                # Shares from a split are free, so they are never part of a
-                # B&B match and _matchable_acquisition leaves them out. Say so:
-                # a split this close to a disposal is worth a second look.
-                if self.split_shares.get((effective_symbol, search_index)):
+                transformation = self.splits.get(search_index, {}).get(effective_symbol)
+                if transformation is not None:
+                    if transformation.ratio is None:
+                        unresolved_splits.append((search_index, transformation.event))
+                    else:
+                        cumulative_ratio *= transformation.ratio
+                    # A reorganisation this close to a disposal is worth a
+                    # second look, whether or not a match follows.
                     LOGGER.warning(
                         "A split happened shortly after a disposal of %s, double check these transactions."
                         "Disposed on %s and split happened on %s",
@@ -1504,6 +1910,12 @@ class CapitalGainsCalculator:
                         date_index,
                         search_index,
                     )
+
+                # ERI is distributed annually, but when a fund closes we might have
+                # multiple ERI distributions in close succession
+                eri = self.get_eri(effective_symbol, search_index)
+                if eri:
+                    eris.append(eri)
                 acquisition = self._matchable_acquisition(
                     search_index, effective_symbol
                 )
@@ -1589,37 +2001,53 @@ class CapitalGainsCalculator:
                         date_index,
                         search_index,
                     )
-                    if split_multiplier != Decimal(1):
+                    # The conversion needs the ratio, so this is where an
+                    # unrecoverable one is refused. Not merely for happening
+                    # inside the window: an acquisition before it, or a
+                    # disposal already matched, needs no conversion at all.
+                    if unresolved_splits:
+                        split_date, unresolved_event = unresolved_splits[0]
+                        raise CalculationError(
+                            self._unresolved_bnb_message(
+                                unresolved_event, symbol, date_index, split_date
+                            )
+                        )
+                    if cumulative_ratio != 1:
                         LOGGER.warning(
-                            "Bed & breakfast for %s is taking into account a {%.2f}x split "
+                            "Bed & breakfast for %s is taking into account a %sx split "
                             "that happened shortly before the repurchase of shares",
                             symbol,
-                            split_multiplier,
+                            cumulative_ratio,
                         )
                     # Everything reserved here is counted in the acquisition's
                     # own units, so the whole remainder converts to the
                     # disposal's units once. Converting only the acquisition
                     # would subtract post-split counts from a pre-split one and
                     # can go negative.
-                    available_quantity = min(
-                        disposal_quantity,
-                        (
-                            acquisition.quantity
-                            - same_day_disposal.quantity
-                            - bnb_acquisition.quantity
+                    available_acquisition_units = (
+                        acquisition.quantity
+                        - same_day_disposal.quantity
+                        - bnb_acquisition.quantity
+                    )
+                    available_quantity, consumed_acquisition_units = (
+                        self._match_across_splits(
+                            disposal_quantity,
+                            available_acquisition_units,
+                            cumulative_ratio,
+                            symbol=symbol,
+                            date_index=date_index,
+                            search_index=search_index,
                         )
-                        / split_multiplier,
                     )
                     fees = (
                         disposal.fees * available_quantity / original_disposal_quantity
                     )
-                    adjusted_acquisition_quantity = (
-                        acquisition.quantity / split_multiplier
-                    )
-                    # Multiply by available_quantity before divide to avoid rounding errors from division
+                    # Multiply by the consumed quantity before dividing to
+                    # avoid rounding errors from division. Both counts here
+                    # are in the acquisition's own units.
                     bnb_acquisition_cost = normalize_amount(
-                        (available_quantity * acquisition.amount)
-                        / adjusted_acquisition_quantity
+                        (consumed_acquisition_units * acquisition.amount)
+                        / acquisition.quantity
                     )
                     acquisition_price = bnb_acquisition_cost / available_quantity
                     # No gain/no loss: deemed proceeds equal the allowable cost.
@@ -1679,7 +2107,7 @@ class CapitalGainsCalculator:
                         self.bnb_list,
                         search_index,
                         effective_symbol,
-                        available_quantity * split_multiplier,
+                        consumed_acquisition_units,
                         amount_delta + total_dist_amount,
                         Decimal(0),
                         eris,
@@ -1778,6 +2206,224 @@ class CapitalGainsCalculator:
             new_pool_cost=self.portfolio[new].amount,
             allowable_cost=pos.amount,
             renamed_to=new,
+        )
+
+    def apply_split_openings(self, date_index: datetime.date) -> None:
+        """Restate every holding a reorganisation touches today.
+
+        A reorganisation restates the day's opening pool before any of the
+        day's activity: the rows that preceded it are already in the units it
+        leaves behind, so scaling after any of them applies the ratio twice.
+
+        Replays what the first pass recorded rather than deciding again.
+        Substituting the broker's count in one pass while scaling by the ratio
+        in the other differs by a billionth of a share on the Trading 212
+        exports this was built from, which is enough to leave a disposal of
+        the whole holding short of zero.
+        """
+        for symbol, transformation in sorted(self.splits.get(date_index, {}).items()):
+            position = self.portfolio[symbol]
+            if position.quantity != transformation.day_open_quantity:
+                raise CalculationError(
+                    f"Cannot apply the reorganisation of {symbol} on "
+                    f"{date_index}: the holding opens at "
+                    f"{strip_zeros(position.quantity)} units here and at "
+                    f"{strip_zeros(transformation.day_open_quantity)} where "
+                    "the reorganisation was worked out. Please report this: "
+                    "the two passes over the history disagree."
+                )
+            self.portfolio[symbol] = Position(
+                transformation.scaled_day_open_quantity, position.amount
+            )
+
+    def record_split_reconciliations(
+        self,
+        date_index: datetime.date,
+        tax_year_start_index: datetime.date,
+        calculation_log: CalculationLog,
+    ) -> None:
+        """Reconcile every reorganisation today to the broker's own count.
+
+        Runs after the day's genuine acquisitions, so the correction cannot
+        make a holding acquired earlier today look momentarily negative, and
+        before its disposals, so a sale of the whole holding sees the count
+        the broker stated.
+
+        The delta is quantity only. It absorbs the broker's own rounding of
+        the count it reported, and the difference left by restating the
+        opening pool and the day's earlier rows separately rather than as one
+        sum. It buys nothing and sells nothing, so it changes no cost and
+        takes no part in same-day or 30-day identification.
+        """
+        for symbol, transformation in sorted(self.splits.get(date_index, {}).items()):
+            position = self.portfolio[symbol]
+            quantity = position.quantity + transformation.reconciliation_delta
+            if quantity < 0:
+                raise CalculationError(
+                    f"Cannot apply the reorganisation of {symbol} on "
+                    f"{date_index}: reconciling to the broker's count leaves "
+                    f"{strip_zeros(quantity)} units."
+                )
+            self.portfolio[symbol] = Position(quantity, position.amount)
+            if date_index < tax_year_start_index:
+                continue
+            event = transformation.event
+            calculation_log[date_index][f"split${symbol}"] = [
+                CalculationEntry(
+                    rule_type=RuleType.STOCK_SPLIT,
+                    # A reorganisation acquires and disposes of nothing; the
+                    # counts it moves between two unit systems are in the
+                    # detail below.
+                    quantity=Decimal(0),
+                    amount=Decimal(0),
+                    fees=Decimal(0),
+                    gain=Decimal(0),
+                    allowable_cost=Decimal(0),
+                    new_quantity=quantity,
+                    new_pool_cost=position.amount,
+                    stock_split=StockSplitDetail(
+                        ratio_description=transformation.ratio_description,
+                        broker_before_quantity=event.before_quantity,
+                        broker_after_quantity=event.after_quantity,
+                        day_open_quantity=transformation.day_open_quantity,
+                        scaled_day_open_quantity=(
+                            transformation.scaled_day_open_quantity
+                        ),
+                        quantity_before_reconciliation=position.quantity,
+                        quantity_after_reconciliation=quantity,
+                        reconciliation_delta=transformation.reconciliation_delta,
+                    ),
+                )
+            ]
+
+    def verify_split_day_closes(self, date_index: datetime.date) -> None:
+        """Check every reorganisation today left the holding where it said.
+
+        A holding renamed the same day is skipped: the pool has moved under
+        another name by now, and may have been merged with a second holding
+        on the way, so what is left under this one says nothing.
+        """
+        renamed = self.rename_list.get(date_index, {})
+        for symbol, transformation in sorted(self.splits.get(date_index, {}).items()):
+            if symbol in renamed:  # pragma: no cover - rename and split in a day
+                continue
+            closing = self.portfolio[symbol].quantity
+            if closing != transformation.expected_day_close:
+                raise CalculationError(
+                    f"Cannot apply the reorganisation of {symbol} on "
+                    f"{date_index}: the day closes at {strip_zeros(closing)} "
+                    "units where the reorganisation and the day's activity "
+                    f"come to {strip_zeros(transformation.expected_day_close)}."
+                    " Please report this: the two passes over the history "
+                    "disagree."
+                )
+
+    def _two_splits_message(
+        self,
+        symbol: str,
+        date_index: datetime.date,
+        rows: list[BrokerTransaction],
+    ) -> str:
+        """Explain why two reorganisations of one holding cannot be combined."""
+        listed = "\n".join(f"  {row}" for row in rows)
+        return (
+            f"{symbol} has more than one reorganisation on {date_index}:\n"
+            f"{listed}\n"
+            "The Section 104 holding is global, so a corporate ratio applies "
+            "to it once. Two brokers reporting the same event is not the same "
+            "as two events, and this tool cannot tell them apart, so it will "
+            "not guess. Leave all but one of the rows out, or work this day "
+            "out by hand (consider professional advice)."
+        )
+
+    def _split_chronology_message(
+        self,
+        symbol: str,
+        date_index: datetime.date,
+        row: BrokerTransaction,
+        other: BrokerTransaction,
+    ) -> str:
+        """Explain why a same-day row cannot be placed around a reorganisation."""
+        return (
+            f"Cannot apply the reorganisation of {symbol} on {date_index}: "
+            f"this row is on the same day and cannot be placed either side of "
+            f"it, so there is no telling whether its count is stated in the "
+            f"units before or after:\n  {other}\n"
+            f"The reorganisation is:\n  {row}\n"
+            "The two come from different inputs, or from an export that gives "
+            "neither times nor a documented order, or the row falls between "
+            "the two halves of the reorganisation. Run again with the day's "
+            f"{symbol} rows in one input that states times, or work the day "
+            "out by hand (consider professional advice)."
+        )
+
+    @staticmethod
+    def _unresolved_same_day_message(
+        event: StockSplitEvent, other: BrokerTransaction
+    ) -> str:
+        """Explain why an unrecoverable ratio cannot restate an earlier row."""
+        assert isinstance(event.ratio, UnresolvedRatio)
+        return (
+            f"Cannot apply the reorganisation of {event.describe()}: "
+            f"{event.symbol} also changed hands earlier that day:\n  {other}\n"
+            "That row's count is in the units before the reorganisation, so it "
+            "has to be restated into the units after it, and the ratio for "
+            f"that cannot be recovered from the export: {event.ratio.describe()}. "
+            "Run again with the day's other rows left out, or work the day out "
+            "by hand (consider professional advice)."
+        )
+
+    @staticmethod
+    def _unresolved_scaling_message(event: StockSplitEvent) -> str:
+        """Explain why an unrecoverable ratio cannot scale the pool."""
+        assert isinstance(event.ratio, UnresolvedRatio)
+        return (
+            f"Cannot apply the reorganisation of {event.describe()}: the "
+            f"holding is not the {strip_zeros(event.before_quantity)} units "
+            "the export states, so it has to be scaled by the corporate ratio "
+            f"rather than replaced, and that ratio cannot be recovered from "
+            f"the export: {event.ratio.describe()}. This happens when the same "
+            "security is held through more than one broker. Work the "
+            "reorganisation out by hand (consider professional advice)."
+        )
+
+    @staticmethod
+    def _broker_split_delta_message(
+        symbol: str,
+        date_index: datetime.date,
+        account: str,
+        others: list[str],
+    ) -> str:
+        """Explain why one account's split delta is not a global one."""
+        listed = ", ".join(others)
+        return (
+            f"Cannot apply the reorganisation of {symbol} on {date_index}: it "
+            f"is a single row from {account} stating how many units that "
+            "account gained or lost, and this holding also has units from "
+            f"{listed}. Adding one account's change to a holding built from "
+            "several derives a ratio that was never the corporate one. Supply "
+            "the reorganisation as a RAW STOCK_SPLIT row stating the change to "
+            "the whole holding, or as a broker export that states the counts "
+            "either side of the event."
+        )
+
+    @staticmethod
+    def _unresolved_bnb_message(
+        event: StockSplitEvent,
+        symbol: str,
+        date_index: datetime.date,
+        search_index: datetime.date,
+    ) -> str:
+        """Explain why an unrecoverable ratio blocks a bed and breakfast match."""
+        assert isinstance(event.ratio, UnresolvedRatio)
+        return (
+            f"Cannot compute the disposal of {symbol} on {date_index}: it is "
+            f"identified under the 30-day rule against the acquisition on "
+            f"{search_index}, and {event.describe()} lies between them, so the "
+            "two counts are in different units. Converting one to the other "
+            "needs the corporate ratio, and that cannot be recovered from the "
+            f"export: {event.ratio.describe()}. Work this disposal out by hand "
+            "(consider professional advice)."
         )
 
     def _spin_off_pool(self, date_index: datetime.date, source: str, dest: str) -> str:
@@ -1899,6 +2545,76 @@ class CapitalGainsCalculator:
             key=lambda symbol: (depth(symbol), first_event.get(symbol, -1)),
         )
 
+    def _match_across_splits(
+        self,
+        disposal_quantity: Decimal,
+        available_acquisition_units: Decimal,
+        cumulative_ratio: Fraction,
+        *,
+        symbol: str,
+        date_index: datetime.date,
+        search_index: datetime.date,
+    ) -> tuple[Decimal, Decimal]:
+        """Match a disposal against an acquisition counted in other units.
+
+        Returns what the disposal takes, in its own units, and what that
+        consumes of the acquisition, in the acquisition's. Everything
+        reserved is counted in the acquisition's own units, so the whole
+        remainder converts once: converting only the acquisition would
+        subtract post-split counts from a pre-split one and can go negative.
+
+        Both counts are kept to ten decimal places, so a large enough ratio
+        can leave a real quantity with nothing to say for itself on the other
+        side. That is refused rather than matched at nil cost against an
+        acquisition it then fails to reserve.
+        """
+        available_disposal_units = unscale_quantity(
+            available_acquisition_units, cumulative_ratio
+        )
+        if available_disposal_units <= 0:
+            raise CalculationError(
+                self._unrepresentable_match_message(
+                    symbol, date_index, search_index, cumulative_ratio
+                )
+            )
+        matched = min(disposal_quantity, available_disposal_units)
+        # Taking the whole remainder outright, rather than converting it back,
+        # keeps a ten-decimal round trip from leaving or over-consuming a
+        # residual share.
+        if matched == available_disposal_units:
+            consumed = available_acquisition_units
+        else:
+            consumed = min(
+                available_acquisition_units,
+                scale_quantity(matched, cumulative_ratio),
+            )
+        if consumed <= 0:
+            raise CalculationError(
+                self._unrepresentable_match_message(
+                    symbol, date_index, search_index, cumulative_ratio
+                )
+            )
+        assert consumed <= available_acquisition_units
+        return matched, consumed
+
+    @staticmethod
+    def _unrepresentable_match_message(
+        symbol: str,
+        date_index: datetime.date,
+        search_index: datetime.date,
+        cumulative_ratio: Fraction,
+    ) -> str:
+        """Explain a match the two unit systems cannot both express."""
+        return (
+            f"Cannot compute the disposal of {symbol} on {date_index}: it is "
+            f"identified under the 30-day rule against the acquisition on "
+            f"{search_index}, and the reorganisations in between restate the "
+            f"count by {cumulative_ratio}. One of the two quantities comes to "
+            "less than the ten decimal places this keeps, so the match cannot "
+            "be expressed in both unit systems at once. Work this disposal out "
+            "by hand (consider professional advice)."
+        )
+
     def _matchable_acquisition(
         self,
         date_index: datetime.date,
@@ -1906,23 +2622,13 @@ class CapitalGainsCalculator:
     ) -> HmrcTransactionData:
         """Return the acquisitions a disposal could be identified with.
 
-        Shares handed over by a split are removed: they cost nothing and are
-        not an acquisition (TCGA 1992 s127, CG51805). They are pooled with real
-        purchases in ``acquisition_list``, so leaving them in would spread the
-        purchase cost over free shares as well.
+        Units a reorganisation restated are not here to be taken out: they
+        were never acquired (TCGA 1992 s127, CG51805), so they never enter
+        ``acquisition_list`` in the first place.
         """
         if not has_key(self.acquisition_list, date_index, symbol):
             return HmrcTransactionData()
-        acquisition = self.acquisition_list[date_index][symbol]
-        split = self.split_shares.get((symbol, date_index), Decimal(0))
-        if not split:
-            return acquisition
-        return HmrcTransactionData(
-            quantity=acquisition.quantity - split,
-            amount=acquisition.amount,
-            fees=acquisition.fees,
-            eris=acquisition.eris,
-        )
+        return self.acquisition_list[date_index][symbol]
 
     def _contending_acquisitions(
         self,
@@ -2499,6 +3205,7 @@ class CapitalGainsCalculator:
                 if date_index in self.transfer_to_spouse_list
                 else {}
             )
+            self.apply_split_openings(date_index)
             if date_index in self.acquisition_list:
                 for symbol in self._acquisition_order(date_index):
                     calculation_entries = self.process_acquisition(
@@ -2512,6 +3219,9 @@ class CapitalGainsCalculator:
             for source, entries in self.spin_off_entries.pop(date_index, {}).items():
                 if date_index >= tax_year_start_index:
                     calculation_log[date_index][f"spin-off${source}"] = entries
+            self.record_split_reconciliations(
+                date_index, tax_year_start_index, calculation_log
+            )
             if date_index in self.disposal_list:
                 for symbol in self.disposal_list[date_index]:
                     transaction_capital_gain, calculation_entries = (
@@ -2594,6 +3304,8 @@ class CapitalGainsCalculator:
                 calculation_log,
                 bnb_claimed_before_today,
             )
+
+            self.verify_split_day_closes(date_index)
 
             # Excess Reported incomes should be reported at the end of the day
             if date_index in self.eris:

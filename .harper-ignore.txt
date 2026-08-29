@@ -25,3 +25,10 @@
 # "What a lot does state" - a lot here is a parcel of shares, not the
 # quantifier "a lot of".
 ^schwab_equity_award_json\.py:.*QuantifierNeedsOf
+# "every source row and its ordering" is possessive, not a contraction.
+^main\.py:.*ItsContraction
+# "the rows that preceded it are already in the units it leaves behind"
+# already agrees; PronounInflectionBe reads the wrong subject.
+^main\.py:.*PronounInflectionBe
+# "nothing earlier that day" is a time reference, not a comparison.
+^stock_splits\.py:.*ThatThan

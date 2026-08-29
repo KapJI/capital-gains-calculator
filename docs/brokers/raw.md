@@ -177,17 +177,39 @@ created 209, and the sale below it is written in post-split shares at the post-s
 2022-06-06,SELL,AMZN,100,120.00,0.00,USD
 ```
 
-!!! warning "Selling on the day of a split"
+!!! warning "Same-day chronology across inputs"
 
-    A disposal written above a `STOCK_SPLIT` row for the same date is not worked out reliably yet.
-    The cost cgt-calc allows against that disposal can come out far too low, which overstates the
-    gain and so the tax. Selling on any other day is fine, including the day before or the day
-    after the split. If you sold on the day of a split, work that one disposal out by hand and
-    check it against the report before you use the figure.
+    Within one RAW file the row order settles which units a same-day trade is stated in. Between
+    two inputs it does not, and neither does the order cgt-calc merges them in, so a same-day trade
+    from another input is refused unless both sides carry times. Put the day's rows for that symbol
+    in one input, or work that day out by hand.
 
 This is about the RAW file you write yourself. cgt-calc assumes nothing about the order of the rows
 inside a broker's own export, so if you keep a small RAW file alongside a broker export, it is the
 RAW rows that need to be in the order things happened.
+
+## Share reorganisations
+
+A stock split or a share consolidation restates a holding: the old shares are not disposed of and
+the new ones are not acquired, so no gain or loss arises and the pooled cost is unchanged
+([TCGA 1992 s127](https://www.legislation.gov.uk/ukpga/1992/12/part/IV/chapter/II),
+[CG51805](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51805)). Only the number
+of units changes, so a later disposal takes a different share of the same cost.
+
+A consolidation shrinks the holding, so its `quantity` is negative: 100 shares consolidated
+100-for-1 lose 99.
+
+```csv
+2026-02-02,STOCK_SPLIT,RKT,-99,0.00,0.00,GBP
+```
+
+Leave `price` and `fees` at `0`: nothing is bought, sold or paid for.
+
+If you hold the same security through more than one broker, add up their holdings before working out
+the number, which is the change to all of them together. A broker's own export states the change to
+its own account, and adding that to a pool built from several would restate the holding by a ratio
+that was never the corporate one. cgt-calc refuses a broker's single-row split when the pool has
+units from another source, and says so.
 
 ## Transfers to a spouse or civil partner
 
