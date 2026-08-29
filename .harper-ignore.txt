@@ -22,3 +22,6 @@
 ^util\.py:.*RepeatedWords
 # "a header that does not match" is a relative clause, not a comparison.
 ^vanguard\.md:.*ThatThan
+# "What a lot does state" - a lot here is a parcel of shares, not the
+# quantifier "a lot of".
+^schwab_equity_award_json\.py:.*QuantifierNeedsOf

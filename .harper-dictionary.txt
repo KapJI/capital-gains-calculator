@@ -79,6 +79,7 @@ Hmrc
 IBKR
 IBKR's
 idx
+InvalidOperation
 InvalidTransactionError
 Invesco
 InvestmentName
@@ -86,6 +87,7 @@ iShares
 ISIN
 IsinConverter
 ISINs
+json
 Lansdown
 LF
 len

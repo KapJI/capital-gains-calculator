@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import InitVar, dataclass
 import datetime
+import decimal
 from decimal import Decimal
 from enum import Enum, auto
 import json
@@ -288,13 +289,42 @@ def action_from_str(label: str, file: Path) -> ActionType:
     raise ParsingError(file, f"Unknown action: {label}")
 
 
-def _decimal_from_str(price_str: str) -> Decimal:
+class _UnparseableNumber(decimal.InvalidOperation):
+    """A field that does not hold a finite number, and which field it was.
+
+    `Decimal` accepts NaN and Infinity, and neither survives what this parser
+    does next: a NaN raises out of the first check of its sign and an Infinity
+    passes every such check and reaches the arithmetic. Both are as useless
+    here as any other nonsense in the field, so they are raised as the same
+    thing.
+
+    It carries the field and the value because most of the places that read a
+    number know which field it came from but not what row it belongs to, and
+    the ones that know the row are too far out to know the field. Deriving
+    from `InvalidOperation` keeps the handlers that already translate this
+    into their own message working unchanged.
+    """
+
+    def __init__(self, field: str, value: object) -> None:
+        """Name the field and the value that is not a finite number."""
+        self.field = field
+        self.value = value
+        super().__init__(f"{field} is not a finite number: {value!r}")
+
+
+def _decimal_from_str(price_str: str, field: str = "number") -> Decimal:
     """Convert a number as string to a Decimal.
 
     Remove $ sign, and comma thousand separators so as to handle dollar amounts
     such as "$1,250.00".
     """
-    return Decimal(price_str.replace("$", "").replace(",", ""))
+    try:
+        value = Decimal(price_str.replace("$", "").replace(",", "").strip())
+    except decimal.InvalidOperation as err:
+        raise _UnparseableNumber(field, price_str) from err
+    if not value.is_finite():
+        raise _UnparseableNumber(field, price_str)
+    return value
 
 
 def _decimal_from_number_or_str(
@@ -310,7 +340,13 @@ def _decimal_from_number_or_str(
     # We prefer native number to strings as more efficient/safer parsing
     float_name = f"{field_basename}{field_float_suffix}"
     if float_name in row and row[float_name] is not None:
-        return Decimal(row[float_name])
+        # json.load reads the NaN and Infinity literals Python allows in JSON
+        # through parse_constant rather than parse_float, so a number field is
+        # no safer than a string one here.
+        value = Decimal(row[float_name])
+        if not value.is_finite():
+            raise _UnparseableNumber(float_name, row[float_name])
+        return value
 
     # An empty string means the field is not filled in, the same as it being
     # absent. Schwab writes one for FeesAndCommissions on a commission-free
@@ -322,7 +358,7 @@ def _decimal_from_number_or_str(
         and row[field_basename] is not None
         and row[field_basename] != ""
     ):
-        return _decimal_from_str(row[field_basename])
+        return _decimal_from_str(row[field_basename], field_basename)
 
     return Decimal(0)
 
@@ -340,7 +376,7 @@ def _optional_decimal(details: JsonRowType, field_name: str) -> Decimal | None:
     value = details.get(field_name)
     if value is None or value == "":
         return None
-    return _decimal_from_str(value)
+    return _decimal_from_str(value, field_name)
 
 
 def _lot_share_sum(row: JsonRowType, names: FieldNames) -> Decimal | None:
@@ -355,7 +391,7 @@ def _lot_share_sum(row: JsonRowType, names: FieldNames) -> Decimal | None:
         details = subtransac.get(OPTIONAL_DETAILS_NAME, subtransac)
         if names.shares not in details:
             return None
-        shares = _decimal_from_str(details[names.shares])
+        shares = _decimal_from_str(details[names.shares], names.shares)
         total += shares
         if not _is_integer(shares):
             found_decimals = True
@@ -372,7 +408,7 @@ def _lot_price(row: JsonRowType, names: FieldNames) -> Decimal | None:
         prices.add(details[names.sale_price])
     if len(prices) != 1:
         return None
-    return _decimal_from_str(prices.pop())
+    return _decimal_from_str(prices.pop(), names.sale_price)
 
 
 def _recovered_sale_quantity(
@@ -460,6 +496,32 @@ def _espp_net_shares(
     return deposited * multiplier
 
 
+def _number_error(
+    err: _UnparseableNumber, row: JsonRowType, names: FieldNames, file_path: Path
+) -> ParsingError:
+    """Say which row a field that is not a number belongs to.
+
+    The reads that already refuse a bad field with a message of their own
+    never reach this; it is for the rest, so that none of them can leave a
+    user with a traceback instead of the row to go and look at.
+    """
+    return ParsingError(
+        file_path,
+        f"Invalid {err.field} '{err.value}' for "
+        f"{row.get(names.action)} on {row.get(names.date)}",
+    )
+
+
+def _transaction(
+    row: JsonRowType, file_path: Path, names: FieldNames
+) -> SchwabAwardTransaction:
+    """Build one transaction, naming the row where a field is not a number."""
+    try:
+        return SchwabAwardTransaction(row, file_path, names)
+    except _UnparseableNumber as err:
+        raise _number_error(err, row, names, file_path) from err
+
+
 def _check_lapse_units(
     rows: list[JsonRowType], file_path: Path, names: FieldNames
 ) -> None:
@@ -488,14 +550,18 @@ def _check_lapse_units(
             continue
         details = detail_rows[0].get(OPTIONAL_DETAILS_NAME, detail_rows[0])
 
-        deposited = _optional_decimal(details, names.net_shares_deposited)
-        withheld = _optional_decimal(details, names.shares_sold_withheld_for_taxes)
+        try:
+            deposited = _optional_decimal(details, names.net_shares_deposited)
+            withheld = _optional_decimal(details, names.shares_sold_withheld_for_taxes)
+            quantity = _decimal_from_number_or_str(row, names.quantity)
+        except _UnparseableNumber as err:
+            raise _number_error(err, row, names, file_path) from err
+
         if deposited is None or withheld is None:
             continue
 
         date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
         multiplier = _detail_counts_multiplier(symbol, date)
-        quantity = _decimal_from_number_or_str(row, names.quantity)
         expected = (deposited + withheld) * multiplier
 
         if quantity != expected:
@@ -592,6 +658,227 @@ def _check_disposal_units(
             )
 
 
+def _decimal_field(
+    value: str, field: str, what: str, date: datetime.date, file: Path
+) -> Decimal:
+    """Parse one of Schwab's string numbers, naming it if it is not one."""
+    try:
+        return _decimal_from_str(value, field)
+    except decimal.InvalidOperation as err:
+        raise ParsingError(
+            file,
+            f"Invalid {field} '{value}' for {what} on {date}",
+        ) from err
+
+
+def _parse_vest_price(
+    details: JsonRowType, names: FieldNames, date: datetime.date, file: Path
+) -> Decimal:
+    """Parse the Vest Fair Market Value for a vest Deposit."""
+    vest_fmv_str = details.get(names.vest_fair_market_value)
+    if not vest_fmv_str:
+        raise ParsingError(
+            file,
+            f"Missing or empty {names.vest_fair_market_value} for Deposit on {date}",
+        )
+    price = _decimal_field(
+        vest_fmv_str, names.vest_fair_market_value, "Deposit", date, file
+    )
+    if price <= 0:
+        raise ParsingError(
+            file,
+            f"The Deposit on {date} states a {names.vest_fair_market_value} of "
+            f"'{vest_fmv_str}'. That figure is what the vested shares cost for "
+            "tax, so at zero or less they would enter the pool for nothing and "
+            "the whole of the proceeds would be taxed when they are sold. "
+            "Correct it in the JSON from your vest confirmation.",
+        )
+    return price
+
+
+def _sale_lots(
+    row: JsonRowType, names: FieldNames, date: datetime.date, file: Path
+) -> list[tuple[Decimal | None, str | None, Decimal | None]]:
+    """Every lot of a Sale, as (share count, price as printed, price).
+
+    Either field is None where the export leaves it out, which it does: a lot
+    may state a count without a price or the other way round, and which of
+    them is load-bearing depends on the caller.
+
+    What a lot does state has to make sense, though, and that is checked for
+    every sale. A row whose own Quantity kept its decimals works its price out
+    from the money and needs none of these fields, but one that states a
+    nonsense figure is not the row it appears to be, and the pool is not the
+    place to find that out.
+    """
+    subtransacs = row.get(names.transac_details)
+    if not subtransacs:
+        raise ParsingError(
+            file,
+            f"Expected transaction details for Sale on {date}",
+        )
+
+    lots: list[tuple[Decimal | None, str | None, Decimal | None]] = []
+    for subtransac in subtransacs:
+        details = subtransac.get(OPTIONAL_DETAILS_NAME, subtransac)
+
+        shares = None
+        if names.shares in details:
+            # Schwab only provides this one as a string:
+            shares = _decimal_field(
+                details[names.shares], names.shares, "Sale", date, file
+            )
+            # A zero is ordinary — Schwab writes one for a lot it has split
+            # the count away from — but a negative one would quietly take
+            # shares off the disposal.
+            if shares < 0:
+                raise ParsingError(
+                    file,
+                    f"The Sale on {date} states {shares} shares for one of its "
+                    f"lots. A lot cannot dispose of a negative number of "
+                    f"shares, and this one would take {-shares} off the number "
+                    f"sold. Correct the {names.shares} field in the JSON from "
+                    "your trade confirmation.",
+                )
+
+        price_str = details.get(names.sale_price) or None
+        price = None
+        if price_str is not None:
+            price = _decimal_field(price_str, names.sale_price, "Sale", date, file)
+            if price <= 0:
+                raise ParsingError(
+                    file,
+                    f"The Sale on {date} states a {names.sale_price} of "
+                    f"'{price_str}' for one of its lots. A sale has to have a "
+                    "positive price, and the number of shares sold is worked "
+                    "out from it, so this row cannot be used. Correct it in "
+                    "the JSON from your trade confirmation.",
+                )
+
+        lots.append((shares, price_str, price))
+
+    return lots
+
+
+def _parse_sale_subtransactions(
+    row: JsonRowType,
+    names: FieldNames,
+    date: datetime.date,
+    quantity: Decimal,
+    amount: Decimal,
+    fees: Decimal,
+    file: Path,
+) -> tuple[Decimal, Decimal]:
+    """Parse sub-transactions for a Sale to compute quantity and price."""
+    lots = _sale_lots(row, names, date, file)
+
+    subtransac_have_quantities = True
+    subtransac_shares_sum = Decimal()  # Decimal 0
+    found_share_decimals = False
+
+    for shares, _price_str, _price in lots:
+        if shares is None:
+            subtransac_have_quantities = False
+            break
+        subtransac_shares_sum += shares
+        if not _is_integer(shares):
+            found_share_decimals = True
+
+    if subtransac_have_quantities and found_share_decimals:
+        # The lots kept the decimals the row rounded away. Their counts are
+        # each non-negative and one of them is a fraction, so the sum is
+        # positive; the check is here because what it guards is a division.
+        if subtransac_shares_sum <= 0:
+            raise ParsingError(
+                file,
+                f"The Sale on {date} has lots adding up to "
+                f"{subtransac_shares_sum} shares, so what a share sold for "
+                f"cannot be worked out. Take the counts from your trade "
+                f"confirmation and correct the {names.shares} fields in the "
+                "JSON.",
+            )
+        return subtransac_shares_sum, (amount + fees) / subtransac_shares_sum
+
+    # Schwab sometimes only gives us overall transaction amount, and sale
+    # price of the sub-transactions. We can only work-out the correct
+    # quantity if all sub-transactions have the same price. Whole share
+    # counts on the lots are no help: Schwab rounds those the same way it
+    # rounds the row's own Quantity, so they cannot settle it either.
+    prices: dict[str, Decimal] = {}
+    for _shares, price_str, price in lots:
+        if price_str is None or price is None:
+            raise ParsingError(
+                file,
+                f"Missing or empty {names.sale_price} for Sale on {date}",
+            )
+        prices[price_str] = price
+
+    if len(prices) > 1:
+        raise ParsingError(
+            file,
+            f"The Sale on {date} of {amount} was made up of lots sold at "
+            f"different prices ({', '.join(sorted(prices))}), and the "
+            f"export gives no reliable {names.shares} count for each lot, so "
+            "the number of shares sold cannot be worked out. Take the counts "
+            "from the trade confirmation for that day and split this sale in "
+            "the JSON into one transaction per sale price.",
+        )
+
+    price = next(iter(prices.values()))
+
+    # Check if the transaction was lacking decimals. Sometimes we did just
+    # sell an integer number of shares. If we unconditionally perform the
+    # quantity update step here, small roundings that were necessary to
+    # determine the amount on the broker side can cause tiny decimal
+    # deviations in the quantity, which can then cause errors later on, e.g.
+    # triggering assertions about selling more than was available.
+    if round_decimal(quantity * price - fees, 2) != amount:
+        quantity = (amount + fees) / price
+
+    return quantity, price
+
+
+def _row_decimal(
+    row: JsonRowType, field: str, names: FieldNames, raw_action: str, file: Path
+) -> Decimal:
+    """Read one of a row's own count or money fields, refusing what is not one.
+
+    These are read before the row's action has been looked at, so this is the
+    one place that can name the field for them.
+    """
+    try:
+        return _decimal_from_number_or_str(row, field)
+    except decimal.InvalidOperation as err:
+        printed = row.get(f"{field}SortValue")
+        if printed is None:
+            printed = row.get(field)
+        raise ParsingError(
+            file,
+            f"Invalid {field} '{printed}' for {raw_action} on {row.get(names.date)}",
+        ) from err
+
+
+def _parse_cash_amount(
+    row: JsonRowType,
+    names: FieldNames,
+    raw_action: str,
+    date: datetime.date,
+    file: Path,
+) -> Decimal:
+    """Parse amount for dividend, tax, or transfer transactions.
+
+    These rows are nothing but money, so one that states none is malformed
+    rather than a zero.
+    """
+    if not row.get(names.amount) and row.get(f"{names.amount}SortValue") is None:
+        raise ParsingError(
+            file,
+            f"Missing or empty {names.amount} for {raw_action} on {date}",
+        )
+
+    return _decimal_from_number_or_str(row, names.amount)
+
+
 class SchwabAwardTransaction(BrokerTransaction):
     """Represent a single Schwab equity award transaction."""
 
@@ -621,10 +908,9 @@ class SchwabAwardTransaction(BrokerTransaction):
                 symbol,
                 symbol,
             )
-        quantity = _decimal_from_number_or_str(row, names.quantity)
-        initially_parsed_amount = _decimal_from_number_or_str(row, names.amount)
-        amount = initially_parsed_amount
-        fees = _decimal_from_number_or_str(row, names.fees)
+        quantity = _row_decimal(row, names.quantity, names, self.raw_action, file)
+        amount = _row_decimal(row, names.amount, names, self.raw_action, file)
+        fees = _row_decimal(row, names.fees, names, self.raw_action, file)
         if row[names.action] == "Deposit":
             if len(row[names.transac_details]) != 1:
                 raise ParsingError(
@@ -647,7 +933,10 @@ class SchwabAwardTransaction(BrokerTransaction):
                 date = datetime.datetime.strptime(
                     details[names.purchase_date], "%m/%d/%Y"
                 ).date()
-                price = _decimal_from_str(details[names.purchase_fair_market_value])
+                price = _decimal_from_str(
+                    details[names.purchase_fair_market_value],
+                    names.purchase_fair_market_value,
+                )
 
                 # Since August 2025 the tax on a purchase is settled out of the
                 # shares themselves, and only the rest reaches the pool. Before
@@ -678,7 +967,7 @@ class SchwabAwardTransaction(BrokerTransaction):
                     details[names.vest_date], "%m/%d/%Y"
                 ).date()
                 # Schwab only provides this one as a string:
-                price = _decimal_from_str(details[names.vest_fair_market_value])
+                price = _parse_vest_price(details, names, date, file)
                 if amount == Decimal(0):
                     amount = price * quantity
                 description = (
@@ -703,76 +992,34 @@ class SchwabAwardTransaction(BrokerTransaction):
                 #
                 # The count still has to be recovered when the row has rounded
                 # it away, or the pool loses the fraction silently.
+                #
+                # The lots are checked first for the same reason as on the
+                # other two paths: the helpers below read them without
+                # judging them, so a negative count would just be summed in
+                # and take shares out of the pool with the money still right.
+                _sale_lots(row, names, date, file)
                 quantity = (
                     _recovered_sale_quantity(row, names, quantity, amount, fees)
                     or quantity
                 )
                 price = (amount + fees) / quantity
             elif not _is_integer(quantity):
+                # Nothing to recover: the row kept its own decimals, and the
+                # money gives the price a share sold at. The lots are checked
+                # all the same, so a malformed one cannot reach the pool on
+                # the strength of a fractional Quantity.
+                _sale_lots(row, names, date, file)
                 price = (amount + fees) / quantity
             else:
-                subtransac_have_quantities = True
-                subtransac_shares_sum = Decimal()  # Decimal 0
-                found_share_decimals = False
-
-                details = row[names.transac_details][0].get(
-                    OPTIONAL_DETAILS_NAME, row[names.transac_details][0]
+                quantity, price = _parse_sale_subtransactions(
+                    row,
+                    names,
+                    date,
+                    quantity,
+                    amount,
+                    fees,
+                    file,
                 )
-
-                for subtransac in row[names.transac_details]:
-                    subtransac = subtransac.get(OPTIONAL_DETAILS_NAME, subtransac)
-
-                    if names.shares in subtransac:
-                        # Schwab only provides this one as a string:
-                        shares = _decimal_from_str(subtransac[names.shares])
-                        subtransac_shares_sum += shares
-                        if not _is_integer(shares):
-                            found_share_decimals = True
-                    else:
-                        subtransac_have_quantities = False
-                        break
-
-                if subtransac_have_quantities and found_share_decimals:
-                    quantity = subtransac_shares_sum
-                    price = (amount + fees) / quantity
-                else:
-                    # Schwab sometimes only gives us overall transaction
-                    # amount, and sale price of the sub-transactions.
-                    # We can only work-out the correct quantity if all
-                    # sub-transactions have the same price:
-
-                    first_subtransac = row[names.transac_details][0]
-                    first_subtransac = first_subtransac.get(
-                        OPTIONAL_DETAILS_NAME, first_subtransac
-                    )
-                    price_str = first_subtransac[names.sale_price]
-                    price = _decimal_from_str(price_str)
-
-                    for subtransac in row[names.transac_details][1:]:
-                        subtransac = subtransac.get(OPTIONAL_DETAILS_NAME, subtransac)
-
-                        if subtransac[names.sale_price] != price_str:
-                            raise ParsingError(
-                                file,
-                                "Impossible to work out quantity of sale of "
-                                f"date {date} and amount {amount} because "
-                                "different sub-transaction have different sale"
-                                " prices",
-                            )
-
-                    # Check if the transaction was lacking decimals. Sometimes
-                    # we did just sell an integer number of shares.
-                    # If we unconditionally perform the quantity update step
-                    # here, small roundings that were necessary to determine
-                    # the initially_parsed_amount on the broker side can cause
-                    # tiny decimal deviations in the quantity, which can then
-                    # cause errors later on, e.g. triggering assertions about
-                    # selling more than was available.
-                    if (
-                        round_decimal(quantity * price - fees, 2)
-                        != initially_parsed_amount
-                    ):
-                        quantity = (amount + fees) / price
 
         elif action is ActionType.UNCLASSIFIED_GIFT:
             date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
@@ -793,7 +1040,7 @@ class SchwabAwardTransaction(BrokerTransaction):
         }:
             date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
             price = None
-            amount = _decimal_from_str(row[names.amount])
+            amount = _parse_cash_amount(row, names, self.raw_action, date, file)
             description = self.raw_action
         else:
             raise ParsingError(
@@ -923,7 +1170,7 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabAwardTransaction])
         _check_lapse_units(data[fields.transactions], file_path, fields)
 
         transactions = [
-            SchwabAwardTransaction(transac, file_path, fields)
+            _transaction(transac, file_path, fields)
             for transac in data[fields.transactions]
             # Journal and Wire Transfer move cash between accounts.
             #
