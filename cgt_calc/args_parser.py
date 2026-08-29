@@ -160,7 +160,12 @@ Environment variables:
         type=ticker_list_type,
         metavar="TICKER[,TICKER...]",
         default=[],
-        help="tickers of assets exempt from CGT (e.g. UK gilts, qualifying corporate bonds)",
+        help="advanced manual CGT-exempt instrument classification (TCGA 1992 "
+        "s115): your own unverified assertion, since QCB status cannot be "
+        "inferred from a ticker or name; disregards both gains and losses on "
+        "disposals and changes nothing else, so coupon and accrued interest "
+        "stay taxable in whichever box the broker's rows put them and the "
+        "Accrued Income Scheme is not implemented",
     )
 
     # Output Options

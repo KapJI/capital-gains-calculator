@@ -35,6 +35,19 @@ The following configuration files and options allow you to customize the calcula
   dividends. Specify these funds via the `--interest-fund-tickers` CLI option, using a
   comma-separated list of ticker symbols.
 
-- **CGT-exempt tickers.** Disposals of UK gilts and qualifying corporate bonds (QCBs) are exempt
-  from Capital Gains Tax (TCGA 1992 s115). Specify these assets via the `--cgt-exempt-tickers` CLI
-  option, using a comma-separated list of ticker symbols.
+- **CGT-exempt instrument classification (advanced manual override).** Use `--cgt-exempt-tickers`
+  with a comma-separated list only when you have established that each instrument is exempt under
+  TCGA 1992 s115. This is your own unverified assertion: the calculator does not identify or
+  validate gilts or qualifying corporate bonds (QCBs), and QCB status cannot be inferred from a
+  ticker or name. The override disregards both gains and losses on disposals. Coupon and accrued
+  interest remain taxable income; the calculator does not implement the Accrued Income Scheme. The
+  importers for [Freetrade](brokers/freetrade.md),
+  [Hargreaves Lansdown](brokers/hargreaves-lansdown.md) and
+  [Interactive Brokers](brokers/interactive-brokers.md) are documented as unvalidated for bonds and
+  gilts, and this override does not validate them either. It changes the capital gains calculation
+  only: a coupon is reported in whichever box its broker rows put it in, and
+  `--interest-fund-tickers` reports as foreign interest, so it is not a fix for a UK gilt coupon.
+  Check the interest and dividend figures against your own records. Matching is by the ticker as it
+  stands at the disposal, so an instrument renamed part-way through the history has to be listed
+  under both names. A gift of a listed instrument is reported as an exempt disposal and does not
+  also appear in the **Gifts at market value** section.

@@ -8,12 +8,11 @@ import logging
 import os
 from pathlib import Path
 import re
-import shutil
 import subprocess
 
 import pytest
 
-from cgt_calc.model import ActionType
+from cgt_calc.model import ActionType, RuleType
 from cgt_calc.render_latex import render_pdf
 from tests.utils import build_cmd, report_path, stderr_alerts
 
@@ -45,16 +44,15 @@ def test_exempt_disposal_at_gain_excluded_from_capital_gain() -> None:
     assert report.taxable_gain() == Decimal(0)
     assert report.exempt_disposal_count == 1
     assert report.exempt_disposal_proceeds == Decimal(12000)
-    assert report.exempt_disposals == 1
-    assert report.exempt_proceeds == Decimal(12000)
 
     assert "exempt$T26" in report.calculation_log[SELL_DATE]
     assert "sell$T26" not in report.calculation_log[SELL_DATE]
 
     report_str = str(report)
-    assert "Exempt disposals:   £12,000.00" in report_str
-    assert "Gain:                    £0.00" in report_str
-    assert "Total gain:              £0.00" in report_str
+    assert "Exempt disposals:                  1" in report_str
+    assert "Exempt disposal proceeds: £12,000.00" in report_str
+    assert "Gain:                          £0.00" in report_str
+    assert "Total gain:                    £0.00" in report_str
 
 
 def test_exempt_disposal_at_loss_excluded_from_capital_loss() -> None:
@@ -76,8 +74,9 @@ def test_exempt_disposal_at_loss_excluded_from_capital_loss() -> None:
     assert report1.exempt_disposal_proceeds == Decimal(8000)
 
     report_str = str(report1)
-    assert "Loss:                   £0.00" in report_str
-    assert "Exempt disposals:   £8,000.00" in report_str
+    assert "Loss:                         £0.00" in report_str
+    assert "Exempt disposals:                 1" in report_str
+    assert "Exempt disposal proceeds: £8,000.00" in report_str
 
     # In a subsequent tax year with a chargeable gain, verify no allowable loss carried forward
     next_year_buy = datetime.date(2025, 5, 1)
@@ -123,12 +122,12 @@ def test_mixed_portfolio_chargeable_and_exempt() -> None:
     assert report.exempt_disposal_proceeds == Decimal(12000)
 
     report_str = str(report)
-    assert "Disposals:                   1" in report_str
-    assert "Disposal proceeds:   £1,500.00" in report_str
-    assert "Allowable costs:     £1,000.00" in report_str
-    assert "Gain:                  £500.00" in report_str
-    assert "Exempt disposals:   £12,000.00" in report_str
-    assert "Total gain:            £500.00" in report_str
+    assert "Disposals:                         1" in report_str
+    assert "Disposal proceeds:         £1,500.00" in report_str
+    assert "Allowable costs:           £1,000.00" in report_str
+    assert "Gain:                        £500.00" in report_str
+    assert "Exempt disposal proceeds: £12,000.00" in report_str
+    assert "Total gain:                  £500.00" in report_str
 
 
 def test_exempt_holding_still_present_in_year_end_portfolio() -> None:
@@ -152,6 +151,71 @@ def test_exempt_holding_still_present_in_year_end_portfolio() -> None:
 
     report_str = str(report)
     assert "T26: 60.00, £6,000.00" in report_str
+
+
+def test_exempt_disposal_uses_same_day_matching() -> None:
+    """Same-day matching still runs, but its gain is disregarded."""
+    transactions = [
+        transaction(BUY_DATE, ActionType.BUY, "T26", 100, 100, 0, -10000, GBP),
+        transaction(BUY_DATE, ActionType.SELL, "T26", 100, 120, 0, 12000, GBP),
+    ]
+    report = get_report(
+        create_calculator(
+            tax_year=TAX_YEAR, balance_check=False, cgt_exempt_tickers=["T26"]
+        ),
+        transactions,
+    )
+
+    assert [
+        entry.rule_type for entry in report.calculation_log[BUY_DATE]["exempt$T26"]
+    ] == [RuleType.SAME_DAY]
+    assert report.capital_gain == report.capital_loss == Decimal(0)
+    assert report.exempt_disposal_proceeds == Decimal(12000)
+
+
+def test_exempt_disposal_uses_bed_and_breakfast_matching() -> None:
+    """Thirty-day matching still runs, but its gain is disregarded."""
+    repurchase_date = SELL_DATE + datetime.timedelta(days=10)
+    transactions = [
+        transaction(BUY_DATE, ActionType.BUY, "T26", 100, 100, 0, -10000, GBP),
+        transaction(SELL_DATE, ActionType.SELL, "T26", 100, 120, 0, 12000, GBP),
+        transaction(repurchase_date, ActionType.BUY, "T26", 100, 110, 0, -11000, GBP),
+    ]
+    report = get_report(
+        create_calculator(
+            tax_year=TAX_YEAR, balance_check=False, cgt_exempt_tickers=["T26"]
+        ),
+        transactions,
+    )
+
+    assert [
+        entry.rule_type for entry in report.calculation_log[SELL_DATE]["exempt$T26"]
+    ] == [RuleType.BED_AND_BREAKFAST]
+    assert report.capital_gain == report.capital_loss == Decimal(0)
+    assert report.exempt_disposal_proceeds == Decimal(12000)
+
+
+def test_exempt_ticker_income_is_retained() -> None:
+    """The override disregards CGT only, leaving taxable income in the report."""
+    income_date = datetime.date(2024, 7, 1)
+    transactions = [
+        transaction(BUY_DATE, ActionType.BUY, "T26", 100, 100, 0, -10000, GBP),
+        transaction(income_date, ActionType.DIVIDEND, "T26", amount=250, currency=GBP),
+        transaction(income_date, ActionType.INTEREST, "T26", amount=40, currency=GBP),
+        transaction(SELL_DATE, ActionType.SELL, "T26", 100, 120, 0, 12000, GBP),
+    ]
+    report = get_report(
+        create_calculator(
+            tax_year=TAX_YEAR, balance_check=False, cgt_exempt_tickers=["T26"]
+        ),
+        transactions,
+    )
+
+    assert report.capital_gain == report.capital_loss == Decimal(0)
+    assert report.total_dividends_amount() == Decimal(250)
+    assert report.total_uk_interest == Decimal(40)
+    assert "dividend$T26" in report.calculation_log_yields[income_date]
+    assert "interestUK$Testing" in report.calculation_log_yields[income_date]
 
 
 def test_unmatched_ticker_warning(caplog: pytest.LogCaptureFixture) -> None:
@@ -224,18 +288,67 @@ def test_pdf_report_rendering_exempt_disposal(tmp_path: Path) -> None:
     source_flat = re.sub(r"\s+", " ", source)
 
     # Check per-disposal subsection
-    assert "Exempt disposal: 100 units of T26 for £12,000" in source_flat
+    assert "Exempt disposal: 100 units of T26 valued at £12,000" in source_flat
     assert "the gain or loss is disregarded" in source_flat
+    # The cost label carries its colon like the chargeable branch does: no
+    # stray space in front of it, and on a bed-and-breakfast line the date and
+    # its colon stay in one \mbox so they cannot be split across lines.
+    assert "cost used for this illustrative calculation: £10,000" in source_flat
+    assert "not allowable deductions against other gains" in source_flat
 
     # Check Overall section line
-    assert "Exempt disposals: £12,000" in source_flat
+    assert "Number of exempt disposals: 1" in source_flat
+    assert "Total exempt disposal proceeds: £12,000" in source_flat
     assert "Number of disposals: 0" in source_flat
 
-    if shutil.which("pdflatex") is not None:
-        pdf_path = tmp_path / "actual_report.pdf"
-        render_pdf(report, pdf_path, skip_pdflatex=False)
-        assert pdf_path.exists()
-        assert pdf_path.stat().st_size > 0
+
+def test_pdf_report_rendering_exempt_bed_and_breakfast(tmp_path: Path) -> None:
+    """A bed-and-breakfast exempt line keeps its match date and colon together."""
+    repurchase_date = SELL_DATE + datetime.timedelta(days=10)
+    transactions = [
+        transaction(BUY_DATE, ActionType.BUY, "T26", 100, 100, 0, -10000, GBP),
+        transaction(SELL_DATE, ActionType.SELL, "T26", 100, 120, 0, 12000, GBP),
+        transaction(repurchase_date, ActionType.BUY, "T26", 100, 110, 0, -11000, GBP),
+    ]
+    calc = create_calculator(
+        tax_year=TAX_YEAR, balance_check=False, cgt_exempt_tickers=["T26"]
+    )
+    report = get_report(calc, transactions)
+
+    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
+    source_flat = re.sub(
+        r"\s+", " ", (tmp_path / "report.tex").read_text(encoding="utf-8")
+    )
+
+    assert (
+        "cost used for this illustrative calculation on "
+        "\\mbox{11 Sep 2024:} £11,000" in source_flat
+    )
+
+
+def test_pdf_reports_exempt_gift_with_neutral_valuation_wording(
+    tmp_path: Path,
+) -> None:
+    """An exempt gift is not described as receiving sale proceeds."""
+    gift_date = datetime.date(2024, 9, 1)
+    transactions = [
+        transaction(BUY_DATE, ActionType.BUY, "T26", 100, 100, 0, -10000, GBP),
+        transaction(gift_date, ActionType.GIFT, "T26", 100, 80, 0, None, GBP),
+    ]
+    report = get_report(
+        create_calculator(
+            tax_year=TAX_YEAR, balance_check=False, cgt_exempt_tickers=["T26"]
+        ),
+        transactions,
+    )
+
+    assert "exempt$T26" in report.calculation_log[gift_date]
+    assert "Gifts at market value" not in str(report)
+    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
+    source_flat = re.sub(
+        r"\s+", " ", (tmp_path / "report.tex").read_text(encoding="utf-8")
+    )
+    assert "Exempt disposal: 100 units of T26 valued at £8,000.00" in source_flat
 
 
 def test_run_with_exempt_tickers(
@@ -267,7 +380,7 @@ def test_run_with_exempt_tickers(
             f"Integration test failed\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
-    assert "Exempt disposals:   £12,000.00" in result.stdout
+    assert "Exempt disposal proceeds: £12,000.00" in result.stdout
     if os.getenv("ENABLE_PDFLATEX"):
         pdf_file = Path(out_dir.rstrip("/")).with_suffix(".pdf")
         assert pdf_file.exists()

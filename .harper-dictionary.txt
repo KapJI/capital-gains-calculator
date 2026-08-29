@@ -135,6 +135,7 @@ py
 pyproject
 pytest
 python3
+QCB
 QCBs
 rata
 regularMarketPrice
@@ -197,6 +198,7 @@ txn
 ty
 UCITS
 un
+unvalidated
 US9220427424
 usr
 UTF

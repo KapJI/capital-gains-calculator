@@ -139,12 +139,15 @@
     \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount") + entries|sum(attribute="fees"), 2) }
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \subsubsection*{
-        Exempt disposal: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(overall_disposed) }
+        Exempt disposal: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } valued at £\VAR{ "{:,}".format(overall_disposed) }
         (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
         \BLOCK{ if overall_fees > 0 }
-            , £\VAR{ "{:,}".format(overall_fees) } fees allowed as cost
+            , £\VAR{ "{:,}".format(overall_fees) } disposal expenses included in the illustrative calculation
         \BLOCK{ endif }
     }
+    The cost and disposal expenses shown below are used for this illustrative calculation only;
+    they are not allowable deductions against other gains.
+
     \BLOCK{ if overall_gain > 0 -}
         Gain is £\VAR{ "{:,}".format(overall_gain) }; the gain or loss is disregarded (exempt asset).
     \BLOCK{ elif overall_gain == 0 }
@@ -178,11 +181,11 @@
     \BLOCK{ if entry.quantity < overall_quantity }
         disposal proceeds: £\VAR{ "{:,}".format(round_decimal(entry.amount + entry.fees, 2)) },
     \BLOCK{ endif }
-    allowable
+    cost used for this illustrative
     \BLOCK{ if entry.rule_type.name == "BED_AND_BREAKFAST" }
-        cost on \mbox{\VAR{ entry.bed_and_breakfast_date_index.strftime("%d %b %Y") }:}
+        calculation on \mbox{\VAR{ entry.bed_and_breakfast_date_index.strftime("%d %b %Y") }:}
     \BLOCK{ else }
-        cost:
+        calculation:
     \BLOCK{ endif }
     £\VAR{ "{:,}".format(round_decimal(entry.allowable_cost, 2)) },
     \BLOCK{ if entry.gain > 0}
@@ -308,8 +311,9 @@
 \BLOCK{ if gift_loss.value > 0 }
 \subsection*{Losses on gifts, kept separate: £\VAR{ "{:,}".format(gift_loss.value) }}
 \BLOCK{ endif }
-\BLOCK{ if report.exempt_disposal_proceeds > 0 }
-\subsection*{Exempt disposals: £\VAR{ "{:,}".format(report.exempt_disposal_proceeds) }}
+\BLOCK{ if report.exempt_disposal_count > 0 }
+\subsection*{Number of exempt disposals: \VAR{ report.exempt_disposal_count }}
+\subsection*{Total exempt disposal proceeds: £\VAR{ "{:,}".format(report.exempt_disposal_proceeds) }}
 \BLOCK{ endif }
 \subsection*{Total capital gain after loss: £\VAR{ "{:,}".format(total_gain.value - total_loss.value) }}
 \vspace{1em}

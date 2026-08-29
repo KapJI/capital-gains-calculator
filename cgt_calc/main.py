@@ -223,10 +223,9 @@ class CapitalGainsCalculator:
         self.balance_check = balance_check
         self.calc_unrealized_gains = calc_unrealized_gains
         self.interest_fund_tickers = interest_fund_tickers
-        self.cgt_exempt_tickers = [
-            ticker.upper() for ticker in (cgt_exempt_tickers or [])
-        ]
-        self.cgt_exempt_tickers_set = set(self.cgt_exempt_tickers)
+        self.cgt_exempt_tickers = frozenset(
+            ticker.upper() for ticker in cgt_exempt_tickers or []
+        )
         self.total_uk_interest = Decimal(0)
         self.total_foreign_interest = Decimal(0)
         self.total_interest_tax = Decimal(0)
@@ -312,7 +311,7 @@ class CapitalGainsCalculator:
 
     def is_cgt_exempt(self, symbol: str) -> bool:
         """Check if symbol is exempt from Capital Gains Tax."""
-        return symbol.upper() in self.cgt_exempt_tickers_set
+        return symbol.upper() in self.cgt_exempt_tickers
 
     def get_eri(self, symbol: str, date: datetime.date) -> ExcessReportedIncome | None:
         """Return Excess Reported Income at specific date for the input symbol."""
@@ -716,6 +715,10 @@ class CapitalGainsCalculator:
 
         A sale with a gift to someone unconnected is one ordinary disposal,
         reported as a sale.
+
+        A disposal of an instrument the user has classified as CGT-exempt is
+        named "exempt" whichever kind it is, so a gift of one is reported as an
+        exempt disposal rather than as a gift.
         """
         if self.is_cgt_exempt(symbol):
             return "exempt"
@@ -2439,7 +2442,7 @@ class CapitalGainsCalculator:
             for day in log.values()
             for sym in day
         }
-        for ticker in dict.fromkeys(self.cgt_exempt_tickers):
+        for ticker in sorted(self.cgt_exempt_tickers):
             if ticker not in logged_symbols:
                 LOGGER.warning(
                     "CGT-exempt ticker '%s' was not found in acquisitions or disposals",
@@ -2545,7 +2548,7 @@ class CapitalGainsCalculator:
                         calculation_log[date_index][f"{prefix}${symbol}"] = (
                             calculation_entries
                         )
-                        if self.is_cgt_exempt(symbol):
+                        if prefix == "exempt":
                             exempt_disposal_count += 1
                             exempt_disposal_proceeds += transaction_disposal_proceeds
                             LOGGER.debug(
