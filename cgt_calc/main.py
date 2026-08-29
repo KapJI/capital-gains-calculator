@@ -543,14 +543,27 @@ class CapitalGainsCalculator:
 
         A reorganisation is neither an acquisition nor a disposal, so nothing
         is paid for it and nothing is received (TCGA 1992 s127, CG51805).
-        Anything in the price or fees column is therefore a figure the
+        Anything in the price, fees or amount column is therefore a figure the
         calculation has no use for and would drop without saying so, and a row
         that states one is a row about something other than the reorganisation.
         """
+        quantity = transaction.quantity
         for column, value in (
             ("price", transaction.price),
             ("fees", transaction.fees),
+            ("amount", transaction.amount),
         ):
+            if (
+                column == "amount"
+                and value is not None
+                and not value.is_finite()
+                and quantity is not None
+                and not quantity.is_finite()
+            ):
+                # A RAW row derives its amount from the quantity, so a
+                # non-finite quantity makes a non-finite amount the user never
+                # wrote. The quantity check downstream names the real defect.
+                continue
             if value:
                 raise InvalidTransactionError(
                     transaction,
@@ -558,13 +571,13 @@ class CapitalGainsCalculator:
                     f"{strip_zeros(value)}. A reorganisation buys nothing and "
                     "sells nothing (TCGA 1992 s127), so there is nothing for "
                     "that figure to be, and cgt-calc will not drop it without "
-                    "saying so. Leave price and fees at 0. If money really did "
-                    "change hands (cash in lieu of a fractional entitlement, "
-                    "say), it may be a part disposal under TCGA 1992 s128 or "
-                    "a small distribution under s122(2). cgt-calc cannot "
-                    "represent the small-distribution treatment, so leave "
-                    "money off this row and calculate the distribution and "
-                    "any pool-cost adjustment separately",
+                    "saying so. Leave every money column at 0 or blank. If "
+                    "money really did change hands (cash in lieu of a "
+                    "fractional entitlement, say), it is a part disposal under "
+                    "TCGA 1992 s128 or a small distribution under s122(2), and "
+                    "cgt-calc can represent neither: leave money off this row "
+                    "and work the payment and the holding's later figures out "
+                    "separately",
                 )
         if transaction.foreign_fees:
             listed = ", ".join(

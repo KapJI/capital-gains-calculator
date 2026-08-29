@@ -1558,15 +1558,47 @@ def test_a_reorganisation_that_states_a_fee_is_refused() -> None:
 
 
 def test_a_reorganisation_fee_error_does_not_prescribe_cash_treatment() -> None:
-    """Cash in lieu may be a disposal or a separately calculated pool change."""
+    """Cash in lieu has two treatments and cgt-calc computes neither."""
     with pytest.raises(
         InvalidTransactionError,
-        match="cannot represent the small-distribution treatment",
+        match="cgt-calc can represent neither",
     ):
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
                 raw_split(EVENT_DAY, "FOO", "10", fees="1.50"),
+            ]
+        )
+
+
+def test_a_reorganisation_that_states_an_amount_is_refused() -> None:
+    """Money in the amount column alone must not vanish.
+
+    A RAW row derives its amount from the price, so a price-less amount can
+    only arrive from a broker export, the way a Schwab row carries an Amount
+    with no Price. It is still money the calculation would otherwise drop.
+    """
+    broker_row = legacy_split(EVENT_DAY, "FOO", "10")
+    broker_row.amount = Decimal("123.45")
+    with pytest.raises(InvalidTransactionError, match="The amount column"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                broker_row,
+            ]
+        )
+
+
+def test_an_amount_on_an_overridden_broker_row_is_refused() -> None:
+    """Choosing a RAW row must not silently discard money on another row."""
+    broker_row = legacy_split(EVENT_DAY, "FOO", "10")
+    broker_row.amount = Decimal("123.45")
+    with pytest.raises(InvalidTransactionError, match="The amount column"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                broker_row,
+                raw_split(EVENT_DAY, "FOO", "10"),
             ]
         )
 

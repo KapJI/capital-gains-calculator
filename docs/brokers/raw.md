@@ -221,28 +221,23 @@ Leave `price` and `fees` at `0`: nothing is bought, sold or paid for. cgt-calc r
 
 A consolidation rarely divides evenly. cgt-calc keeps whatever fraction of a unit the arithmetic
 leaves, which is right only if you still hold it. Where the registrar sold the fraction and paid you
-the cash instead, there are two possible treatments. Under
-[TCGA 1992 s128(3)](https://www.legislation.gov.uk/ukpga/1992/12/section/128) it is consideration
-for a part disposal; s128(4) says to apportion the holding's cost as under s129. Where the payment
-is small, [s122(2)](https://www.legislation.gov.uk/ukpga/1992/12/section/122) can instead treat it
-as no disposal and deduct the payment from the holding's pooled cost. HMRC generally accepts a
-payment as small when it is no more than 5% of the holding's value or no more than £3,000
+the cash instead, the payment is consideration under
+[TCGA 1992 s128(3)](https://www.legislation.gov.uk/ukpga/1992/12/section/128): a part disposal of
+the holding, whose cost is apportioned under s129 rather than identified against acquisitions the
+way a sale of shares is
+([CG51875](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51875)). Where the
+payment is small, [s122(2)](https://www.legislation.gov.uk/ukpga/1992/12/section/122) can instead
+treat it as no disposal at all and deduct the payment from the holding's pooled cost. HMRC generally
+accepts a payment as small when it is no more than 5% of the holding's value or no more than £3,000
 ([CG57835](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57835),
 [CG57800](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57800)).
 
-cgt-calc can work out the part-disposal treatment: add a `SELL` row for the fractional units
-immediately below the `STOCK_SPLIT` row, and the disposal is computed in the post-reorganisation
-units. Say you held 133 RKT shares through a 100-for-1 consolidation, leaving 1.33, and the
-registrar sold the 0.33 fraction for £19.14:
-
-```csv
-2026-02-02,STOCK_SPLIT,RKT,-131.67,0.00,0.00,GBP
-2026-02-02,SELL,RKT,0.33,58.00,0.00,GBP
-```
-
-For the s122(2) treatment, cgt-calc cannot reduce a pooled cost without recording a disposal. Its
-pool for this holding is therefore wrong in both units and cost from this date onwards, so work out
-the distribution, the corrected pool and every later figure for the holding separately.
+cgt-calc can compute neither treatment, and writing the payment as a `SELL` row does not compute the
+first one: a `SELL` goes through the ordinary share identification rules, so a purchase in the
+following 30 days is matched against it and the disposal takes that purchase's cost instead of a
+share of the holding's. Record no row for the payment. The pool then still carries the fraction the
+registrar sold, so the holding's unit count is wrong from this date onwards: work the payment, the
+corrected pool and the holding's later figures out by hand (consider professional advice).
 
 ### Holdings spread across brokers
 
@@ -255,6 +250,12 @@ units from another source, and says so.
 A RAW `STOCK_SPLIT` row is the answer to that refusal, and you do not have to edit the broker export
 to use it: where a date has both, the RAW row states the change to the whole holding, so cgt-calc
 uses it and ignores the broker's own row for the same event.
+
+Which accounts a holding is built from is remembered until the whole pooled holding reaches zero. So
+after one account sells all of its units, a single-row split reported by the other is still refused
+while the pool holds anything bought in the first: cgt-calc does not track which account each
+remaining unit came from, so it will not assume they are all at the reporting one. The RAW row above
+is the answer there too.
 
 ## Transfers to a spouse or civil partner
 
