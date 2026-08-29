@@ -1143,7 +1143,7 @@ def test_run_with_schwab_equity_award_json(request: pytest.FixtureRequest) -> No
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     if result.returncode:
         pytest.fail(
             "Integration test failed\n"
