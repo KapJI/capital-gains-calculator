@@ -1415,6 +1415,28 @@ def test_a_holding_that_closes_a_day_empty_clears_its_sources() -> None:
     assert calculator.portfolio["FOO"].quantity == Decimal(30)
 
 
+def test_a_sold_out_holding_renamed_the_same_day_frees_its_sources() -> None:
+    """A rename of an emptied holding must not keep its old accounts alive.
+
+    Renaming a sold-out holding creates the new name as a zero-quantity
+    entry, and a sweep that only forgets names absent from the portfolio
+    left the selling account recorded against a name that held nothing.
+    The pool later rebuilt there is the buying account's alone, so its own
+    split row states the whole change.
+    """
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10", source=elsewhere(0)),
+            trade(RENAME_DAY, ActionType.SELL, "OLD", "10", "12", source=elsewhere(1)),
+            rename(RENAME_DAY, "OLD", "NEW"),
+            trade(EVENT_DAY, ActionType.BUY, "NEW", "4", "20"),
+            legacy_split(LATER_DAY, "NEW", "4"),
+        ]
+    )
+    assert calculator.portfolio["NEW"].quantity == Decimal(8)
+    assert calculator.portfolio["NEW"].amount == Decimal(80)
+
+
 def test_a_rename_carries_the_accounts_over_with_the_units() -> None:
     """Only the name changes, so the units keep the accounts that put them there.
 

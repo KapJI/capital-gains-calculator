@@ -14,15 +14,15 @@ date,action,symbol,quantity,price,fees,currency
 
 The columns are:
 
-| Column     | Value                                                                                   |
-| ---------- | --------------------------------------------------------------------------------------- |
-| `date`     | Transaction date in `YYYY-MM-DD` format                                                 |
-| `action`   | One of the documented [actions](#actions-to-use); write the name in uppercase           |
-| `symbol`   | Instrument ticker; leave blank only where the action table allows it                    |
-| `quantity` | Positive number of shares or units; use `1` when `price` holds the full cash amount     |
-| `price`    | Price per unit, or the full cash amount (positive or negative) when `quantity` is `1`   |
-| `fees`     | Positive fees deducted from the cash amount; leave blank or use `0` when there are none |
-| `currency` | Three-letter currency code for the price, fees and resulting amount, such as `USD`      |
+| Column     | Value                                                                                                                             |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `date`     | Transaction date in `YYYY-MM-DD` format                                                                                           |
+| `action`   | One of the documented [actions](#actions-to-use); write the name in uppercase                                                     |
+| `symbol`   | Instrument ticker; leave blank only where the action table allows it                                                              |
+| `quantity` | Number of shares or units, positive except where the action table says otherwise; use `1` when `price` holds the full cash amount |
+| `price`    | Price per unit, or the full cash amount (positive or negative) when `quantity` is `1`                                             |
+| `fees`     | Positive fees deducted from the cash amount; leave blank or use `0` when there are none                                           |
+| `currency` | Three-letter currency code for the price, fees and resulting amount, such as `USD`                                                |
 
 The header is required. cgt-calc can infer it from a file without a header for compatibility, but
 warns because it then has to assume that the columns are in the order above.

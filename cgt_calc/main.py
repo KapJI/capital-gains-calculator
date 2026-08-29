@@ -1602,9 +1602,14 @@ class CapitalGainsCalculator:
             planned.add(transaction.date)
             # Every earlier day has closed, so a holding absent from the
             # portfolio now is one that really emptied rather than one whose
-            # running count touched zero between a same-day sale and buy.
+            # running count touched zero between a same-day sale and buy. A
+            # zero-quantity entry is the same thing under a key that outlived
+            # its units: renaming a sold-out holding creates the new name with
+            # nothing in it, and its sources must not outlive the units either.
             for symbol in [
-                held for held in self.holding_sources if held not in self.portfolio
+                held
+                for held in self.holding_sources
+                if held not in self.portfolio or self.portfolio[held].quantity == 0
             ]:
                 del self.holding_sources[symbol]
             self.plan_stock_splits(transaction.date, days[transaction.date])
