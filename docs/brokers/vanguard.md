@@ -19,9 +19,9 @@ matching. See [Before you start](../usage.md#before-you-start).
 1. Sign in to Vanguard UK and open **Documents**, then the **Report Generator**.
 2. Request a **Client Transactions Listing** for the required period.
 3. Download the completed workbook. If it contains several account worksheets, select only the
-   taxable General Account.
+    taxable General Account.
 4. Save the entire worksheet as a comma-separated, UTF-8 CSV. Keep both the **Cash Transactions**
-   and **Investment Transactions** tables, including their original headings.
+    and **Investment Transactions** tables, including their original headings.
 
 Do not substitute an annual statement or Consolidated Tax Certificate. Vanguard says its
 [Consolidated Tax Certificate](https://www.vanguardinvestor.co.uk/need-help/answer/what-is-a-consolidated-tax-certificate)
@@ -148,35 +148,35 @@ taxed as interest rather than dividends; see
 ## Known limitations
 
 - When a file contains both tables, ordinary transactions come from Cash Transactions. An unmatched
-  Investment Transactions row is not imported as an additional transaction; ticker renames are the
-  exception. Compare both tables for missing activity.
+    Investment Transactions row is not imported as an additional transaction; ticker renames are the
+    exception. Compare both tables for missing activity.
 - Automatic sales of investments to cover an account fee are currently classified as cash movements,
-  not disposals. They do not reduce the calculated holding or generate a gain or loss.
+    not disposals. They do not reduce the calculated holding or generate a gain or loss.
 - Account fees and ETF dealing fees are not assigned to a purchase or disposal as allowable costs.
 - Corporate actions other than the supported `NameChange` pair are not mapped. A split, merger,
-  conversion, transfer of investments or other unfamiliar row can stop the import or be absent from
-  the cash table.
+    conversion, transfer of investments or other unfamiliar row can stop the import or be absent
+    from the cash table.
 - `NameChange` supports uppercase ticker-style codes, with an optional dot suffix, rather than fund
-  names. A row such as `NameChange: U.S. Equity Index Fund replaced with ...` stops with
-  `Unknown action`.
+    names. A row such as `NameChange: U.S. Equity Index Fund replaced with ...` stops with
+    `Unknown action`.
 - The dividend reader expects Vanguard's `DIV: ... @ ...` text layout. Changed dividend wording or
-  another income type is not mapped merely because it appears in the workbook.
+    another income type is not mapped merely because it appears in the workbook.
 - A reversed purchase or disposal stops the import. It has to be reconciled with the original trade,
-  which the row does not identify, so cgt-calc refuses it instead of guessing.
+    which the row does not identify, so cgt-calc refuses it instead of guessing.
 - The importer treats every transaction amount as GBP. Foreign-currency dividend text has not been
-  validated and is not converted.
+    validated and is not converted.
 - The final text in parentheses is always treated as the ticker. For example, an investment ending
-  in `(Accumulation)` is assigned the symbol `Accumulation`, which can silently combine different
-  funds in one holding.
+    in `(Accumulation)` is assigned the symbol `Accumulation`, which can silently combine different
+    funds in one holding.
 - A row cgt-calc cannot place stops the import instead of being skipped, and the error names the
-  file line. That covers a row with the wrong number of fields, a header that does not match the
-  section title above it, a conflicting header or section title, a transaction row above the first
-  header or after a `Balance` or `Cost` summary, and stray text inside a table.
+    file line. That covers a row with the wrong number of fields, a header that does not match the
+    section title above it, a conflicting header or section title, a transaction row above the first
+    header or after a `Balance` or `Cost` summary, and stray text inside a table.
 - Cosmetic rows are still ignored: trailing empty columns, a repeated page title or header, a
-  `Page 1 of 2` label in any column, and a text footer below the last row of its table.
+    `Page 1 of 2` label in any column, and a text footer below the last row of its table.
 - A legacy cash-only table can be calculated, but an investment-only table is rejected because its
-  unsigned `Cost` values do not provide usable cash movements. Use the complete worksheet with its
-  Cash Transactions table.
+    unsigned `Cost` values do not provide usable cash movements. Use the complete worksheet with its
+    Cash Transactions table.
 
 ## Troubleshooting
 

@@ -66,17 +66,17 @@ July 2022.
 ## Known limitations
 
 - This is an Alphabet-specific equity-award importer, not general Morgan Stanley support. Any plan
-  other than the literal `GSU Class C` or `Cash` value stops with `Unknown plan`.
+    other than the literal `GSU Class C` or `Cash` value stops with `Unknown plan`.
 - Autosale releases are not supported. They can put a non-zero `Net Cash Proceeds` in the releases
-  report while recording the actual sale in a separate Autosale report that cgt-calc does not parse.
-  The import deliberately stops rather than silently losing either the vest or sale.
+    report while recording the actual sale in a separate Autosale report that cgt-calc does not
+    parse. The import deliberately stops rather than silently losing either the vest or sale.
 - Only the report names and row values listed above are recognised. Other report files are ignored;
-  another type, status, header layout or price currency stops the import.
+    another type, status, header layout or price currency stops the import.
 - Dividends, interest, wires, transfers of shares, and other corporate actions are not imported from
-  this report directory. Add any relevant missing activity through another supported export or the
-  [RAW format](raw.md), after verifying its date, amount and UK tax treatment.
+    this report directory. Add any relevant missing activity through another supported export or the
+    [RAW format](raw.md), after verifying its date, amount and UK tax treatment.
 - A `Staged` release is treated as an acquisition. Confirm that it completed and agrees with your
-  final award record before relying on it.
+    final award record before relying on it.
 
 ## Troubleshooting
 

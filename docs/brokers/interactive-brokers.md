@@ -15,11 +15,11 @@ balance check detect an incomplete export.
 
 1. Sign in to the Interactive Brokers Client Portal in a web browser.
 2. Open **Performance & Reports → Transaction History**. Alternatively, open **Menu → Reporting →
-   Transaction History**.
+    Transaction History**.
 3. Select **Custom** as the period and set the start to the account's first transaction. Set the end
-   to today, or at least 30 days after the end of the tax year you are calculating.
+    to today, or at least 30 days after the end of the tax year you are calculating.
 4. Clear any transaction-type or symbol filters so the export includes trades, income, fees and cash
-   movements.
+    movements.
 5. Download the table using its CSV export control.
 
 IBKR's current
@@ -78,18 +78,18 @@ treaty applies.
 ## Known limitations
 
 - Only the transaction types listed above are mapped. Any other value stops the import with
-  `Unknown type`; do not delete the row merely to make the calculation run.
+    `Unknown type`; do not delete the row merely to make the calculation run.
 - Cash `Deposit` and `Withdrawal` rows are supported, but transfers of shares or funds between
-  accounts are not. Corporate actions such as splits, mergers and spin-offs are not mapped from an
-  IBKR export either.
+    accounts are not. Corporate actions such as splits, mergers and spin-offs are not mapped from an
+    IBKR export either.
 - The importer does not read an asset-class field. It has been validated for ordinary share and fund
-  trades; do not rely on it to calculate options, futures, bonds, contracts for difference or crypto
-  assets.
+    trades; do not rely on it to calculate options, futures, bonds, contracts for difference or
+    crypto assets.
 - Every `Foreign Tax Withholding` row is treated as dividend tax. If IBKR withholds tax from credit
-  interest and does not reverse it, cgt-calc records that amount against a placeholder symbol. It
-  reduces the cash balance but is not reported as interest tax in the summary.
+    interest and does not reverse it, cgt-calc records that amount against a placeholder symbol. It
+    reduces the cash balance but is not reported as interest tax in the summary.
 - The `Account` column is not used to keep separate ledgers. Rows for multiple taxable IBKR accounts
-  in one CSV are combined under one broker balance and portfolio.
+    in one CSV are combined under one broker balance and portfolio.
 
 ## Troubleshooting
 

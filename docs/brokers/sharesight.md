@@ -19,7 +19,7 @@ disposals in the tax year you are reporting; see [Before you start](../usage.md#
 3. Select **Do not group (Holdings)**.
 4. Export the report to a spreadsheet or Google Drive. Do not use the PDF export.
 5. Open the exported spreadsheet and save or download the sheet containing the All Trades table as a
-   CSV file.
+    CSV file.
 
 See Sharesight's current
 [All Trades Report instructions](https://help.sharesight.com/uk/trades_report/) for the report
@@ -91,17 +91,17 @@ these markers.
 ## Known limitations
 
 - [`Opening Balance`](https://help.sharesight.com/opening-balance/) trades are not supported.
-  Sharesight uses them when the original buy and sell records are unavailable, but cgt-calc needs
-  the original acquisition dates and costs for UK share matching.
+    Sharesight uses them when the original buy and sell records are unavailable, but cgt-calc needs
+    the original acquisition dates and costs for UK share matching.
 - `Split`, `Consolidation` and `Bonus` rows are not supported. They stop the import with an unknown
-  action error. Do not delete such a row to make the calculation run: later quantities and gains
-  could be wrong.
+    action error. Do not delete such a row to make the calculation run: later quantities and gains
+    could be wrong.
 - Cash deposits, withdrawals and balances are not imported, which is why `--no-balance-check` is
-  required.
+    required.
 - Taxable Income sections other than local and foreign dividend payments are not imported.
 - If a newer All Trades report gives a non-zero brokerage charge in a currency different from the
-  trade currency (GBP for foreign-exchange rows), the import stops. That fee cannot yet be
-  represented exactly from this report without risking an incorrect allowable cost.
+    trade currency (GBP for foreign-exchange rows), the import stops. That fee cannot yet be
+    represented exactly from this report without risking an incorrect allowable cost.
 
 ## Troubleshooting
 

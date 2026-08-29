@@ -110,17 +110,17 @@ a price for both has to be available.
 ## Known limitations
 
 - The format has no ISIN or source-country column. For a dividend with withholding tax, when
-  cgt-calc cannot match the ticker to a known ISIN, it guesses the source country from the currency
-  when possible: `USD` is treated as US and `PLN` as Poland. An investment domiciled elsewhere can
-  consequently receive the wrong treaty treatment without a source-country warning; that warning is
-  issued only when withholding tax was deducted and cgt-calc cannot infer a country from the
-  currency. Verify foreign dividend income and tax against the broker statement rather than assuming
-  that treaty limits were applied.
+    cgt-calc cannot match the ticker to a known ISIN, it guesses the source country from the
+    currency when possible: `USD` is treated as US and `PLN` as Poland. An investment domiciled
+    elsewhere can consequently receive the wrong treaty treatment without a source-country warning;
+    that warning is issued only when withholding tax was deducted and cgt-calc cannot infer a
+    country from the currency. Verify foreign dividend income and tax against the broker statement
+    rather than assuming that treaty limits were applied.
 - The format does not identify the instrument type. It is intended for ordinary shares and funds; do
-  not rely on it for options, futures, bonds, contracts for difference, crypto assets or another
-  instrument whose UK tax treatment differs.
+    not rely on it for options, futures, bonds, contracts for difference, crypto assets or another
+    instrument whose UK tax treatment differs.
 - The seven columns cannot describe every internal action. Ticker renames and cancelled purchases
-  are examples that a RAW row cannot express; use only the documented actions above.
+    are examples that a RAW row cannot express; use only the documented actions above.
 
 ## Combining RAW with a broker export
 

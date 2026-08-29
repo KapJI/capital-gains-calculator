@@ -13,12 +13,12 @@ identify the account type, so cgt-calc cannot separate the accounts later.
 1. In Trading 212, open **Menu**, then **History**.
 2. Select the export button.
 3. Choose the date range. Exporting the history since the account was opened is the safest option;
-   see [Before you start](../usage.md#before-you-start) for why earlier transactions may be needed.
+    see [Before you start](../usage.md#before-you-start) for why earlier transactions may be needed.
 4. Select every available data category so that orders, cash transactions, dividends and interest
-   are included.
+    are included.
 5. Download the CSV file.
 6. If your complete history requires multiple exports, repeat the process with consecutive date
-   ranges, making sure there are no gaps.
+    ranges, making sure there are no gaps.
 
 The official
 [Trading 212 export instructions](https://helpcentre.trading212.com/hc/en-us/articles/360016898917-Can-I-export-the-trading-data-from-my-account)
@@ -77,15 +77,15 @@ transaction stamped after 23:00 UTC on 5 April belongs to the following tax year
 ### Known limitations
 
 - Dividends are recorded at the CSV `Total`, which is net of withholding tax. The `Withholding tax`
-  column is only used to check the export for consistency and does not appear separately in the
-  report.
+    column is only used to check the export for consistency and does not appear separately in the
+    report.
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
-  supported.
+    supported.
 - Split transactions labelled `Stock split open` or `Stock split close` are not supported. Only the
-  single-row `Stock Split` action is recognised.
+    single-row `Stock Split` action is recognised.
 - The
-  [export for a Trading 212 contract for difference account](https://helpcentre.trading212.com/hc/en-us/articles/36243765206301-How-to-export-the-trading-data-from-my-CFD-account)
-  uses a different, record-based CSV format that this parser does not support.
+    [export for a Trading 212 contract for difference account](https://helpcentre.trading212.com/hc/en-us/articles/36243765206301-How-to-export-the-trading-data-from-my-CFD-account)
+    uses a different, record-based CSV format that this parser does not support.
 
 Do not delete an unsupported transaction from the export to make the calculation run. The missing
 activity could make the resulting holdings and gains incorrect.

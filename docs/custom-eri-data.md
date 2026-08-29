@@ -6,8 +6,8 @@ the [bundled data](offshore-funds.md#bundled-data) first.
 ## ERI_RAW format
 
 - **CSV using the ERI_RAW format.** This is currently the only format supported for excess reported
-  income.
-  [See example.](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+    income.
+    [See example.](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
 
 Example usage for the tax year 2024/25:
 
@@ -77,7 +77,7 @@ Columns mapping to ERI_RAW:
 - **Fund Reporting Period End Date:** Reporting Period End Date column
 - **Currency:** Currency of the following amounts column
 - **Excess of reporting income over distribution:** Per unit excess reportable income over
-  distributions in respect of the reporting period column
+    distributions in respect of the reporting period column
 
 ### Invesco
 
@@ -93,7 +93,7 @@ Columns mapping to ERI_RAW:
 - **Fund Reporting Period End Date:** Stated in the report header before the main table
 - **Currency:** Currency of Share Class column
 - **Excess of reporting income over distribution:** Per unit excess reportable income over
-  distributions in respect of the reporting period column
+    distributions in respect of the reporting period column
 
 ## Contributing data back
 

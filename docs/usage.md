@@ -5,17 +5,17 @@
 You will need:
 
 - **cgt-calc and LaTeX installed.** Follow the [installation guide](installation.md) before
-  continuing.
+    continuing.
 - **A complete transaction history from every relevant account.** Follow the instructions for each
-  [supported broker](brokers/index.md). Include transactions from before the tax year when they are
-  needed to establish the cost of shares you owned or sold during that year. Exporting the history
-  since the account was opened is the safest option.
+    [supported broker](brokers/index.md). Include transactions from before the tax year when they
+    are needed to establish the cost of shares you owned or sold during that year. Exporting the
+    history since the account was opened is the safest option.
 - **Excess Reported Income data when applicable.** If you own or have owned funds from outside the
-  UK, whether accumulating or distributing, check the [offshore funds guide](offshore-funds.md).
+    UK, whether accumulating or distributing, check the [offshore funds guide](offshore-funds.md).
 - **Transfers to or from a spouse or civil partner, recorded by hand.** No broker export marks
-  these. Add them in a small RAW file using the
-  [`TRANSFER_TO_SPOUSE` or `TRANSFER_FROM_SPOUSE`](brokers/raw.md#transfers-to-a-spouse-or-civil-partner)
-  action and pass it alongside your export.
+    these. Add them in a small RAW file using the
+    [`TRANSFER_TO_SPOUSE` or `TRANSFER_FROM_SPOUSE`](brokers/raw.md#transfers-to-a-spouse-or-civil-partner)
+    action and pass it alongside your export.
 
 Do not include the same transaction in more than one export. cgt-calc can validate the transactions
 it receives, but it cannot detect every missing or duplicated export.
@@ -74,7 +74,7 @@ Before relying on the figures:
 
 1. Read every warning printed while the calculator runs.
 2. Check that the section headed “Portfolio at the end of … tax year” agrees with your records at
-   the end of that tax year.
+    the end of that tax year.
 3. Compare the disposal count and proceeds with your broker statements.
 4. Check that dividends and interest are present when you expect them.
 5. Confirm that every relevant account was included once, without overlapping exports.
