@@ -36,6 +36,9 @@
 \BLOCK{ elif symbol.startswith("rename$") }
     \BLOCK{ set symbol = symbol[7:] }
     \BLOCK{ set is_rename = True }
+\BLOCK{ elif symbol.startswith("split$") }
+    \BLOCK{ set symbol = symbol[6:] }
+    \BLOCK{ set is_split = True }
 \BLOCK{ elif symbol.startswith("transfer-to-spouse$") }
     \BLOCK{ set symbol = symbol[19:] }
     \BLOCK{ set is_transfer_to_spouse = True }
@@ -123,6 +126,24 @@
             : \VAR{ strip_zeros(entries[0].quantity) } units with pool cost £\VAR{ "{:,}".format(round_decimal(entries[0].allowable_cost, 2)) } transferred
         \BLOCK{ endif }
     }
+\BLOCK{ elif is_split } % if is_split
+    \BLOCK{ set split = entries[0].stock_split }
+    \subsubsection*{
+        Share reorganisation: \VAR{ strip_zeros(split.day_open_quantity) } units of \VAR{ symbol } restated as \VAR{ strip_zeros(split.scaled_day_open_quantity) } (ratio \VAR{ split.ratio_description })
+    }
+    Neither a disposal nor an acquisition: the new holding is the same asset, held from the same dates, with the same pooled cost (TCGA 1992 s127).
+
+    Stated as \VAR{ strip_zeros(split.broker_before_quantity) } units before the event and \VAR{ strip_zeros(split.broker_after_quantity) } after.
+    \BLOCK{ if split.reconciliation_delta != 0 }
+
+        Reconciled to that count by \VAR{ strip_zeros(split.reconciliation_delta) } units, from \VAR{ strip_zeros(split.quantity_before_reconciliation) } to \VAR{ strip_zeros(split.quantity_after_reconciliation) }.
+    \BLOCK{ endif }
+
+    Units in the pool at this point in the day: \VAR{ strip_zeros(entries[0].new_quantity) }%
+    \BLOCK{ if entries[0].new_quantity > 0 },
+        pool cost: £\VAR{ "{:,}".format(round_decimal(entries[0].new_pool_cost, 2)) }
+        (£\VAR{ "{:,}".format(round_decimal(entries[0].new_pool_cost/entries[0].new_quantity, 2)) }/unit)%
+    \BLOCK{ endif }.
 \BLOCK{ elif is_transfer_to_spouse } % if is_transfer_to_spouse
     \subsubsection*{
         Transferred to spouse: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } (no gain/no loss)
@@ -157,7 +178,7 @@
     \BLOCK{ endif }
 \BLOCK{ endif }
 
-\BLOCK{ if not is_rename and not is_transfer_to_spouse }
+\BLOCK{ if not is_rename and not is_transfer_to_spouse and not is_split }
 \begin{enumerate}
 \BLOCK{ for entry in entries }
 \item \textbf{\VAR{ entry.rule_type.name.replace("_", " ") }}. Quantity: \VAR{ strip_zeros(entry.quantity) },

@@ -31,6 +31,7 @@ from cgt_calc.model import (
     CurrencyCode,
     Isin,
     RuleType,
+    TransactionSource,
 )
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.eri.model import ERITransaction
@@ -66,7 +67,25 @@ def gbp_from_usd(usd: str, qty: int) -> Decimal:
 def get_report(
     calculator: CapitalGainsCalculator, broker_transactions: list[BrokerTransaction]
 ) -> CapitalGainsReport:
-    """Get calculation report."""
+    """Get calculation report.
+
+    Hand-built transactions stand for one history written in order, the way a
+    RAW file is, so they are given the provenance a parser would give them:
+    one declared account, one file, and the order they are listed in. The
+    calculator needs that to place a same-day row either side of a share
+    reorganisation, and refuses rather than guess without it. A test that
+    means two separate sources sets its own provenance.
+    """
+    for index, broker_transaction in enumerate(broker_transactions):
+        if broker_transaction.source is None:
+            broker_transaction.source = TransactionSource(
+                parser="Testing",
+                account="Testing account",
+                file=Path("testing.csv"),
+                row=index + 2,
+                index=index,
+                rows_in_time_order=True,
+            )
     calculator.convert_to_hmrc_transactions(broker_transactions)
     return calculator.calculate_capital_gain()
 

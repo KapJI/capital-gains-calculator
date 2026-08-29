@@ -35,8 +35,12 @@ CG22420
 CG34
 CG51560
 CG51805
+CG51875
+CG51892
 CG51976
 CG52742
+CG57800
+CG57835
 CG59562
 cgt
 classmethod
@@ -143,6 +147,7 @@ reportable
 repr
 restkey
 restval
+RKT
 roundings
 RowIterator
 RuntimeError
@@ -152,6 +157,8 @@ s106A
 s115
 s122
 s127
+s128
+s129
 s17
 s18
 s19
@@ -184,6 +191,7 @@ stderr
 stdin
 stdout
 StockPlan
+StockSplitTransaction
 str
 subrow
 tablefinder
@@ -198,6 +206,7 @@ txn
 ty
 UCITS
 un
+UnresolvedRatio
 unvalidated
 US9220427424
 usr

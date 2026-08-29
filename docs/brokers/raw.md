@@ -14,15 +14,15 @@ date,action,symbol,quantity,price,fees,currency
 
 The columns are:
 
-| Column     | Value                                                                                   |
-| ---------- | --------------------------------------------------------------------------------------- |
-| `date`     | Transaction date in `YYYY-MM-DD` format                                                 |
-| `action`   | One of the documented [actions](#actions-to-use); write the name in uppercase           |
-| `symbol`   | Instrument ticker; leave blank only where the action table allows it                    |
-| `quantity` | Positive number of shares or units; use `1` when `price` holds the full cash amount     |
-| `price`    | Price per unit, or the full cash amount (positive or negative) when `quantity` is `1`   |
-| `fees`     | Positive fees deducted from the cash amount; leave blank or use `0` when there are none |
-| `currency` | Three-letter currency code for the price, fees and resulting amount, such as `USD`      |
+| Column     | Value                                                                                                                             |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `date`     | Transaction date in `YYYY-MM-DD` format                                                                                           |
+| `action`   | One of the documented [actions](#actions-to-use); write the name in uppercase                                                     |
+| `symbol`   | Instrument ticker; leave blank only where the action table allows it                                                              |
+| `quantity` | Number of shares or units, positive except where the action table says otherwise; use `1` when `price` holds the full cash amount |
+| `price`    | Price per unit, or the full cash amount (positive or negative) when `quantity` is `1`                                             |
+| `fees`     | Positive fees deducted from the cash amount; leave blank or use `0` when there are none                                           |
+| `currency` | Three-letter currency code for the price, fees and resulting amount, such as `USD`                                                |
 
 The header is required. cgt-calc can infer it from a file without a header for compatibility, but
 warns because it then has to assume that the columns are in the order above.
@@ -70,25 +70,25 @@ Use the following action names when writing a RAW file. The cgt-calc source code
 action names for broker imports, but a RAW row using one may be ignored or fail because it lacks the
 extra details that action needs.
 
-| Action                           | What to enter                                                                                                                                   |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BUY`                            | Ticker, positive quantity and positive unit price. `fees` increases the cash cost and allowable acquisition cost.                               |
-| `SELL`                           | Ticker, positive quantity and positive unit price. `fees` reduces the cash proceeds and gain.                                                   |
-| `STOCK_ACTIVITY`                 | Shares acquired without paying cash, such as a vest: ticker, quantity and market value per unit.                                                |
-| `DIVIDEND`                       | Ticker and gross dividend. Use the actual shares and dividend per share, or use quantity `1` and the gross total as `price`.                    |
-| `DIVIDEND_TAX`                   | Ticker, quantity `1` and the tax deducted as a negative `price`.                                                                                |
-| `CAPITAL_GAIN`                   | Identical to `DIVIDEND` in every calculation; it exists only for broker exports. Write `DIVIDEND` instead.                                      |
-| `INTEREST`                       | Interest received: leave `symbol` blank, use quantity `1` and the gross total as a positive `price`.                                            |
-| `INTEREST_TAX`                   | Tax deducted from interest: leave `symbol` blank, use quantity `1` and the deduction as a negative `price`.                                     |
-| `TRANSFER`                       | Cash added or removed: leave `symbol` blank, use quantity `1`, and use a positive `price` for a deposit or a negative one for a withdrawal.     |
-| `ADJUSTMENT`                     | A cash-only correction or charge: write it like `TRANSFER`. It affects the balance but no holding or taxable income.                            |
-| `FEE`                            | A cost that should increase one holding's pooled cost: enter its ticker, quantity `1`, the charge as a negative `price`, and `fees` `0`.        |
-| `CASH_MERGER`, `FULL_REDEMPTION` | A disposal for cash: write it like `SELL`. Use only when no replacement shares were received.                                                   |
-| `STOCK_SPLIT`                    | Ticker, the positive number of new shares created, price `0` and fees `0`; see [The order of rows on one date](#the-order-of-rows-on-one-date). |
-| `SPIN_OFF`                       | New ticker, quantity received, price `0` and fees `0`; cgt-calc works the rest out itself, as described below.                                  |
-| `TRANSFER_TO_SPOUSE`             | See [Transfers to a spouse or civil partner](#transfers-to-a-spouse-or-civil-partner).                                                          |
-| `TRANSFER_FROM_SPOUSE`           | See [If you received the shares](#if-you-received-the-shares).                                                                                  |
-| `GIFT`, `GIFT_UNCONNECTED`       | See [Gifts to anyone else](#gifts-to-anyone-else).                                                                                              |
+| Action                           | What to enter                                                                                                                                                                      |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BUY`                            | Ticker, positive quantity and positive unit price. `fees` increases the cash cost and allowable acquisition cost.                                                                  |
+| `SELL`                           | Ticker, positive quantity and positive unit price. `fees` reduces the cash proceeds and gain.                                                                                      |
+| `STOCK_ACTIVITY`                 | Shares acquired without paying cash, such as a vest: ticker, quantity and market value per unit.                                                                                   |
+| `DIVIDEND`                       | Ticker and gross dividend. Use the actual shares and dividend per share, or use quantity `1` and the gross total as `price`.                                                       |
+| `DIVIDEND_TAX`                   | Ticker, quantity `1` and the tax deducted as a negative `price`.                                                                                                                   |
+| `CAPITAL_GAIN`                   | Identical to `DIVIDEND` in every calculation; it exists only for broker exports. Write `DIVIDEND` instead.                                                                         |
+| `INTEREST`                       | Interest received: leave `symbol` blank, use quantity `1` and the gross total as a positive `price`.                                                                               |
+| `INTEREST_TAX`                   | Tax deducted from interest: leave `symbol` blank, use quantity `1` and the deduction as a negative `price`.                                                                        |
+| `TRANSFER`                       | Cash added or removed: leave `symbol` blank, use quantity `1`, and use a positive `price` for a deposit or a negative one for a withdrawal.                                        |
+| `ADJUSTMENT`                     | A cash-only correction or charge: write it like `TRANSFER`. It affects the balance but no holding or taxable income.                                                               |
+| `FEE`                            | A cost that should increase one holding's pooled cost: enter its ticker, quantity `1`, the charge as a negative `price`, and `fees` `0`.                                           |
+| `CASH_MERGER`, `FULL_REDEMPTION` | A disposal for cash: write it like `SELL`. Use only when no replacement shares were received.                                                                                      |
+| `STOCK_SPLIT`                    | Ticker, the change a reorganisation made to your entire pooled holding, negative for a consolidation, price `0` and fees `0`; see [Share reorganisations](#share-reorganisations). |
+| `SPIN_OFF`                       | New ticker, quantity received, price `0` and fees `0`; cgt-calc works the rest out itself, as described below.                                                                     |
+| `TRANSFER_TO_SPOUSE`             | See [Transfers to a spouse or civil partner](#transfers-to-a-spouse-or-civil-partner).                                                                                             |
+| `TRANSFER_FROM_SPOUSE`           | See [If you received the shares](#if-you-received-the-shares).                                                                                                                     |
+| `GIFT`, `GIFT_UNCONNECTED`       | See [Gifts to anyone else](#gifts-to-anyone-else).                                                                                                                                 |
 
 For a reinvested dividend, write two rows in this order: a `DIVIDEND` for the income, then a `BUY`
 for the shares bought with it. Do not use the internal `REINVEST_DIVIDENDS` action: the calculator
@@ -158,11 +158,11 @@ The `date` column carries no time, so within a single day the order you write th
 only record of what happened first. Write each day's rows in the order the transactions actually
 happened, and give every `quantity` and `price` in the units that were in force at that moment.
 
-This matters most on the day of a share split. A `STOCK_SPLIT` row states the number of **new**
-shares the split created, not the total you held afterwards, and that number depends on how many
-shares you held when it ran. Say you held 11 shares and sold 5 that morning. Six shares went into a
-20-for-1 split and became 120, so the split created 114, and the sale above it is written in
-pre-split shares at the pre-split price:
+This matters most on the day of a share split, because the change a `STOCK_SPLIT` row states (see
+[Share reorganisations](#share-reorganisations)) depends on how many shares you held when it ran.
+Say you held 11 shares and sold 5 that morning. Six shares went into a 20-for-1 split and became
+120, so the split created 114, and the sale above it is written in pre-split shares at the pre-split
+price:
 
 ```csv
 2022-06-06,SELL,AMZN,5,2400.00,0.00,USD
@@ -177,17 +177,90 @@ created 209, and the sale below it is written in post-split shares at the post-s
 2022-06-06,SELL,AMZN,100,120.00,0.00,USD
 ```
 
-!!! warning "Selling on the day of a split"
+!!! warning "Same-day chronology across inputs"
 
-    A disposal written above a `STOCK_SPLIT` row for the same date is not worked out reliably yet.
-    The cost cgt-calc allows against that disposal can come out far too low, which overstates the
-    gain and so the tax. Selling on any other day is fine, including the day before or the day
-    after the split. If you sold on the day of a split, work that one disposal out by hand and
-    check it against the report before you use the figure.
+    Within one RAW file the row order settles which units a same-day trade is stated in. Between
+    two inputs it does not, and neither does the order cgt-calc merges them in, so a same-day trade
+    from another input is refused unless both sides carry times. Put the day's rows for that symbol
+    in one input, or work that day out by hand.
 
 This is about the RAW file you write yourself. cgt-calc assumes nothing about the order of the rows
 inside a broker's own export, so if you keep a small RAW file alongside a broker export, it is the
 RAW rows that need to be in the order things happened.
+
+## Share reorganisations
+
+A stock split or a share consolidation restates a holding: the old shares are not disposed of and
+the new ones are not acquired, so no gain or loss arises and the pooled cost is unchanged
+([TCGA 1992 s127](https://www.legislation.gov.uk/ukpga/1992/12/part/IV/chapter/II),
+[CG51805](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51805)). Only the number
+of units changes, so a later disposal takes a different share of the same cost.
+
+The `quantity` is the **change** the event made to your holding, not the total you hold afterwards.
+Your broker's statement usually gives the total, so subtract what you held: 11 shares through a
+20-for-1 split become 220, and the row says `209`.
+
+```csv
+2022-06-06,STOCK_SPLIT,AMZN,209,0.00,0.00,USD
+```
+
+Writing the total instead is not something cgt-calc can catch: `220` reads as a plausible 21-for-1
+split of the same 11 shares, and every later figure for the holding comes out wrong.
+
+A consolidation shrinks the holding, so its `quantity` is negative: 100 shares consolidated
+100-for-1 lose 99.
+
+```csv
+2026-02-02,STOCK_SPLIT,RKT,-99,0.00,0.00,GBP
+```
+
+Leave `price` and `fees` at `0`: nothing is bought, sold or paid for. cgt-calc refuses a
+`STOCK_SPLIT` row that states either, rather than dropping the figure without telling you. A
+reorganisation row in a broker export is held to the same rule, and its amount column counts too:
+some exports state an amount with no price beside it, and that money is refused rather than dropped.
+
+### Cash in lieu of a fractional entitlement
+
+A consolidation rarely divides evenly. cgt-calc keeps whatever fraction of a unit the arithmetic
+leaves, which is right only if you still hold it. Where the registrar sold the fraction and paid you
+the cash instead, the payment is consideration under
+[TCGA 1992 s128(3)](https://www.legislation.gov.uk/ukpga/1992/12/section/128): a part disposal of
+the holding, whose cost is apportioned under s129 rather than identified against acquisitions the
+way a sale of shares is
+([CG51875](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51875)). Where the
+payment is small, [s122(2)](https://www.legislation.gov.uk/ukpga/1992/12/section/122) can instead
+treat it as no disposal at all and deduct the payment from the holding's pooled cost. HMRC generally
+accepts a payment as small when it is no more than 5% of the holding's value or no more than £3,000
+([CG57835](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57835),
+[CG57800](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57800)).
+
+cgt-calc does not model either treatment explicitly. For a reorganisation into one class, HMRC
+permits the s129 cost to be apportioned by the number of shares sold
+([CG51892](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51892)), and a `SELL` row
+for the fraction and payment gives that result if no shares of the same class are acquired that day
+or in the following 30 days. If there is such an acquisition, ordinary share identification matches
+the `SELL` against it and uses its cost instead, which is wrong for s128(3). If you cannot establish
+that this condition holds, record no row for the payment. Without a row, the pool keeps both the
+sold fraction and cost that should have been removed or reduced, so correct its quantity, cost and
+later figures by hand (consider professional advice).
+
+### Holdings spread across brokers
+
+If you hold the same security through more than one broker, add up their holdings before working out
+the number, which is the change to all of them together. A broker's own export states the change to
+its own account, and adding that to a pool built from several would restate the holding by a ratio
+that was never the corporate one. cgt-calc refuses a broker's single-row split when the pool has
+units from another source, and says so.
+
+A RAW `STOCK_SPLIT` row is the answer to that refusal, and you do not have to edit the broker export
+to use it: where a date has both, the RAW row states the change to the whole holding, so cgt-calc
+uses it and ignores the broker's own row for the same event.
+
+Which accounts a holding is built from is remembered until a day closes with the whole pooled
+holding at zero, and a ticker rename carries the record to the new name along with the holding. So
+after one account sells all of its units, a single-row split reported by the other is still refused
+until that happens: cgt-calc does not track which account each remaining unit came from, so it will
+not assume they are all at the reporting one. The RAW row above is the answer there too.
 
 ## Transfers to a spouse or civil partner
 

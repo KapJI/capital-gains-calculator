@@ -19,6 +19,7 @@ from cgt_calc.parsers.trading212 import (
     Trading212Transaction,
     datetime_from_str,
 )
+from tests.general.test_calc import create_calculator
 from tests.utils import build_cmd, report_path, stderr_alerts
 
 if TYPE_CHECKING:
@@ -1490,3 +1491,58 @@ def test_run_with_trading212_2024_files(request: pytest.FixtureRequest) -> None:
         "if you added new features update the test with:\n"
         f"{cmd_str} > {expected_file}"
     )
+
+
+def test_the_legacy_single_row_stock_split_still_reaches_the_calculator(
+    tmp_path: Path,
+) -> None:
+    """Trading 212 also exports a reorganisation as one `Stock Split` row.
+
+    That row states the net change to the holding at this account rather than
+    the two counts either side of the event, so it takes the calculator's
+    legacy-delta path. Pairing must leave it alone: it is not half of
+    anything, and there is no partner for it to go looking for.
+    """
+    folder = _prepare_file(
+        tmp_path,
+        [
+            HEADER_2026,
+            _make_row(
+                HEADER_2026,
+                {
+                    Trading212Column.ACTION: "Market buy",
+                    Trading212Column.TIME: "2026-01-05 10:00:00",
+                    Trading212Column.TICKER: "FOO",
+                    Trading212Column.NO_OF_SHARES: "10",
+                    Trading212Column.PRICE_PER_SHARE: "10.00",
+                    Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+                    Trading212Column.TOTAL: "100.00",
+                    Trading212Column.CURRENCY_TOTAL: "GBP",
+                    Trading212Column.TRANSACTION_ID: "buy-1",
+                },
+            ),
+            _make_row(
+                HEADER_2026,
+                {
+                    Trading212Column.ACTION: "Stock Split",
+                    Trading212Column.TIME: "2026-02-02 07:44:13",
+                    Trading212Column.TICKER: "FOO",
+                    Trading212Column.NO_OF_SHARES: "10",
+                    Trading212Column.CURRENCY_TOTAL: "GBP",
+                    Trading212Column.TRANSACTION_ID: "split-1",
+                },
+            ),
+        ],
+    )
+    buy, split = Trading212Parser().load_from_dir(folder)
+    assert buy.action is ActionType.BUY
+    # Still the parser's own row, not combined into a paired event.
+    assert isinstance(split, Trading212Transaction)
+    assert split.action is ActionType.STOCK_SPLIT
+    assert split.quantity == Decimal(10)
+
+    calculator = create_calculator(tax_year=2025, balance_check=False)
+    calculator.convert_to_hmrc_transactions([buy, split])
+    # A reorganisation, so the pool doubles in units and keeps its cost.
+    assert calculator.portfolio["FOO"].quantity == Decimal(20)
+    assert calculator.portfolio["FOO"].amount == Decimal(100)

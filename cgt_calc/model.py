@@ -27,6 +27,8 @@ if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
 
+    from .stock_splits import StockSplitDetail
+
 
 _ISIN_REGEX: Final = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 _ISIN_CHARS: Final = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -336,6 +338,22 @@ class BrokerTransaction:
     # printed whole in several errors and is about the transaction, not about
     # which file on this machine it was read from.
     source: TransactionSource | None = field(default=None, compare=False, repr=False)
+    # This row's count restated into the units in force after a share
+    # reorganisation later the same day. The exported quantity, price and
+    # amount are left alone: they are what validation, deduplication and
+    # diagnostics read, and a restated count paired with the exported price
+    # would look like a discrepancy. Set by the calculator, so it takes no
+    # part in equality either, nor in the repr the errors print.
+    calculation_quantity: Decimal | None = field(
+        default=None, compare=False, repr=False
+    )
+
+    @property
+    def pool_quantity(self) -> Decimal | None:
+        """The count to pool, in the units in force at the end of the day."""
+        if self.calculation_quantity is not None:
+            return self.calculation_quantity
+        return self.quantity
 
     def __post_init__(self) -> None:
         """Validate BrokerTransaction data."""
@@ -369,6 +387,7 @@ class RuleType(Enum):
     RENAME = 9
     INTEREST_TAX = 10
     TRANSFER_TO_SPOUSE = 11
+    STOCK_SPLIT = 12
 
 
 @dataclass
@@ -408,6 +427,7 @@ class CalculationEntry:
         dividend: Dividend | None = None,
         eris: list[ExcessReportedIncome] | None = None,
         renamed_to: str | None = None,
+        stock_split: StockSplitDetail | None = None,
     ):
         """Create calculation entry."""
         self.rule_type = rule_type
@@ -425,6 +445,7 @@ class CalculationEntry:
         self.dividend = dividend
         self.eris = eris or []
         self.renamed_to = renamed_to
+        self.stock_split = stock_split
         if self.rule_type == RuleType.EXCESS_REPORTED_INCOME:
             assert self.allowable_cost > 0, str(self)
             assert approx_equal(
