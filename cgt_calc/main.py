@@ -197,6 +197,7 @@ class CapitalGainsCalculator:
         initial_prices: InitialPrices,
         interest_fund_tickers: list[str],
         *,
+        cgt_exempt_tickers: list[str] | None = None,
         balance_check: bool = True,
         calc_unrealized_gains: bool = False,
         period_start: datetime.date | None = None,
@@ -222,6 +223,9 @@ class CapitalGainsCalculator:
         self.balance_check = balance_check
         self.calc_unrealized_gains = calc_unrealized_gains
         self.interest_fund_tickers = interest_fund_tickers
+        self.cgt_exempt_tickers = frozenset(
+            ticker.upper() for ticker in cgt_exempt_tickers or []
+        )
         self.total_uk_interest = Decimal(0)
         self.total_foreign_interest = Decimal(0)
         self.total_interest_tax = Decimal(0)
@@ -304,6 +308,10 @@ class CapitalGainsCalculator:
         """Check if date is within current tax year."""
         assert is_date(date)
         return self.tax_year_start_date <= date <= self.tax_year_end_date
+
+    def is_cgt_exempt(self, symbol: str) -> bool:
+        """Check if symbol is exempt from Capital Gains Tax."""
+        return symbol.upper() in self.cgt_exempt_tickers
 
     def get_eri(self, symbol: str, date: datetime.date) -> ExcessReportedIncome | None:
         """Return Excess Reported Income at specific date for the input symbol."""
@@ -707,7 +715,13 @@ class CapitalGainsCalculator:
 
         A sale with a gift to someone unconnected is one ordinary disposal,
         reported as a sale.
+
+        A disposal of an instrument the user has classified as CGT-exempt is
+        named "exempt" whichever kind it is, so a gift of one is reported as an
+        exempt disposal rather than as a gift.
         """
+        if self.is_cgt_exempt(symbol):
+            return "exempt"
         key = (date_index, symbol)
         connected = self.gift_disposals.get(key)
         if connected:
@@ -2420,6 +2434,21 @@ class CapitalGainsCalculator:
             if is_interest_fund:
                 self.total_foreign_interest += amount
 
+    def _warn_unmatched_cgt_exempt_tickers(self) -> None:
+        """Warn for any exempt ticker with no transactions."""
+        logged_symbols = {
+            sym.upper()
+            for log in (self.acquisition_list, self.disposal_list)
+            for day in log.values()
+            for sym in day
+        }
+        for ticker in sorted(self.cgt_exempt_tickers):
+            if ticker not in logged_symbols:
+                LOGGER.warning(
+                    "CGT-exempt ticker '%s' was not found in acquisitions or disposals",
+                    ticker,
+                )
+
     def calculate_capital_gain(
         self,
     ) -> CapitalGainsReport:
@@ -2435,6 +2464,7 @@ class CapitalGainsCalculator:
                 "new one to calculate again"
             )
         self.calculated = True
+        self._warn_unmatched_cgt_exempt_tickers()
         begin_index = INTERNAL_START_DATE
         tax_year_start_index = self.tax_year_start_date
         end_index = self.tax_year_end_date
@@ -2444,6 +2474,8 @@ class CapitalGainsCalculator:
         capital_gain = Decimal(0)
         capital_loss = Decimal(0)
         gift_loss = Decimal(0)
+        exempt_disposal_count = 0
+        exempt_disposal_proceeds = Decimal(0)
 
         # The first pass left its estimates in the portfolio; the walk rebuilds
         # it from nothing.
@@ -2486,7 +2518,6 @@ class CapitalGainsCalculator:
                         self.process_disposal(symbol, date_index)
                     )
                     if date_index >= tax_year_start_index:
-                        disposal_count += 1
                         transaction_amount = self.disposal_list[date_index][
                             symbol
                         ].amount
@@ -2494,20 +2525,9 @@ class CapitalGainsCalculator:
                         transaction_disposal_proceeds = (
                             transaction_amount + transaction_fees
                         )
-                        disposal_proceeds += transaction_disposal_proceeds
-                        allowable_costs += (
-                            transaction_disposal_proceeds - transaction_capital_gain
-                        )
                         transaction_quantity = self.disposal_list[date_index][
                             symbol
                         ].quantity
-                        LOGGER.debug(
-                            "DISPOSAL on %s of %s, quantity %s, capital gain $%s",
-                            date_index,
-                            symbol,
-                            transaction_quantity,
-                            round_decimal(transaction_capital_gain, 2),
-                        )
                         calculated_quantity = Decimal(0)
                         calculated_proceeds = Decimal(0)
                         calculated_gain = Decimal(0)
@@ -2528,16 +2548,39 @@ class CapitalGainsCalculator:
                         calculation_log[date_index][f"{prefix}${symbol}"] = (
                             calculation_entries
                         )
-                        if transaction_capital_gain > 0:
-                            capital_gain += transaction_capital_gain
-                        elif prefix == "gift":
-                            # A clogged loss: usable only against gains on
-                            # disposals to the same connected person while
-                            # still connected (TCGA 1992 s18(3)). Kept out of
-                            # the loss total and reported as its own.
-                            gift_loss += transaction_capital_gain
+                        if prefix == "exempt":
+                            exempt_disposal_count += 1
+                            exempt_disposal_proceeds += transaction_disposal_proceeds
+                            LOGGER.debug(
+                                "EXEMPT DISPOSAL on %s of %s, quantity %s, proceeds £%s",
+                                date_index,
+                                symbol,
+                                transaction_quantity,
+                                round_decimal(transaction_disposal_proceeds, 2),
+                            )
                         else:
-                            capital_loss += transaction_capital_gain
+                            disposal_count += 1
+                            disposal_proceeds += transaction_disposal_proceeds
+                            allowable_costs += (
+                                transaction_disposal_proceeds - transaction_capital_gain
+                            )
+                            LOGGER.debug(
+                                "DISPOSAL on %s of %s, quantity %s, capital gain $%s",
+                                date_index,
+                                symbol,
+                                transaction_quantity,
+                                round_decimal(transaction_capital_gain, 2),
+                            )
+                            if transaction_capital_gain > 0:
+                                capital_gain += transaction_capital_gain
+                            elif prefix == "gift":
+                                # A clogged loss: usable only against gains on
+                                # disposals to the same connected person while
+                                # still connected (TCGA 1992 s18(3)). Kept out of
+                                # the loss total and reported as its own.
+                                gift_loss += transaction_capital_gain
+                            else:
+                                capital_loss += transaction_capital_gain
 
             if date_index in self.rename_list:
                 for old, new in self.rename_list[date_index].items():
@@ -2631,6 +2674,8 @@ class CapitalGainsCalculator:
             gift_loss=round_decimal(gift_loss, 2),
             period_start=self.period_start,
             period_end=self.period_end,
+            exempt_disposal_count=exempt_disposal_count,
+            exempt_disposal_proceeds=round_decimal(exempt_disposal_proceeds, 2),
         )
 
     def make_portfolio_entry(
@@ -2675,6 +2720,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         spin_off_handler,
         initial_prices,
         args.interest_fund_tickers,
+        cgt_exempt_tickers=args.cgt_exempt_tickers,
         balance_check=args.balance_check,
         calc_unrealized_gains=args.calc_unrealized_gains,
         period_start=args.period_from,

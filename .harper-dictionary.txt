@@ -135,6 +135,8 @@ py
 pyproject
 pytest
 python3
+QCB
+QCBs
 rata
 regularMarketPrice
 reportable
@@ -147,6 +149,7 @@ RuntimeError
 RuntimeMode
 s105
 s106A
+s115
 s122
 s127
 s17
@@ -195,6 +198,7 @@ txn
 ty
 UCITS
 un
+unvalidated
 US9220427424
 usr
 UTF

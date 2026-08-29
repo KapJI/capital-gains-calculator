@@ -155,6 +155,19 @@ Environment variables:
         default=[],
         help="tickers of bond funds/ETFs whose dividends are taxed as interest in the UK",
     )
+    calc_group.add_argument(
+        "--cgt-exempt-tickers",
+        type=ticker_list_type,
+        metavar="TICKER[,TICKER...]",
+        default=[],
+        help="advanced manual CGT-exempt instrument classification (TCGA 1992 "
+        "s115): your own unverified assertion, since QCB status cannot be "
+        "inferred from a ticker or name; disregards both gains and losses on "
+        "disposals and changes nothing else, so coupon and accrued interest "
+        "stay taxable in whichever box the broker's rows put them and the "
+        "Accrued Income Scheme is not implemented; not for a QCB carrying a "
+        "deferred gain or for a deeply discounted security",
+    )
 
     # Output Options
     output_group = parser.add_argument_group("Output")
