@@ -22,6 +22,7 @@ The following configuration files and options allow you to customize the calcula
 
 ## Manual configuration files
 
+<!-- dprint-ignore-start -->
 - **Initial stock prices.** Required for special events like vesting, splits, or spin-offs when
   historical prices aren't available from your broker. Prices should be in USD.
   [`initial_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv)
@@ -39,20 +40,21 @@ The following configuration files and options allow you to customize the calcula
   with a comma-separated list only when you have established that each instrument is exempt under
   [TCGA 1992 s115](https://www.legislation.gov.uk/ukpga/1992/12/section/115).
 
-  - This is your own unverified assertion. The calculator does not identify or validate gilts or
-    [qualifying corporate bonds (QCBs)](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg53702),
-    and QCB status cannot be inferred from a ticker or name.
-  - The override disregards both gains and losses on disposals.
-  - Coupon and accrued interest remain taxable income. The calculator does not implement the
-    [Accrued Income Scheme](https://www.gov.uk/government/publications/accrued-income-scheme-hs343-self-assessment-helpsheet).
-  - The importers for [Freetrade](brokers/freetrade.md),
-    [Hargreaves Lansdown](brokers/hargreaves-lansdown.md) and
-    [Interactive Brokers](brokers/interactive-brokers.md) are documented as unvalidated for bonds
-    and gilts. This override does not validate them either.
-  - The override changes the capital gains calculation only. A coupon is reported in whichever box
-    its broker rows put it in. `--interest-fund-tickers` reports as foreign interest, so it is not a
-    fix for a UK gilt coupon. Check the interest and dividend figures against your own records.
-  - Matching uses the ticker at the disposal, so an instrument renamed part-way through the history
-    has to be listed under both names.
-  - A gift of a listed instrument is reported as an exempt disposal and does not also appear in the
-    **Gifts at market value** section.
+    - This is your own unverified assertion. The calculator does not identify or validate gilts or
+      [qualifying corporate bonds (QCBs)](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg53702),
+      and QCB status cannot be inferred from a ticker or name.
+    - The override disregards both gains and losses on disposals.
+    - Coupon and accrued interest remain taxable income. The calculator does not implement the
+      [Accrued Income Scheme](https://www.gov.uk/government/publications/accrued-income-scheme-hs343-self-assessment-helpsheet).
+    - The importers for [Freetrade](brokers/freetrade.md),
+      [Hargreaves Lansdown](brokers/hargreaves-lansdown.md) and
+      [Interactive Brokers](brokers/interactive-brokers.md) are documented as unvalidated for bonds
+      and gilts. This override does not validate them either.
+    - The override changes the capital gains calculation only. A coupon is reported in whichever box
+      its broker rows put it in. `--interest-fund-tickers` reports as foreign interest, so it is not a
+      fix for a UK gilt coupon. Check the interest and dividend figures against your own records.
+    - Matching uses the ticker at the disposal, so an instrument renamed part-way through the
+      history has to be listed under both names.
+    - A gift of a listed instrument is reported as an exempt disposal and does not also appear in the
+      **Gifts at market value** section.
+<!-- dprint-ignore-end -->
