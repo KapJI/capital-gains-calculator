@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import replace
 import datetime
 from decimal import Decimal
+from pathlib import Path
+from typing import override
 
 import pytest
 
@@ -15,6 +17,7 @@ from cgt_calc.model import (
     CurrencyCode,
     ForeignCurrencyAmount,
     Isin,
+    TransactionSource,
 )
 
 # Apple, a real ISIN with a valid check digit.
@@ -251,3 +254,60 @@ def test_broker_transaction_keeps_typed_foreign_fees_as_is() -> None:
     """An already-typed fee table passes through untouched."""
     fees = {CurrencyCode("USD"): Decimal(1)}
     assert _transaction_with_fees(fees).foreign_fees is fees
+
+
+class _HashedTransaction(BrokerTransaction):
+    """A transaction hashed by identity fields, as broker parsers hash theirs."""
+
+    @override
+    def __hash__(self) -> int:
+        """Hash on what identifies the row, never on where it was read from."""
+        return hash((self.date, self.symbol, self.quantity))
+
+
+def _hashed(source: TransactionSource) -> _HashedTransaction:
+    return _HashedTransaction(
+        date=datetime.date(2023, 1, 1),
+        action=ActionType.BUY,
+        symbol="FOO",
+        description="test",
+        quantity=Decimal(1),
+        price=Decimal(1),
+        fees=Decimal(0),
+        amount=Decimal(-1),
+        currency=USD,
+        broker="Test",
+        source=source,
+    )
+
+
+def test_source_is_not_part_of_transaction_equality() -> None:
+    """One row two overlapping exports both state stays one row.
+
+    Parsers deduplicate by comparing transactions, so the file a row came
+    from, the line it sat on and the boundary it was loaded under have to
+    stay out of the comparison and out of the hash. Left in, every row two
+    exports share would survive twice and double the holding.
+    """
+    first = _hashed(
+        TransactionSource(
+            parser="Trading 212",
+            account="Trading 212 #1",
+            file=Path("2026-01.csv"),
+            row=7,
+            index=5,
+            timestamp=datetime.datetime(2026, 1, 5, 9, 30, tzinfo=datetime.UTC),
+        )
+    )
+    second = _hashed(
+        TransactionSource(
+            parser="Trading 212",
+            account="Trading 212 #2",
+            file=Path("2026-02.csv"),
+            row=2,
+            index=0,
+        )
+    )
+
+    assert first == second
+    assert len({first, second}) == 1

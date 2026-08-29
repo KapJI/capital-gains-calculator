@@ -17,7 +17,12 @@ from cgt_calc.exceptions import (
     ParsingError,
     UnexpectedColumnCountError,
 )
-from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CurrencyCode,
+    TransactionSource,
+)
 
 from .base_parsers import BaseDirParser
 
@@ -279,7 +284,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
     def _parse_dividend_payments(
         cls,
         schema: DividendSectionSchema,
-        rows: Iterator[list[str]],
+        rows: RowIterator,
         file: Path,
     ) -> Iterable[SharesightTransaction]:
         """Parse dividend payments from Sharesight data."""
@@ -350,6 +355,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                 quantity=None,
                 price=None,
                 fees=Decimal(0),
+                source=TransactionSource(row=rows.line),
             )
 
             # Generate the tax as a separate transaction
@@ -365,11 +371,12 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                     quantity=None,
                     price=None,
                     fees=Decimal(0),
+                    source=TransactionSource(row=rows.line),
                 )
 
     @classmethod
     def _parse_local_income(
-        cls, rows: Iterator[list[str]], file: Path
+        cls, rows: RowIterator, file: Path
     ) -> Iterable[SharesightTransaction]:
         """Parse Local Income section from Sharesight data."""
         for row in rows:
@@ -406,7 +413,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
 
     @classmethod
     def _parse_trades(
-        cls, header: list[str], rows: Iterator[list[str]], file: Path
+        cls, header: list[str], rows: RowIterator, file: Path
     ) -> Iterable[SharesightTransaction]:
         """Parse content in All Trades Report from Sharesight."""
         header_columns = cls._trade_header_columns(header)
@@ -501,6 +508,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                 amount=amount,
                 currency=currency,
                 broker=broker,
+                source=TransactionSource(row=rows.line),
             )
 
             # Sharesight has no native support for stock activity, so use a string

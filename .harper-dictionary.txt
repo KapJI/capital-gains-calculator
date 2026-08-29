@@ -21,6 +21,7 @@ BrokerTransaction
 BSF
 BST
 calc
+CalculationEntry
 Center
 CG12920
 CG14530
@@ -38,13 +39,13 @@ CG52742
 CG59562
 cgt
 CMF5
-CRLF
 codepage
 codespell
 Colima
 colorama
 colorama's
 ConsoleUI
+CRLF
 csv
 CSVs
 CurrencyConverter
@@ -89,13 +90,14 @@ IsinConverter
 ISINs
 json
 Lansdown
-LF
 len
+LF
 LSE
 Luhn
 lychee
 markdown
 matchable
+matchings
 md
 MiKTeX
 MMM
@@ -129,6 +131,7 @@ python3
 rata
 regularMarketPrice
 reportable
+repr
 restkey
 restval
 roundings
@@ -137,6 +140,7 @@ RuntimeError
 RuntimeMode
 s105
 s106A
+s122
 s127
 s17
 s18
@@ -164,6 +168,7 @@ SpinOff
 SpinOffs
 SplitHistory
 sqrt
+ss126
 stderr
 stdin
 stdout
@@ -173,6 +178,7 @@ subrow
 tablefinder
 TCGA
 toml
+Trading212Column
 tranche's
 TransactionDetails
 transferor

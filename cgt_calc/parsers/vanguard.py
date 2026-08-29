@@ -12,7 +12,12 @@ from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
-from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CurrencyCode,
+    TransactionSource,
+)
 
 from .base_parsers import BaseSingleFileParser
 
@@ -673,6 +678,7 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
         *,
         warn_on_empty: bool = True,
         show_parsing_msg: bool = True,
+        account: str | None = None,
     ) -> list[VanguardTransaction]:
         """Load a text CSV and report Excel or encoding mistakes clearly."""
         if file_path.suffix.casefold() in {".xls", ".xlsx", ".xlsm", ".xlsb"}:
@@ -686,6 +692,7 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
                 file_path,
                 warn_on_empty=warn_on_empty,
                 show_parsing_msg=show_parsing_msg,
+                account=account,
             )
         except UnicodeDecodeError as err:
             raise ParsingError(
@@ -768,6 +775,7 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
                     ) from err
                 if txn is None:
                     continue  # zero-out half of a NameChange pair
+                txn.source = TransactionSource(row=row_index)
                 if txn.action is ActionType.RENAME:
                     transactions.append(txn)
                     continue
@@ -790,12 +798,14 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
                     row_index=row_index,
                 )
             try:
-                transactions.append(VanguardTransaction(cash_header, row, file_path))
+                cash_txn = VanguardTransaction(cash_header, row, file_path)
             except ParsingError as err:
                 err.add_row_context(row_index)
                 raise
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=row_index) from err
+            cash_txn.source = TransactionSource(row=row_index)
+            transactions.append(cash_txn)
 
         # Resolve missing quantity/price with values from the investment table, see
         # https://github.com/cgt-calc/capital-gains-calculator/issues/758

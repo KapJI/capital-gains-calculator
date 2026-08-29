@@ -25,6 +25,7 @@ from .util import (
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+    from pathlib import Path
 
 
 _ISIN_REGEX: Final = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
@@ -275,6 +276,36 @@ class CalculationType(Enum):
     DISPOSAL = 2
 
 
+@dataclass(frozen=True)
+class TransactionSource:
+    """Where a transaction was read from.
+
+    ``index`` is the position the parser read this row at within one source
+    file, and it is what says which of two rows on one day came first. It is
+    not ``row``: a parser is free to emit rows in an order the file does not
+    use, and Freetrade does exactly that because its export is newest first.
+    ``row`` is the line the row came from, for pointing an error at it.
+
+    ``account`` is an opaque token for the boundary the user declared by
+    passing one file or one directory. It is calculation-local: it says that
+    two transactions were configured as one account, never which account, and
+    nothing about it may be read as a broker account identifier.
+    """
+
+    parser: str | None = None
+    account: str | None = None
+    file: Path | None = None
+    row: int | None = None
+    index: int | None = None
+    # The instant the export stated, where it states one at all.
+    timestamp: datetime.datetime | None = None
+    # Whether this source documents that rows sharing a date are in the order
+    # they happened. A hand-written RAW history says so; a broker export does
+    # not, and several parsers reorder their rows for the calculation's sake,
+    # so `index` says which row was read first and nothing more.
+    rows_in_time_order: bool = False
+
+
 @dataclass
 class BrokerTransaction:
     """Broker transaction data."""
@@ -298,6 +329,13 @@ class BrokerTransaction:
     # when the two cannot be told apart, so that whichever the user confirms
     # can settle it.
     ambiguous_quantity: Decimal | None = None
+    # Where this row was read from. Excluded from equality and from any
+    # __hash__: parsers deduplicate overlapping exports by comparing
+    # transactions, and a field that varies with the file would keep both
+    # copies of every row two exports share. Out of the repr too, which is
+    # printed whole in several errors and is about the transaction, not about
+    # which file on this machine it was read from.
+    source: TransactionSource | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         """Validate BrokerTransaction data."""

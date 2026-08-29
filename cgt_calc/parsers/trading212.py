@@ -12,7 +12,13 @@ from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES, UK_TIMEZONE
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
-from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CurrencyCode,
+    Isin,
+    TransactionSource,
+)
 
 from .base_parsers import BaseDirParser
 
@@ -451,12 +457,16 @@ class Trading212Parser(BaseDirParser[Trading212Transaction]):
         transactions: list[Trading212Transaction] = []
         for index, row in enumerate(lines, start=2):
             try:
-                transactions.append(Trading212Transaction(header, row, file_path))
+                transaction = Trading212Transaction(header, row, file_path)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
+            transaction.source = TransactionSource(
+                row=index, timestamp=transaction.datetime
+            )
+            transactions.append(transaction)
         return transactions
 
     @staticmethod

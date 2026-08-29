@@ -213,9 +213,11 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
 
     @classmethod
     @override
-    def pre_reading(cls, file: Iterable[str], file_path: Path) -> Iterable[str]:
+    def pre_reading(
+        cls, file: Iterable[str], file_path: Path
+    ) -> tuple[Iterable[str], int]:
         """Skip Statement and Summary sections. Transaction History is the important one."""
-        for line in file:
+        for row, line in enumerate(file, start=1):
             # Validate we're dealing with a GBP account
             if line.startswith("Summary,Data,Base Currency,"):
                 rows = line.split(",")
@@ -228,7 +230,7 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
                         f"Unexpected base currency: '{rows[3]}', only GBP is supported",
                     )
             if line.startswith("Transaction History"):
-                return chain([line], file)
+                return chain([line], file), row
         raise ParsingError(
             file_path,
             "Couldn't find Transaction History header, is this the right file?",

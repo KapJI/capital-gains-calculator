@@ -128,13 +128,13 @@ class MSSBParser(
 
     @classmethod
     @override
-    def pre_reading(cls, file: TextIO, file_path: Path) -> Iterable[str]:
+    def pre_reading(cls, file: TextIO, file_path: Path) -> tuple[Iterable[str], int]:
         """Select the expected column set based on the report filename."""
         if cls._is_withdrawals_report(file_path):
             cls.columns = set(COLUMNS_WITHDRAWAL)
         else:
             cls.columns = set(COLUMNS_RELEASE)
-        return file
+        return file, 1
 
     @classmethod
     @override

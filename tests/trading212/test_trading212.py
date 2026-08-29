@@ -1118,6 +1118,158 @@ def test_read_trading212_transactions_mixes_time_column_spellings(
     ]
 
 
+def test_load_from_dir_deduplicates_overlapping_exports(tmp_path: Path) -> None:
+    """Collapse a transaction that two overlapping exports both report.
+
+    Exports are requested by date range, so consecutive downloads routinely
+    cover the same days. Deduplication rests on `Trading212Transaction.__hash__`
+    together with the field-by-field `__eq__` that `BrokerTransaction` gets as a
+    dataclass, so any field that varies with the source file would keep both
+    copies and double the holding.
+    """
+
+    folder = tmp_path / "inputs"
+    folder.mkdir()
+
+    def buy(transaction_id: str, day: str, shares: str, total: str) -> list[str]:
+        return _make_row(
+            HEADER_2026,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: f"{day} 09:30:00",
+                Trading212Column.ISIN: "US0000000002",
+                Trading212Column.TICKER: "FOO",
+                Trading212Column.NAME: "Foo Inc",
+                Trading212Column.NO_OF_SHARES: shares,
+                Trading212Column.PRICE_PER_SHARE: "100.00",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+                Trading212Column.TOTAL: total,
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: transaction_id,
+            },
+        )
+
+    overlapping = buy("buy-overlapping", "2026-02-10", "2", "200.00")
+    _write_csv(
+        folder / "2026-01.csv",
+        [HEADER_2026, buy("buy-january", "2026-01-05", "1", "100.00"), overlapping],
+    )
+    _write_csv(
+        folder / "2026-02.csv",
+        [HEADER_2026, overlapping, buy("buy-february", "2026-02-20", "3", "300.00")],
+    )
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert [transaction.date for transaction in transactions] == [
+        date(2026, 1, 5),
+        date(2026, 2, 10),
+        date(2026, 2, 20),
+    ]
+    assert sum(
+        transaction.quantity or Decimal(0) for transaction in transactions
+    ) == Decimal(6)
+
+
+def test_load_from_dir_records_where_each_row_came_from(tmp_path: Path) -> None:
+    """Every row keeps its file, line, read order and exported instant.
+
+    The line is what an error points at; the read order is what says which
+    of two rows on one day came first, and the export's own instant settles
+    it here without needing either.
+    """
+    folder = tmp_path / "inputs"
+    folder.mkdir()
+
+    def buy(transaction_id: str, day: str) -> list[str]:
+        return _make_row(
+            HEADER_2026,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: f"{day} 09:30:00",
+                Trading212Column.ISIN: "US0000000002",
+                Trading212Column.TICKER: "FOO",
+                Trading212Column.NAME: "Foo Inc",
+                Trading212Column.NO_OF_SHARES: "1",
+                Trading212Column.PRICE_PER_SHARE: "100.00",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+                Trading212Column.TOTAL: "100.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: transaction_id,
+            },
+        )
+
+    _write_csv(
+        folder / "2026-01.csv",
+        [HEADER_2026, buy("buy-a", "2026-01-05"), buy("buy-b", "2026-01-06")],
+    )
+    _write_csv(folder / "2026-02.csv", [HEADER_2026, buy("buy-c", "2026-02-10")])
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    sources = [transaction.source for transaction in transactions]
+    assert [source.file.name for source in sources if source and source.file] == [
+        "2026-01.csv",
+        "2026-01.csv",
+        "2026-02.csv",
+    ]
+    assert [source.row for source in sources if source] == [2, 3, 2]
+    assert [source.index for source in sources if source] == [0, 1, 0]
+    assert [source.parser for source in sources if source] == ["Trading 212"] * 3
+    assert [source.timestamp for source in sources if source] == [
+        datetime(2026, 1, 5, 9, 30, tzinfo=UTC),
+        datetime(2026, 1, 6, 9, 30, tzinfo=UTC),
+        datetime(2026, 2, 10, 9, 30, tzinfo=UTC),
+    ]
+
+
+def test_one_directory_is_one_account_boundary(tmp_path: Path) -> None:
+    """Files in one directory share a boundary; two loads never do.
+
+    Passing a directory is the user's declaration that its exports are one
+    account. Two separately configured inputs are two accounts, whatever the
+    export says, because nothing in the CSV identifies the account.
+    """
+    rows = [
+        HEADER_2026,
+        _make_row(
+            HEADER_2026,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2026-01-05 09:30:00",
+                Trading212Column.ISIN: "US0000000002",
+                Trading212Column.TICKER: "FOO",
+                Trading212Column.NAME: "Foo Inc",
+                Trading212Column.NO_OF_SHARES: "1",
+                Trading212Column.PRICE_PER_SHARE: "100.00",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+                Trading212Column.TOTAL: "100.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "buy-a",
+            },
+        ),
+    ]
+    first = tmp_path / "first"
+    first.mkdir()
+    _write_csv(first / "a.csv", rows)
+    _write_csv(first / "b.csv", rows)
+    second = tmp_path / "second"
+    second.mkdir()
+    _write_csv(second / "a.csv", rows)
+
+    together = Trading212Parser().load_from_dir(first)
+    apart = Trading212Parser().load_from_dir(second)
+
+    accounts = {
+        transaction.source.account
+        for transaction in together
+        if transaction.source is not None
+    }
+    assert len(accounts) == 1
+    assert apart[0].source is not None
+    assert apart[0].source.account not in accounts
+
+
 def test_read_trading212_transactions_missing_time_column(tmp_path: Path) -> None:
     """Raise ParsingError when neither Time column is present."""
 
