@@ -1,28 +1,140 @@
 # RAW Format
 
-You will need:
+cgt-calc reads a simple seven-column CSV when your broker is not supported or when you need to add a
+supported event that its export does not identify. You write this file yourself from the broker's
+records; it is not the CSV that a broker supplies.
 
-- **CSV using the RAW format.** If your broker isn't natively supported you might choose to convert
-  whatever report you can produce into this basic format.
-  [See example](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/raw/data/test_data_2.csv).
-  Include the header row shown below (lower-case column names in this order). The parser can infer
-  the column order when the header is missing, but it will emit a warning so you can update your
-  export the next time.
+## Create the CSV
 
-  - `date` – transaction date in `YYYY-MM-DD` format.
-  - `action` – one of the supported broker actions (see
-    [`ActionType`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/model.py)).
-  - `symbol` – instrument ticker; leave blank for cash movements if not applicable.
-  - `quantity` – number of shares or units involved (blank for cash-only transactions).
-  - `price` – price per unit in the transaction currency (blank when not applicable).
-  - `fees` – fees associated with the transaction (blank or `0` if none).
-  - `currency` – ISO currency code of the transaction amounts (for example `USD`).
+Include this header exactly, in this order:
 
-Example usage for the tax year 2024/25:
+```csv
+date,action,symbol,quantity,price,fees,currency
+```
+
+The columns are:
+
+| Column     | Value                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------- |
+| `date`     | Transaction date in `YYYY-MM-DD` format                                                 |
+| `action`   | One of the documented [actions](#actions-to-use); write the name in uppercase           |
+| `symbol`   | Instrument ticker; leave blank only where the action table allows it                    |
+| `quantity` | Positive number of shares or units; use `1` when `price` holds the full cash amount     |
+| `price`    | Price per unit, or the full cash amount (positive or negative) when `quantity` is `1`   |
+| `fees`     | Positive fees deducted from the cash amount; leave blank or use `0` when there are none |
+| `currency` | Three-letter currency code for the price, fees and resulting amount, such as `USD`      |
+
+The header is required. cgt-calc can infer it from a file without a header for compatibility, but
+warns because it then has to assume that the columns are in the order above.
+
+Here is a complete small example:
+
+```csv
+date,action,symbol,quantity,price,fees,currency
+2024-01-02,TRANSFER,,1,1000.00,0.00,GBP
+2024-01-03,BUY,ACME,100,7.50,5.00,GBP
+2024-06-01,DIVIDEND,ACME,100,0.04,0.00,GBP
+2024-06-01,DIVIDEND_TAX,ACME,1,-0.60,0.00,GBP
+2025-01-03,SELL,ACME,25,8.20,5.00,GBP
+```
+
+You can also compare the format with the
+[tested example](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/raw/data/test_data_2.csv).
+
+### How the cash amount is calculated
+
+The format has no separate `amount` column. For every action except `BUY`, cgt-calc calculates:
+
+```text
+amount = quantity × price − fees
+```
+
+For `BUY`, it makes `quantity × price` negative first and then subtracts the fees. Enter positive
+quantities, positive unit prices and positive fees for ordinary purchases and disposals; cgt-calc
+therefore records the total cost of a purchase as negative and the net proceeds of a disposal as
+positive.
+
+For a cash-only row, use `quantity` `1` and put the full amount in `price`: positive for money
+received and negative for money paid. A deposit of £250 is `1,250,0,GBP`; a withdrawal of £40 is
+`1,-40,0,GBP`. Do not leave `quantity` or `price` blank: with no product, cgt-calc has no amount to
+apply and stops with `Amount missing`.
+
+## Actions to use
+
+Use the following action names when writing a RAW file. The cgt-calc source code contains more
+action names for broker imports, but a RAW row using one may be ignored or fail because it lacks the
+extra details that action needs.
+
+| Action                           | What to enter                                                                                                                                                           |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BUY`                            | Ticker, positive quantity and positive unit price. `fees` increases the cash cost and allowable acquisition cost.                                                       |
+| `SELL`                           | Ticker, positive quantity and positive unit price. `fees` reduces the cash proceeds and gain.                                                                           |
+| `STOCK_ACTIVITY`                 | Shares acquired without paying cash, such as a vest: ticker, quantity and market value per unit.                                                                        |
+| `DIVIDEND`                       | Ticker and gross dividend. Use the actual shares and dividend per share, or use quantity `1` and the gross total as `price`.                                            |
+| `DIVIDEND_TAX`                   | Ticker, quantity `1` and the tax deducted as a negative `price`.                                                                                                        |
+| `CAPITAL_GAIN`                   | A cash distribution that cgt-calc reports as dividend income: write it like `DIVIDEND`.                                                                                 |
+| `INTEREST`                       | Interest received: leave `symbol` blank, use quantity `1` and the gross total as a positive `price`.                                                                    |
+| `INTEREST_TAX`                   | Tax deducted from interest: leave `symbol` blank, use quantity `1` and the deduction as a negative `price`.                                                             |
+| `TRANSFER`                       | Cash added or removed: leave `symbol` blank, use quantity `1`, and use a positive `price` for a deposit or a negative one for a withdrawal.                             |
+| `ADJUSTMENT`                     | A cash-only correction or charge: write it like `TRANSFER`. It affects the balance but no holding or taxable income.                                                    |
+| `FEE`                            | A cost that should increase one holding's pooled cost: enter its ticker, quantity `1`, the charge as a negative `price`, and `fees` `0`.                                |
+| `CASH_MERGER`, `FULL_REDEMPTION` | A disposal for cash: write it like `SELL`. Use only when no replacement shares were received.                                                                           |
+| `STOCK_SPLIT`                    | Ticker, the positive number of new shares created, price `0` and fees `0`; see [The order of rows on one date](#the-order-of-rows-on-one-date).                         |
+| `SPIN_OFF`                       | New ticker, quantity received, price `0` and fees `0`. cgt-calc also needs the old ticker through [`--spin-offs-file`](../configuration.md#manual-configuration-files). |
+| `TRANSFER_TO_SPOUSE`             | See [Transfers to a spouse or civil partner](#transfers-to-a-spouse-or-civil-partner).                                                                                  |
+| `TRANSFER_FROM_SPOUSE`           | See [If you received the shares](#if-you-received-the-shares).                                                                                                          |
+| `GIFT`, `GIFT_UNCONNECTED`       | See [Gifts to anyone else](#gifts-to-anyone-else).                                                                                                                      |
+
+For a reinvested dividend, write two rows in this order: a `DIVIDEND` for the income, then a `BUY`
+for the shares bought with it. Do not use the internal `REINVEST_DIVIDENDS` action: the calculator
+ignores it. Excess Reported Income uses the separate
+[ERI_RAW format](../custom-eri-data.md#eri_raw-format), not this file.
+
+Verify that a `FEE` is an allowable cost of that holding before using it. For a general account fee
+that should only reduce cash, use `ADJUSTMENT` instead.
+
+## Known limitations
+
+- The format has no ISIN or source-country column. For a dividend with withholding tax, when
+  cgt-calc cannot match the ticker to a known ISIN, it guesses the source country from the currency
+  when possible: `USD` is treated as US and `PLN` as Poland. An investment domiciled elsewhere can
+  consequently receive the wrong treaty treatment without a source-country warning; that warning is
+  issued only when withholding tax was deducted and cgt-calc cannot infer a country from the
+  currency. Verify foreign dividend income and tax against the broker statement rather than assuming
+  that treaty limits were applied.
+- The format does not identify the instrument type. It is intended for ordinary shares and funds; do
+  not rely on it for options, futures, bonds, contracts for difference, crypto assets or another
+  instrument whose UK tax treatment differs.
+- The seven columns cannot describe every internal action. Ticker renames and cancelled purchases
+  are examples that a RAW row cannot express; use only the documented actions above.
+
+## Combining RAW with a broker export
+
+Every RAW row is assigned to a separate broker called `Unknown`. A complete history converted to RAW
+can therefore reconcile its own cash, but its cash balance and income stay separate from a named
+broker export passed with another flag. In particular, a RAW `DIVIDEND_TAX` cannot be attached to
+that broker's dividend, and a RAW deposit cannot fund a purchase in that broker's balance.
+
+Non-cash rows such as a spouse transfer can be supplied alongside a broker export as described
+below. For any replacement or correction, make sure the original activity is not also imported, and
+check both the final holdings and each broker balance. Keep the downloaded export unchanged for your
+records; make changes only in a working copy.
+
+## Generate the report
+
+For the tax year 2024/25, run:
 
 ```shell
 cgt-calc --year 2024 --raw-file raw_data.csv
 ```
+
+`--year 2024` means 6 April 2024 to 5 April 2025. Follow [Generate Your First Report](../usage.md)
+to find and check the output.
+
+Include cash deposits and withdrawals if your records contain them so the balance check can detect
+an incomplete conversion. If the source genuinely has no cash history, use `--no-balance-check` only
+after checking that every acquisition, disposal, income payment, fee and corporate action is
+present.
 
 ## The order of rows on one date
 
@@ -185,3 +297,43 @@ loss, as are the other transfers listed in
 [CG12920](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg12920): to employee
 trusts, housing associations and the nation. They are not disposals at market value, and cgt-calc
 has no way to record them yet.
+
+## Troubleshooting
+
+### `Unknown action`
+
+Use an action from [Actions to use](#actions-to-use). Do not copy another name from the cgt-calc
+source code: some actions exist only for broker imports and a RAW row cannot supply their additional
+data. For a real event that the table does not cover, do not force it into the nearest-looking
+action; verify its UK tax treatment and open a
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) if cgt-calc should
+support it.
+
+### `Amount missing`
+
+The row has no usable product of `quantity` and `price`. For a cash-only action, set quantity to `1`
+and put the full amount in `price`: positive for money received and negative for money paid. See
+[How the cash amount is calculated](#how-the-cash-amount-is-calculated).
+
+### A header or column-count error
+
+Use the seven columns from [Create the CSV](#create-the-csv), in that order, and keep every comma,
+including the empty `symbol` field in a cash row. Save the file as UTF-8 CSV rather than converting
+a PDF or pasting a formatted currency value such as `£1,000` into one field.
+
+### `Reached a negative balance` for broker `Unknown`
+
+Check the sign of every cash row and include the deposits, sales and income that funded later
+purchases or withdrawals. If this RAW file supplements a named broker export, remember that their
+balances are separate; see
+[Combining RAW with a broker export](#combining-raw-with-a-broker-export).
+
+### `Tried to sell not owned symbol`
+
+Include the earlier acquisition and any split, spin-off or transfer that established the holding.
+Use the same ticker throughout unless the broker-specific history supplies a supported rename. Check
+the final portfolio and every disposal against the broker records rather than adding a made-up
+purchase to make the calculation run.
+
+Do not upload an unredacted RAW file to GitHub: it can contain dates, holdings, income and other
+sensitive financial information.
