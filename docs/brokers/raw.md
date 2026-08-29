@@ -215,7 +215,9 @@ A consolidation shrinks the holding, so its `quantity` is negative: 100 shares c
 ```
 
 Leave `price` and `fees` at `0`: nothing is bought, sold or paid for. cgt-calc refuses a
-`STOCK_SPLIT` row that states either, rather than dropping the figure without telling you.
+`STOCK_SPLIT` row that states either, rather than dropping the figure without telling you. A
+reorganisation row in a broker export is held to the same rule, and its amount column counts too:
+some exports state an amount with no price beside it, and that money is refused rather than dropped.
 
 ### Cash in lieu of a fractional entitlement
 
@@ -252,10 +254,10 @@ to use it: where a date has both, the RAW row states the change to the whole hol
 uses it and ignores the broker's own row for the same event.
 
 Which accounts a holding is built from is remembered until a day closes with the whole pooled
-holding at zero. So after one account sells all of its units, a single-row split reported by the
-other is still refused while the pool holds anything bought in the first: cgt-calc does not track
-which account each remaining unit came from, so it will not assume they are all at the reporting
-one. The RAW row above is the answer there too.
+holding at zero, and a ticker rename carries the record to the new name along with the holding. So
+after one account sells all of its units, a single-row split reported by the other is still refused
+until that happens: cgt-calc does not track which account each remaining unit came from, so it will
+not assume they are all at the reporting one. The RAW row above is the answer there too.
 
 ## Transfers to a spouse or civil partner
 

@@ -1415,6 +1415,28 @@ def test_a_holding_that_closes_a_day_empty_clears_its_sources() -> None:
     assert calculator.portfolio["FOO"].quantity == Decimal(30)
 
 
+def test_a_rename_is_not_a_second_reading_of_the_running_count() -> None:
+    """A rename must not decide emptiness the day boundary was left to decide.
+
+    The first test of the three, routed through a rename: the sale processed
+    ahead of the purchase takes the count to zero, and the rename meets it
+    there. Handing the old name's accounts on or dropping them is the same
+    question the sweep answers a day later, and answering it here from a
+    count that is not chronology lets the buying account's own split row
+    restate a pool that may still hold the other account's ten.
+    """
+    with pytest.raises(CalculationError, match="also has units from"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10", source=elsewhere(0)),
+                trade(RENAME_DAY, ActionType.SELL, "OLD", "10", "12"),
+                rename(RENAME_DAY, "OLD", "NEW"),
+                trade(RENAME_DAY, ActionType.BUY, "NEW", "15", "12"),
+                legacy_split(LATER_DAY, "NEW", "5"),
+            ]
+        )
+
+
 def test_a_sold_out_holding_renamed_the_same_day_frees_its_sources() -> None:
     """A rename of an emptied holding must not keep its old accounts alive.
 
@@ -1437,26 +1459,36 @@ def test_a_sold_out_holding_renamed_the_same_day_frees_its_sources() -> None:
     assert calculator.portfolio["NEW"].amount == Decimal(80)
 
 
-def test_a_rename_that_moves_no_units_carries_no_accounts() -> None:
-    """An empty holding renamed onto a live one must not taint it.
+def test_a_rename_that_moves_no_units_still_carries_its_accounts() -> None:
+    """A rename onto a live holding cannot rule the accounts out either.
 
-    The old name was bought and sold out at other accounts before the
-    rename, so the rename moves nothing, and the destination's units all
-    came from the account whose split row later states their change. The
-    day-boundary sweep cannot clean the destination, because it holds real
-    units, so the stale accounts must never arrive there at all.
+    Here the old name really was sold out before the rename. Nothing at the
+    rename row establishes that: the count it would read is the one the day
+    boundary exists to distrust, and the same reading on a day whose rows
+    are not in the order they happened drops accounts whose units are still
+    pooled. A destination holding units of its own never closes a day empty,
+    so the sweep cannot revisit the question later, and the conservative
+    answer is the only one the rename row can safely give. The split one
+    account reports is refused, and the error names the RAW row that states
+    the change to the whole holding.
     """
-    calculator = run(
-        [
-            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10", source=elsewhere(0)),
-            trade(POOL_DAY, ActionType.BUY, "NEW", "4", "20"),
-            trade(RENAME_DAY, ActionType.SELL, "OLD", "10", "12", source=elsewhere(1)),
-            rename(RENAME_DAY, "OLD", "NEW"),
-            legacy_split(LATER_DAY, "NEW", "4"),
-        ]
-    )
-    assert calculator.portfolio["NEW"].quantity == Decimal(8)
-    assert calculator.portfolio["NEW"].amount == Decimal(80)
+    with pytest.raises(CalculationError, match="also has units from"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10", source=elsewhere(0)),
+                trade(POOL_DAY, ActionType.BUY, "NEW", "4", "20"),
+                trade(
+                    RENAME_DAY,
+                    ActionType.SELL,
+                    "OLD",
+                    "10",
+                    "12",
+                    source=elsewhere(1),
+                ),
+                rename(RENAME_DAY, "OLD", "NEW"),
+                legacy_split(LATER_DAY, "NEW", "4"),
+            ]
+        )
 
 
 def test_a_rename_carries_the_accounts_over_with_the_units() -> None:

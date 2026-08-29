@@ -1518,12 +1518,15 @@ class CapitalGainsCalculator:
         position = self.portfolio.pop(old_symbol, Position())
         self.portfolio[new_symbol] += position
         # The units keep the accounts that put them there; only the name
-        # changes. A rename that moves no units carries no accounts with it:
-        # its sources are dropped rather than mixed into a destination whose
-        # own units never came from them, and which may hold too much for the
-        # day-boundary sweep to ever clear them.
+        # changes. Nothing is forgotten here, whatever the count says. The
+        # merged stream's order within a day is not chronology, so a count of
+        # zero at this row is not the old name emptying, and a rename is no
+        # better placed to read it than the disposal that took it there. That
+        # question is settled where every earlier day has closed, in
+        # ``_open_transaction_day``, which is the only place a holding's
+        # accounts are dropped.
         moved = self.holding_sources.pop(old_symbol, set())
-        if moved and position.quantity != 0:
+        if moved:
             self.holding_sources[new_symbol] |= moved
 
     def add_management_fee(self, transaction: BrokerTransaction) -> Decimal:
