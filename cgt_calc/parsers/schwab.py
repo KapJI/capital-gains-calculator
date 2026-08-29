@@ -5,18 +5,25 @@ from __future__ import annotations
 import argparse
 from collections import OrderedDict, defaultdict
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
+import itertools
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 import shtab
 
-from cgt_calc.args_validators import DeprecatedAction, existing_file_type, set_completer
+from cgt_calc.args_validators import (
+    DeprecatedAction,
+    existing_directory_type,
+    existing_file_type,
+    set_completer,
+)
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
+    CgtError,
     ParsingError,
     SymbolMissingError,
     UnexpectedColumnCountError,
@@ -31,7 +38,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
 
-from .base_parsers import BaseSingleFileParser
+from .base_parsers import BaseSingleFileParser, next_account_token
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -647,8 +654,11 @@ def _filter_cancelled_buy_transactions(
             # which refuses any action it does not handle but can only report
             # an unprocessed action type, naming neither the cancellation nor
             # what to do about it.
+            # A directory load passes the directory, so name the file and line
+            # the row records: "remove this row" needs to say which row.
+            source = transaction.source
             raise ParsingError(
-                file,
+                source.file if source and source.file else file,
                 f"Found a {transaction.raw_action} for {transaction.symbol} on "
                 f"{transaction.date} with no Buy to match it in the "
                 f"{CANCEL_BUY_SEARCH_DAYS} days before. The purchase may be "
@@ -657,6 +667,7 @@ def _filter_cancelled_buy_transactions(
                 "another cancellation. Remove this row; remove the purchase "
                 "with it only if the purchase is still in the export and no "
                 "other cancellation reverses it.",
+                row_index=source.row if source else None,
             )
 
     if indices_to_remove:
@@ -666,6 +677,55 @@ def _filter_cancelled_buy_transactions(
         )
 
     return [txn for i, txn in enumerate(transactions) if i not in indices_to_remove]
+
+
+@dataclass(frozen=True)
+class _Export:
+    """One Schwab CSV from a directory, with the dates it actually covers."""
+
+    rows: list[SchwabTransaction]
+    file_path: Path
+
+    @property
+    def oldest(self) -> datetime.date:
+        """Earliest transaction date in the file."""
+        return min(row.date for row in self.rows)
+
+    @property
+    def newest(self) -> datetime.date:
+        """Latest transaction date in the file."""
+        return max(row.date for row in self.rows)
+
+
+def _reject_overlapping_exports(exports: list[_Export]) -> None:
+    """Refuse two exports whose transaction dates overlap.
+
+    A Schwab CSV carries no transaction id, so a row repeated by an overlap is
+    indistinguishable from a genuine repeat of the same trade: two identical
+    buys of the same size and price on one day are a real thing. Continuing
+    would report a disposal or acquisition that never happened, and would leave
+    the order of a shared date decided by the filename.
+
+    The comparison is over the dates present in each file rather than the range
+    the user asked Schwab for. That is the stricter reading of what matters: if
+    two requested ranges overlap but no transaction falls in the shared window,
+    nothing is duplicated and there is nothing to refuse.
+    """
+    ordered = sorted(exports, key=lambda export: (export.oldest, export.newest))
+    for earlier, later in itertools.pairwise(ordered):
+        if later.oldest <= earlier.newest:
+            raise ParsingError(
+                later.file_path,
+                f"has transactions from {later.oldest} to {later.newest}, "
+                f"overlapping {earlier.file_path.name} ({earlier.oldest} to "
+                f"{earlier.newest}). A Schwab CSV has no transaction id, so "
+                "cgt-calc cannot tell a row repeated by the overlap from a "
+                "genuine repeat of the same trade, and would count both. "
+                "Re-export the ranges so they do not overlap, or remove the "
+                "redundant file. If these are exports from two different "
+                "Schwab accounts, cgt-calc cannot combine them: the CSV does "
+                "not say which account a row belongs to.",
+            )
 
 
 def _read_schwab_awards(
@@ -770,6 +830,10 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
     pretty_name = "Charles Schwab"
     format_name = "CSV"
     deprecated_flags: ClassVar[list[str]] = ["--schwab"]
+    # Schwab cannot inherit BaseDirParser, which would rename --schwab-file to
+    # --schwab-dir, so it declares the same directory conventions by hand and
+    # reads them through cls in load_from_dir.
+    glob_dir: ClassVar[str] = "*.csv"
 
     awards_prices: AwardPrices = _read_schwab_awards(None)
 
@@ -794,14 +858,43 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
             type=existing_file_type,
             help=argparse.SUPPRESS,
         )
+        # Schwab keeps both forms: `--schwab-file` predates the directory
+        # support, so removing it would break every existing command. The
+        # other directory brokers replaced their file flag instead.
+        set_completer(
+            arg_group.add_argument(
+                "--schwab-dir",
+                type=existing_directory_type,
+                default=None,
+                metavar="DIR",
+                help="directory with Charles Schwab transaction history in CSV format",
+            ),
+            shtab.DIRECTORY,
+        )
         super().register_arguments(arg_group)
 
     @classmethod
     @override
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
         """Load broker data from parsed arguments."""
+        if args.schwab_dir and args.schwab_file:
+            # main() rejects this through argparse, for the usage message and
+            # exit code 2. Repeated here because this is the layer that knows
+            # both flags: taking the directory branch silently would drop
+            # every transaction in the file. Checked before any I/O so a bad
+            # award file can't mask the real problem.
+            raise CgtError(
+                "--schwab-file and --schwab-dir cannot be used together. Pass "
+                "the directory holding every export, or the single file."
+            )
         award_path = args.schwab_award_file
         cls.awards_prices = _read_schwab_awards(award_path)
+        if args.schwab_dir:
+            # list is invariant, so widen explicitly rather than return list[T].
+            transactions: list[BrokerTransaction] = list(
+                cls.load_from_dir(args.schwab_dir)
+            )
+            return transactions
         return super().load_from_args(args)
 
     @classmethod
@@ -810,20 +903,135 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
         cls, file: TextIO, file_path: Path
     ) -> list[SchwabTransaction]:
         """Read Schwab transactions from file."""
+        transactions = cls._read_rows(file, file_path)
+        transactions = _unify_schwab_paired_transactions(transactions, file_path)
+        transactions = _filter_cancelled_buy_transactions(transactions, file_path)
+        transactions.reverse()
+        return transactions
 
+    @classmethod
+    def load_from_dir(cls, dir_path: Path) -> list[SchwabTransaction]:
+        """Read every CSV in the directory as one export.
+
+        Schwab limits how much history one export can cover, so a long history
+        arrives as several date-range files. They are parsed separately and
+        then treated as a single export.
+
+        Corporate-action pairing stays per file: both shapes it recognises are
+        same-date by construction, and refusing overlapping exports first
+        guarantees one date lives in exactly one file, so a pair can never be
+        split. Cancellation matching is the opposite: the Buy a Cancel Buy
+        reverses is up to CANCEL_BUY_SEARCH_DAYS away, so it routinely sits in
+        the neighbouring file and can only be found once everything is merged.
+        """
+        # One directory is one declared account boundary, as it is for the
+        # other directory brokers, so every file in it shares a token.
+        account = next_account_token(cls.pretty_name)
+        exports: list[_Export] = []
+        for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False)):
+            if not cls.file_path_filter(file_path):
+                continue
+            try:
+                with file_path.open(encoding=cls.encoding) as file:
+                    parsing_msg(file_path)
+                    rows = cls._read_rows(file, file_path, from_directory=True)
+            except OSError as exc:
+                # Branch on what the path is, not on the exception type:
+                # opening a directory raises IsADirectoryError on POSIX but
+                # PermissionError on Windows.
+                if file_path.is_dir():
+                    raise ParsingError(
+                        file_path,
+                        "is not a regular file. Remove or move it out of the "
+                        "Schwab directory.",
+                    ) from exc
+                raise ParsingError(
+                    file_path,
+                    f"could not be read ({exc.strerror or exc}). Remove or move "
+                    "it out of the Schwab directory.",
+                ) from exc
+            if rows:
+                exports.append(_Export(rows=rows, file_path=file_path))
+
+        # Before pairing, not after: an overlap is exactly what can put the two
+        # halves of a corporate action in different files, and pairing would
+        # then report a missing half rather than the overlap behind it. Pairing
+        # only ever merges rows sharing a date, so it cannot change the span a
+        # file covers and the answer here is the same either way.
+        _reject_overlapping_exports(exports)
+
+        exports = [
+            replace(
+                export,
+                rows=_unify_schwab_paired_transactions(export.rows, export.file_path),
+            )
+            for export in exports
+        ]
+        for export in exports:
+            # Rows are still newest-first here, so stamp a reversed view: index
+            # has to rise with time, as it does on the single-file path where
+            # stamping happens after the reverse.
+            cls.stamp_source(list(reversed(export.rows)), export.file_path, account)
+
+        # Every export is newest-first and no date spans two of them, so
+        # ordering whole exports by their newest date makes the concatenation
+        # newest-first without disturbing row order inside a file. Sorting the
+        # rows themselves would have to break ties between files, and the only
+        # tiebreak available is the filename.
+        exports.sort(key=lambda export: export.newest, reverse=True)
+
+        transactions = [row for export in exports for row in export.rows]
+        transactions = _filter_cancelled_buy_transactions(transactions, dir_path)
+        transactions.reverse()
+
+        # Checked after filtering, not before: a directory whose only rows are
+        # a Buy and the Cancel Buy that reverses it ends up empty, and has to
+        # warn like any other empty result.
+        if not transactions:
+            LOGGER.warning(
+                "No transactions detected in directory %s for broker %s",
+                dir_path,
+                cls.pretty_name,
+            )
+        return cls.post_process_transactions(transactions)
+
+    @classmethod
+    def _directory_help(cls, file_path: Path) -> str:
+        return (
+            f" Every {cls.glob_dir} in the directory is parsed as Schwab "
+            f"transaction history; remove or move this file ({file_path.name}) "
+            "out of the directory."
+        )
+
+    @classmethod
+    def _read_rows(
+        cls, file: TextIO, file_path: Path, *, from_directory: bool = False
+    ) -> list[SchwabTransaction]:
+        """Parse the rows of one Schwab CSV, without any cross-row pass.
+
+        A ``classmethod`` because pricing a vest needs ``cls.awards_prices``,
+        which ``load_from_args`` fills in from ``--schwab-award-file``.
+        """
         lines = list(csv.reader(file))
         if not lines:
-            raise ParsingError(
-                file_path, "Charles Schwab transactions CSV file is empty"
-            )
+            message = "Charles Schwab transactions CSV file is empty."
+            if from_directory:
+                message += cls._directory_help(file_path)
+            raise ParsingError(file_path, message)
         header = lines[0]
 
         required_headers = {column.value for column in RequiredTransactionsColumn}
         if not required_headers.issubset(header):
+            directory_help = ""
+            if from_directory:
+                directory_help = cls._directory_help(file_path)
+                award_headers = {column.value for column in RequiredAwardColumn}
+                if award_headers.issubset(header):
+                    directory_help += " Pass it with --schwab-award-file instead."
             raise ParsingError(
                 file_path,
                 "Missing columns in Schwab transaction file: "
-                f"{required_headers.difference(header)}",
+                f"{required_headers.difference(header)}.{directory_help}",
                 row_index=1,
             )
 
@@ -851,7 +1059,4 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
 
             transaction.source = TransactionSource(row=index)
             transactions.append(transaction)
-        transactions = _unify_schwab_paired_transactions(transactions, file_path)
-        transactions = _filter_cancelled_buy_transactions(transactions, file_path)
-        transactions.reverse()
         return transactions

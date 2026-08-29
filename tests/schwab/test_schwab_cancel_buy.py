@@ -234,8 +234,11 @@ def test_unmatched_cancel_buy_is_refused(tmp_path: Path) -> None:
         "01/05/2020,Buy,MSFT,MICROSOFT CORP,$200.00,5,$0.00,-$1000.00\n"
     )
 
-    with pytest.raises(ParsingError, match="no Buy to match it"):
+    with pytest.raises(ParsingError, match="no Buy to match it") as exc_info:
         SchwabParser().load_from_file(csv_file)
+
+    # The row is what the user has to remove, so the error has to point at it.
+    assert "row 2" in str(exc_info.value)
 
 
 def test_cancel_buy_is_not_typed_as_a_purchase(tmp_path: Path) -> None:

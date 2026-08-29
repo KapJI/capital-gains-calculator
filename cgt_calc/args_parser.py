@@ -249,6 +249,24 @@ def reject_duplicate_stdin(
         )
 
 
+def reject_schwab_file_and_dir(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> None:
+    """Reject ``--schwab-file`` and ``--schwab-dir`` given together.
+
+    Schwab is the only broker offering both, because ``--schwab-file`` predates the
+    directory support and has to keep working. Loading both would mean merging
+    two sources whose overlap cannot be detected: a Schwab CSV has no
+    transaction id, so a row present in each is indistinguishable from a
+    genuine repeat of the same trade.
+    """
+    if args.schwab_file and args.schwab_dir:
+        parser.error(
+            "--schwab-file and --schwab-dir cannot be used together. Pass the "
+            "directory holding every export, or the single file."
+        )
+
+
 def resolve_reporting_period(
     parser: argparse.ArgumentParser, args: argparse.Namespace
 ) -> None:

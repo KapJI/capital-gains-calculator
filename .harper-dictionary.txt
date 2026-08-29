@@ -13,6 +13,7 @@ ArgumentParser
 ArgumentTypeError
 arm64
 autosale
+BaseDirParser
 BaseSingleFileParser
 BGF
 BGIF
@@ -38,6 +39,8 @@ CG51976
 CG52742
 CG59562
 cgt
+classmethod
+cls
 CMF5
 codepage
 codespell
@@ -77,6 +80,7 @@ GOOGL
 GSU
 HL
 Hmrc
+I/O
 IBKR
 IBKR's
 idx
@@ -85,6 +89,7 @@ InvalidTransactionError
 Invesco
 InvestmentName
 iShares
+IsADirectoryError
 ISIN
 IsinConverter
 ISINs
@@ -114,6 +119,7 @@ NVDA
 NVIDIA
 OCI
 OPRA
+OSError
 OTGLY
 ParsingError
 pdf
@@ -121,6 +127,7 @@ pdflatex
 pipx
 Plc
 png
+PermissionError
 Podman
 prek
 presplit
@@ -153,6 +160,7 @@ s58
 SA106
 SalePrice
 Schwab
+schwab
 Schwab's
 SchwabAwardTransaction
 SchwabTransaction

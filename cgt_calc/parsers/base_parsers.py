@@ -179,6 +179,11 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         """Do any required post processing after loading the transactions."""
         return transactions
 
+    @classmethod
+    def file_path_filter(cls, file_path: Path) -> bool:  # noqa: ARG003
+        """Choose which files to parse."""
+        return True
+
 
 class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     """Base parser for CSV files with a fixed set of expected columns."""
@@ -331,8 +336,3 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                 cls.pretty_name,
             )
         return cls.post_process_transactions(transactions)
-
-    @classmethod
-    def file_path_filter(cls, file_path: Path) -> bool:  # noqa: ARG003
-        """Choose which files to parse."""
-        return True

@@ -27,11 +27,37 @@ CSV whose columns include `Date`, `Action`, `Symbol`, `Description`, `Price`, `Q
 `Fees & Comm` and `Amount`. You can compare it with the
 [sanitised example](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/schwab/data/schwab_transactions.csv).
 
-Schwab may limit how much history can be exported at once. If you need several non-overlapping date
-ranges, keep the original files and make a separate combined CSV for cgt-calc. Combine only files
-with the same headings, keep the heading once, and place the newest date range first. Preserve the
-row order within each export, because some corporate actions use adjacent rows. Check carefully for
-gaps or duplicated dates. `--schwab-file` accepts one main transaction CSV.
+Schwab may limit how much history can be exported at once. If your history needs several exports,
+repeat the process with consecutive date ranges, making sure there are no gaps.
+
+## Prepare the directory
+
+One export goes to `--schwab-file`. Several go in a directory passed to `--schwab-dir`, so you do
+not have to combine them yourself:
+
+```text
+schwab/
+├── 2022-04-06_to_2023-04-05.csv
+├── 2023-04-06_to_2024-04-05.csv
+└── 2024-04-06_to_2025-04-05.csv
+```
+
+The base filenames do not matter. cgt-calc reads every CSV file directly inside the directory, but
+it does not search subdirectories.
+
+Two rules to get right:
+
+- **Do not put the Equity Awards CSV in this directory.** It is also a `.csv`, so cgt-calc would
+  read it as transaction history and stop with `Missing columns in Schwab transaction file`. Keep it
+  elsewhere and pass it with `--schwab-award-file`.
+- **Do not put exports from two different Schwab accounts in one directory.** The CSV does not say
+  which account a row belongs to, so cgt-calc cannot separate them. Combining several accounts is
+  not supported.
+
+Overlaps are **not** safe here, unlike some other brokers. A Schwab CSV carries no transaction ID,
+so cgt-calc cannot tell a row repeated by an overlap from a genuine repeat of the same trade: two
+identical buys of the same size and price on one day are a real thing. If two exports have
+overlapping transaction-date spans, cgt-calc refuses them rather than count both.
 
 ## Generate the report
 
@@ -43,6 +69,14 @@ cgt-calc --year 2025 --schwab-file schwab_transactions.csv
 
 `--year 2025` means 6 April 2025 to 5 April 2026. Follow [Generate Your First Report](../usage.md)
 to find and check the output.
+
+If your history needed several exports, point `--schwab-dir` at the directory holding them instead:
+
+```shell
+cgt-calc --year 2025 --schwab-dir schwab/
+```
+
+`--schwab-file` and `--schwab-dir` cannot be used together.
 
 If a `Stock Plan Activity` row has no price, also pass the supported Equity Awards CSV described
 below:
@@ -228,8 +262,11 @@ use the one with the correct quantity.
 - `Stock Split` supports extra shares from a split, not shares removed by a consolidation.
 - All values in Schwab CSV and JSON files are treated as USD. Changing a currency symbol in the CSV
   does not convert the data.
-- cgt-calc does not remove duplicates from overlapping Schwab exports. Every transaction must appear
-  exactly once.
+- cgt-calc does not remove duplicates from Schwab exports, because the CSV has no transaction ID to
+  tell a duplicate from a genuine repeat of the same trade. Every transaction must appear exactly
+  once. `--schwab-dir` refuses exports whose transaction-date spans overlap rather than count both.
+- Exports from more than one Schwab account cannot be combined. Nothing in the CSV identifies the
+  account.
 
 ## Troubleshooting
 
@@ -248,8 +285,16 @@ Make sure `--schwab-file` points to the main transaction-history CSV and `--schw
 points to the supported award-price CSV. A positions export, realised gain/loss report, statement,
 JSON file or spreadsheet converted from PDF has a different layout.
 
+With `--schwab-dir`, this error names the offending file: take it out of the directory (or, if it is
+the Equity Awards CSV, pass it with `--schwab-award-file` instead).
+
 If you combined several history ranges, confirm that there is one header, every data row has the
 same number of fields, and none of the source files used a different export format.
+
+### `is not a regular file` or `could not be read`
+
+With `--schwab-dir`, every entry matching `*.csv` must be a plain, readable file. Remove or move out
+a subdirectory, broken symlink, or file the current user lacks permission to read.
 
 ### `Unknown action`
 
@@ -290,6 +335,18 @@ sanitised copy of the relevant records.
 This legacy JSON error means the purchased share count does not equal the shares deposited, withheld
 and sold for tax after any known split. Compare those figures with the ESPP confirmation and split
 history. Do not change a quantity merely to make the import continue.
+
+### An export overlaps another one
+
+Two files in the `--schwab-dir` directory have earliest-to-latest transaction-date spans that
+overlap. They need not share any individual date: one file running from March to December and
+another holding a single June transaction is enough, because cgt-calc cannot then rule out that the
+two exports cover the same period. Because a Schwab CSV has no transaction ID, it cannot tell which
+rows are repeats, so it refuses rather than count them twice. Re-export the ranges so they do not
+overlap, or delete the redundant file.
+
+If the two files are exports from different Schwab accounts, that is the cause: cgt-calc cannot
+combine accounts, because no column says which account a row came from.
 
 ### `Reached a negative balance` or `Tried to sell not owned symbol`
 
