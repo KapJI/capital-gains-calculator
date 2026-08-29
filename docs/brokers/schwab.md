@@ -15,11 +15,11 @@ Use the Schwab website rather than a positions export, statement, realised gain/
 
 1. Open the transaction history for the taxable brokerage account.
 2. Select the longest date range available. Start with the account's first transaction if possible,
-   as explained in [Before you start](../usage.md#before-you-start). End today or at least 30 days
-   after the end of the tax year you are calculating, because a purchase in the 30 days after a
-   disposal can affect how that disposal is matched.
+    as explained in [Before you start](../usage.md#before-you-start). End today or at least 30 days
+    after the end of the tax year you are calculating, because a purchase in the 30 days after a
+    disposal can affect how that disposal is matched.
 3. Include all transaction types. A trade-only export can omit deposits, dividends, tax, fees and
-   corporate actions needed by the calculation.
+    corporate actions needed by the calculation.
 4. Export the results as CSV.
 
 The exact controls are behind the Schwab login and may change. Use the account's transaction-history
@@ -48,11 +48,11 @@ it does not search subdirectories.
 Two rules to get right:
 
 - **Do not put the Equity Awards CSV in this directory.** It is also a `.csv`, so cgt-calc would
-  read it as transaction history and stop with `Missing columns in Schwab transaction file`. Keep it
-  elsewhere and pass it with `--schwab-award-file`.
+    read it as transaction history and stop with `Missing columns in Schwab transaction file`. Keep
+    it elsewhere and pass it with `--schwab-award-file`.
 - **Do not put exports from two different Schwab accounts in one directory.** The CSV does not say
-  which account a row belongs to, so cgt-calc cannot separate them. Combining several accounts is
-  not supported.
+    which account a row belongs to, so cgt-calc cannot separate them. Combining several accounts is
+    not supported.
 
 Overlaps are **not** safe here, unlike some other brokers. A Schwab CSV carries no transaction ID,
 so cgt-calc cannot tell a row repeated by an overlap from a genuine repeat of the same trade: two
@@ -179,8 +179,8 @@ Use this method when the main transaction CSV contains `Stock Plan Activity` row
 `Price`:
 
 1. In Schwab, open the Equity Awards account. Schwab's
-   [grant guide](https://eac.schwab.com/content/how-to-accept-your-grant) shows how to reach the
-   account from **Accounts → Equity Awards**.
+    [grant guide](https://eac.schwab.com/content/how-to-accept-your-grant) shows how to reach the
+    account from **Accounts → Equity Awards**.
 2. Export its complete transaction history as CSV.
 3. Check that the file's heading contains `Date`, `Symbol` and `FairMarketValuePrice`.
 4. Pass it with `--schwab-award-file` alongside the main CSV.
@@ -239,10 +239,10 @@ A JSON `Gift` row says that shares left the account but not who received them. c
 stops and asks you to classify it:
 
 - For a spouse or civil partner, follow
-  [Transfers to a spouse or civil partner](raw.md#transfers-to-a-spouse-or-civil-partner) and add
-  the suggested `TRANSFER_TO_SPOUSE` row through a small RAW file.
+    [Transfers to a spouse or civil partner](raw.md#transfers-to-a-spouse-or-civil-partner) and add
+    the suggested `TRANSFER_TO_SPOUSE` row through a small RAW file.
 - For anyone else, follow [Gifts to anyone else](raw.md#gifts-to-anyone-else) and add the suggested
-  `GIFT` or `GIFT_UNCONNECTED` row using a verified market value.
+    `GIFT` or `GIFT_UNCONNECTED` row using a verified market value.
 
 The error prints the complete RAW line to copy into a small CSV. The JSON importer can restate an
 old gift for a later split, so the quantity may not match the number of shares shown on the gift
@@ -252,21 +252,22 @@ use the one with the correct quantity.
 ## Known limitations
 
 - Transfers of shares are not reconstructed from the main CSV. In particular, `Journaled Shares` is
-  unsupported. Despite its name, `Security Transfer` is supported only as an `ACH`-related cash
-  movement: it requires an `Amount` and does not move shares. Follow the RAW transfer or gift
-  instructions only after establishing what the transfer was and what cost should move with it.
+    unsupported. Despite its name, `Security Transfer` is supported only as an `ACH`-related cash
+    movement: it requires an `Amount` and does not move shares. Follow the RAW transfer or gift
+    instructions only after establishing what the transfer was and what cost should move with it.
 - The newer Equity Awards CSV layout without `FairMarketValuePrice` is unsupported, as described
-  above.
+    above.
 - A cash merger that gives replacement shares as well as cash is not supported. The cash-only
-  importer prints a warning for every merger so you remember to check this.
+    importer prints a warning for every merger so you remember to check this.
 - `Stock Split` supports extra shares from a split, not shares removed by a consolidation.
 - All values in Schwab CSV and JSON files are treated as USD. Changing a currency symbol in the CSV
-  does not convert the data.
+    does not convert the data.
 - cgt-calc does not remove duplicates from Schwab exports, because the CSV has no transaction ID to
-  tell a duplicate from a genuine repeat of the same trade. Every transaction must appear exactly
-  once. `--schwab-dir` refuses exports whose transaction-date spans overlap rather than count both.
+    tell a duplicate from a genuine repeat of the same trade. Every transaction must appear exactly
+    once. `--schwab-dir` refuses exports whose transaction-date spans overlap rather than count
+    both.
 - Exports from more than one Schwab account cannot be combined. Nothing in the CSV identifies the
-  account.
+    account.
 
 ## Troubleshooting
 

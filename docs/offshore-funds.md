@@ -33,11 +33,11 @@ override ISIN translation see the **ISIN to ticker translation** entry on the
 There are a few **unsupported** functionalities at the moment for taxation on offshore funds:
 
 - Tax calculations for offshore funds that are **not reporting to HMRC** as they don't report taxes
-  as CGT but as income tax.
+    as CGT but as income tax.
 - Excess Reported Income
-  [equalisation](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm13224) support which
-  is an optional arrangement which certain funds can support to reduce the amount of excess reported
-  income in case you held the fund stocks for less than the reporting period.
+    [equalisation](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm13224) support which
+    is an optional arrangement which certain funds can support to reduce the amount of excess
+    reported income in case you held the fund stocks for less than the reporting period.
 
 ## Providing custom ERI data
 

@@ -80,9 +80,9 @@ merger, split or other reorganisation:
 
 1. Compare the CSV with your contract notes, messages and statements.
 2. Ask Freetrade support for an
-   [activity statement that includes corporate actions](https://help.freetrade.io/en/articles/6416976-what-s-an-activity-statement-and-how-can-i-request-one).
+    [activity statement that includes corporate actions](https://help.freetrade.io/en/articles/6416976-what-s-an-activity-statement-and-how-can-i-request-one).
 3. Supply any missing transactions through another supported broker export or the
-   [RAW format](raw.md), after verifying the dates, costs and UK tax treatment.
+    [RAW format](raw.md), after verifying the dates, costs and UK tax treatment.
 
 The additional Freetrade statement is a source for finding missing activity; cgt-calc does not
 promise to import its corporate-action rows directly.
@@ -90,17 +90,17 @@ promise to import its corporate-action rows directly.
 ## Known limitations
 
 - Only the transaction types listed above are mapped. Another value stops the import; do not delete
-  a financial transaction merely to make the calculation run.
+    a financial transaction merely to make the calculation run.
 - Current exports add `Stock Split ...` columns, but `STOCK_SPLIT` rows are not yet mapped. The
-  columns are accepted so ordinary rows can still be imported; an actual split row stops with
-  `Unknown type`.
+    columns are accepted so ordinary rows can still be imported; an actual split row stops with
+    `Unknown type`.
 - The importer supports a GBP account currency only. Changing the currency text in the CSV would not
-  convert its amounts.
+    convert its amounts.
 - The export has no asset-class column, and the importer does not use one. Every `ORDER` is
-  processed as a share or fund acquisition or disposal; do not rely on this path for gilts, Treasury
-  bills or another instrument whose tax treatment differs.
+    processed as a share or fund acquisition or disposal; do not rely on this path for gilts,
+    Treasury bills or another instrument whose tax treatment differs.
 - A `FREESHARE_ORDER` is assigned zero acquisition cost. Check whether that treatment is appropriate
-  for the way you received the award before relying on its eventual gain.
+    for the way you received the award before relying on its eventual gain.
 
 ## Troubleshooting
 
@@ -111,9 +111,9 @@ cgt-calc ignores the two document types described under [Supported activity](#su
 Identify any other named row in Freetrade before deciding what to do with it:
 
 - a queued order should be replaced by its executed contract note if it later executed, or removed
-  if it was cancelled; and
+    if it was cancelled; and
 - a transfer or corporate action may need the extra records described in
-  [Check for missing activity](#check-for-missing-activity).
+    [Check for missing activity](#check-for-missing-activity).
 
 If the row is an executed transaction not covered by [Supported activity](#supported-activity),
 first upgrade cgt-calc using the same method you used to install it. If it still fails, open a

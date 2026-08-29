@@ -46,7 +46,7 @@ We use:
 - [shfmt](https://github.com/mvdan/sh#shfmt) - for formatting shell scripts
 - [codespell](https://github.com/codespell-project/codespell) - for catching common misspellings
 - [Harper](https://writewithharper.com/) - for grammar and spell checking of comments, docstrings,
-  and Markdown docs
+    and Markdown docs
 
 `prek` can be used to run all checks with one command (see below).
 

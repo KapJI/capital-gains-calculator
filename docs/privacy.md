@@ -8,9 +8,9 @@ does **not send your transaction history or personal information** to any extern
 The only external API calls made are:
 
 - [**UK Trade Tariff API**](https://www.trade-tariff.service.gov.uk/exchange_rates) – to fetch
-  monthly GBP exchange rates (no personal data sent)
+    monthly GBP exchange rates (no personal data sent)
 - [**Open FIGI API**](https://www.openfigi.com/api/overview) – to translate ISIN codes to tickers
-  when needed (only ISIN codes are queried, no transaction amounts or personal details)
+    when needed (only ISIN codes are queried, no transaction amounts or personal details)
 
 ## Disclaimer
 
