@@ -52,7 +52,7 @@ For the 2024/25 tax year, run:
 cgt-calc --year 2024 --trading212-dir trading212/
 ```
 
-`--year 2024` means 6 April 2024 to 5 April 2025. Follow [Generate Your First Report](../usage.md)
+`--year 2024` means 6 April 2024 to 5 April 2025. Follow [Generate and Review a Report](../usage.md)
 to find and check the output.
 
 ## Supported activity

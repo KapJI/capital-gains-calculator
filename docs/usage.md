@@ -1,15 +1,18 @@
-# Generate Your First Report
+# Generate and Review a Report
 
 ## Before you start
 
 You will need:
 
-- **cgt-calc and LaTeX installed.** Follow the [installation guide](installation.md) before
-    continuing.
+- **cgt-calc installed.** Follow the [installation guide](installation.md) before continuing.
+- **LaTeX installed if you want a PDF report.** It is not needed for a terminal-only report using
+    `--no-report`.
 - **A complete transaction history from every relevant account.** Follow the instructions for each
-    [supported broker](brokers/index.md). Include transactions from before the tax year when they
-    are needed to establish the cost of shares you owned or sold during that year. Exporting the
-    history since the account was opened is the safest option.
+    [supported broker](brokers/index.md). Include transactions from before the report starts when
+    they establish the cost of shares you owned or sold. Also include acquisitions in the 30 days
+    after the report ends, because they can be matched to a disposal inside the period. Exporting
+    from the date the account was opened through at least 30 days after the report ends is the
+    safest option.
 - **Excess Reported Income data when applicable.** If you own or have owned funds from outside the
     UK, whether accumulating or distributing, check the [offshore funds guide](offshore-funds.md).
 - **Transfers to or from a spouse or civil partner, recorded by hand.** No broker export marks
@@ -26,6 +29,27 @@ Pass the first year of the UK tax year to `--year`. For example, `--year 2024` m
 year, from 6 April 2024 to 5 April 2025.
 
 If you omit `--year`, cgt-calc uses the most recently completed UK tax year.
+
+### Report part of a tax year
+
+Use `--from` and `--to` instead of `--year` to report a period within one UK tax year. For example,
+the following reports disposals on or after 30 October 2024 for the
+[HMRC 2024/25 Capital Gains Tax adjustment](https://www.gov.uk/guidance/work-out-your-capital-gains-tax-adjustment-for-the-2024-to-2025-tax-year):
+
+```shell
+cgt-calc --from 2024-10-30 --to 2025-04-05 --schwab-file schwab_transactions.csv
+```
+
+cgt-calc still reads earlier transactions from the supplied history to establish the share pool, but
+only reports the selected period. Matching is not limited by the end date: a purchase made after it
+is still identified against a reported disposal under the 30-day rule if it is in the supplied
+history.
+
+A period report does not calculate the HMRC adjustment or allocate the annual exempt amount between
+periods. Use the **Gain** and **Loss** figures with the full-year report and HMRC guidance; do not
+treat its **Taxable gain** as your annual figure. Do not treat its dividend or interest figures as
+annual totals either: they include only income received inside the period, and the dividend section
+still deducts the full-year dividend allowance.
 
 ## Generate the report
 
@@ -68,13 +92,24 @@ cgt-calc --year 2024 --schwab-file transactions.csv > report.txt
 
 Redirecting stdout does not change where the PDF is saved.
 
+Use `--no-report` instead of `--output` to print the terminal summary without generating a report.
+This creates neither a PDF nor LaTeX source and does not require `pdflatex`:
+
+```shell
+cgt-calc --year 2024 --schwab-file transactions.csv --no-report
+```
+
+To save the LaTeX source without creating a PDF, use `--no-pdflatex`. The source follows the
+`--output` path with a `.tex` extension (by default, `out/calculations.tex`). For example,
+`--output reports/2024-25.pdf` writes `reports/2024-25.tex`.
+
 ## Check the result
 
 Before relying on the figures:
 
 1. Read every warning printed while the calculator runs.
-2. Check that the section headed “Portfolio at the end of … tax year” agrees with your records at
-    the end of that tax year.
+2. Check that the portfolio section agrees with your records on the end date in the heading (5 April
+    for a full-year report).
 3. Compare the disposal count and proceeds with your broker statements.
 4. Check that dividends and interest are present when you expect them.
 5. Confirm that every relevant account was included once, without overlapping exports.
@@ -86,6 +121,28 @@ history.
 
 A successful run means cgt-calc could parse and calculate the supplied transactions. It does not
 prove that the supplied history was complete or that every part of your tax position is supported.
+
+The PDF shows the matching rules applied to each disposal: **SAME DAY**, **BED AND BREAKFAST** and
+**SECTION 104**. Check any unexpected matches against HMRC's
+[guidance for shares and Capital Gains Tax](https://www.gov.uk/government/publications/shares-and-capital-gains-tax-hs284-self-assessment-helpsheet).
+
+## Use the figures
+
+Treat the cgt-calc report as one calculation working paper. It covers only the supported
+transactions supplied to the tool. Combine it with gains and losses from other assets,
+brought-forward losses and any claims or reliefs before completing your return.
+
+Use HMRC's guidance to
+[check whether the gains must be reported](https://www.gov.uk/capital-gains-tax/work-out-need-to-pay).
+If completing Self Assessment, use the
+[Capital gains summary form and notes](https://www.gov.uk/government/publications/self-assessment-capital-gains-summary-sa108)
+for the relevant tax year. cgt-calc does not calculate the tax payable, map its output to return
+boxes or submit a return.
+
+Keep the original exports, supporting statements, command used, warnings and generated report with
+the calculation. Follow HMRC's
+[Capital Gains Tax record-keeping guidance](https://www.gov.uk/capital-gains-tax/records) for the
+required records and retention period.
 
 Run `cgt-calc --help` for the complete list of available options. Use `--verbose` when you need more
 detail while investigating a warning or error.

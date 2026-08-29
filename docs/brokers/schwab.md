@@ -67,7 +67,7 @@ For the 2025/26 tax year, run:
 cgt-calc --year 2025 --schwab-file schwab_transactions.csv
 ```
 
-`--year 2025` means 6 April 2025 to 5 April 2026. Follow [Generate Your First Report](../usage.md)
+`--year 2025` means 6 April 2025 to 5 April 2026. Follow [Generate and Review a Report](../usage.md)
 to find and check the output.
 
 If your history needed several exports, point `--schwab-dir` at the directory holding them instead:

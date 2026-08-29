@@ -132,6 +132,33 @@ def test_main_prints_help_when_no_arguments() -> None:
     assert result.returncode == 0
     assert "usage:" in result.stdout
     assert "Calculate UK capital gains" in result.stdout
+    assert "--no-pdflatex" in result.stdout
+
+
+def test_no_report_completion_message() -> None:
+    """Ensure a terminal-only run does not claim to generate a report."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "cgt_calc.main",
+            "--year",
+            "2022",
+            "--raw-file",
+            "tests/raw/data/test_data.csv",
+            "--no-balance-check",
+            "--no-report",
+            "--exchange-rates-file",
+            "tests/exchange_rates_data.csv",
+        ],
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert result.returncode == 0
+    stderr_lines = [line for line in result.stderr.splitlines() if line.strip()]
+    assert stderr_lines[-1] == "Done! Calculations complete (PDF generation skipped)."
 
 
 def test_interest_tax_totals_are_positive() -> None:

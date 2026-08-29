@@ -40,7 +40,7 @@ Section 104 pooling, gains and losses, a dividend with overseas tax, and cash in
 ## Where to start
 
 - [Installation](installation.md) — install the tool and LaTeX
-- [Usage](usage.md) — generate your first report
+- [Usage](usage.md) — generate and review a report
 - [Brokers](brokers/index.md) — export instructions for each supported broker
 - [Offshore funds (ERI)](offshore-funds.md) — if you hold non-UK funds
 - [Development](development/index.md) — contribute to the project

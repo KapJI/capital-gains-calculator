@@ -12,7 +12,7 @@ nav = [
   { "Home" = "index.md" },
   { "Getting started" = [
     { "Installation" = "installation.md" },
-    { "Generating a report" = "usage.md" },
+    { "Generate a report" = "usage.md" },
     { "Docker" = "docker.md" },
   ] },
   { "Input data" = [
