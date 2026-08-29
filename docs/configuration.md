@@ -43,7 +43,17 @@ The following configuration files and options allow you to customize the calcula
     - This is your own unverified assertion. The calculator does not identify or validate gilts or
       [qualifying corporate bonds (QCBs)](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg53702),
       and QCB status cannot be inferred from a ticker or name.
-    - The override disregards both gains and losses on disposals.
+    - The override disregards both gains and losses on disposals. Do not use it where a disposal
+      can still produce a charge: disposing of a QCB acquired on a takeover or reorganisation can
+      bring a
+      [deferred gain](https://www.gov.uk/government/publications/share-reorganisations-company-takeovers-and-capital-gains-tax-hs285-self-assessment-helpsheet)
+      back into charge, and the profit on a
+      [deeply discounted security](https://www.gov.uk/hmrc-internal-manuals/savings-and-investment-manual/saim3010)
+      is taxable as income. Neither is calculated here.
+    - The per-disposal breakdown in the PDF applies the ordinary same-day, 30-day and Section 104
+      share identification rules. Those are not the identification rules HMRC gives for gilts, QCBs
+      and other relevant securities, so read the breakdown as workings for the quantities only. It
+      has no effect on the figures reported, because the gain or loss is disregarded.
     - Coupon and accrued interest remain taxable income. The calculator does not implement the
       [Accrued Income Scheme](https://www.gov.uk/government/publications/accrued-income-scheme-hs343-self-assessment-helpsheet).
     - The importers for [Freetrade](brokers/freetrade.md),
@@ -57,4 +67,7 @@ The following configuration files and options allow you to customize the calcula
       history has to be listed under both names.
     - A gift of a listed instrument is reported as an exempt disposal and does not also appear in the
       **Gifts at market value** section.
+    - Listing an instrument does not lift the restrictions on disposing of it in more than one way
+      on a single day. A sale and a gift to a connected person on the same day are still refused,
+      even though the loss they cannot apportion would be disregarded.
 <!-- dprint-ignore-end -->

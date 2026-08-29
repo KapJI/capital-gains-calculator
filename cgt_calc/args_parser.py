@@ -165,7 +165,8 @@ Environment variables:
         "inferred from a ticker or name; disregards both gains and losses on "
         "disposals and changes nothing else, so coupon and accrued interest "
         "stay taxable in whichever box the broker's rows put them and the "
-        "Accrued Income Scheme is not implemented",
+        "Accrued Income Scheme is not implemented; not for a QCB carrying a "
+        "deferred gain or for a deeply discounted security",
     )
 
     # Output Options
