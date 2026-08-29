@@ -32,3 +32,5 @@
 ^main\.py:.*PronounInflectionBe
 # "nothing earlier that day" is a time reference, not a comparison.
 ^stock_splits\.py:.*ThatThan
+# "a very small holding" is a shareholding, not a smallholding.
+^trading212\.md:.*CompoundNouns
