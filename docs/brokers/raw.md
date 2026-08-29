@@ -234,12 +234,15 @@ accepts a payment as small when it is no more than 5% of the holding's value or 
 ([CG57835](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57835),
 [CG57800](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57800)).
 
-cgt-calc can compute neither treatment, and writing the payment as a `SELL` row does not compute the
-first one: a `SELL` goes through the ordinary share identification rules, so a purchase in the
-following 30 days is matched against it and the disposal takes that purchase's cost instead of a
-share of the holding's. Record no row for the payment. The pool then still carries the fraction the
-registrar sold, so the holding's unit count is wrong from this date onwards: work the payment, the
-corrected pool and the holding's later figures out by hand (consider professional advice).
+cgt-calc does not model either treatment explicitly. For a reorganisation into one class, HMRC
+permits the s129 cost to be apportioned by the number of shares sold
+([CG51892](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51892)), and a `SELL` row
+for the fraction and payment gives that result if no shares of the same class are acquired that day
+or in the following 30 days. If there is such an acquisition, ordinary share identification matches
+the `SELL` against it and uses its cost instead, which is wrong for s128(3). If you cannot establish
+that this condition holds, record no row for the payment. Without a row, the pool keeps both the
+sold fraction and cost that should have been removed or reduced, so correct its quantity, cost and
+later figures by hand (consider professional advice).
 
 ### Holdings spread across brokers
 
