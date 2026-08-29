@@ -403,6 +403,104 @@ def test_a_disposal_in_its_own_units_is_left_alone(
     assert "already restated" not in caplog.text
 
 
+@pytest.mark.parametrize("printed", ["NaN", "Infinity"])
+def test_a_lot_that_is_not_a_number_names_its_row(tmp_path: Path, printed: str) -> None:
+    """A restated disposal has its lots checked like any other sale.
+
+    The helpers that recover its count return None where a field is missing,
+    so they refuse nothing that is present and unusable, and Decimal takes
+    NaN and Infinity without complaint.
+    """
+
+    def unparseable_lot(rows: list[JsonRowType]) -> None:
+        for row in rows:
+            if row.get("Action") == "Sale" and row["Date"] == "05/22/2025":
+                details_of(row)["Shares"] = printed
+
+    with pytest.raises(
+        ParsingError, match=rf"Invalid Shares '{printed}' for Sale on 2025-05-22"
+    ):
+        parse(mutated(tmp_path, unparseable_lot))
+
+
+def test_a_negative_lot_count_is_refused_on_the_restated_path(
+    tmp_path: Path,
+) -> None:
+    """A negative lot count would take shares out of the pool silently.
+
+    The count is recovered by summing the lots, so a negative one is simply
+    added in: the 500-share disposal of 22 May 2025 reads as 99.5 while the
+    proceeds stay right, and nothing about the output looks wrong.
+    """
+
+    def negative_lot(rows: list[JsonRowType]) -> None:
+        for row in rows:
+            if row.get("Action") == "Sale" and row["Date"] == "05/22/2025":
+                details_of(row)["Shares"] = "-200.5"
+
+    with pytest.raises(
+        ParsingError, match=r"cannot dispose of a negative number of shares"
+    ):
+        parse(mutated(tmp_path, negative_lot))
+
+
+def test_a_zero_lot_price_is_refused_on_the_restated_path(tmp_path: Path) -> None:
+    """The price comes from the money here, but a zero lot price is malformed."""
+
+    def zero_price(rows: list[JsonRowType]) -> None:
+        for row in rows:
+            if row.get("Action") == "Sale" and row["Date"] == "04/02/2026":
+                details_of(row)["SalePrice"] = "$0.00"
+
+    with pytest.raises(ParsingError, match=r"states a SalePrice of '\$0\.00'"):
+        parse(mutated(tmp_path, zero_price))
+
+
+def test_a_lot_price_that_is_not_a_number_names_its_row(tmp_path: Path) -> None:
+    """The per-lot price on a restated disposal is read the same way."""
+
+    def unparseable_price(rows: list[JsonRowType]) -> None:
+        for row in rows:
+            if row.get("Action") == "Sale" and row["Date"] == "05/22/2025":
+                details_of(row)["SalePrice"] = "Infinity"
+
+    with pytest.raises(
+        ParsingError, match=r"Invalid SalePrice 'Infinity' for Sale on 2025-05-22"
+    ):
+        parse(mutated(tmp_path, unparseable_price))
+
+
+def test_an_espp_market_value_that_is_not_a_number_names_its_row(
+    tmp_path: Path,
+) -> None:
+    """An Infinity basis would price the whole purchase and never say so."""
+
+    def unparseable_market_value(rows: list[JsonRowType]) -> None:
+        for row in rows:
+            if row.get("Description") == "ESPP":
+                details_of(row)["PurchaseFairMarketValue"] = "Infinity"
+
+    with pytest.raises(
+        ParsingError,
+        match=r"Invalid PurchaseFairMarketValue 'Infinity' for Deposit on ",
+    ):
+        parse(mutated(tmp_path, unparseable_market_value))
+
+
+def test_a_lapse_count_that_is_not_a_number_names_its_row(tmp_path: Path) -> None:
+    """The split-table check reads three fields before any row is built."""
+
+    def unparseable_lapse(rows: list[JsonRowType]) -> None:
+        for row in rows:
+            if row.get("Action") == "Lapse":
+                details_of(row)["NetSharesDeposited"] = "NaN"
+
+    with pytest.raises(
+        ParsingError, match=r"Invalid NetSharesDeposited 'NaN' for Lapse on "
+    ):
+        parse(mutated(tmp_path, unparseable_lapse))
+
+
 def test_a_split_missing_from_the_table_is_caught(tmp_path: Path) -> None:
     """A Lapse states both units at once, so it can contradict the table.
 
