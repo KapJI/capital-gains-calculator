@@ -158,11 +158,11 @@ The `date` column carries no time, so within a single day the order you write th
 only record of what happened first. Write each day's rows in the order the transactions actually
 happened, and give every `quantity` and `price` in the units that were in force at that moment.
 
-This matters most on the day of a share split. A `STOCK_SPLIT` row states the number of **new**
-shares the split created, not the total you held afterwards, and that number depends on how many
-shares you held when it ran. Say you held 11 shares and sold 5 that morning. Six shares went into a
-20-for-1 split and became 120, so the split created 114, and the sale above it is written in
-pre-split shares at the pre-split price:
+This matters most on the day of a share split, because the change a `STOCK_SPLIT` row states (see
+[Share reorganisations](#share-reorganisations)) depends on how many shares you held when it ran.
+Say you held 11 shares and sold 5 that morning. Six shares went into a 20-for-1 split and became
+120, so the split created 114, and the sale above it is written in pre-split shares at the pre-split
+price:
 
 ```csv
 2022-06-06,SELL,AMZN,5,2400.00,0.00,USD
@@ -196,6 +196,17 @@ the new ones are not acquired, so no gain or loss arises and the pooled cost is 
 [CG51805](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51805)). Only the number
 of units changes, so a later disposal takes a different share of the same cost.
 
+The `quantity` is the **change** the event made to your holding, not the total you hold afterwards.
+Your broker's statement usually gives the total, so subtract what you held: 11 shares through a
+20-for-1 split become 220, and the row says `209`.
+
+```csv
+2022-06-06,STOCK_SPLIT,AMZN,209,0.00,0.00,USD
+```
+
+Writing the total instead is not something cgt-calc can catch: `220` reads as a plausible 21-for-1
+split of the same 11 shares, and every later figure for the holding comes out wrong.
+
 A consolidation shrinks the holding, so its `quantity` is negative: 100 shares consolidated
 100-for-1 lose 99.
 
@@ -219,10 +230,10 @@ payment as small when it is no more than 5% of the holding's value or no more th
 ([CG57835](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57835),
 [CG57800](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57800)).
 
-For part-disposal treatment, add a `SELL` row for the fractional units immediately below the
-`STOCK_SPLIT` row; cgt-calc then works out the disposal in the post-reorganisation units. In a
-separate cash-in-lieu example, say you held 133 RKT shares through a 100-for-1 consolidation,
-leaving 1.33, and the registrar sold the 0.33 fraction for £19.14:
+cgt-calc can work out the part-disposal treatment: add a `SELL` row for the fractional units
+immediately below the `STOCK_SPLIT` row, and the disposal is computed in the post-reorganisation
+units. Say you held 133 RKT shares through a 100-for-1 consolidation, leaving 1.33, and the
+registrar sold the 0.33 fraction for £19.14:
 
 ```csv
 2026-02-02,STOCK_SPLIT,RKT,-131.67,0.00,0.00,GBP
