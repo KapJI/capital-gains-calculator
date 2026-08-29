@@ -89,8 +89,7 @@ def _ensure_readable_file(path: Path, value: str) -> None:
 def _ensure_readable_directory(path: Path, value: str) -> None:
     """Raise ArgumentTypeError when directory contents cannot be listed."""
     try:
-        iterator = path.iterdir()
-        next(iterator, None)
+        next(path.iterdir(), None)
     except OSError as err:
         raise argparse.ArgumentTypeError(
             f"unable to read directory path: '{value}': {err}"

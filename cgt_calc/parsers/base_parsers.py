@@ -209,14 +209,12 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     """Parser for loading all files within a directory."""
 
     glob_dir: str
-    deprecated_flags: ClassVar[list[str]] = []
 
     @override
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Compute full arg."""
         super().__init_subclass__(**kwargs)
-        suffix = "dir"
-        cls.full_arg = f"{getattr(cls, 'arg_name', None)}-{suffix}"
+        cls.full_arg = f"{getattr(cls, 'arg_name', None)}-dir"
 
     @classmethod
     @override
@@ -272,9 +270,3 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     def file_path_filter(cls, file_path: Path) -> bool:  # noqa: ARG003
         """Choose which files to parse."""
         return True
-
-    @classmethod
-    @override
-    def post_process_transactions(cls, transactions: list[T]) -> list[T]:
-        """Do any required post processing after loading all the transactions in the dir."""
-        return transactions

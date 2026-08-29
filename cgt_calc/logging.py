@@ -29,29 +29,6 @@ class ConsoleUI:
 
     def supports_colour(self, stream: TextIO) -> bool:
         """Return True if colour output should be used for the given stream."""
-        return self._should_use_colour(stream)
-
-    def supports_emoji(self, stream: TextIO) -> bool:
-        """Return True if emoji output should be used for the given stream."""
-        return self._should_use_emoji(stream)
-
-    def painted(
-        self,
-        stream: TextIO,
-        msg: str,
-        colour: str | None = None,
-        emoji: str | None = None,
-    ) -> str:
-        """Return msg wrapped in colour with emoji prefix if enabled."""
-        if colour is not None and self.supports_colour(stream):
-            msg = f"{colour}{msg}{colorama.Style.RESET_ALL}"
-        if emoji is not None and self.supports_emoji(stream):
-            msg = f"{emoji}  {msg}"
-        return msg
-
-    def _should_use_colour(self, stream: TextIO) -> bool:
-        """Return True if colour output should be enabled for the given stream."""
-
         # Respect NO_COLOR (https://no-color.org/): any non-empty value disables.
         if os.environ.get("NO_COLOR"):
             return False
@@ -64,9 +41,8 @@ class ConsoleUI:
         except (AttributeError, OSError):
             return False
 
-    def _should_use_emoji(self, stream: TextIO) -> bool:
-        """Return True if emoji output should be enabled for the given stream."""
-
+    def supports_emoji(self, stream: TextIO) -> bool:
+        """Return True if emoji output should be used for the given stream."""
         # Emoji output requires colour support
         if not self.supports_colour(stream):
             return False
@@ -84,6 +60,20 @@ class ConsoleUI:
             return bool(os.environ.get("WT_SESSION") or "utf-8" in encoding)
 
         return True
+
+    def painted(
+        self,
+        stream: TextIO,
+        msg: str,
+        colour: str | None = None,
+        emoji: str | None = None,
+    ) -> str:
+        """Return msg wrapped in colour with emoji prefix if enabled."""
+        if colour is not None and self.supports_colour(stream):
+            msg = f"{colour}{msg}{colorama.Style.RESET_ALL}"
+        if emoji is not None and self.supports_emoji(stream):
+            msg = f"{emoji}  {msg}"
+        return msg
 
 
 class ColourMessageFormatter(logging.Formatter):

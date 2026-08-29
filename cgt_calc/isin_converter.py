@@ -109,7 +109,7 @@ class IsinConverter:
                     f"ISIN {transaction.isin} is linked to {', '.join(sorted(current_symbols))}",
                 )
 
-            if transaction.symbol not in self.data.get(transaction.isin, set()):
+            if transaction.symbol not in (current_symbols or set()):
                 self.data.setdefault(transaction.isin, set()).add(transaction.symbol)
                 self.write_data.setdefault(transaction.isin, set()).add(
                     transaction.symbol
@@ -213,11 +213,7 @@ class IsinConverter:
             msg += f"manually to {self.isin_translation_file}. Error: {err}"
             raise ExternalApiError(url, msg) from err
 
-        if (
-            not json_response
-            or len(json_response) == 0
-            or "data" not in json_response[0]
-        ):
+        if not json_response or "data" not in json_response[0]:
             LOGGER.warning(
                 "Couldn't translate ISIN %s: Invalid Response: %s", isin, json_response
             )

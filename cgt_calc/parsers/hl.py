@@ -51,7 +51,6 @@ class HargreavesLansdownParser(
     format_name = "CSV and PDF"
     glob_dir = "*.csv"
     encoding = "windows-1252"
-    deprecated_flags: ClassVar[list[str]] = []
 
     columns: ClassVar[set[str]] = {
         "Trade date",

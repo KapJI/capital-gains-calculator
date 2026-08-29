@@ -7,7 +7,6 @@ import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import io
-import logging
 import re
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
@@ -87,7 +86,6 @@ _PAGE_LABEL_RE = re.compile(r"^page\s+\d+(?:\s*(?:of|/)\s*\d+)?$", re.IGNORECASE
 
 INTEREST_STR = "Cash Account Interest"
 REVERSAL_STR = "Reversal of "
-LOGGER = logging.getLogger(__name__)
 
 
 def action_from_str(label: str, file: Path) -> ActionType:
@@ -629,17 +627,6 @@ class _TableSplitter:
         )
 
 
-def _split_tables(
-    lines: list[tuple[int, list[str]]],
-    file_path: Path,
-) -> tuple[
-    list[tuple[int, list[str]]] | None,
-    list[tuple[int, list[str]]] | None,
-]:
-    """Split tables while rejecting structures that could discard transactions."""
-    return _TableSplitter(lines, file_path).split()
-
-
 def _find_investment_match(
     txn: VanguardTransaction,
     investment_lookup: dict[tuple[str, bool], list[dict[str, str]]],
@@ -734,7 +721,7 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
         if not lines:
             raise ParsingError(file_path, "Vanguard CSV file is empty")
 
-        cash_lines, investment_lines = _split_tables(lines, file_path)
+        cash_lines, investment_lines = _TableSplitter(lines, file_path).split()
 
         if cash_lines is None:
             if investment_lines is None:

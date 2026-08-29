@@ -6,7 +6,6 @@ import csv
 import datetime
 from decimal import Decimal, InvalidOperation
 from importlib import resources
-import logging
 from typing import TYPE_CHECKING, Final, TextIO, override
 
 if TYPE_CHECKING:
@@ -29,7 +28,6 @@ COLUMNS: Final[list[str]] = [
     "Currency",
     "Excess of reporting income over distribution",
 ]
-LOGGER = logging.getLogger(__name__)
 
 RAW_DATE_FORMAT = "%d/%m/%Y"
 
@@ -83,9 +81,9 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
     format_name = "CSV"
 
     @staticmethod
-    def _validate_header(header: list[str], file: Path, columns: list[str]) -> None:
+    def _validate_header(header: list[str], file: Path) -> None:
         """Check if header is valid."""
-        unknown_columns = sorted(set(header) - set(columns))
+        unknown_columns = sorted(set(header) - set(COLUMNS))
         if unknown_columns:
             raise ParsingError(
                 file,
@@ -119,7 +117,7 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
 
         header = lines[0]
 
-        ERIRawParser._validate_header(header, file_path, COLUMNS)
+        cls._validate_header(header, file_path)
 
         transactions: list[ERIRaw] = []
         for index, row in enumerate(lines[1:], start=2):

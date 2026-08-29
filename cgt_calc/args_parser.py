@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import logging
 
 import shtab
 
@@ -29,8 +28,6 @@ from .const import (
 )
 from .dates import get_tax_year_end, get_tax_year_for_date, get_tax_year_start
 from .parsers.broker_registry import BrokerRegistry
-
-LOGGER = logging.getLogger(__name__)
 
 
 def get_last_elapsed_tax_year() -> int:

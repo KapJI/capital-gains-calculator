@@ -382,13 +382,6 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                 )
 
     @classmethod
-    def _parse_foreign_income(
-        cls, rows: Iterator[list[str]], file: Path
-    ) -> Iterable[SharesightTransaction]:
-        """Parse Foreign Income section from Sharesight data."""
-        yield from cls._parse_dividend_payments(FOREIGN_DIVIDEND_SCHEMA, rows, file)
-
-    @classmethod
     def _parse_income_report(
         cls, file: TextIO, file_path: Path
     ) -> Iterable[SharesightTransaction]:
@@ -402,7 +395,9 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                 if row[0] == "Local Income":
                     yield from cls._parse_local_income(rows_iter, file_path)
                 elif row[0] == "Foreign Income":
-                    yield from cls._parse_foreign_income(rows_iter, file_path)
+                    yield from cls._parse_dividend_payments(
+                        FOREIGN_DIVIDEND_SCHEMA, rows_iter, file_path
+                    )
         except ParsingError as err:
             err.add_row_context(rows_iter.line)
             raise

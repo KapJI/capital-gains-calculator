@@ -302,9 +302,7 @@ class CapitalGainsCalculator:
 
     def get_eri(self, symbol: str, date: datetime.date) -> ExcessReportedIncome | None:
         """Return Excess Reported Income at specific date for the input symbol."""
-        if date in self.eris and symbol in self.eris[date]:
-            return self.eris[date][symbol]
-        return None
+        return self.eris.get(date, {}).get(symbol)
 
     def add_acquisition(
         self,
@@ -713,17 +711,6 @@ class CapitalGainsCalculator:
             return "sell"
         return "gift-unconnected"
 
-    def add_shares_given_away(self, transaction: BrokerTransaction) -> None:
-        """Record shares handed to someone for nothing.
-
-        To a spouse that is no gain/no loss; to anyone else it is a disposal
-        at market value.
-        """
-        if transaction.action is ActionType.TRANSFER_TO_SPOUSE:
-            self.add_transfer_to_spouse(transaction)
-        else:
-            self.add_gift(transaction)
-
     @staticmethod
     def _gift_values_differ_message(symbol: str, date_index: datetime.date) -> str:
         return (
@@ -1131,7 +1118,10 @@ class CapitalGainsCalculator:
                 # charging the fee there only ever drives that balance negative.
                 # The fee still counts as a cost; it is the cash check it cannot
                 # take part in.
-                self.add_shares_given_away(transaction)
+                if transaction.action is ActionType.TRANSFER_TO_SPOUSE:
+                    self.add_transfer_to_spouse(transaction)
+                else:
+                    self.add_gift(transaction)
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
             else:
