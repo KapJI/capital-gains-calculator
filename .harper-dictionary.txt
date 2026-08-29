@@ -13,6 +13,7 @@ ArgumentParser
 ArgumentTypeError
 arm64
 autosale
+BaseDirParser
 BaseSingleFileParser
 BGF
 BGIF
@@ -38,6 +39,8 @@ CG51976
 CG52742
 CG59562
 cgt
+classmethod
+cls
 CMF5
 codepage
 codespell
@@ -153,6 +156,7 @@ s58
 SA106
 SalePrice
 Schwab
+schwab
 Schwab's
 SchwabAwardTransaction
 SchwabTransaction
@@ -162,7 +166,6 @@ Shareworks
 shfmt
 shtab
 SIPP
-classmethod
 SLF001
 SOLV
 SpinOff
@@ -201,5 +204,3 @@ VTI
 worktree
 xtrackers
 yfinance
-schwab
-cls

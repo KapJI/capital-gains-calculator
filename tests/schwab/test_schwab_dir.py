@@ -8,6 +8,7 @@ of the merged result, and the overlap that cannot be deduplicated away.
 
 from __future__ import annotations
 
+from decimal import Decimal
 import logging
 from pathlib import Path
 import shutil
@@ -17,7 +18,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cgt_calc.args_parser import create_parser
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import CgtError, ParsingError
 from cgt_calc.parsers.schwab import AwardPrices, SchwabParser
 from tests.utils import build_cmd
 
@@ -171,6 +172,54 @@ def test_empty_directory_warns(
     assert "No transactions detected in directory" in caplog.text
 
 
+def test_csv_named_subdirectory_is_refused(tmp_path: Path) -> None:
+    """A directory matching the CSV glob gets an actionable parsing error."""
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "archive.csv").mkdir()
+
+    with pytest.raises(ParsingError) as exc_info:
+        _load(schwab_dir=str(directory))
+
+    message = str(exc_info.value)
+    assert "archive.csv" in message
+    assert "not a regular file" in message
+    assert "Remove or move it" in message
+
+
+def test_awards_csv_in_directory_points_to_award_flag(tmp_path: Path) -> None:
+    """An award-shaped CSV explains where it belongs."""
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "awards.csv").write_text(
+        "Date,Symbol,FairMarketValuePrice\n2024/01/01,AAPL,$150.00\n"
+    )
+
+    with pytest.raises(ParsingError) as exc_info:
+        _load(schwab_dir=str(directory))
+
+    message = str(exc_info.value)
+    assert "awards.csv" in message
+    assert "every *.csv" in message.lower()
+    assert "--schwab-award-file" in message
+    assert "remove or move this file" in message
+
+
+def test_foreign_csv_in_directory_says_to_remove_it(tmp_path: Path) -> None:
+    """An unrelated CSV explains that directory imports consume every CSV."""
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "freetrade.csv").write_text("Title,Type,Timestamp\nTrade,BUY,now\n")
+
+    with pytest.raises(ParsingError) as exc_info:
+        _load(schwab_dir=str(directory))
+
+    message = str(exc_info.value)
+    assert "freetrade.csv" in message
+    assert "every *.csv" in message.lower()
+    assert "remove or move this file" in message
+
+
 def test_directory_of_only_cancelled_buys_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -278,3 +327,143 @@ def test_each_transaction_records_its_own_file(tmp_path: Path) -> None:
     ]
     assert len(older) == 2, "both rows of the older export are stamped"
     assert older == sorted(older)
+
+
+def test_overlap_splitting_a_corporate_action_reports_the_overlap(
+    tmp_path: Path,
+) -> None:
+    """The overlap is the fault, so the overlap is what gets reported.
+
+    A Cash Merger and its adjustment share a date, so an overlap is the only
+    thing that can put them in different files. Pairing them per file before
+    checking for the overlap blames the half that is missing from each file
+    and never mentions the redundant export that caused it.
+    """
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "newer.csv").write_text(
+        HEADER + "01/12/2024,Cash Merger,FOO,FOO CORP,,,,$1000.00\n"
+    )
+    (directory / "older.csv").write_text(
+        HEADER + "01/12/2024,Cash Merger Adj,FOO,FOO CORP,,-100,,\n"
+    )
+
+    with pytest.raises(ParsingError) as exc_info:
+        _load(schwab_dir=str(directory))
+
+    message = str(exc_info.value)
+    assert "newer.csv" in message
+    assert "older.csv" in message
+    assert "no transaction id" in message
+    assert "Cash Merger Adj must be preceded" not in message
+
+
+def test_corporate_action_pair_inside_one_file_still_combines(
+    tmp_path: Path,
+) -> None:
+    """Pairing after the overlap check still pairs what belongs together."""
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "transactions.csv").write_text(
+        HEADER
+        + "01/12/2024,Cash Merger,FOO,FOO CORP,,,,$1000.00\n"
+        + "01/12/2024,Cash Merger Adj,FOO,FOO CORP,,-100,,\n"
+    )
+
+    (transaction,) = _load(schwab_dir=str(directory))
+    assert transaction.quantity == Decimal(100)
+    assert transaction.price == Decimal("10.00")
+
+
+def test_unmatched_cancel_buy_names_its_own_file_and_row(tmp_path: Path) -> None:
+    """The row to remove is in one file, and the error has to say which.
+
+    Cancellation matching runs on the merged directory, so the path handed to
+    it is the directory. "Remove this row" is unusable unless the error points
+    at the file and line the row was read from.
+    """
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "a_older.csv").write_text(
+        HEADER + "01/01/2024,Buy,AAPL,APPLE INC,$1.00,1,$0.00,-$1.00\n"
+    )
+    (directory / "z_newer.csv").write_text(
+        HEADER
+        + "01/17/2024,Sell,AAPL,APPLE INC,$1.00,1,$0.00,$1.00\n"
+        + "01/16/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
+    )
+
+    with pytest.raises(ParsingError) as exc_info:
+        _load(schwab_dir=str(directory))
+
+    message = str(exc_info.value)
+    assert "z_newer.csv" in message
+    assert "row 3" in message
+    assert "no Buy to match it" in message
+
+
+def test_load_from_args_refuses_file_and_dir_without_argparse(
+    tmp_path: Path,
+) -> None:
+    """The parser refuses both flags itself, not only through main().
+
+    argparse gives the usage message and exit code 2, but it is main() that
+    calls it. Taking the directory branch on its own would drop every
+    transaction in the file with nothing said.
+    """
+    whole = tmp_path / "whole.csv"
+    whole.write_text(HEADER + NEWER)
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "transactions.csv").write_text(HEADER + OLDER)
+
+    with pytest.raises(CgtError, match="cannot be used together"):
+        _load(schwab_file=str(whole), schwab_dir=str(directory))
+
+
+def test_directory_load_honours_the_file_path_filter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The directory conventions are read through cls, not hardcoded.
+
+    Schwab cannot inherit BaseDirParser, so glob_dir and file_path_filter are
+    declared on it instead. Reading them through cls is what keeps a later
+    change to those conventions from passing Schwab by.
+    """
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "a_2023.csv").write_text(HEADER + OLDER)
+    (directory / "z_2024.csv").write_text(HEADER + NEWER)
+
+    assert SchwabParser.glob_dir == "*.csv"
+    monkeypatch.setattr(
+        SchwabParser,
+        "file_path_filter",
+        classmethod(lambda cls, file_path: file_path.name != "z_2024.csv"),
+    )
+
+    transactions = _load(schwab_dir=str(directory))
+    assert {
+        transaction.source.file.name
+        for transaction in transactions
+        if transaction.source and transaction.source.file
+    } == {"a_2023.csv"}
+
+
+def test_export_with_no_rows_is_skipped_not_refused(tmp_path: Path) -> None:
+    """A range Schwab had nothing to report is a header and no rows.
+
+    It contributes no dates, so it cannot take part in the overlap check and
+    is simply left out rather than treated as an empty directory.
+    """
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "a_empty.csv").write_text(HEADER)
+    (directory / "z_2024.csv").write_text(HEADER + NEWER)
+
+    transactions = _load(schwab_dir=str(directory))
+    assert {
+        transaction.source.file.name
+        for transaction in transactions
+        if transaction.source and transaction.source.file
+    } == {"z_2024.csv"}
