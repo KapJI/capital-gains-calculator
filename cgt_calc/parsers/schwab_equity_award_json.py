@@ -953,4 +953,4 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabAwardTransaction])
         _check_disposal_units(transactions, file_path)
 
         transactions.reverse()
-        return list(transactions)
+        return transactions

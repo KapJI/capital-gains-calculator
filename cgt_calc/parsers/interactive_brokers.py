@@ -6,7 +6,6 @@ import datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from itertools import chain
-import logging
 import re
 from typing import TYPE_CHECKING, ClassVar, Final, override
 
@@ -20,8 +19,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
 
-
-LOGGER = logging.getLogger(__name__)
 
 EXPECTED_COLS_IN_SUMMARY_SECTION: Final[int] = 4
 
@@ -57,12 +54,10 @@ class InteractiveBrokersColumn(StrEnum):
     EXCHANGE_RATE = "Exchange Rate"
 
 
-_IBKR_OPTIONAL_COLUMNS: Final[set[str]] = set(
-    {
-        InteractiveBrokersColumn.PRICE_CURRENCY,
-        InteractiveBrokersColumn.EXCHANGE_RATE,
-    }
-)
+_IBKR_OPTIONAL_COLUMNS: Final[set[str]] = {
+    InteractiveBrokersColumn.PRICE_CURRENCY,
+    InteractiveBrokersColumn.EXCHANGE_RATE,
+}
 
 
 def _action_from_str(action_type: str, file_path: Path) -> ActionType:

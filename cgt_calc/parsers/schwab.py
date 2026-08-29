@@ -654,13 +654,12 @@ def _filter_cancelled_buy_transactions(
                 "other cancellation reverses it.",
             )
 
-    if len(indices_to_remove) > 0:
+    if indices_to_remove:
         LOGGER.info(
             "Removed %d cancelled transaction(s) and their originals",
             len(indices_to_remove),
         )
 
-    # Return filtered list
     return [txn for i, txn in enumerate(transactions) if i not in indices_to_remove]
 
 
@@ -681,7 +680,7 @@ def _read_schwab_awards(
             schwab_award_transactions_file, "Charles Schwab Award CSV file is empty"
         )
     header = lines[0]
-    required_columns = set({column.value for column in RequiredAwardColumn})
+    required_columns = {column.value for column in RequiredAwardColumn}
     if not required_columns.issubset(header):
         raise ParsingError(
             schwab_award_transactions_file,
@@ -814,7 +813,7 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
             )
         header = lines[0]
 
-        required_headers = set({column.value for column in RequiredTransactionsColumn})
+        required_headers = {column.value for column in RequiredTransactionsColumn}
         if not required_headers.issubset(header):
             raise ParsingError(
                 file_path,
@@ -849,4 +848,4 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
         transactions = _unify_schwab_paired_transactions(transactions, file_path)
         transactions = _filter_cancelled_buy_transactions(transactions, file_path)
         transactions.reverse()
-        return list(transactions)
+        return transactions

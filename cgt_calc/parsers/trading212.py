@@ -74,7 +74,6 @@ class Trading212Column(StrEnum):
     MERCHANT_NAME = "Merchant name"
 
 
-COLUMNS: Final[list[str]] = [column.value for column in Trading212Column]
 COLUMN_SET: Final[set[str]] = {column.value for column in Trading212Column}
 LOGGER = logging.getLogger(__name__)
 

@@ -28,7 +28,6 @@ from .model import ERIImporter, ERIImporterOutput
 LOGGER = logging.getLogger(__name__)
 
 REPORT_FILE_REGEX = re.compile(r"^invesco-.*reportable-income.*(\d+)\.pdf$")
-CURRENCY_REGEX = re.compile(r"^[A-Z]{3}$")
 AMOUNT_REGEX = re.compile(r"^\d+\.\d+$")
 
 ISIN_COLUMN = 0

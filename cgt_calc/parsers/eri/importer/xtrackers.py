@@ -35,7 +35,6 @@ REPORT_FILE_REGEX = re.compile(
 
 XTRACKERS_ERI_FILENAME = "xtrackers_eri.csv"
 
-CURRENCY_REGEX = re.compile(r"^[A-Z]{3}$")
 AMOUNT_REGEX = re.compile(r"^\d+\.\d+$")
 
 # Column indices configuration for Xtrackers tables
