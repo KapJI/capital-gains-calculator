@@ -187,6 +187,34 @@ def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
     assert transaction.fees == Decimal("0.10")
 
 
+def test_read_raw_transactions_keep_their_row_and_order(tmp_path: Path) -> None:
+    """RAW rows keep the line they came from and the order they were read in.
+
+    A RAW file has dates and no times, so the order of its rows is the only
+    statement it makes about what happened first on a day. It is preserved
+    here rather than re-derived later from the merged, re-sorted stream.
+    """
+
+    raw_file = tmp_path / "raw_ordered.csv"
+    rows = [
+        COLUMNS,
+        ["2024-01-02", "BUY", "XYZ", "10", "2.50", "0.00", "USD"],
+        ["2024-01-02", "BUY", "XYZ", "5", "3.00", "0.00", "USD"],
+    ]
+    _write_csv(raw_file, rows)
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    sources = [transaction.source for transaction in transactions]
+    assert all(source is not None for source in sources)
+    assert [source.row for source in sources if source] == [2, 3]
+    assert [source.index for source in sources if source] == [0, 1]
+    assert [source.file for source in sources if source] == [raw_file, raw_file]
+    assert [source.parser for source in sources if source] == ["RAW format"] * 2
+    # A RAW export states no times, so nothing may later read one from it.
+    assert [source.timestamp for source in sources if source] == [None, None]
+
+
 def test_read_raw_transactions_transfer_to_spouse(tmp_path: Path) -> None:
     """Parse a RAW TRANSFER_TO_SPOUSE row (no gain/no loss share transfer)."""
 

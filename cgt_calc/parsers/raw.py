@@ -11,7 +11,12 @@ from typing import TYPE_CHECKING, ClassVar, Final, Literal, TextIO, overload, ov
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
-from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CurrencyCode,
+    TransactionSource,
+)
 
 from .base_parsers import BaseSingleFileParser
 
@@ -173,6 +178,9 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
 
     arg_name = "raw"
     pretty_name = "RAW format"
+    # The format documents that rows for one date are written in the order
+    # they happened, each in the units in force at that point.
+    rows_in_time_order: ClassVar[bool] = True
     format_name = "CSV"
     deprecated_flags: ClassVar[list[str]] = ["--raw"]
 
@@ -228,10 +236,12 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
         transactions: list[RawTransaction] = []
         for index, row in enumerate(data_rows, start=start_index):
             try:
-                transactions.append(RawTransaction(row, file_path))
+                transaction = RawTransaction(row, file_path)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
+            transaction.source = TransactionSource(row=index)
+            transactions.append(transaction)
         return transactions

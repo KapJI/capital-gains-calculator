@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 from cgt_calc.const import ERI_RESOURCE_FOLDER
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
-from cgt_calc.model import CurrencyCode, Isin
+from cgt_calc.model import CurrencyCode, Isin, TransactionSource
 from cgt_calc.parsers.base_parsers import BaseSingleFileParser
 from cgt_calc.resources import RESOURCES_PACKAGE
 
@@ -122,8 +122,10 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
         transactions: list[ERIRaw] = []
         for index, row in enumerate(lines[1:], start=2):
             try:
-                transactions.append(ERIRaw(header, row, file_path))
+                transaction = ERIRaw(header, row, file_path)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
+            transaction.source = TransactionSource(row=index)
+            transactions.append(transaction)
         return transactions

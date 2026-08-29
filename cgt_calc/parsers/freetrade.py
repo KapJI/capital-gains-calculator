@@ -15,7 +15,13 @@ from cgt_calc.exceptions import (
     UnsupportedBrokerActionError,
     UnsupportedBrokerCurrencyError,
 )
-from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CurrencyCode,
+    Isin,
+    TransactionSource,
+)
 
 from .base_parsers import BaseSingleFileParser
 
@@ -285,9 +291,11 @@ class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
                 continue
             try:
                 transaction = FreetradeTransaction(row, file_path)
+                transaction.source = TransactionSource(row=index)
                 transactions.append(transaction)
                 dividend_tax = _dividend_tax_transaction(transaction, row)
                 if dividend_tax is not None:
+                    dividend_tax.source = TransactionSource(row=index)
                     transactions.append(dividend_tax)
             except ParsingError as err:
                 err.add_row_context(index)

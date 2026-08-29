@@ -23,7 +23,12 @@ from cgt_calc.exceptions import (
     UnexpectedRowCountError,
 )
 from cgt_calc.logging import parsing_msg
-from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CurrencyCode,
+    TransactionSource,
+)
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
 
 from .base_parsers import BaseSingleFileParser
@@ -844,6 +849,7 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
 
+            transaction.source = TransactionSource(row=index)
             transactions.append(transaction)
         transactions = _unify_schwab_paired_transactions(transactions, file_path)
         transactions = _filter_cancelled_buy_transactions(transactions, file_path)

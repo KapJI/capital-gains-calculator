@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 import argparse
 from collections.abc import Iterable, Sequence
 import csv
+import dataclasses
+import itertools
 import logging
 from pathlib import Path
 import sys
@@ -20,9 +22,22 @@ from cgt_calc.args_validators import (
 )
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.logging import parsing_msg
-from cgt_calc.model import BrokerTransaction
+from cgt_calc.model import BrokerTransaction, TransactionSource
 
 LOGGER = logging.getLogger(__name__)
+
+_ACCOUNT_COUNTER = itertools.count(1)
+
+
+def next_account_token(name: str) -> str:
+    """Return a fresh opaque token for one declared account boundary.
+
+    Every separately configured input is a boundary of its own: one file
+    passed on its own, or one directory of exports. The token only says which
+    transactions were configured together, so it is deliberately not derived
+    from the path, which is a location on this machine rather than an account.
+    """
+    return f"{name} #{next(_ACCOUNT_COUNTER)}"
 
 
 class BaseParser(ABC):
@@ -49,6 +64,10 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
     full_arg: str
     deprecated_flags: ClassVar[list[str]] = []
     encoding: str = "utf-8"
+    # Set only where the format documents that rows sharing a date are in the
+    # order they happened. It decides whether a row can be placed either side
+    # of a same-day share reorganisation without an exported time.
+    rows_in_time_order: ClassVar[bool] = False
 
     @override
     def __init_subclass__(cls, **kwargs: object) -> None:
@@ -100,8 +119,17 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         *,
         warn_on_empty: bool = True,
         show_parsing_msg: bool = True,
+        account: str | None = None,
     ) -> list[T]:
-        """Load broker data from file path."""
+        """Load broker data from file path.
+
+        ``account`` is the boundary this file was loaded under. A directory
+        load passes its own token so every file in it shares one boundary; a
+        file loaded on its own is a boundary of its own.
+        """
+        boundary = (
+            account if account is not None else next_account_token(cls.pretty_name)
+        )
         if file_path == STDIN_PATH:
             if show_parsing_msg:
                 parsing_msg("stdin")
@@ -113,7 +141,33 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
                 transactions = cls.read_transactions(file, file_path)
         if not transactions and warn_on_empty:
             LOGGER.warning("No transactions detected in file %s", file_path)
+        cls.stamp_source(transactions, file_path, boundary)
         return cls.post_process_transactions(transactions)
+
+    @classmethod
+    def stamp_source(
+        cls,
+        transactions: list[T],
+        file_path: Path,
+        account: str,
+    ) -> None:
+        """Record where each transaction was read from.
+
+        Whatever the parser already put on the transaction is kept: it knows
+        the line a row came from and the instant the export stated, and this
+        only adds what it cannot know. ``index`` is the order the parser read
+        the rows in, which is what says which of two rows on one day came
+        first.
+        """
+        for index, transaction in enumerate(transactions):
+            transaction.source = dataclasses.replace(
+                transaction.source or TransactionSource(),
+                parser=cls.pretty_name,
+                account=account,
+                file=file_path,
+                index=index,
+                rows_in_time_order=cls.rows_in_time_order,
+            )
 
     @classmethod
     @abstractmethod
@@ -191,6 +245,7 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                     )
                 transaction = cls.read_row(row, file_path)
                 if transaction:
+                    transaction.source = TransactionSource(row=index)
                     transactions.append(transaction)
             except ParsingError as err:
                 err.add_row_context(index)
@@ -253,11 +308,18 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
 
     @classmethod
     def load_from_dir(cls, dir_path: Path) -> list[T]:
-        """Load broker data from dir path."""
+        """Load broker data from dir path.
+
+        One directory is one declared account boundary, so every file in it
+        is loaded under the same token.
+        """
+        account = next_account_token(cls.pretty_name)
         transactions: list[T] = []
         for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False)):
             if cls.file_path_filter(file_path):
-                transactions += cls.load_from_file(file_path, warn_on_empty=False)
+                transactions += cls.load_from_file(
+                    file_path, warn_on_empty=False, account=account
+                )
         if not transactions:
             LOGGER.warning(
                 "No transactions detected in directory %s for broker %s",
