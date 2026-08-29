@@ -9,6 +9,7 @@ the pooled cost does not move.
 
 from __future__ import annotations
 
+from dataclasses import replace
 import datetime
 from decimal import Decimal
 from fractions import Fraction
@@ -17,7 +18,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.exceptions import CalculationError
+from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
+from cgt_calc.exceptions import CalculationError, InvalidTransactionError
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -47,6 +49,7 @@ if TYPE_CHECKING:
 GBP = CurrencyCode("GBP")
 
 POOL_DAY = datetime.date(2023, 5, 2)
+RENAME_DAY = datetime.date(2023, 5, 8)
 EVENT_DAY = datetime.date(2023, 5, 15)
 LATER_DAY = datetime.date(2023, 6, 10)
 
@@ -1281,3 +1284,749 @@ def test_a_negative_reconciliation_does_not_hold_the_day_below_zero() -> None:
     assert transformation.reconciliation_delta == Decimal("-2E-10")
     assert transformation.expected_day_close == Decimal("2E-10")
     assert calculator.portfolio["FOO"].quantity == Decimal("2E-10")
+
+
+# ===== which accounts a holding's units came from =====
+
+
+def raw_split(
+    date: datetime.date,
+    symbol: str,
+    delta: str,
+    *,
+    price: str = "0.00",
+    fees: str = "0.00",
+) -> RawTransaction:
+    """Build a hand-written RAW row stating the whole holding's change."""
+    return RawTransaction(
+        [str(date), "STOCK_SPLIT", symbol, delta, price, fees, "GBP"],
+        Path("raw.csv"),
+    )
+
+
+def rename(date: datetime.date, old: str, new: str) -> BrokerTransaction:
+    """Build the row that says a holding now trades under another ticker."""
+    return BrokerTransaction(
+        date=date,
+        action=ActionType.RENAME,
+        symbol=new,
+        description=f"{RENAME_DESCRIPTION_PREFIX}{old}",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=None,
+        currency=GBP,
+        broker="Testing",
+    )
+
+
+def test_a_hand_written_transfer_out_does_not_make_a_holding_multi_source() -> None:
+    """Shares leaving are not shares arriving.
+
+    A transfer to a spouse is written by hand in a RAW file while the shares
+    it moves were bought through a broker export, which is what the docs tell
+    the user to do. The RAW row supplies no units, so the holding is still
+    the broker's alone and its own split row still states the whole change.
+    """
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10", source=elsewhere(0)),
+            trade(
+                RENAME_DAY,
+                ActionType.TRANSFER_TO_SPOUSE,
+                "FOO",
+                "2",
+                "0",
+                source=elsewhere(0, account="Hand-written RAW file"),
+            ),
+            legacy_split(EVENT_DAY, "FOO", "8", source=elsewhere(1)),
+        ]
+    )
+    assert calculator.portfolio["FOO"].quantity == Decimal(16)
+    assert calculator.portfolio["FOO"].amount == Decimal(80)
+
+
+def test_an_account_sold_out_of_is_no_longer_a_source() -> None:
+    """A holding rebuilt somewhere else is that account's holding alone.
+
+    The ticker was held at one broker and sold in full a year before it was
+    bought at another. None of the first account's units are in the pool the
+    reorganisation restates, so its own row states the whole change.
+    """
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10", source=elsewhere(0)),
+            trade(RENAME_DAY, ActionType.SELL, "FOO", "10", "12", source=elsewhere(1)),
+            trade(LATER_DAY, ActionType.BUY, "FOO", "4", "20", source=elsewhere(0)),
+            legacy_split(
+                LATER_DAY + datetime.timedelta(days=1),
+                "FOO",
+                "4",
+                source=elsewhere(1),
+            ),
+        ]
+    )
+    assert calculator.portfolio["FOO"].quantity == Decimal(8)
+    assert calculator.portfolio["FOO"].amount == Decimal(80)
+
+
+def test_a_rename_carries_the_accounts_over_with_the_units() -> None:
+    """Only the name changes, so the units keep the accounts that put them there.
+
+    The renamed holding and one already under the new name make a pool built
+    from two accounts, and one account's own row is not its change.
+    """
+    with pytest.raises(CalculationError, match="also has units from"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "6", "10", source=elsewhere(0)),
+                trade(POOL_DAY, ActionType.BUY, "NEW", "4", "10"),
+                rename(RENAME_DAY, "OLD", "NEW"),
+                legacy_split(EVENT_DAY, "NEW", "10"),
+            ]
+        )
+
+
+# ===== more than one row for one event =====
+
+
+def test_a_raw_row_settles_a_day_a_broker_also_reported() -> None:
+    """The RAW row states the whole holding's change, so it is the one used.
+
+    A broker's own row is refused against a pool built from two accounts, and
+    a RAW row is what the refusal asks for. Needing the broker's row deleted
+    from its own export as well would leave that remedy unusable.
+    """
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "FOO", "6", "10", source=elsewhere(0)),
+            trade(POOL_DAY, ActionType.BUY, "FOO", "4", "10"),
+            legacy_split(EVENT_DAY, "FOO", "6", source=elsewhere(1)),
+            raw_split(EVENT_DAY, "FOO", "10"),
+        ]
+    )
+    # The RAW row's whole-holding change, not the broker's own six units.
+    assert calculator.portfolio["FOO"].quantity == Decimal(20)
+    assert calculator.portfolio["FOO"].amount == Decimal(100)
+
+
+@pytest.mark.parametrize("broker_change", ["-6", "0", "11", "NaN"])
+def test_a_raw_row_does_not_override_conflicting_broker_rows(
+    broker_change: str,
+) -> None:
+    """An opposite or larger change cannot be one account's part of the event."""
+    with pytest.raises(CalculationError, match="cannot be part of its change"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                legacy_split(EVENT_DAY, "FOO", broker_change),
+                raw_split(EVENT_DAY, "FOO", "10"),
+            ]
+        )
+
+
+def test_a_raw_row_does_not_collapse_untimed_rows_from_one_source() -> None:
+    """Equal net change cannot erase two unproved events around a disposal."""
+    first = legacy_split(EVENT_DAY, "FOO", "10", source=elsewhere(0))
+    second = legacy_split(EVENT_DAY, "FOO", "15", source=elsewhere(1))
+
+    with pytest.raises(CalculationError, match="same source reports"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                raw_split(EVENT_DAY, "FOO", "25"),
+                first,
+                trade(EVENT_DAY, ActionType.SELL, "FOO", "5", "20"),
+                second,
+            ]
+        )
+
+
+def test_different_sources_may_timestamp_one_reorganisation_differently() -> None:
+    """Independent exports need not record one corporate action simultaneously."""
+    morning = datetime.datetime.combine(EVENT_DAY, datetime.time(9))
+    afternoon = datetime.datetime.combine(EVENT_DAY, datetime.time(11))
+    first_source = replace(elsewhere(0, account="First account"), timestamp=morning)
+    second_source = replace(elsewhere(0, account="Second account"), timestamp=afternoon)
+
+    calculator = run(
+        [
+            trade(
+                POOL_DAY,
+                ActionType.BUY,
+                "FOO",
+                "5",
+                "10",
+                source=first_source,
+            ),
+            trade(
+                POOL_DAY,
+                ActionType.BUY,
+                "FOO",
+                "5",
+                "10",
+                source=second_source,
+            ),
+            legacy_split(EVENT_DAY, "FOO", "5", source=first_source),
+            legacy_split(EVENT_DAY, "FOO", "5", source=second_source),
+            raw_split(EVENT_DAY, "FOO", "10"),
+        ]
+    )
+    assert calculator.portfolio["FOO"].quantity == Decimal(20)
+    assert calculator.portfolio["FOO"].amount == Decimal(100)
+
+
+def test_a_raw_row_does_not_collapse_separately_timed_reorganisations() -> None:
+    """One export's distinct instants prove that it reports separate events."""
+    morning = datetime.datetime.combine(EVENT_DAY, datetime.time(9))
+    afternoon = datetime.datetime.combine(EVENT_DAY, datetime.time(11))
+    first = legacy_split(EVENT_DAY, "FOO", "10", source=elsewhere(0))
+    second = legacy_split(EVENT_DAY, "FOO", "15", source=elsewhere(1))
+    assert first.source is not None
+    assert second.source is not None
+    first.source = replace(first.source, timestamp=morning)
+    second.source = replace(second.source, timestamp=afternoon)
+
+    with pytest.raises(CalculationError, match="same source reports") as error:
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                raw_split(EVENT_DAY, "FOO", "25"),
+                first,
+                trade(EVENT_DAY, ActionType.SELL, "FOO", "5", "20"),
+                second,
+            ]
+        )
+    assert "Leave the day's STOCK_SPLIT rows out and work this day out by hand" in str(
+        error.value
+    )
+
+
+def test_an_invalid_raw_override_keeps_its_named_quantity_error() -> None:
+    """Override validation must not turn a bad RAW delta into a Decimal error."""
+    with pytest.raises(CalculationError, match="which is not a number of shares"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                legacy_split(EVENT_DAY, "FOO", "10"),
+                raw_split(EVENT_DAY, "FOO", "NaN"),
+            ]
+        )
+
+
+def test_two_raw_rows_for_one_day_are_still_refused() -> None:
+    """Two rows that each claim the whole holding cannot both be right.
+
+    Adding another RAW row is the remedy when brokers disagree, so it cannot
+    also be the remedy here: the one to give is to take a RAW row away.
+    """
+    with pytest.raises(
+        CalculationError, match="Leave all but one of the RAW STOCK_SPLIT rows out"
+    ):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                raw_split(EVENT_DAY, "FOO", "10"),
+                raw_split(EVENT_DAY, "FOO", "20"),
+            ]
+        )
+
+
+# ===== a reorganisation row that also states money =====
+
+
+def test_a_reorganisation_that_states_a_price_is_refused() -> None:
+    """Nothing is bought, so a price on the row is a figure with no meaning."""
+    with pytest.raises(InvalidTransactionError, match="The price column"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                raw_split(EVENT_DAY, "FOO", "10", price="5.00"),
+            ]
+        )
+
+
+def test_a_reorganisation_that_states_a_fee_is_refused() -> None:
+    """A fee on the row is money the calculation would otherwise drop."""
+    with pytest.raises(InvalidTransactionError, match="The fees column"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                raw_split(EVENT_DAY, "FOO", "10", fees="1.50"),
+            ]
+        )
+
+
+def test_a_reorganisation_fee_error_does_not_prescribe_cash_treatment() -> None:
+    """Cash in lieu may be a disposal or a separately calculated pool change."""
+    with pytest.raises(
+        InvalidTransactionError,
+        match="cannot represent the small-distribution treatment",
+    ):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                raw_split(EVENT_DAY, "FOO", "10", fees="1.50"),
+            ]
+        )
+
+
+def test_a_fee_on_an_overridden_broker_row_is_refused() -> None:
+    """Choosing a RAW row must not silently discard money on another row."""
+    broker_row = legacy_split(EVENT_DAY, "FOO", "10")
+    broker_row.fees = Decimal("1.50")
+    with pytest.raises(InvalidTransactionError, match="The fees column"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                broker_row,
+                raw_split(EVENT_DAY, "FOO", "10"),
+            ]
+        )
+
+
+def test_a_foreign_fee_on_a_reorganisation_is_refused() -> None:
+    """Foreign fees are still money even before currency conversion runs."""
+    broker_row = legacy_split(EVENT_DAY, "FOO", "10")
+    broker_row.foreign_fees[CurrencyCode("USD")] = Decimal("1.50")
+    with pytest.raises(InvalidTransactionError, match="The fees column"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                broker_row,
+            ]
+        )
+
+
+# ===== a rename on the day of a reorganisation =====
+
+
+def test_a_rename_into_a_reorganised_holding_is_refused() -> None:
+    """The renamed shares may or may not have been part of the event.
+
+    Restating one holding and then taking another into it the same day leaves
+    units the reorganisation never touched, and nothing in the input says
+    whether the rename came before it or after.
+    """
+    with pytest.raises(
+        CalculationError, match="pool it with OLD, which holds shares of its own"
+    ):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+                trade(EVENT_DAY, ActionType.BUY, "NEW", "4", "10"),
+                legacy_split(EVENT_DAY, "NEW", "4"),
+                rename(EVENT_DAY, "OLD", "NEW"),
+            ]
+        )
+
+
+def test_a_reorganisation_of_a_holding_renamed_into_another_is_refused() -> None:
+    """The same clash from the other end, and the same answer.
+
+    Here the reorganised holding is the one the rename moves. Restating it and
+    then pooling it with a holding already under the new name leaves that one
+    unrestated, which is the same shares counted in two unit systems.
+    """
+    with pytest.raises(
+        CalculationError, match="pool it with NEW, which holds shares of its own"
+    ):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+                trade(POOL_DAY, ActionType.BUY, "NEW", "4", "10"),
+                legacy_split(EVENT_DAY, "OLD", "10"),
+                rename(EVENT_DAY, "OLD", "NEW"),
+            ]
+        )
+
+
+def test_an_ordinary_ticker_change_on_the_day_of_a_reorganisation_is_fine() -> None:
+    """Nothing is pooled with anything, so there is nothing to be unsure of.
+
+    The holding is restated under the old name and the rename carries all of
+    it to a name that held nothing, which is what a ticker change is.
+    """
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            legacy_split(EVENT_DAY, "OLD", "10"),
+            rename(EVENT_DAY, "OLD", "NEW"),
+        ]
+    )
+    assert "OLD" not in calculator.portfolio
+    assert calculator.portfolio["NEW"].quantity == Decimal(20)
+    assert calculator.portfolio["NEW"].amount == Decimal(100)
+
+
+def test_a_rename_of_a_holding_that_is_gone_does_not_block_a_reorganisation() -> None:
+    """A rename brings nothing in, so the reorganisation restates everything.
+
+    The old ticker was sold out of before the rename, so nothing joins the
+    reorganised holding and there is nothing the event failed to restate.
+    """
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            trade(RENAME_DAY, ActionType.SELL, "OLD", "10", "12"),
+            trade(EVENT_DAY, ActionType.BUY, "NEW", "4", "10"),
+            legacy_split(EVENT_DAY, "NEW", "4"),
+            rename(EVENT_DAY, "OLD", "NEW"),
+        ]
+    )
+    assert calculator.portfolio["NEW"].quantity == Decimal(8)
+    assert calculator.portfolio["NEW"].amount == Decimal(40)
+
+
+def test_a_reorganisation_of_a_ticker_renamed_from_an_empty_one_is_fine() -> None:
+    """The mirror of the case above: the name it moves to holds nothing."""
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "NEW", "10", "10"),
+            trade(POOL_DAY, ActionType.BUY, "OLD", "4", "10"),
+            trade(RENAME_DAY, ActionType.SELL, "NEW", "10", "12"),
+            legacy_split(EVENT_DAY, "OLD", "4"),
+            rename(EVENT_DAY, "OLD", "NEW"),
+        ]
+    )
+    assert calculator.portfolio["NEW"].quantity == Decimal(8)
+    assert calculator.portfolio["NEW"].amount == Decimal(40)
+
+
+def test_a_rename_chain_on_the_day_of_a_reorganisation_is_refused() -> None:
+    """Renamed onward the same day, so where it ends up is the row order.
+
+    The renames are applied in the order the input lists them, and a date
+    carries no order, so a holding renamed twice on one day has no settled
+    destination and nothing to pool it with can be established either. Listing
+    the two rows the other way round moves it somewhere else, so neither
+    reading is refused in favour of the other.
+    """
+    with pytest.raises(CalculationError, match="is renamed to BBB, and BBB is renamed"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "AAA", "10", "10"),
+                legacy_split(EVENT_DAY, "AAA", "10"),
+                rename(EVENT_DAY, "AAA", "BBB"),
+                rename(EVENT_DAY, "BBB", "CCC"),
+            ]
+        )
+
+
+def test_a_rename_chain_listed_backwards_is_refused_the_same_way() -> None:
+    """The order the rows happen to be in does not change the answer.
+
+    Listed this way the pool stops at the middle name instead of reaching the
+    last one. That it computes at all is the row order talking, so it is the
+    same refusal rather than a different result.
+    """
+    with pytest.raises(CalculationError, match="is renamed to BBB, and BBB is renamed"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "AAA", "10", "10"),
+                legacy_split(EVENT_DAY, "AAA", "10"),
+                rename(EVENT_DAY, "BBB", "CCC"),
+                rename(EVENT_DAY, "AAA", "BBB"),
+            ]
+        )
+
+
+def test_a_rename_cycle_on_the_day_of_a_reorganisation_is_refused() -> None:
+    """A cycle is a chain joined up, and is refused by the same test."""
+    with pytest.raises(CalculationError, match="is renamed to BBB, and BBB is renamed"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "AAA", "10", "10"),
+                legacy_split(EVENT_DAY, "AAA", "10"),
+                rename(EVENT_DAY, "AAA", "BBB"),
+                rename(EVENT_DAY, "BBB", "AAA"),
+            ]
+        )
+
+
+def test_a_rename_chain_ending_on_a_second_holding_is_refused() -> None:
+    """The holding it would be pooled with is one rename further on.
+
+    Restating ten units and carrying them two names along, to a name that
+    already holds three, leaves those three unrestated. Naming the chain says
+    why without the calculator having to work out where the pool landed.
+    """
+    with pytest.raises(CalculationError, match="is renamed to BBB, and BBB is renamed"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "AAA", "10", "10"),
+                trade(POOL_DAY, ActionType.BUY, "CCC", "3", "10"),
+                legacy_split(EVENT_DAY, "AAA", "10"),
+                rename(EVENT_DAY, "AAA", "BBB"),
+                rename(EVENT_DAY, "BBB", "CCC"),
+            ]
+        )
+
+
+def test_a_holding_renamed_to_two_names_in_a_day_is_refused() -> None:
+    """A holding goes to one name or the other, and the input says neither.
+
+    The rows are applied one after another, so the first moves the shares and
+    the second finds nothing to move, but the record of where the holding went
+    keeps only the last row. Replaying that record sends the pool somewhere it
+    never was, silently, so the second row is refused rather than allowed to
+    overwrite the first.
+    """
+    with pytest.raises(CalculationError, match="renamed to both AAA and BBB"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+                trade(POOL_DAY, ActionType.BUY, "AAA", "3", "10"),
+                legacy_split(EVENT_DAY, "OLD", "10"),
+                rename(EVENT_DAY, "OLD", "AAA"),
+                rename(EVENT_DAY, "OLD", "BBB"),
+            ]
+        )
+
+
+def test_the_same_rename_written_twice_is_not_a_conflict() -> None:
+    """Two exports repeating one rename say the same thing about it."""
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            legacy_split(EVENT_DAY, "OLD", "10"),
+            rename(EVENT_DAY, "OLD", "NEW"),
+            rename(EVENT_DAY, "OLD", "NEW"),
+        ]
+    )
+    assert calculator.portfolio["NEW"].quantity == Decimal(20)
+
+
+def test_a_holding_renamed_along_into_the_reorganised_one_is_refused() -> None:
+    """The arriving holding is two renames away, and arrives all the same.
+
+    Nothing renames straight into the reorganised name, so looking only at the
+    renames it is named in finds an empty holding and lets the day through.
+    The three units come along the chain and are never restated.
+    """
+    with pytest.raises(
+        CalculationError, match="pool it with OLD, which holds shares of its own"
+    ):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "3", "10"),
+                trade(POOL_DAY, ActionType.BUY, "NEW", "10", "10"),
+                legacy_split(EVENT_DAY, "NEW", "10"),
+                rename(EVENT_DAY, "OLD", "MID"),
+                rename(EVENT_DAY, "MID", "NEW"),
+            ]
+        )
+
+
+def test_a_second_holding_renamed_onto_the_same_name_is_refused() -> None:
+    """Two holdings renamed onto one name meet there, unrestated.
+
+    Neither rename names the other holding, so a test that only looks at the
+    renames the reorganised holding appears in sees two ordinary ticker
+    changes and lets both through.
+    """
+    with pytest.raises(
+        CalculationError, match="pool it with BBB, which holds shares of its own"
+    ):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "AAA", "10", "10"),
+                trade(POOL_DAY, ActionType.BUY, "BBB", "3", "10"),
+                legacy_split(EVENT_DAY, "AAA", "10"),
+                rename(EVENT_DAY, "AAA", "CCC"),
+                rename(EVENT_DAY, "BBB", "CCC"),
+            ]
+        )
+
+
+# ===== matching across a reorganisation that also renames =====
+
+
+def test_a_repurchase_is_matched_across_a_split_recorded_under_the_old_name() -> None:
+    """The reorganisation is recorded under the name it happened under.
+
+    A holding split and renamed on one day has its event recorded under the
+    name it entered the day with, so following the rename before looking for
+    it walks straight past. The disposal is then matched against half as many
+    units as it bought, at half the cost.
+    """
+    calculator = create_calculator(tax_year=2023, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            trade(EVENT_DAY, ActionType.SELL, "OLD", "5", "20"),
+            legacy_split(EVENT_DAY + datetime.timedelta(days=1), "OLD", "5"),
+            rename(EVENT_DAY + datetime.timedelta(days=1), "OLD", "NEW"),
+            trade(
+                EVENT_DAY + datetime.timedelta(days=2), ActionType.BUY, "NEW", "10", "6"
+            ),
+        ],
+    )
+    (entry,) = report.calculation_log[EVENT_DAY]["sell$OLD"]
+    assert entry.rule_type is RuleType.BED_AND_BREAKFAST
+    # Five old units are ten new ones, so all ten repurchased are matched.
+    assert entry.quantity == Decimal(5)
+    assert entry.allowable_cost == Decimal(60)
+    assert entry.gain == Decimal(40)
+    reserved = calculator.bnb_list[EVENT_DAY + datetime.timedelta(days=2)]["NEW"]
+    assert reserved.quantity == Decimal(10)
+    assert calculator.portfolio["NEW"].quantity == Decimal(20)
+    assert calculator.portfolio["NEW"].amount == Decimal(100)
+
+
+def test_a_repurchase_is_matched_across_a_split_recorded_under_the_new_name() -> None:
+    """The mirror: the event is recorded under the name the day ends with.
+
+    Here the old name is emptied by the disposal, so nothing is pooled by the
+    rename and the reorganisation belongs to the holding already under the new
+    name. The walk has to find it there instead.
+    """
+    calculator = create_calculator(tax_year=2023, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            trade(EVENT_DAY, ActionType.SELL, "OLD", "10", "20"),
+            trade(
+                EVENT_DAY + datetime.timedelta(days=1), ActionType.BUY, "NEW", "5", "10"
+            ),
+            legacy_split(EVENT_DAY + datetime.timedelta(days=1), "NEW", "5"),
+            rename(EVENT_DAY + datetime.timedelta(days=1), "OLD", "NEW"),
+            trade(
+                EVENT_DAY + datetime.timedelta(days=2), ActionType.BUY, "NEW", "10", "6"
+            ),
+        ],
+    )
+    first, second = report.calculation_log[EVENT_DAY]["sell$OLD"]
+    # The five bought that morning are ten after the reorganisation, and match
+    # five of the ten old units disposed of; the rest come from the next day.
+    assert first.rule_type is RuleType.BED_AND_BREAKFAST
+    assert first.quantity == Decimal(5)
+    assert first.allowable_cost == Decimal(50)
+    assert second.rule_type is RuleType.BED_AND_BREAKFAST
+    assert second.quantity == Decimal(5)
+    assert second.allowable_cost == Decimal(60)
+    assert calculator.portfolio["NEW"].quantity == Decimal(20)
+
+
+# ===== placing a same-day row by the instants an export stamped =====
+
+
+def _stamped(when: datetime.datetime) -> TransactionSource:
+    """Provenance for a row from another input that states its instant."""
+    return TransactionSource(
+        parser="Testing",
+        account="Other account",
+        file=Path("other.csv"),
+        index=0,
+        timestamp=when,
+    )
+
+
+SPLIT_OPENED = datetime.datetime(2023, 5, 15, 7, 44, 13, tzinfo=datetime.UTC)
+SPLIT_CLOSED = datetime.datetime(2023, 5, 15, 7, 44, 14, tzinfo=datetime.UTC)
+
+
+def test_a_row_stamped_before_the_event_is_restated() -> None:
+    """An exported instant settles the units a same-day row is stated in.
+
+    It is the only thing that does, across two inputs, and a purchase stamped
+    ahead of the reorganisation is counted in the units before it.
+    """
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+            trade(
+                EVENT_DAY,
+                ActionType.BUY,
+                "FOO",
+                "2",
+                "10",
+                source=_stamped(SPLIT_OPENED - datetime.timedelta(minutes=1)),
+            ),
+            paired_split(
+                EVENT_DAY,
+                "FOO",
+                "12",
+                "24",
+                Fraction(2),
+                instants=(SPLIT_OPENED, SPLIT_CLOSED),
+            ),
+        ]
+    )
+    # Twelve units before the event, so the purchase is restated to four.
+    assert calculator.portfolio["FOO"].quantity == Decimal(24)
+    assert calculator.portfolio["FOO"].amount == Decimal(120)
+
+
+def test_a_row_stamped_after_the_event_is_left_alone() -> None:
+    """The same instant on the other side leaves the count as exported."""
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+            trade(
+                EVENT_DAY,
+                ActionType.BUY,
+                "FOO",
+                "2",
+                "10",
+                source=_stamped(SPLIT_CLOSED + datetime.timedelta(minutes=1)),
+            ),
+            paired_split(
+                EVENT_DAY,
+                "FOO",
+                "10",
+                "20",
+                Fraction(2),
+                instants=(SPLIT_OPENED, SPLIT_CLOSED),
+            ),
+        ]
+    )
+    # Already in the day's closing units, so twenty plus the two bought.
+    assert calculator.portfolio["FOO"].quantity == Decimal(22)
+    assert calculator.portfolio["FOO"].amount == Decimal(120)
+
+
+def test_a_day_that_sells_more_than_it_can_give_is_refused() -> None:
+    """The day's own ledger has to survive the reorganisation."""
+    with pytest.raises(CalculationError, match="would leave -10 units"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                legacy_split(EVENT_DAY, "FOO", "10"),
+                trade(EVENT_DAY, ActionType.SELL, "FOO", "30", "5"),
+            ]
+        )
+
+
+# ===== the disposal a same-day reorganisation used to cost wrongly =====
+
+
+def test_a_sale_above_a_same_day_split_keeps_its_share_of_the_pool() -> None:
+    """A sale written above the split row sold units the split had not reached.
+
+    Regression test for issue #1045. The reorganisation used to be sized from
+    the holding at the sale's place in the stream and its new units pooled as
+    a free acquisition ahead of the same-day disposal, so the disposal was
+    costed against a pool that never existed: eleven units costing £15,793.25
+    allowed £631.73 against a sale of five, where five elevenths of the pool
+    is £7,178.75.
+    """
+    calculator = create_calculator(tax_year=2023, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            trade(POOL_DAY, ActionType.BUY, "FOO", "11", "1435.75"),
+            trade(EVENT_DAY, ActionType.SELL, "FOO", "5", "1924.464"),
+            legacy_split(EVENT_DAY, "FOO", "114"),
+        ],
+    )
+    (entry,) = report.calculation_log[EVENT_DAY]["sell$FOO"]
+    assert entry.rule_type is RuleType.SECTION_104
+    # Five pre-split units are a hundred after the restatement, out of 220.
+    assert entry.quantity == Decimal(100)
+    assert entry.allowable_cost == Decimal("7178.75")
+    assert round_decimal(entry.gain, 2) == Decimal("2443.57")
+    assert calculator.portfolio["FOO"].quantity == Decimal(120)
+    assert calculator.portfolio["FOO"].amount == Decimal("8614.50")

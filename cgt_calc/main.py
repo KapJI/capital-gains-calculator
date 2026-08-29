@@ -317,10 +317,14 @@ class CapitalGainsCalculator:
         # interleaved, so its running count dips below what the day really
         # holds on one side or the other of the correction.
         self.split_day_capacity: dict[tuple[str, datetime.date], Decimal] = {}
-        # Which declared account boundaries have contributed units to each
-        # holding. A broker's own single-row split states a change to its own
-        # account, so it may only be read as a change to the whole pool when
-        # the whole pool came from that one source.
+        # Which declared account boundaries have put units into each holding.
+        # A broker's own single-row split states a change to its own account,
+        # so it may only be read as a change to the whole pool when the whole
+        # pool came from that one source. Only rows that add units count: a
+        # sale or a hand-written gift takes units out of the pool and supplies
+        # none, and a source is forgotten again once the holding empties, so
+        # that a ticker traded at one broker years ago cannot veto a
+        # reorganisation of a pool rebuilt entirely at another.
         self.holding_sources: dict[str, set[str]] = defaultdict(set)
         # Stores old->new mapping when a symbol changes its name.
         self.rename_list: dict[datetime.date, dict[str, str]] = defaultdict(dict)
@@ -492,6 +496,19 @@ class CapitalGainsCalculator:
             return Decimal(0)
         return normalize_amount(position.amount * quantity / position.quantity)
 
+    def _drop_empty_holding(self, symbol: str) -> None:
+        """Forget a holding that has just run out, and where it came from.
+
+        A reorganisation stated as one account's own change is checked against
+        the accounts that put the units now in the pool there. A holding sold,
+        given or transferred down to nothing keeps none of them, so a ticker
+        held at one broker and later rebuilt at another is a single-source
+        holding again rather than one both accounts are recorded against.
+        """
+        if self.portfolio[symbol].quantity == 0:
+            del self.portfolio[symbol]
+            self.holding_sources.pop(symbol, None)
+
     def _pooled_quantity(self, transaction: BrokerTransaction) -> Decimal:
         """Return the count to pool, in the units in force at the day's end."""
         quantity = transaction.pool_quantity
@@ -515,11 +532,150 @@ class CapitalGainsCalculator:
             if transaction.action is ActionType.STOCK_SPLIT:
                 splits[get_symbol_or_fail(transaction)].append(transaction)
         for symbol, rows in sorted(splits.items()):
-            if len(rows) > 1:
-                raise CalculationError(
-                    self._two_splits_message(symbol, date_index, rows)
+            for row in rows:
+                self._check_reorganisation_row(row)
+            row = self._sole_reorganisation(symbol, date_index, rows)
+            self._plan_stock_split(date_index, symbol, row, day_transactions)
+
+    @staticmethod
+    def _check_reorganisation_row(transaction: BrokerTransaction) -> None:
+        """Refuse a reorganisation row that also states money.
+
+        A reorganisation is neither an acquisition nor a disposal, so nothing
+        is paid for it and nothing is received (TCGA 1992 s127, CG51805).
+        Anything in the price or fees column is therefore a figure the
+        calculation has no use for and would drop without saying so, and a row
+        that states one is a row about something other than the reorganisation.
+        """
+        for column, value in (
+            ("price", transaction.price),
+            ("fees", transaction.fees),
+        ):
+            if value:
+                raise InvalidTransactionError(
+                    transaction,
+                    f"The {column} column of a share reorganisation states "
+                    f"{strip_zeros(value)}. A reorganisation buys nothing and "
+                    "sells nothing (TCGA 1992 s127), so there is nothing for "
+                    "that figure to be, and cgt-calc will not drop it without "
+                    "saying so. Leave price and fees at 0. If money really did "
+                    "change hands (cash in lieu of a fractional entitlement, "
+                    "say), it may be a part disposal under TCGA 1992 s128 or "
+                    "a small distribution under s122(2). cgt-calc cannot "
+                    "represent the small-distribution treatment, so leave "
+                    "money off this row and calculate the distribution and "
+                    "any pool-cost adjustment separately",
                 )
-            self._plan_stock_split(date_index, symbol, rows[0], day_transactions)
+        if transaction.foreign_fees:
+            listed = ", ".join(
+                f"{currency} {strip_zeros(value)}"
+                for currency, value in sorted(transaction.foreign_fees.items())
+                if value
+            )
+            if listed:
+                raise InvalidTransactionError(
+                    transaction,
+                    "The fees column of a share reorganisation states "
+                    f"{listed}. A reorganisation buys nothing and sells "
+                    "nothing (TCGA 1992 s127), so leave all fee columns at 0",
+                )
+
+    def _sole_reorganisation(
+        self,
+        symbol: str,
+        date_index: datetime.date,
+        rows: list[BrokerTransaction],
+    ) -> BrokerTransaction:
+        """Return the one row the day's reorganisation of ``symbol`` is taken from.
+
+        Two brokers reporting the same event is not two events, and nothing in
+        their exports tells the two apart, so several broker rows are refused.
+        A hand-written RAW row is different: it states the change to the whole
+        pooled holding by definition, which is exactly what a broker's own row
+        cannot state and exactly what the calculator asks for when it refuses
+        one. So a single RAW row settles the day and the broker rows for the
+        same event are dropped, the way a RAW row classifying a gift drops the
+        broker's own row for it.
+        """
+        if len(rows) == 1:
+            return rows[0]
+        stated_in_full = [row for row in rows if isinstance(row, RawTransaction)]
+        if len(stated_in_full) != 1:
+            raise CalculationError(self._two_splits_message(symbol, date_index, rows))
+        raw_row = stated_in_full[0]
+        broker_rows = [row for row in rows if row is not raw_row]
+        broker_changes = [get_quantity_or_fail(row) for row in broker_rows]
+        raw_change = get_quantity_or_fail(raw_row)
+        times_by_source: dict[
+            tuple[str | None, str | None, object], list[datetime.datetime | None]
+        ] = defaultdict(list)
+        for row in broker_rows:
+            source = row.source
+            source_key = (
+                (source.parser, source.account, source.file)
+                if source is not None
+                else (None, None, None)
+            )
+            times_by_source[source_key].append(
+                source.timestamp if source is not None else None
+            )
+        conflicting_times = [
+            times
+            for times in times_by_source.values()
+            if len(times) > 1 and (None in times or len(set(times)) > 1)
+        ]
+        if conflicting_times:
+            event_times = sorted(
+                "unknown" if timestamp is None else str(timestamp)
+                for times in conflicting_times
+                for timestamp in times
+            )
+            listed = "\n".join(f"  {row}" for row in rows)
+            raise CalculationError(
+                f"Cannot use the RAW STOCK_SPLIT row for {symbol} on "
+                f"{date_index}: the same source reports reorganisations at "
+                f"different or unknown times ({', '.join(event_times)}):\n"
+                f"{listed}\nThese rows are not proved to report the same "
+                "reorganisation. Leave the day's STOCK_SPLIT rows out and work "
+                "this day out by hand (consider professional advice)."
+            )
+        if not raw_change.is_finite():
+            return raw_row
+        if any(not change.is_finite() for change in broker_changes):
+            listed = "\n".join(f"  {row}" for row in rows)
+            raise CalculationError(
+                f"Cannot use the RAW STOCK_SPLIT row for {symbol} on "
+                f"{date_index}: a broker row states a change that cannot be "
+                f"part of its change of {strip_zeros(raw_change)} units:\n"
+                f"{listed}\nCorrect the broker or RAW row, or work this day "
+                "out by hand (consider professional advice)."
+            )
+        broker_change = sum(broker_changes, Decimal(0))
+        if (
+            not raw_change
+            or any(change * raw_change <= 0 for change in broker_changes)
+            or abs(broker_change) > abs(raw_change)
+        ):
+            listed = "\n".join(f"  {row}" for row in rows)
+            raise CalculationError(
+                f"Cannot use the RAW STOCK_SPLIT row for {symbol} on "
+                f"{date_index}: the broker rows change their holdings by "
+                f"{strip_zeros(broker_change)} units in total, which cannot "
+                "be part of its change of "
+                f"{strip_zeros(raw_change)} units:\n"
+                f"{listed}\nThese rows are not proved to report the same "
+                "reorganisation. Correct the RAW row or work this day out by "
+                "hand (consider professional advice)."
+            )
+        LOGGER.info(
+            "Using the RAW STOCK_SPLIT row for %s on %s and ignoring %d broker "
+            "row(s) for the same event: a RAW row states the change to the "
+            "whole holding.",
+            symbol,
+            date_index,
+            len(rows) - 1,
+        )
+        return raw_row
 
     def _plan_stock_split(
         self,
@@ -730,7 +886,9 @@ class CapitalGainsCalculator:
             )
         if not isinstance(row, RawTransaction):
             contributors = self.holding_sources.get(symbol, set()) | {
-                source_account(other) for other in before_rows
+                source_account(other)
+                for other in before_rows
+                if quantity_sign(other.action) > 0
             }
             account = source_account(row)
             if contributors - {account}:
@@ -907,8 +1065,7 @@ class CapitalGainsCalculator:
 
         self.portfolio[symbol] -= Position(pooled_quantity, amount)
 
-        if self.portfolio[symbol].quantity == 0:
-            del self.portfolio[symbol]
+        self._drop_empty_holding(symbol)
 
         if price is None:
             raise PriceMissingError(transaction)
@@ -982,8 +1139,7 @@ class CapitalGainsCalculator:
         self.portfolio[symbol] -= Position(
             quantity, self._provisional_cost(symbol, quantity)
         )
-        if self.portfolio[symbol].quantity == 0:
-            del self.portfolio[symbol]
+        self._drop_empty_holding(symbol)
         add_to_list(
             self.transfer_to_spouse_list,
             transaction.date,
@@ -1066,8 +1222,7 @@ class CapitalGainsCalculator:
         self.portfolio[symbol] -= Position(
             quantity, self._provisional_cost(symbol, quantity)
         )
-        if self.portfolio[symbol].quantity == 0:
-            del self.portfolio[symbol]
+        self._drop_empty_holding(symbol)
         # Recorded like a sale: the amount net of fees, the fees alongside, so
         # that proceeds come to the market value and the fees are allowed as
         # a cost of the disposal.
@@ -1337,8 +1492,19 @@ class CapitalGainsCalculator:
                 transaction,
                 "Rename transaction does not identify the old symbol",
             )
+        existing = self.rename_list[transaction.date].get(old_symbol)
+        if existing is not None and existing != new_symbol:
+            raise CalculationError(
+                self._two_renames_message(
+                    old_symbol, transaction.date, existing, new_symbol
+                )
+            )
         self.rename_list[transaction.date][old_symbol] = new_symbol
         self.portfolio[new_symbol] += self.portfolio.pop(old_symbol, Position())
+        # The units keep the accounts that put them there; only the name changes.
+        moved = self.holding_sources.pop(old_symbol, set())
+        if moved:
+            self.holding_sources[new_symbol] |= moved
 
     def add_management_fee(self, transaction: BrokerTransaction) -> Decimal:
         """Record a fee that increases the holding's pooled cost."""
@@ -1420,7 +1586,7 @@ class CapitalGainsCalculator:
         if transaction.date not in planned:
             planned.add(transaction.date)
             self.plan_stock_splits(transaction.date, days[transaction.date])
-        if quantity_sign(transaction.action) and transaction.symbol:
+        if quantity_sign(transaction.action) > 0 and transaction.symbol:
             self.holding_sources[transaction.symbol].add(source_account(transaction))
 
     def convert_to_hmrc_transactions(
@@ -1891,11 +2057,23 @@ class CapitalGainsCalculator:
             for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = date_index + datetime.timedelta(days=i + 1)
                 # HMRC treats renames as the same security for B&B purposes.
-                effective_symbol = self.rename_list.get(search_index, {}).get(
-                    effective_symbol, effective_symbol
+                # A reorganisation is recorded under the name the holding
+                # carried when it happened, which on a day the holding is also
+                # renamed is the name it entered the day under. Look there
+                # first and under the day's new name second, then carry on
+                # under the name the day ends with. Only one can be there:
+                # a day whose rename pools two holdings is refused before
+                # either pass reaches it (see apply_split_openings). A
+                # reorganisation of a holding renamed *into* this name is
+                # deliberately not picked up: the shares disposed of here left
+                # before that one arrived, so they were never its shares.
+                renames = self.rename_list.get(search_index, {})
+                day_splits = self.splits.get(search_index, {})
+                renamed_symbol = renames.get(effective_symbol, effective_symbol)
+                transformation = day_splits.get(effective_symbol) or day_splits.get(
+                    renamed_symbol
                 )
-
-                transformation = self.splits.get(search_index, {}).get(effective_symbol)
+                effective_symbol = renamed_symbol
                 if transformation is not None:
                     if transformation.ratio is None:
                         unresolved_splits.append((search_index, transformation.event))
@@ -2221,7 +2399,18 @@ class CapitalGainsCalculator:
         exports this was built from, which is enough to leave a disposal of
         the whole holding short of zero.
         """
+        renames = self.rename_list.get(date_index, {})
         for symbol, transformation in sorted(self.splits.get(date_index, {}).items()):
+            chained = self._rename_chain_at(symbol, renames)
+            if chained is not None:
+                raise CalculationError(
+                    self._rename_chain_message(symbol, date_index, *chained)
+                )
+            pooled = self._rename_pooling_with(symbol, date_index, renames)
+            if pooled is not None:
+                raise CalculationError(
+                    self._rename_and_split_message(symbol, date_index, *pooled)
+                )
             position = self.portfolio[symbol]
             if position.quantity != transformation.day_open_quantity:
                 raise CalculationError(
@@ -2235,6 +2424,77 @@ class CapitalGainsCalculator:
             self.portfolio[symbol] = Position(
                 transformation.scaled_day_open_quantity, position.amount
             )
+
+    def _holds_units_today(self, symbol: str, date_index: datetime.date) -> bool:
+        """Whether a rename today could move units of ``symbol`` anywhere.
+
+        Called from ``apply_split_openings``, before any of the day's rows, so
+        the portfolio still holds the day-opening pool; an acquisition later
+        today lands before the rename, which is applied at the end of the day.
+        """
+        if symbol in self.portfolio and self.portfolio[symbol].quantity != 0:
+            return True
+        return has_key(self.acquisition_list, date_index, symbol)
+
+    @staticmethod
+    def _rename_chain_at(
+        symbol: str, renames: dict[str, str]
+    ) -> tuple[tuple[str, str], tuple[str, str]] | None:
+        """Return the two renames that move this holding twice in one day.
+
+        A day's renames are applied in the order the input lists them, so a
+        holding renamed onward from the name it was just renamed to ends
+        wherever that order puts it, and swapping the two rows moves it
+        somewhere else. A date carries no order, so neither reading is
+        established and there is nothing to pick between them. A cycle is the
+        same thing joined up, and is caught by the same test.
+        """
+        next_name = renames.get(symbol)
+        if next_name is None or next_name not in renames:
+            return None
+        return (symbol, next_name), (next_name, renames[next_name])
+
+    def _rename_pooling_with(
+        self,
+        symbol: str,
+        date_index: datetime.date,
+        renames: dict[str, str],
+    ) -> tuple[str, tuple[str, str]] | None:
+        """Return a second holding the day's renames would pool this one with.
+
+        A rename says the two tickers are one security, so a reorganisation of
+        either restates both. The calculator restates one, and the renames
+        bring whatever else they reach in afterwards, untouched. What they
+        reach is not only the name at the other end of a rename this holding
+        is named in: a holding renamed into the name this one is renamed to,
+        or renamed along to it through names it never held, arrives just the
+        same. So the whole of the day's rename graph connected to this holding
+        is walked, in both directions, and any name on it that holds something
+        of its own is the answer. The ordinary ticker change reaches only
+        empty names, so it passes.
+
+        Returns the holding it would be pooled with and the rename that
+        reaches it, taking the renames in the order the input lists them.
+        """
+        reached = {symbol}
+        frontier = [symbol]
+        while frontier:
+            name = frontier.pop(0)
+            for old_name, new_name in renames.items():
+                other = (
+                    new_name
+                    if name == old_name
+                    else old_name
+                    if name == new_name
+                    else None
+                )
+                if other is None or other in reached:
+                    continue
+                if self._holds_units_today(other, date_index):
+                    return other, (old_name, new_name)
+                reached.add(other)
+                frontier.append(other)
+        return None
 
     def record_split_reconciliations(
         self,
@@ -2299,15 +2559,15 @@ class CapitalGainsCalculator:
     def verify_split_day_closes(self, date_index: datetime.date) -> None:
         """Check every reorganisation today left the holding where it said.
 
-        A holding renamed the same day is skipped: the pool has moved under
-        another name by now, and may have been merged with a second holding
-        on the way, so what is left under this one says nothing.
+        A holding renamed today is checked under the name it was renamed to:
+        the rename has moved the pool by now. That single hop is the whole
+        journey, and the pool arrived alone, because a day that renames the
+        holding onward again or pools it with a second one is refused before
+        any of this (see ``apply_split_openings``).
         """
-        renamed = self.rename_list.get(date_index, {})
+        renames = self.rename_list.get(date_index, {})
         for symbol, transformation in sorted(self.splits.get(date_index, {}).items()):
-            if symbol in renamed:  # pragma: no cover - rename and split in a day
-                continue
-            closing = self.portfolio[symbol].quantity
+            closing = self.portfolio[renames.get(symbol, symbol)].quantity
             if closing != transformation.expected_day_close:
                 raise CalculationError(
                     f"Cannot apply the reorganisation of {symbol} on "
@@ -2318,6 +2578,64 @@ class CapitalGainsCalculator:
                     "disagree."
                 )
 
+    @staticmethod
+    def _rename_chain_message(
+        symbol: str,
+        date_index: datetime.date,
+        first: tuple[str, str],
+        second: tuple[str, str],
+    ) -> str:
+        """Explain why a holding renamed twice in a day cannot be restated."""
+        return (
+            f"Cannot apply the reorganisation of {symbol} on {date_index}: it "
+            f"is renamed to {first[1]}, and {second[0]} is renamed to "
+            f"{second[1]}, the same day. The renames are applied in the order "
+            "the input lists them, so where the holding ends up, and what it "
+            "is pooled with on the way, depends on which of the two rows "
+            "comes first. A date carries no order, so neither reading is "
+            "established. Put the renames on the days they happened, or work "
+            "this day out by hand (consider professional advice)."
+        )
+
+    @staticmethod
+    def _rename_and_split_message(
+        symbol: str,
+        date_index: datetime.date,
+        other: str,
+        rename: tuple[str, str],
+    ) -> str:
+        """Explain why a rename that pools two holdings cannot be applied."""
+        old_name, new_name = rename
+        return (
+            f"Cannot apply the reorganisation of {symbol} on {date_index}: "
+            f"the day's renames pool it with {other}, which holds shares of "
+            f"its own, by way of the rename of {old_name} to {new_name}. A "
+            "rename says the two tickers are one security, so the "
+            "reorganisation restates both, but it is applied under one name "
+            "and the renames bring the other holding in afterwards, "
+            "untouched. Whether those shares were part of the event depends on "
+            "whether the renames took effect before it or after, and the input "
+            "carries dates but not that order. Work this day out by hand "
+            "(consider professional advice)."
+        )
+
+    @staticmethod
+    def _two_renames_message(
+        old_symbol: str,
+        date_index: datetime.date,
+        first: str,
+        second: str,
+    ) -> str:
+        """Explain why one ticker cannot be renamed to two names in a day."""
+        return (
+            f"{old_symbol} is renamed to both {first} and {second} on "
+            f"{date_index}. The holding goes to one name or the other, and a "
+            "date carries no order to choose by, so which one cannot be "
+            "established and the pool would be replayed under a name it never "
+            "reached. Leave the row that does not belong out, or work this "
+            "day out by hand (consider professional advice)."
+        )
+
     def _two_splits_message(
         self,
         symbol: str,
@@ -2326,14 +2644,27 @@ class CapitalGainsCalculator:
     ) -> str:
         """Explain why two reorganisations of one holding cannot be combined."""
         listed = "\n".join(f"  {row}" for row in rows)
+        if any(isinstance(row, RawTransaction) for row in rows):
+            # A single RAW row settles a day the brokers also reported, so
+            # more than one of them is the thing to fix rather than to add.
+            remedy = (
+                "Leave all but one of the RAW STOCK_SPLIT rows out, so that "
+                "one row states the change to the whole holding"
+            )
+        else:
+            remedy = (
+                "Add a single RAW STOCK_SPLIT row stating the change to the "
+                "whole holding, which settles the day and is used in place of "
+                "the broker rows"
+            )
         return (
             f"{symbol} has more than one reorganisation on {date_index}:\n"
             f"{listed}\n"
             "The Section 104 holding is global, so a corporate ratio applies "
             "to it once. Two brokers reporting the same event is not the same "
             "as two events, and this tool cannot tell them apart, so it will "
-            "not guess. Leave all but one of the rows out, or work this day "
-            "out by hand (consider professional advice)."
+            f"not guess. {remedy}, or work this day out by hand (consider "
+            "professional advice)."
         )
 
     def _split_chronology_message(

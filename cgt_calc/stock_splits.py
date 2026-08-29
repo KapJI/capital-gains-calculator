@@ -5,6 +5,15 @@ are the same asset, held continuously, with the same acquisition dates and
 the same allowable cost (TCGA 1992 ss126-127, HMRC CG51805). Only the unit
 count changes, so the pooled cost is never multiplied, divided or rounded
 here and everything in this module is about the share count.
+
+Two shapes of input are modelled. Every parser shipping today states a
+reorganisation as one row carrying the net change to a share count, which the
+calculator reads directly. `StockSplitTransaction`, `recover_ratio` and
+`UnresolvedRatio` are for the other shape, an export that states the complete
+holding either side of the event and leaves the ratio to be recovered from two
+rounded counts. No parser builds one yet, so those three and the
+`DIRECT_SUBSTITUTION` and `RATIO_ONLY` modes are exercised only by tests until
+one does.
 """
 
 from __future__ import annotations

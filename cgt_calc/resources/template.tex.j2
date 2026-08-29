@@ -133,13 +133,13 @@
     }
     Neither a disposal nor an acquisition: the new holding is the same asset, held from the same dates, with the same pooled cost (TCGA 1992 s127).
 
-    Broker reported \VAR{ strip_zeros(split.broker_before_quantity) } units before the event and \VAR{ strip_zeros(split.broker_after_quantity) } after.
+    Stated as \VAR{ strip_zeros(split.broker_before_quantity) } units before the event and \VAR{ strip_zeros(split.broker_after_quantity) } after.
     \BLOCK{ if split.reconciliation_delta != 0 }
 
         Reconciled to that count by \VAR{ strip_zeros(split.reconciliation_delta) } units, from \VAR{ strip_zeros(split.quantity_before_reconciliation) } to \VAR{ strip_zeros(split.quantity_after_reconciliation) }.
     \BLOCK{ endif }
 
-    Number of units left in the pool: \VAR{ strip_zeros(entries[0].new_quantity) }%
+    Units in the pool at this point in the day: \VAR{ strip_zeros(entries[0].new_quantity) }%
     \BLOCK{ if entries[0].new_quantity > 0 },
         pool cost: £\VAR{ "{:,}".format(round_decimal(entries[0].new_pool_cost, 2)) }
         (£\VAR{ "{:,}".format(round_decimal(entries[0].new_pool_cost/entries[0].new_quantity, 2)) }/unit)%
