@@ -24,6 +24,43 @@ Example usage for the tax year 2024/25:
 cgt-calc --year 2024 --raw-file raw_data.csv
 ```
 
+## The order of rows on one date
+
+The `date` column carries no time, so within a single day the order you write the rows in is the
+only record of what happened first. Write each day's rows in the order the transactions actually
+happened, and give every `quantity` and `price` in the units that were in force at that moment.
+
+This matters most on the day of a share split. A `STOCK_SPLIT` row states the number of **new**
+shares the split created, not the total you held afterwards, and that number depends on how many
+shares you held when it ran. Say you held 11 shares and sold 5 that morning. Six shares went into a
+20-for-1 split and became 120, so the split created 114, and the sale above it is written in
+pre-split shares at the pre-split price:
+
+```csv
+2022-06-06,SELL,AMZN,5,2400.00,0.00,USD
+2022-06-06,STOCK_SPLIT,AMZN,114,0.00,0.00,USD
+```
+
+Had you sold after the split instead, all 11 shares went into it and became 220, so the split
+created 209, and the sale below it is written in post-split shares at the post-split price:
+
+```csv
+2022-06-06,STOCK_SPLIT,AMZN,209,0.00,0.00,USD
+2022-06-06,SELL,AMZN,100,120.00,0.00,USD
+```
+
+!!! warning "Selling on the day of a split"
+
+    A disposal written above a `STOCK_SPLIT` row for the same date is not worked out reliably yet.
+    The cost cgt-calc allows against that disposal can come out far too low, which overstates the
+    gain and so the tax. Selling on any other day is fine, including the day before or the day
+    after the split. If you sold on the day of a split, work that one disposal out by hand and
+    check it against the report before you use the figure.
+
+This is about the RAW file you write yourself. cgt-calc assumes nothing about the order of the rows
+inside a broker's own export, so if you keep a small RAW file alongside a broker export, it is the
+RAW rows that need to be in the order things happened.
+
 ## Transfers to a spouse or civil partner
 
 Shares given to a spouse or civil partner usually move at **no gain / no loss**: nothing is taxable

@@ -213,6 +213,9 @@ def test_read_raw_transactions_keep_their_row_and_order(tmp_path: Path) -> None:
     assert [source.parser for source in sources if source] == ["RAW format"] * 2
     # A RAW export states no times, so nothing may later read one from it.
     assert [source.timestamp for source in sources if source] == [None, None]
+    # The order above is a statement about what happened first, because the
+    # format asks the user to write a day's rows in the order they happened.
+    assert [source.rows_in_time_order for source in sources if source] == [True] * 2
 
 
 def test_read_raw_transactions_transfer_to_spouse(tmp_path: Path) -> None:

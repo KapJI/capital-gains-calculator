@@ -15,7 +15,10 @@ from cgt_calc.args_parser import create_parser
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
+from cgt_calc.parsers.base_parsers import BaseParser, BaseSingleFileParser
 from cgt_calc.parsers.broker_registry import BrokerRegistry, _resolve_isins
+from cgt_calc.parsers.eri.raw import ERIRawParser
+from cgt_calc.parsers.raw import RawParser
 from cgt_calc.parsers.vanguard import VanguardTransaction
 
 if TYPE_CHECKING:
@@ -321,3 +324,27 @@ def test_resolve_isins_matches_the_eri_filter() -> None:
 
     assert isins == {Isin("IE00BK5BQT80")}
     assert unmapped == []
+
+
+@pytest.mark.parametrize(
+    "parser",
+    [*BrokerRegistry._BROKERS, ERIRawParser],  # noqa: SLF001
+    ids=lambda parser: parser.pretty_name,
+)
+def test_only_the_raw_format_promises_rows_in_time_order(
+    parser: type[BaseParser],
+) -> None:
+    """Only a hand-written RAW file states that a day's rows are in order.
+
+    ``rows_in_time_order`` is what lets a row be placed either side of a
+    same-day share reorganisation with no exported time to go on, so a parser
+    that claims it without its format saying so would settle a tax question
+    from the order a broker happened to export in. RAW earns it because
+    docs/brokers/raw.md tells the user writing the file to keep that order.
+
+    Every registered parser is pinned, not just RAW: the flag is inherited, so
+    a parser added later by copying ``RawParser`` would otherwise claim the
+    guarantee in silence.
+    """
+    assert issubclass(parser, BaseSingleFileParser)
+    assert parser.rows_in_time_order is (parser is RawParser)

@@ -1,7 +1,7 @@
 """Test Freetrade support."""
 
 import csv
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 import logging
 from pathlib import Path
@@ -169,6 +169,22 @@ def test_run_with_freetrade_file(request: pytest.FixtureRequest) -> None:
         "Run with example files generated unexpected outputs, "
         "if you added new features update the test with:\n"
         f"{cmd_str} > {expected_file}"
+    )
+
+
+def test_real_export_preserves_transaction_timestamp() -> None:
+    """Keep the exact instant stated by the Freetrade export."""
+    transactions = FreetradeParser.load_from_file(
+        Path("tests/freetrade/data/transactions.csv"), show_parsing_msg=False
+    )
+
+    transaction = next(
+        txn for txn in transactions if txn.source and txn.source.row == 2
+    )
+
+    assert transaction.source is not None
+    assert transaction.source.timestamp == datetime(
+        2024, 1, 16, 10, 1, 2, 811000, tzinfo=UTC
     )
 
 

@@ -210,6 +210,27 @@ def test_load_from_dir_accepts_uppercase_csv_extension(tmp_path: Path) -> None:
     assert transactions[0].amount == Decimal("12.34")
 
 
+def test_real_preamble_preserves_physical_row_numbers(tmp_path: Path) -> None:
+    """Count HL's preamble when recording transaction source lines."""
+    csv_file = tmp_path / "hl-transaction-summary.csv"
+    shutil.copy2(
+        Path("tests/hl/data/inputs/hl-transaction-summary.csv"),
+        csv_file,
+    )
+    _create_buy_pdf(str(tmp_path / "B302087054_BOUGHT_Vanguard.pdf"))
+    _create_sell_pdf(str(tmp_path / "S302087055_SOLD_Vanguard.pdf"))
+
+    transactions = HargreavesLansdownParser.load_from_file(csv_file)
+
+    rows = {
+        transaction.date.isoformat(): transaction.source.row
+        for transaction in transactions
+        if transaction.source
+    }
+    assert rows["2026-04-04"] == 7
+    assert rows["2026-03-09"] == 8
+
+
 # The tests below call the parser directly: the end-to-end tests above
 # run in a subprocess, which is invisible to coverage.
 

@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
+from itertools import chain
 from pathlib import Path
 import re
 from typing import ClassVar, TextIO, override
@@ -138,14 +139,12 @@ class HargreavesLansdownParser(
 
     @classmethod
     @override
-    def pre_reading(cls, file: TextIO, file_path: Path) -> Iterable[str]:
-        """Skip preamble lines until the 'Trade date' header is found."""
+    def pre_reading(cls, file: TextIO, file_path: Path) -> tuple[Iterable[str], int]:
+        """Skip the preamble and retain the header's physical line."""
         lines = iter(file)
-        for line in lines:
+        for row, line in enumerate(lines, start=1):
             if line.strip().startswith("Trade date"):
-                yield line
-                yield from lines
-                return
+                return chain([line], lines), row
 
         raise ParsingError(file_path, "Could not find the 'Trade date' header.")
 

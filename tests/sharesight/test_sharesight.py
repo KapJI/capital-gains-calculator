@@ -62,6 +62,21 @@ def test_run_with_sharesight_files_no_balance_check(
     )
 
 
+def test_real_exports_preserve_physical_row_numbers() -> None:
+    """Keep the physical CSV line for trades and income transactions."""
+    transactions = SharesightParser.load_from_dir(Path("tests/sharesight/data/inputs"))
+
+    rows = {
+        (transaction.date.isoformat(), transaction.symbol, transaction.action): (
+            transaction.source.row if transaction.source else None
+        )
+        for transaction in transactions
+    }
+    assert rows["2019-08-01", "FX:ETH", ActionType.BUY] == 4
+    assert rows["2020-11-10", "FUND1.UKF", ActionType.DIVIDEND] == 7
+    assert rows["2020-10-10", "FOO.NASDAQ", ActionType.DIVIDEND_TAX] == 14
+
+
 def test_parse_income_report_missing_local_column(tmp_path: Path) -> None:
     """Error when Sharesight local dividend header omits required column."""
     file_path = tmp_path / "Taxable Income Report.csv"

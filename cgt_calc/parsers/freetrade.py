@@ -206,6 +206,7 @@ class FreetradeTransaction(BrokerTransaction):
             # The export states its times in UTC, so a value without a zone
             # is read as UTC too rather than as the machine's local time.
             timestamp = timestamp.replace(tzinfo=UTC)
+        self.datetime = timestamp
 
         super().__init__(
             date=timestamp.astimezone(UK_TIMEZONE).date(),
@@ -291,11 +292,15 @@ class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
                 continue
             try:
                 transaction = FreetradeTransaction(row, file_path)
-                transaction.source = TransactionSource(row=index)
+                transaction.source = TransactionSource(
+                    row=index, timestamp=transaction.datetime
+                )
                 transactions.append(transaction)
                 dividend_tax = _dividend_tax_transaction(transaction, row)
                 if dividend_tax is not None:
-                    dividend_tax.source = TransactionSource(row=index)
+                    dividend_tax.source = TransactionSource(
+                        row=index, timestamp=transaction.datetime
+                    )
                     transactions.append(dividend_tax)
             except ParsingError as err:
                 err.add_row_context(index)

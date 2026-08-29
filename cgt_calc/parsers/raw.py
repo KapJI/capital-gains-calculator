@@ -179,7 +179,9 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
     arg_name = "raw"
     pretty_name = "RAW format"
     # The format documents that rows for one date are written in the order
-    # they happened, each in the units in force at that point.
+    # they happened, each in the units in force at that point: see "The order
+    # of rows on one date" in docs/brokers/raw.md, which is what a user writing
+    # the file by hand is told to do. No broker export makes that promise.
     rows_in_time_order: ClassVar[bool] = True
     format_name = "CSV"
     deprecated_flags: ClassVar[list[str]] = ["--raw"]

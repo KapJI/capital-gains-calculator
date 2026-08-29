@@ -205,15 +205,20 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
         """Read a single transaction from a row in the CSV."""
 
     @classmethod
-    def pre_reading(cls, file: TextIO, file_path: Path) -> Iterable[str]:  # noqa: ARG003
-        """Do any preprocessing of the file before parsing the csv."""
-        return file
+    def pre_reading(
+        cls,
+        file: TextIO,
+        file_path: Path,  # noqa: ARG003
+    ) -> tuple[Iterable[str], int]:
+        """Return preprocessed lines and the physical line of their header."""
+        return file, 1
 
     @classmethod
     @override
     def read_transactions(cls, file: TextIO, file_path: Path) -> list[T]:
         """Read transactions from a CSV file."""
-        reader = csv.DictReader(cls.pre_reading(file, file_path))
+        lines, header_row = cls.pre_reading(file, file_path)
+        reader = csv.DictReader(lines)
         if reader.fieldnames is None:
             raise ParsingError(
                 file_path, f"{cls.pretty_name} {cls.format_name} doesn't have a header"
@@ -223,8 +228,7 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
 
         transactions: list[T] = []
         saw_row = False
-        # Row numbers are 1-based file lines; the header is line 1.
-        for index, row in enumerate(reader, start=2):
+        for index, row in enumerate(reader, start=header_row + 1):
             saw_row = True
             try:
                 # A row with MORE fields than the header collects the extras
