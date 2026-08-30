@@ -1425,7 +1425,7 @@ class CapitalGainsCalculator:
 
         When those funds are "reporting" funds, that is, enlisted in HMRC
         official list of reporting funds:
-        https://www.gov.uk/government/publications/offshore-funds-list-of-reporting-funds
+        https://www.gov.uk/government/publications/approved-offshore-reporting-funds
         We need to declare the excess income periodically (yearly) from these
         funds.
 
