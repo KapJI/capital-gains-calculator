@@ -131,7 +131,7 @@ def test_vanguard_symbol_without_isin_mapping_warns(
     # Appending a row that drops an alias breaks a later run, so the advice
     # has to say how the cache is keyed, not just where it lives.
     assert "single row listing every symbol it is known by" in warning
-    assert "https://cgt-calc.uk/configuration/" in warning
+    assert "https://cgt-calc.uk/configuration/#isin-to-ticker-translation" in warning
 
 
 def test_vanguard_warning_omits_cache_path_when_flag_is_cleared(
