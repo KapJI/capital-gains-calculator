@@ -3,10 +3,12 @@
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+import re
 import subprocess
 
 import pytest
 
+from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
 from tests.utils import build_cmd, report_path, stderr_alerts
@@ -300,6 +302,144 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert transactions[0].action == ActionType.ADJUSTMENT
         assert transactions[0].currency == CurrencyCode("GBP")
         assert transactions[0].amount == Decimal("0.18")
+
+    @pytest.mark.parametrize("exchange_rate", ["-", "1.32"])
+    def test_priced_row_without_a_price_records_the_base_currency_amount(
+        self, tmp_path: Path, exchange_rate: str
+    ) -> None:
+        """Price Currency describes the price, not the Net Amount.
+
+        A dividend row can name the currency the security trades in while
+        stating no price of its own, with or without an Exchange Rate. Net
+        Amount is in the account's base currency either way, so the
+        transaction is in GBP and nothing is left to convert.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header_with_foreign_currency
+            + "Transaction History,Data,2025-10-02,U***00000,"
+            "VT(US9220427424) Cash Dividend,Dividend,VT,-,-,USD,100.0,-,100.0,"
+            f"{exchange_rate}\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert len(transactions) == 1
+        assert transactions[0].currency == CurrencyCode("GBP")
+        assert transactions[0].amount == Decimal("100.0")
+        assert transactions[0].price is None
+
+    def test_dividend_priced_in_a_foreign_currency_is_not_converted(
+        self, tmp_path: Path
+    ) -> None:
+        """A base-currency dividend must not be reported in the price currency.
+
+        Taking Price Currency as the transaction currency filed a GBP 100
+        dividend as USD 100, moved a USD balance the account never held and
+        converted the proceeds down to about GBP 73.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header_with_foreign_currency
+            + "Transaction History,Data,2025-01-01,U***00000,"
+            "Electronic Fund Transfer,Deposit,-,-,-,-,1000.0,-,1000.0,-\n"
+            + "Transaction History,Data,2025-10-02,U***00000,"
+            "VT(US9220427424) Cash Dividend,Dividend,VT,-,-,USD,100.0,-,100.0,-\n"
+        )
+
+        cmd = build_cmd(
+            "--year",
+            "2025",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--output",
+            str(tmp_path / "out"),
+        )
+        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+        if result.returncode:
+            pytest.fail(
+                "Integration test failed\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+        assert stderr_alerts(result.stderr) == []
+        assert "(USD)" not in result.stdout
+        assert "Final balance\n  Interactive Brokers: 1100.00 (GBP)" in result.stdout
+        assert "VT: 100.00 (GBP)" in result.stdout
+        assert re.search(r"Proceeds:\s+£100\.00", result.stdout)
+
+    def test_foreign_price_without_an_exchange_rate_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """A price nothing can convert cannot be checked against the amount.
+
+        The amount columns are in GBP, so a EUR price with no Exchange Rate
+        would fail the quantity x price + fees check anyway. Say why instead
+        of guessing a rate or dropping the price.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header_with_foreign_currency
+            + "Transaction History,Data,2023-02-10,U***9143,"
+            "ISHARES MSCI WORLD EUR-H,Buy,IWDE,217,67.71,EUR,"
+            "-13009.5380394,-6.5047690197,-13016.0428084197,-\n"
+        )
+
+        with pytest.raises(ParsingError) as excinfo:
+            InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert "Price is in EUR" in str(excinfo.value)
+        assert "Exchange Rate" in str(excinfo.value)
+
+    def test_foreign_price_without_an_exchange_rate_column_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Price Currency and Exchange Rate are independent optional columns.
+
+        A header can carry the first and not the second. Reading the missing
+        column as a 1:1 rate would pass a EUR price off as a GBP one, so such
+        a row is refused just like one whose Exchange Rate is empty.
+        """
+        header = self.base_header_with_foreign_currency.replace(
+            ",Exchange Rate\n", "\n"
+        )
+        assert "Exchange Rate" not in header
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            header + "Transaction History,Data,2023-02-10,U***9143,"
+            "ISHARES MSCI WORLD EUR-H,Buy,IWDE,217,67.71,EUR,"
+            "-13009.5380394,-6.5047690197,-13016.0428084197\n"
+        )
+
+        with pytest.raises(ParsingError) as excinfo:
+            InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert "Price is in EUR" in str(excinfo.value)
+        assert "Exchange Rate" in str(excinfo.value)
+
+    def test_foreign_priced_fee_without_an_exchange_rate_is_not_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Only a Buy or Sell reads the price back to check it against the amount.
+
+        add_management_fee never reads a fee row's price, so a Price Currency
+        with no Exchange Rate to convert it is left as is rather than refusing
+        a row the calculation does not check it on.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header_with_foreign_currency
+            + "Transaction History,Data,2025-10-03,U***00000,"
+            "CNX1 ADR Fee,Other Fee,CNX1,-,1.5,USD,-1.5,-,-1.5,-\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert len(transactions) == 1
+        assert transactions[0].action == ActionType.FEE
+        assert transactions[0].currency == CurrencyCode("GBP")
+        assert transactions[0].amount == Decimal("-1.5")
+        assert transactions[0].price == Decimal("1.5")
 
     def test_forex_trade_component_leaves_no_fee_in_the_report(
         self, tmp_path: Path
