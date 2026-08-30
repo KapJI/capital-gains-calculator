@@ -3825,7 +3825,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         )
     done_msg = (
         "Done! Calculations complete (PDF generation skipped)."
-        if args.no_pdflatex
+        if args.no_pdflatex or args.no_report
         else "Done! Report generated successfully."
     )
     LOGGER.info(style_text(done_msg, colour=Fore.GREEN, emoji="🎉", stream=sys.stderr))

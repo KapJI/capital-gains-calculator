@@ -197,6 +197,11 @@ Environment variables:
         action="store_true",
         help="do not generate PDF report",
     )
+    output_group.add_argument(
+        "--no-pdflatex",
+        action="store_true",
+        help="save LaTeX source instead of generating a PDF",
+    )
 
     # General Options
     general_group = parser.add_argument_group("General")
@@ -225,12 +230,6 @@ Environment variables:
         "--verbose",
         action="store_true",
         help="enable extra logging",
-    )
-    # For testing only
-    general_group.add_argument(
-        "--no-pdflatex",
-        action="store_true",
-        help=argparse.SUPPRESS,
     )
     return parser
 
