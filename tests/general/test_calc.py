@@ -1151,7 +1151,7 @@ def test_disposal_debug_log_keeps_fractional_quantity(
         ),
     ]
 
-    with caplog.at_level(logging.DEBUG, logger="cgt_calc.main"):
+    with caplog.at_level(logging.DEBUG, logger="cgt_calc.matching"):
         get_report(create_calculator(tax_year=2024, balance_check=False), transactions)
 
     disposal_logs = [
