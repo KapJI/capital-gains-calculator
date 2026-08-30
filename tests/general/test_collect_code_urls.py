@@ -21,6 +21,23 @@ def test_url_split_across_string_literals_is_recovered(tmp_path: Path) -> None:
     }
 
 
+def test_docstring_url_reports_its_own_line(tmp_path: Path) -> None:
+    """A string node reports where it opens, which is not where the URL is."""
+    (tmp_path / "doc.py").write_text(
+        '"""Summary.\n'
+        "\n"
+        "Prose that runs on for long enough to matter.\n"
+        "\n"
+        "See https://cgt-calc.uk/usage/#check-the-result for the checklist.\n"
+        '"""\n',
+        encoding="utf-8",
+    )
+
+    assert collect_urls(tmp_path) == {
+        "https://cgt-calc.uk/usage/#check-the-result": f"{tmp_path / 'doc.py'}:5"
+    }
+
+
 def test_url_in_a_comment_is_collected(tmp_path: Path) -> None:
     """Comments are dropped by ast, so they are read from the token stream."""
     (tmp_path / "note.py").write_text(
