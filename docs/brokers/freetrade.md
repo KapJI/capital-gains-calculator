@@ -93,7 +93,9 @@ promise to import its corporate-action rows directly.
     a financial transaction merely to make the calculation run.
 - Current exports add `Stock Split ...` columns, but `STOCK_SPLIT` rows are not yet mapped. The
     columns are accepted so ordinary rows can still be imported; an actual split row stops with
-    `Unknown type`.
+    `Unknown type`. Remove it in a working copy only together with a RAW
+    [`STOCK_SPLIT` row](raw.md#share-reorganisations) stating the change to your whole pooled
+    holding.
 - The importer supports a GBP account currency only. Changing the currency text in the CSV would not
     convert its amounts.
 - The export has no asset-class column, and the importer does not use one. Every `ORDER` is

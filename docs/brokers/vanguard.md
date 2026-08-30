@@ -155,7 +155,9 @@ taxed as interest rather than dividends; see
 - Account fees and ETF dealing fees are not assigned to a purchase or disposal as allowable costs.
 - Corporate actions other than the supported `NameChange` pair are not mapped. A split, merger,
     conversion, transfer of investments or other unfamiliar row can stop the import or be absent
-    from the cash table.
+    from the cash table. A split or consolidation can be recorded as a RAW
+    [`STOCK_SPLIT` row](raw.md#share-reorganisations) stating the change to your whole pooled
+    holding; remove the unmapped row, if the export has one, in a working copy only alongside it.
 - `NameChange` supports uppercase ticker-style codes, with an optional dot suffix, rather than fund
     names. A row such as `NameChange: U.S. Equity Index Fund replaced with ...` stops with
     `Unknown action`.

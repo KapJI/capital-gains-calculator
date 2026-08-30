@@ -209,6 +209,7 @@ txn
 ty
 UCITS
 un
+unmapped
 unprovable
 UnresolvedRatio
 unvalidated

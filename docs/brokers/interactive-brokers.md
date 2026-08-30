@@ -81,7 +81,10 @@ treaty applies.
     `Unknown type`; do not delete the row merely to make the calculation run.
 - Cash `Deposit` and `Withdrawal` rows are supported, but transfers of shares or funds between
     accounts are not. Corporate actions such as splits, mergers and spin-offs are not mapped from an
-    IBKR export either.
+    IBKR export either; record a split or consolidation as a RAW
+    [`STOCK_SPLIT` row](raw.md#share-reorganisations) stating the change to your whole pooled
+    holding. If the export contains the corporate-action row, it stops the import, so remove it from
+    a working copy only when adding the RAW replacement.
 - The importer does not read an asset-class field. It has been validated for ordinary share and fund
     trades; do not rely on it to calculate options, futures, bonds, contracts for difference or
     crypto assets.

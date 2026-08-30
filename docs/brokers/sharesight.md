@@ -94,8 +94,10 @@ these markers.
     Sharesight uses them when the original buy and sell records are unavailable, but cgt-calc needs
     the original acquisition dates and costs for UK share matching.
 - `Split`, `Consolidation` and `Bonus` rows are not supported. They stop the import with an unknown
-    action error. Do not delete such a row to make the calculation run: later quantities and gains
-    could be wrong.
+    action error. Do not delete such a row on its own to make the calculation run: later quantities
+    and gains would be wrong. For a split or consolidation, remove the row in a working copy only
+    together with a RAW [`STOCK_SPLIT` row](raw.md#share-reorganisations) stating the change to your
+    whole pooled holding.
 - Cash deposits, withdrawals and balances are not imported, which is why `--no-balance-check` is
     required.
 - Taxable Income sections other than local and foreign dividend payments are not imported.
