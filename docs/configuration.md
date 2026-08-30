@@ -5,9 +5,13 @@ The following configuration files and options allow you to customize the calcula
 ## Automatic data fetching
 
 - **Exchange rates.** Monthly GBP exchange rates are automatically downloaded from the
-    [UK Trade Tariff API](https://www.trade-tariff.service.gov.uk/exchange_rates) and saved to
-    `out/exchange_rates.csv`. You can override these by providing your own file in the same format
-    using the `--exchange-rates-file` option.
+    [UK Trade Tariff API](https://www.trade-tariff.service.gov.uk/exchange_rates) for 2021 onwards
+    and [HMRC's legacy service](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html) for
+    earlier periods, then saved to `out/exchange_rates.csv`. You can select another file in the same
+    format with `--exchange-rates-file`. Keep the completed file with the report to preserve the
+    exchange rates used. cgt-calc may add missing months to the selected file, so retain the version
+    used for the final report. This does not preserve other fetched data such as Yahoo Finance
+    prices.
 
 - **ISIN to ticker translation.** When an ERI row identifies a fund only by its ISIN, cgt-calc maps
     it to ticker symbols. It uses existing mappings first and queries the

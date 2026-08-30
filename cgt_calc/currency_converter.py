@@ -201,7 +201,7 @@ class CurrencyConverter:
         if date.year < NEW_ENDPOINT_FROM_YEAR:
             month_str = date.strftime("%m%y")
             url = (
-                "http://www.hmrc.gov.uk/softwaredevelopers/rates/"
+                "https://www.hmrc.gov.uk/softwaredevelopers/rates/"
                 f"exrates-monthly-{month_str}.xml"
             )
         else:

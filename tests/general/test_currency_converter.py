@@ -361,10 +361,10 @@ def test_write_exchange_rates_file(tmp_path: Path) -> None:
     )
 
 
-def test_query_hmrc_api_old_endpoint_error_names_rates_file(
+def test_query_hmrc_api_old_endpoint_error_includes_https_url_and_rates_file(
     tmp_path: Path,
 ) -> None:
-    """Use the old endpoint before 2021 and mention the rates file on errors."""
+    """Use HTTPS before 2021 and mention the rates file on errors."""
     rates_file = tmp_path / "rates.csv"
     rates_file.write_text("month,currency,rate\n", encoding="utf8")
     converter = CurrencyConverter(exchange_rates_file=rates_file)
@@ -378,7 +378,9 @@ def test_query_hmrc_api_old_endpoint_error_names_rates_file(
     with pytest.raises(ExternalApiError, match=r"rates\.csv") as excinfo:
         converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2019, 5, 1))
 
-    assert "exrates-monthly-0519" in str(excinfo.value)
+    message = str(excinfo.value)
+    assert "https://www.hmrc.gov.uk/" in message
+    assert "exrates-monthly-0519" in message
 
 
 def test_query_hmrc_api_http_error_includes_snippet() -> None:
