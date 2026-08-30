@@ -139,7 +139,7 @@ pdf
 pdflatex
 PermissionError
 pipx
-Plc
+plc
 PLC0415
 png
 Podman
