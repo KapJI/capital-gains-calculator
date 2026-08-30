@@ -3,8 +3,8 @@
 ## Prerequisites
 
 - **Python 3.12** or newer (tested on 3.12, 3.13, and 3.14)
-- **pdflatex** must be available in your `PATH` to generate PDF reports (with `--no-pdflatex` the
-    LaTeX source is saved instead)
+- **LaTeX** if you want a PDF report. Install `pdflatex` using the instructions below. You can run
+    cgt-calc without it by using `--no-report`.
 
 ## Install cgt-calc
 
@@ -50,7 +50,18 @@ apt install texlive-latex-base
 
 [Install MiKTeX.](https://miktex.org/download)
 
-## Shell completions
+## Check the installation
+
+Run:
+
+```shell
+cgt-calc --version
+```
+
+If you use `uvx` instead of installing cgt-calc, run `uvx cgt-calc --version`. Once the command
+prints a version, choose your [broker](brokers/index.md) and follow the [report guide](usage.md).
+
+## Shell completions (optional)
 
 `cgt-calc` can generate a tab completion script for `bash`, `zsh`, `fish`, `tcsh` and PowerShell.
 Save it where your shell looks for completions, e.g.:

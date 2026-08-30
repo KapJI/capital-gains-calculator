@@ -1,23 +1,35 @@
 # UK Capital Gains Calculator
 
-Calculate your **UK capital gains** from your investment transaction history and generate a detailed
-calculation report. cgt-calc is intended for UK individual investors working from supported broker
-exports.
+Use cgt-calc to calculate **UK capital gains** from your investment transaction history and generate
+a detailed report from a supported broker export.
 
 Supported sources include **Charles Schwab**, **Freetrade**, **Hargreaves Lansdown**, **Interactive
 Brokers**, **Morgan Stanley**, **Sharesight**, **Trading 212**, **Vanguard**, or a custom **RAW**
-format.
+format. Check your broker's guide before starting, especially for employer shares, because not every
+award export or transaction type is supported.
+
+## Where to start
+
+- [Installation](installation.md) — install cgt-calc and check that it runs
+- [Brokers](brokers/index.md) — find the export instructions for your broker
+- [Usage](usage.md) — generate and check your report
+- [Offshore funds (ERI)](offshore-funds.md) — if you hold non-UK funds
+
+## What cgt-calc calculates
 
 For supported transactions, the tool converts prices to **GBP** and applies the UK **same-day**,
-**30-day ("bed and breakfast")**, and **Section 104 holding** rules. It prints a summary of disposal
-proceeds, allowable costs, gains, losses, dividends, and interest to the terminal and writes the
-full calculations to a **PDF report**.
+**30-day ("bed and breakfast")**, and **Section 104 holding** rules. These match a sale with shares
+bought or received on the same day, shares bought or received within the following 30 days, then
+older shares. It shows **Disposal proceeds** (the sale price or value used when no sale took place),
+**Allowable costs** (costs included in the gain or loss calculation), gains, losses, dividends, and
+interest in the terminal and writes the full calculation to a **PDF report**.
 
 cgt-calc reports the net gain from the transactions you supply and, for supported tax years,
-estimates the amount remaining after the annual exempt amount. It does **not** account for gains or
-losses outside those inputs, apply tax rates, work out your final tax bill, or submit a tax return.
-Some investment scenarios are not supported; check the relevant [broker guide](brokers/index.md) and
-the [offshore funds limitations](offshore-funds.md#unsupported-functionality) before relying on the
+estimates the amount left after the annual tax-free allowance for capital gains (the **annual exempt
+amount**). It does **not** include gains or losses outside those inputs, apply tax rates, work out
+your final tax bill, or submit a tax return. Some investment scenarios are not supported; check the
+relevant [broker guide](brokers/index.md) and the
+[offshore funds limitations](offshore-funds.md#unsupported-functionality) before relying on the
 result.
 
 The PDF report includes separate **Capital Gains** and **Interest and Dividends** sections, with a
@@ -26,8 +38,8 @@ brokers that pay daily interest.
 
 ## Example report
 
-This compact 2025/26 example shows foreign-currency transactions, same-day and 30-day matching,
-Section 104 pooling, gains and losses, a dividend with overseas tax, and cash interest:
+This compact 2025/26 example shows foreign-currency transactions, how sales are matched with shares
+acquired at different times, gains and losses, a dividend with overseas tax, and cash interest:
 
 <div class="report-preview">
   <img src="assets/example_report_page1.webp" alt="Example report, page 1" loading="lazy">
@@ -36,11 +48,3 @@ Section 104 pooling, gains and losses, a dividend with overseas tax, and cash in
 </div>
 
 [View full example report (PDF)](assets/example_report.pdf)
-
-## Where to start
-
-- [Installation](installation.md) — install the tool and LaTeX
-- [Usage](usage.md) — generate and review a report
-- [Brokers](brokers/index.md) — export instructions for each supported broker
-- [Offshore funds (ERI)](offshore-funds.md) — if you hold non-UK funds
-- [Development](development/index.md) — contribute to the project
