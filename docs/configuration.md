@@ -51,8 +51,8 @@ A spin-off row may name the new holding without naming the old holding it came f
 that link to divide the existing pooled cost between them. During an interactive run, it asks for
 the old ticker and saves the answer to `out/spin_offs.csv`.
 
-If the run cannot ask, it stops and tells you which `dst,src` row to add. Use `--spin-offs-file`
-only to select another file for these mappings.
+If the run cannot ask, it stops and tells you which `dst,src` row to add. Use `--spin-offs-file` to
+select another file for these mappings.
 
 ### Bond-fund income
 
