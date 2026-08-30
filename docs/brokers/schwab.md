@@ -176,7 +176,7 @@ Two situations are refused rather than guessed:
 For a `Spin-off`, cgt-calc needs to know the old holding from which the new shares came. It asks for
 the old ticker during an interactive run and saves the answer in `out/spin_offs.csv`. For a
 non-interactive run, add the required `dst,src` row first or choose another cache with
-[`--spin-offs-file`](../configuration.md#manual-configuration-files). It then uses the two holdings'
+[`--spin-offs-file`](../configuration.md#spin-off-source-mappings). It then uses the two holdings'
 market values to divide the existing pooled cost. Check this result against the company's
 reorganisation documents.
 

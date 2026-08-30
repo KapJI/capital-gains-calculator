@@ -16,10 +16,10 @@ cgt-calc downloads monthly GBP exchange rates from the
 [HMRC's legacy service](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html) for earlier
 periods. It saves them to `out/exchange_rates.csv`.
 
-Use `--exchange-rates-file` only to select another file in the same format. Keep the completed file
-with the report to preserve the exchange rates used. cgt-calc may add missing months to the selected
-file, so retain the version used for the final report. This does not preserve other fetched data,
-such as Yahoo Finance prices.
+Use `--exchange-rates-file` to select another file in the same format. An empty value disables the
+cache. Keep the completed file with the report to preserve the exchange rates used. cgt-calc may add
+missing months to the selected file, so retain the version used for the final report. This does not
+preserve other fetched data, such as Yahoo Finance prices.
 
 ### ISIN to ticker translation
 
@@ -34,9 +34,7 @@ broker transactions. It starts with the bundled
 If you edit the cache, a row for an existing ISIN replaces its bundled symbols. Put every verified
 ticker for that ISIN on the same row.
 
-## Manual configuration files
-
-These are not part of the normal setup. Add one only in the situation described.
+## When extra information is needed
 
 ### Missing stock-plan prices
 
@@ -61,7 +59,8 @@ only to select another file for these mappings.
 Some offshore bond funds have income that must be reported as interest rather than dividends. After
 checking the fund's classification, pass its ticker to `--interest-fund-tickers`. Use a
 comma-separated list for several tickers. This setting applies to both cash distributions and ERI;
-see the [offshore-fund checklist](offshore-funds.md#what-to-check).
+see the [offshore-fund checklist](offshore-funds.md#what-to-check). It reports the income as foreign
+interest, so do not use it for a UK fund.
 
 ### CGT-exempt instruments (advanced)
 
