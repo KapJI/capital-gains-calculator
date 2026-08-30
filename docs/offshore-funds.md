@@ -19,10 +19,10 @@ accumulating and distributing share classes.
 3. Check that cgt-calc has the ERI per unit for every relevant reporting period. Start with the
     bundled data below. If anything is missing, use the fund's report and the
     [custom ERI guide](custom-eri-data.md).
-4. Check how the income should be reported. cgt-calc treats ERI as dividend income by default. For a
-    bond fund, pass its ticker to `--interest-fund-tickers` to report the ERI as interest. cgt-calc
-    cannot handle property, miscellaneous or mixed fund income; calculate that income outside the
-    tool and do not use its income totals. See HMRC's
+4. Check how the income should be reported. cgt-calc treats ERI and cash distributions as dividend
+    income by default. For a bond fund, pass its ticker to `--interest-fund-tickers` to report both
+    as interest. cgt-calc cannot handle property, miscellaneous or mixed fund income; calculate that
+    income outside the tool and do not use its income totals. See HMRC's
     [income classification](https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds).
 
 ## Bundled data

@@ -38,10 +38,8 @@ which report values belong in each ERI_RAW column.
 Vanguard UK publishes annual Reportable Income reports at the bottom of this page:
 <https://www.vanguardinvestor.co.uk/investing-explained/general-account-tax-information>
 
-Choose the fund company shown in your fund documents: Vanguard Investment Series PLC or Vanguard
-Funds PLC.
-
-cgt-calc already includes Vanguard Funds PLC ERI data from 2018 to 2025.
+Use Vanguard Investment Series Plc reports for traditional funds and Vanguard Funds Plc reports for
+ETFs. Check the fund company in your fund documents if you are unsure.
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** End date in the Reporting Period column
@@ -69,7 +67,8 @@ company. Choose the group named in your fund documents.
 DWS UK publishes annual Reportable Income reports here:
 <https://etf.dws.com/en-gb/information/etf-documents/reportings/>
 
-Choose the report for Xtrackers, Xtrackers II or Xtrackers IE that covers your reporting period.
+Choose the report for the fund company named in your fund documents: Xtrackers, Xtrackers II or
+Xtrackers IE.
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** Period Ended date at the top of the PDF
@@ -92,8 +91,6 @@ Amundi UK publishes annual Reportable Income reports here:
 Invesco publishes annual Reportable Income reports in the documents section of each fund with UK
 reporting status:
 <https://www.invesco.com/uk/en/financial-products/etfs/invesco-uk-gilts-ucits-etf-acc.html#Documents>
-
-cgt-calc already includes Invesco Funds ERI data from 2018 to 2024.
 
 - **ISIN:** ISIN / Identifier column
 - **Fund Reporting Period End Date:** Stated in the report header before the main table
