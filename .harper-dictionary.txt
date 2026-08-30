@@ -45,6 +45,7 @@ CG57835
 CG59562
 cgt
 classmethod
+cli
 cls
 CMF5
 codepage
@@ -134,6 +135,7 @@ pdflatex
 PermissionError
 pipx
 Plc
+PLC0415
 png
 Podman
 prek
