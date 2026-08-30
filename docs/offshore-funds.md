@@ -1,39 +1,43 @@
 # Offshore Funds (ERI)
 
-Not every non-UK fund is an offshore fund for UK tax purposes. Use HMRC's
+Use this page if you hold a fund based outside the UK. Not every non-UK fund is an offshore fund for
+UK tax purposes, so check HMRC's
 [offshore funds guidance](https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds)
-to confirm whether the rules apply.
+first.
 
-For each offshore fund, check whether the exact share class had reporting fund status for the
-periods you held it. Match the ISIN against HMRC's
-[list of approved offshore reporting funds](https://www.gov.uk/government/publications/approved-offshore-reporting-funds),
-not the fund name alone. Ask the fund manager if its status is unclear.
+For a reporting fund, excess reported income (ERI) is the income per unit above the amount paid to
+investors. It can be taxable even though you did not receive it in cash. It can apply to both
+accumulating and distributing share classes.
 
-For a reporting fund, cgt-calc needs the excess reported income (ERI) per unit for each relevant
-reporting period. This can apply to both accumulating and distributing share classes.
+## What to check
 
-cgt-calc reports ERI as dividend income by default. Check HMRC's
-[income classification](https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds).
-If the holding is in a bond fund, pass its ticker to `--interest-fund-tickers` so cgt-calc reports
-the ERI as interest. cgt-calc can classify ERI only as dividends or interest. If HMRC treats the
-fund's income as property, miscellaneous or a mixture of income types, calculate the income outside
-cgt-calc and do not use its income totals.
+1. Find the exact share class and ISIN in your statement or the fund documents.
+2. Confirm that share class had reporting fund status for every period you held it. Match the ISIN
+    against HMRC's
+    [list of approved offshore reporting funds](https://www.gov.uk/government/publications/approved-offshore-reporting-funds),
+    not the fund name alone. Ask the fund manager if its status is unclear.
+3. Check that cgt-calc has the ERI per unit for every relevant reporting period. Start with the
+    bundled data below. If anything is missing, use the fund's report and the
+    [custom ERI guide](custom-eri-data.md).
+4. Check how the income should be reported. cgt-calc treats ERI as dividend income by default. For a
+    bond fund, pass its ticker to `--interest-fund-tickers` to report the ERI as interest. cgt-calc
+    cannot handle property, miscellaneous or mixed fund income; calculate that income outside the
+    tool and do not use its income totals. See HMRC's
+    [income classification](https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds).
 
 ## Bundled data
 
 cgt-calc currently bundles:
 
 - [Vanguard Funds Plc 2018-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
-- [Blackrock Funds 2019-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
+- [BlackRock Funds 2019-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
 - [iShares Funds 2018-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv)
 - [Invesco Funds 2018-2024](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/invesco_eri.csv)
 - [Xtrackers Funds 2024](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/xtrackers_eri.csv)
 
-Check that the bundled file contains the exact ISIN and every reporting period you need. cgt-calc
-does not know when a reporting fund should have an ERI row. If a row is missing, check the fund's
-report and use the [custom ERI guide](custom-eri-data.md) to add it. If supplied ERI cannot be
-matched to the holding, check the ISIN-to-ticker mapping below. Do not assume either case means zero
-ERI.
+Open the relevant file and check that it contains the exact ISIN and every reporting period you
+need. cgt-calc cannot detect a missing ERI row. If supplied ERI cannot be matched to the holding,
+check the ISIN-to-ticker mapping below. Do not assume that missing or unmatched data means zero ERI.
 
 Bundled ERI data is indexed by ISIN. If your broker does not supply one, cgt-calc uses its
 ISIN-to-ticker mapping to match the holding. To check or override the mapping, see **ISIN to ticker
@@ -57,9 +61,3 @@ cgt-calc does not support:
     [income guidance](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm13328) and
     [CGT guidance](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm13372) to make both
     adjustments outside the tool.
-
-## Providing custom ERI data
-
-If the bundled data does not contain the share class and reporting periods you need, compile a
-custom ERI history file. See [Providing custom ERI data](custom-eri-data.md) for the ERI_RAW format
-and where each provider publishes its reports.

@@ -1,34 +1,47 @@
 # Providing Custom ERI Data
 
-This is only needed when the fund data you're looking for is not pre-bundled with the tool. Check
-the [bundled data](offshore-funds.md#bundled-data) first.
+Use a custom file only when the [bundled data](offshore-funds.md#bundled-data) does not cover the
+exact ISIN and every reporting period you need.
 
 ## ERI_RAW format
 
-- **CSV using the ERI_RAW format.** This is currently the only format supported for excess reported
-    income.
-    [See example.](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
+Create a CSV with this exact header and one row for each share class and reporting period:
 
-Example usage for the tax year 2024/25:
+```csv
+ISIN,Fund Reporting Period End Date,Currency,Excess of reporting income over distribution
+IE00B42WWV65,30/06/2024,GBP,0.0066
+```
+
+The row is only an example of the format. Replace it with values from the fund's report:
+
+- **ISIN:** the ISIN for the exact share class
+- **Fund Reporting Period End Date:** the period end date in `DD/MM/YYYY` format
+- **Currency:** the three-letter currency code shown in the report
+- **Excess of reporting income over distribution:** the ERI amount per unit, without multiplying it
+    by the number of units you held
+
+Keep the four column names unchanged and do not add other columns.
+
+Add `--eri-raw-file` to your normal cgt-calc command. For example, with a Schwab transaction file:
 
 ```shell
-cgt-calc --year 2024 --eri-raw-file eri_raw.csv [broker_transactions_options...]
+cgt-calc --year 2024 --schwab-file schwab_transactions.csv --eri-raw-file eri_raw.csv
 ```
 
 ## Where providers publish reports
 
-Each provider publishes an annual Reportable Income report. The tables below map each provider's
-columns to the ERI_RAW format so you can compile your own file.
+Download the report for the exact share class and reporting period you need. The lists below show
+which report values belong in each ERI_RAW column.
 
 ### Vanguard
 
-Vanguard UK publishes the Reportable Income yearly report at the bottom of this page:
+Vanguard UK publishes annual Reportable Income reports at the bottom of this page:
 <https://www.vanguardinvestor.co.uk/investing-explained/general-account-tax-information>
 
-Vanguard Investment Series Plc reports are for traditional funds, Vanguard Funds Plc reports are for
-ETFs.
+Choose the fund company shown in your fund documents: Vanguard Investment Series PLC or Vanguard
+Funds PLC.
 
-Note this tool **already includes** Vanguard Funds ERI data from 2018 to 2025.
+cgt-calc already includes Vanguard Funds PLC ERI data from 2018 to 2025.
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** End date in the Reporting Period column
@@ -37,15 +50,14 @@ Note this tool **already includes** Vanguard Funds ERI data from 2018 to 2025.
 
 ### iShares / BlackRock
 
-Blackrock UK publishes the Reportable Income yearly report at the bottom of this page:
+BlackRock UK publishes annual Reportable Income reports here:
 <https://www.blackrock.com/uk/solutions/adviser-resources/reporting-fund-status>
 
-They are split in Index Funds (BGIF), Global Funds (BGF), Strategic Funds (BSF)
-
-iShares UK publishes the Reportable Income yearly reports at this link:
+iShares UK publishes annual Reportable Income reports here:
 <https://www.ishares.com/uk/individual/en/education/library?materialType=tax+information>
 
-They are split in different companies holding the funds each reporting yearly.
+BlackRock groups its reports by fund range, such as BGIF, BGF and BSF. iShares groups them by fund
+company. Choose the group named in your fund documents.
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** End date in the Reporting Period column
@@ -54,12 +66,10 @@ They are split in different companies holding the funds each reporting yearly.
 
 ### Xtrackers
 
-DWS UK publishes the Reportable Income yearly report at the bottom of this page:
+DWS UK publishes annual Reportable Income reports here:
 <https://etf.dws.com/en-gb/information/etf-documents/reportings/>
 
-They are split XTrackers (stocks ETF), XTrackers II (bonds ETF) and XTrackers IE (other stocks ETF).
-
-Columns mapping to ERI_RAW:
+Choose the report for Xtrackers, Xtrackers II or Xtrackers IE that covers your reporting period.
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** Period Ended date at the top of the PDF
@@ -68,10 +78,8 @@ Columns mapping to ERI_RAW:
 
 ### Amundi
 
-Amundi UK publishes the Reportable Income yearly report at the bottom of this page:
+Amundi UK publishes annual Reportable Income reports here:
 <https://www.amundietf.co.uk/en/individual/resources/document-library?documentType=uktaxcalculation>
-
-Columns mapping to ERI_RAW:
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** Reporting Period End Date column
@@ -81,13 +89,11 @@ Columns mapping to ERI_RAW:
 
 ### Invesco
 
-Invesco publishes the Reportable Income yearly report in the documents section of any fund with UK
+Invesco publishes annual Reportable Income reports in the documents section of each fund with UK
 reporting status:
 <https://www.invesco.com/uk/en/financial-products/etfs/invesco-uk-gilts-ucits-etf-acc.html#Documents>
 
-Note this tool **already includes** Invesco Funds ERI data from 2018 to 2024.
-
-Columns mapping to ERI_RAW:
+cgt-calc already includes Invesco Funds ERI data from 2018 to 2024.
 
 - **ISIN:** ISIN / Identifier column
 - **Fund Reporting Period End Date:** Stated in the report header before the main table
