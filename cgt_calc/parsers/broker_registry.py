@@ -206,7 +206,7 @@ class BrokerRegistry:
                 "to the --isin-translation-file cache%s. Give each ISIN a single "
                 "row listing every symbol it is known by: a row that leaves one "
                 "out replaces the existing mapping and can stop a later run. "
-                "See https://cgt-calc.uk/configuration/",
+                "See https://cgt-calc.uk/configuration/#isin-to-ticker-translation",
                 _as_csv_fields(unmapped_vanguard_symbols),
                 location,
             )

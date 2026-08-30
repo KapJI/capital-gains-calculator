@@ -31,7 +31,7 @@ nav = [
     ] },
     { "Offshore funds (ERI)" = "offshore-funds.md" },
     { "Custom ERI data" = "custom-eri-data.md" },
-    { "Configuration files" = "configuration.md" },
+    { "Extra data and options" = "configuration.md" },
   ] },
   { "Privacy & disclaimer" = "privacy.md" },
   { "Development" = [

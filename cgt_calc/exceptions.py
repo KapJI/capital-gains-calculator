@@ -321,6 +321,6 @@ class MarketDataMissingError(CgtError):
         """Initialise."""
         super().__init__(
             f"No market data found for {symbol} around {date}. The ticker may "
-            "have been renamed or delisted; consider providing the price via "
-            "--initial-prices-file."
+            "have been renamed or delisted; check the ticker or work out the "
+            "spin-off outside cgt-calc."
         )

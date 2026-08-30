@@ -40,8 +40,8 @@ need. cgt-calc cannot detect a missing ERI row. If supplied ERI cannot be matche
 check the ISIN-to-ticker mapping below. Do not assume that missing or unmatched data means zero ERI.
 
 Bundled ERI data is indexed by ISIN. If your broker does not supply one, cgt-calc uses its
-ISIN-to-ticker mapping to match the holding. To check or override the mapping, see **ISIN to ticker
-translation** on the [Configuration files](configuration.md) page.
+ISIN-to-ticker mapping to match the holding. To check or override the mapping, see
+[ISIN to ticker translation](configuration.md#isin-to-ticker-translation).
 
 ## Unsupported functionality
 
