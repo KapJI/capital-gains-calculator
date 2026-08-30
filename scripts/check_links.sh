@@ -13,6 +13,9 @@
 # is checked before the site is deployed. lychee requires an absolute file://
 # target for a remap, hence the interpolation of the repository root below.
 #
+# The offline pass also covers the documentation URLs printed by cgt_calc
+# itself, which the Markdown inputs never reach. See scripts/collect_code_urls.py.
+#
 # Usage: scripts/check_links.sh [offline|external]
 
 set -uo pipefail
@@ -58,8 +61,23 @@ run_pass() {
 }
 
 check_offline() {
-    run_pass "Local files and heading anchors" \
-        --offline --include-fragments=anchor-only './**/*.md'
+    local dir urls
+    # A directory keeps the .md suffix, which mktemp -t cannot set portably.
+    dir="$(mktemp -d)" || {
+        status=1
+        return
+    }
+    urls="$dir/code-urls.md"
+
+    if uv run --no-project python scripts/collect_code_urls.py >"$urls"; then
+        run_pass "Local files and heading anchors" \
+            --offline --include-fragments=anchor-only './**/*.md' "$urls"
+    else
+        echo "Failed to collect documentation URLs from cgt_calc" >&2
+        status=1
+    fi
+
+    rm -rf "$dir"
 }
 
 check_external() {
