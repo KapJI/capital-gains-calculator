@@ -17,7 +17,7 @@
 # "a backup tag" is a compound noun; Harper reads it as the verb "back up".
 ^version\.py:.*PhrasalVerbAsCompoundNoun
 # "A fee on the row is real money" is complete; MissingPreposition misfires.
-^main\.py:.*MissingPreposition
+^ingestion\.py:.*MissingPreposition
 # "CR CR LF" spells out the doubled carriage return; the repeat is the point.
 ^util\.py:.*RepeatedWords
 # "a header that does not match" is a relative clause, not a comparison.
@@ -26,7 +26,7 @@
 # quantifier "a lot of".
 ^schwab_equity_award_json\.py:.*QuantifierNeedsOf
 # "every source row and its ordering" is possessive, not a contraction.
-^main\.py:.*ItsContraction
+^ingestion\.py:.*ItsContraction
 # "the rows that preceded it are already in the units it leaves behind"
 # already agrees; PronounInflectionBe reads the wrong subject.
 ^main\.py:.*PronounInflectionBe

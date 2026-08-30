@@ -281,7 +281,7 @@ def test_transfer_to_spouse_warns_about_the_ignored_price(
     buy_day = datetime.date(2024, 6, 1)
     transfer_day = datetime.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    with caplog.at_level(logging.WARNING, logger="cgt_calc.main"):
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.ingestion"):
         report = get_report(
             calculator,
             [
