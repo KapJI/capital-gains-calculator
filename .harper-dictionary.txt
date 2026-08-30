@@ -6,6 +6,7 @@ AMZN
 arg
 ARG003
 ARG004
+another's
 argparse
 argparse's
 args
@@ -55,6 +56,7 @@ colorama
 colorama's
 ConsoleUI
 CRLF
+combinatorially
 csv
 CSVs
 CurrencyConverter
@@ -62,6 +64,7 @@ currentPrice
 cusip
 dataclass
 dest
+dataclasses
 DictReader
 DictReader's
 dprint
@@ -85,6 +88,7 @@ GIA
 GOOG
 GOOGL
 GSU
+hashable
 HL
 Hmrc
 I/O
@@ -150,6 +154,7 @@ rata
 regularMarketPrice
 reportable
 repr
+rescanning
 restkey
 restval
 RKT

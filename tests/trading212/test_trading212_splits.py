@@ -1793,3 +1793,160 @@ def test_a_chain_of_near_misses_does_not_grow_one_candidate_group(
     # The third row is outside the window from the first, so it is a
     # candidate for some other event, not for this one.
     assert "07:01:58" not in message
+
+
+# ===== overlapping exports may not synthesize an event =====
+
+
+def _trade_between_halves(
+    header: list[str], *, time: str = "2026-02-02 07:44:13.500"
+) -> list[str]:
+    """Return a buy of the reorganised holding, stamped at `time`."""
+    return _make_row(
+        header,
+        {
+            Trading212Column.ACTION: "Market buy",
+            Trading212Column.TIME: time,
+            Trading212Column.TICKER: "FOO",
+            Trading212Column.NAME: "Foo Company",
+            Trading212Column.ISIN: "US0000000002",
+            Trading212Column.NO_OF_SHARES: "1.0000000000",
+            Trading212Column.PRICE_PER_SHARE: "90.00",
+            Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+            Trading212Column.TOTAL: "-90.00",
+            Trading212Column.CURRENCY_TOTAL: "GBP",
+            Trading212Column.TRANSACTION_ID: "mid",
+        },
+    )
+
+
+def test_halves_from_two_exports_do_not_form_one_event(tmp_path: Path) -> None:
+    """Two exports stamping the event differently must not be combined.
+
+    Each half is deduplicated in its own group, so nothing stops a close
+    from one export pairing with an open from another. The pair that
+    results is one no export reported, and the checks that guard a
+    reorganisation are read off its instants: a trade the first export
+    places between its halves falls outside the synthesized pair and
+    stops being refused.
+
+    Refusing the ambiguity is the safe answer. Merging is for rows that
+    state the same event, and these do not.
+    """
+    header = HEADER_2026
+    early = [
+        split_row(header, SPLIT_CLOSE_ACTION, time="2026-02-02 07:44:13.010"),
+        split_row(
+            header,
+            SPLIT_OPEN_ACTION,
+            time="2026-02-02 07:44:13.020",
+            shares=CONSOLIDATION_AFTER,
+            price=PRICE_AFTER,
+        ),
+    ]
+    straddling = [
+        split_row(header, SPLIT_CLOSE_ACTION, time="2026-02-02 07:44:13.100"),
+        _trade_between_halves(header),
+        split_row(
+            header,
+            SPLIT_OPEN_ACTION,
+            time="2026-02-02 07:44:13.900",
+            shares=CONSOLIDATION_AFTER,
+            price=PRICE_AFTER,
+        ),
+    ]
+
+    one = tmp_path / "one"
+    both = tmp_path / "both"
+    one.mkdir()
+    both.mkdir()
+
+    with pytest.raises(ParsingError) as alone:
+        load(one, {"a.csv": [header, *straddling]})
+    assert "stamped between the two halves" in str(alone.value)
+
+    with pytest.raises(ParsingError) as combined:
+        load(both, {"a.csv": [header, *straddling], "b.csv": [header, *early]})
+    # Refused for the ambiguity rather than silently accepting the trade.
+    assert "Stock split close" in str(combined.value)
+
+
+def test_a_disagreed_trade_timestamp_is_not_erased_by_a_merge(
+    tmp_path: Path,
+) -> None:
+    """Both exports' stamps for one trade have to reach the split check.
+
+    Two exports report the same trade, one placing it between the halves
+    and one before them. They record the same content, so the merge keeps
+    a single copy, and it picks that copy without knowing a
+    reorganisation surrounds it. Keeping only the survivor's stamp would
+    let the export that saw nothing wrong overrule the one that did, and
+    the trade's share count would be read on the wrong side of the event.
+
+    The export that places it outside is right on its own evidence, so it
+    still loads alone. Only the pair refuses.
+    """
+    header = HEADER_2026
+    halves = [
+        split_row(header, SPLIT_CLOSE_ACTION, time="2026-02-02 07:44:13.200"),
+        split_row(
+            header,
+            SPLIT_OPEN_ACTION,
+            time="2026-02-02 07:44:13.800",
+            shares=CONSOLIDATION_AFTER,
+            price=PRICE_AFTER,
+        ),
+    ]
+
+    def export(trade_time: str) -> list[list[str]]:
+        return [header, *halves, _trade_between_halves(header, time=trade_time)]
+
+    between = export("2026-02-02 07:44:13.500")
+    before = export("2026-02-02 07:44:13.100")
+
+    for name, rows, refuses in (
+        ("between", between, True),
+        ("before", before, False),
+    ):
+        folder = tmp_path / name
+        folder.mkdir()
+        if refuses:
+            with pytest.raises(ParsingError):
+                load(folder, {"a.csv": rows})
+        else:
+            assert load(folder, {"a.csv": rows})
+
+    both = tmp_path / "both"
+    both.mkdir()
+    with pytest.raises(ParsingError) as combined:
+        load(both, {"a.csv": between, "b.csv": before})
+
+    message = str(combined.value)
+    assert "stamped between the two halves" in message
+    # The survivor is the .100 copy, so the refusal has to name the .500
+    # one it turned on or the error points at a stamp that looks fine.
+    assert "also reported as" in message
+    assert "07:44:13.500" in message
+
+
+def test_the_same_event_in_two_exports_still_combines(tmp_path: Path) -> None:
+    """The overlap that does state one event is still merged.
+
+    Reorganisation rows compare on the exact instant and the figures
+    pairing checks, so two exports reporting the event identically still
+    collapse to one, and only a disagreement refuses.
+    """
+    header = HEADER_2026
+    rows = [
+        split_row(header, SPLIT_CLOSE_ACTION, time="2026-02-02 07:44:13.100"),
+        split_row(
+            header,
+            SPLIT_OPEN_ACTION,
+            time="2026-02-02 07:44:13.900",
+            shares=CONSOLIDATION_AFTER,
+            price=PRICE_AFTER,
+        ),
+    ]
+    transactions = load(tmp_path, {"a.csv": [header, *rows], "b.csv": [header, *rows]})
+    (event,) = transactions
+    assert isinstance(event, StockSplitTransaction)

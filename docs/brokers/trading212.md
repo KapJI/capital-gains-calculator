@@ -39,11 +39,13 @@ trading212/
 The base filenames do not matter. cgt-calc reads every CSV file directly inside the directory, but
 it does not search subdirectories. Do not add unrelated CSV files, and make sure there are no gaps
 between date ranges. Matching transactions in overlapping files are reconciled using their recorded
-contents and the number of copies in each export. IDs help distinguish otherwise identical fills,
-but are not treated as globally unique because Trading 212 can reuse one ID for different
-transactions. If overlapping files represent one split in both the older one-row form and the newer
-open/close form, cgt-calc refuses rather than risk applying it twice; replace them with one complete
-export covering the named dates.
+contents and the number of copies in each export. For ordinary transactions, cgt-calc ignores
+fractional seconds when matching overlapping files, so older exports without milliseconds still
+match newer ones. Reorganisation rows use their exact times, because those times are needed to
+validate the event. IDs help distinguish otherwise identical fills, but are not treated as globally
+unique because Trading 212 can reuse one ID for different transactions. If overlapping files
+represent one split in both the older one-row form and the newer open/close form, cgt-calc refuses
+rather than risk applying it twice; replace them with one complete export covering the named dates.
 
 One overlap cannot be reconciled: if two exports give the same transaction different IDs, cgt-calc
 reads them as two separate fills and counts both. Reorganisation rows are refused rather than
@@ -174,6 +176,25 @@ you used to install it and try again. If the error remains, open a
 
 Do not upload an unredacted account export: it can contain transaction IDs and other financial
 information.
+
+### A transaction is described differently by two exports
+
+Two exports give the same Trading 212 transaction ID for what looks like the same transaction, at
+the same second and for the same action, but they disagree about its details. That normally means
+one export was taken after Trading 212 restated the transaction, for example after correcting a fee.
+
+cgt-calc cannot tell which version is right, so it keeps both. Your totals may therefore count that
+transaction twice. Re-export the overlapping period so that every file describes it the same way,
+replace the older file, and run the calculation again.
+
+### A same-second warning about identical transactions appears
+
+cgt-calc found an unusually large group of otherwise identical transactions within one second. It
+kept the correct number, so the totals are unchanged.
+
+Check that the rows in the named files are genuine. If they are, please
+[open an issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new); otherwise replace
+the affected exports with a fresh one.
 
 ### No transactions are detected
 
