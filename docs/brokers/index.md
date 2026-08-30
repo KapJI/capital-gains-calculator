@@ -1,16 +1,20 @@
 # Brokers
 
-You need to provide the transaction history for each of your accounts, covering all transactions
-since you first acquired any shares owned during the relevant tax years. Pick your broker below for
-export instructions.
+Choose your broker below to find the export instructions and command to use. Export the complete
+history from the account's first transaction when possible, not only the tax year you are
+calculating. Earlier purchases or employer-share awards can establish the cost of shares sold later.
+
+If your shares came from an employer, check the broker guide carefully. Schwab supports only the
+award-export formats described in its guide, Morgan Stanley support is limited to Alphabet's GSU
+plan, and Sharesight requires equity grants to be recorded in a particular way.
 
 | Broker                                        | CLI option                                                                             | Notes                               |
 | --------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------- |
-| [Charles Schwab](schwab.md)                   | `--schwab-file` or `--schwab-dir`, `--schwab-award-file`, `--schwab-equity-award-json` | Equity awards supported             |
+| [Charles Schwab](schwab.md)                   | `--schwab-file` or `--schwab-dir`, `--schwab-award-file`, `--schwab-equity-award-json` | Some Equity Awards formats          |
 | [Freetrade](freetrade.md)                     | `--freetrade-file`                                                                     | Activity CSV export                 |
 | [Hargreaves Lansdown](hargreaves-lansdown.md) | `--hl-dir`                                                                             | Tax Centre CSVs plus contract notes |
 | [Interactive Brokers](interactive-brokers.md) | `--interactive-brokers-file`                                                           | Transaction history CSV             |
-| [Morgan Stanley](morgan-stanley.md)           | `--mssb-dir`                                                                           | Alphabet equity-award report folder |
+| [Morgan Stanley](morgan-stanley.md)           | `--mssb-dir`                                                                           | Alphabet GSU reports only           |
 | [Sharesight](sharesight.md)                   | `--sharesight-dir`                                                                     | Multi-broker portfolio tracker      |
 | [Trading 212](trading212.md)                  | `--trading212-dir`                                                                     | Folder of yearly exports            |
 | [Vanguard](vanguard.md)                       | `--vanguard-file`                                                                      | Client Transactions Listing CSV     |
