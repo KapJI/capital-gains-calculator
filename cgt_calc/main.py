@@ -595,6 +595,46 @@ class CapitalGainsCalculator:
                     "nothing (TCGA 1992 s127), so leave all fee columns at 0",
                 )
 
+    @staticmethod
+    def _conflicting_reorganisation_times(
+        rows: list[BrokerTransaction],
+    ) -> list[str]:
+        """Return times proving one source reported more than one event.
+
+        The source is the declared account, not the file. One account is
+        routinely exported as several date-range files, and two of its events
+        landing in different files is a fact about how the history was
+        downloaded, not evidence that two accounts each reported one event.
+        Keying on the file would put every such pair in a bucket of its own,
+        find no conflict, and let one RAW row stand for both.
+
+        ``relative_to_split`` deliberately does keep the file in its own key:
+        it compares ``source.index``, which ``stamp_source`` restarts at zero
+        for every file, so an index from one file says nothing about a row in
+        another. Nothing here reads an index.
+        """
+        times_by_source: dict[
+            tuple[str | None, str | None], list[datetime.datetime | None]
+        ] = defaultdict(list)
+        for row in rows:
+            source = row.source
+            source_key = (
+                (source.parser, source.account) if source is not None else (None, None)
+            )
+            times_by_source[source_key].append(
+                source.timestamp if source is not None else None
+            )
+        conflicting_times = [
+            times
+            for times in times_by_source.values()
+            if len(times) > 1 and (None in times or len(set(times)) > 1)
+        ]
+        return sorted(
+            "unknown" if timestamp is None else str(timestamp)
+            for times in conflicting_times
+            for timestamp in times
+        )
+
     def _sole_reorganisation(
         self,
         symbol: str,
@@ -621,30 +661,7 @@ class CapitalGainsCalculator:
         broker_rows = [row for row in rows if row is not raw_row]
         broker_changes = [get_quantity_or_fail(row) for row in broker_rows]
         raw_change = get_quantity_or_fail(raw_row)
-        times_by_source: dict[
-            tuple[str | None, str | None, object], list[datetime.datetime | None]
-        ] = defaultdict(list)
-        for row in broker_rows:
-            source = row.source
-            source_key = (
-                (source.parser, source.account, source.file)
-                if source is not None
-                else (None, None, None)
-            )
-            times_by_source[source_key].append(
-                source.timestamp if source is not None else None
-            )
-        conflicting_times = [
-            times
-            for times in times_by_source.values()
-            if len(times) > 1 and (None in times or len(set(times)) > 1)
-        ]
-        if conflicting_times:
-            event_times = sorted(
-                "unknown" if timestamp is None else str(timestamp)
-                for times in conflicting_times
-                for timestamp in times
-            )
+        if event_times := self._conflicting_reorganisation_times(broker_rows):
             listed = "\n".join(f"  {row}" for row in rows)
             raise CalculationError(
                 f"Cannot use the RAW STOCK_SPLIT row for {symbol} on "
@@ -2684,13 +2701,23 @@ class CapitalGainsCalculator:
             # more than one of them is the thing to fix rather than to add.
             remedy = (
                 "Leave all but one of the RAW STOCK_SPLIT rows out, so that "
-                "one row states the change to the whole holding"
+                "one row states the change to the whole holding, or work this "
+                "day out by hand (consider professional advice)"
+            )
+        elif event_times := self._conflicting_reorganisation_times(rows):
+            remedy = (
+                "The same source reports different or unknown times "
+                f"({', '.join(event_times)}), so a single RAW STOCK_SPLIT row "
+                "cannot settle these as one event. Leave these STOCK_SPLIT "
+                "rows out and work this day out by hand (consider professional "
+                "advice)"
             )
         else:
             remedy = (
                 "Add a single RAW STOCK_SPLIT row stating the change to the "
                 "whole holding, which settles the day and is used in place of "
-                "the broker rows"
+                "the broker rows, or work this day out by hand (consider "
+                "professional advice)"
             )
         return (
             f"{symbol} has more than one reorganisation on {date_index}:\n"
@@ -2698,8 +2725,7 @@ class CapitalGainsCalculator:
             "The Section 104 holding is global, so a corporate ratio applies "
             "to it once. Two brokers reporting the same event is not the same "
             "as two events, and this tool cannot tell them apart, so it will "
-            f"not guess. {remedy}, or work this day out by hand (consider "
-            "professional advice)."
+            f"not guess. {remedy}."
         )
 
     def _split_chronology_message(

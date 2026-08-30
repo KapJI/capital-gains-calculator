@@ -12,6 +12,7 @@ args
 ArgumentParser
 ArgumentTypeError
 arm64
+AttributeError
 autosale
 BaseDirParser
 BaseSingleFileParser
@@ -58,6 +59,7 @@ CSVs
 CurrencyConverter
 currentPrice
 cusip
+dataclass
 dest
 DictReader
 DictReader's
@@ -92,8 +94,8 @@ InvalidOperation
 InvalidTransactionError
 Invesco
 InvestmentName
-iShares
 IsADirectoryError
+iShares
 ISIN
 IsinConverter
 ISINs
@@ -117,6 +119,7 @@ NameChange
 nav
 navPrice
 nixpkgs
+nonblank
 noqa
 num
 NVDA
@@ -128,10 +131,10 @@ OTGLY
 ParsingError
 pdf
 pdflatex
+PermissionError
 pipx
 Plc
 png
-PermissionError
 Podman
 prek
 presplit
@@ -206,6 +209,7 @@ txn
 ty
 UCITS
 un
+unprovable
 UnresolvedRatio
 unvalidated
 US9220427424

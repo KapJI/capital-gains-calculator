@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import logging
 from pathlib import Path
-from typing import ClassVar, Final, TextIO, override
+from typing import ClassVar, Final, NoReturn, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES, UK_TIMEZONE
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
@@ -115,6 +115,13 @@ VALUE_REL_TOLERANCE: Final = Decimal("1E-7")
 
 # The two halves are stamped at the same instant or milliseconds apart.
 SPLIT_PAIR_MAX_GAP: Final = timedelta(seconds=1)
+
+# How far apart two rows can be and still be shown to each other as the
+# reorganisation the reader was looking for. Deliberately wider than
+# SPLIT_PAIR_MAX_GAP: a pair that misses the gap has to reach the check that
+# names the gap, or it is reported as a half whose partner is missing while
+# the partner sits a second away in the same file.
+SPLIT_CANDIDATE_WINDOW: Final = timedelta(minutes=1)
 
 # Fields a reorganisation cannot carry. It moves no money and realises no
 # gain, so anything here means the row is not the reorganisation it claims to
@@ -507,19 +514,30 @@ class Trading212Transaction(BrokerTransaction):
         """Whether this row is one half of a share reorganisation."""
         return self.raw_action in SPLIT_ACTIONS
 
-    def disagreements(self, other: Trading212Transaction) -> list[str]:
-        """Columns where two rows sharing an id state different things.
+    def recorded_fields(self) -> tuple[object, ...]:
+        """Return the exported transaction content used to merge overlaps.
 
-        Only columns both exports carry are compared, blanks included.
-        Trading 212 has changed its columns more than once, so a column one
-        export has and the other does not says nothing; a column both have,
-        filled differently, says they are not the same transaction.
+        The base dataclass contains the tax-relevant values common to every
+        broker. Trading 212's timestamp, action label and foreign-currency
+        values are additional recorded evidence, while its ID is deliberately
+        absent: the broker can reuse one ID for distinct transactions.
         """
-        shared = self.exported_row.keys() & other.exported_row.keys()
-        return sorted(
-            column.value
-            for column in shared
-            if self.exported_row[column] != other.exported_row[column]
+        recorded: list[object] = []
+        for field in fields(self):
+            if not field.compare:
+                continue
+            value = getattr(self, field.name)
+            if isinstance(value, dict):
+                value = tuple(sorted(value.items()))
+            recorded.append(value)
+        return (
+            *recorded,
+            self.datetime,
+            self.raw_action,
+            self.price_foreign,
+            self.currency_foreign,
+            self.exchange_rate,
+            self.notes or "",
         )
 
     def where(self) -> str:
@@ -528,10 +546,19 @@ class Trading212Transaction(BrokerTransaction):
             return f"{self.raw_action} on {self.date}"
         return f"{self.source.file}, row {self.source.row}"
 
-    @override
-    def __hash__(self) -> int:
-        """Calculate hash."""
-        return hash(self.transaction_id)
+
+def _as_trading212(transaction: BrokerTransaction) -> Trading212Transaction:
+    """Narrow a transaction this parser read from a Trading 212 export.
+
+    Checked rather than asserted: `python -O` drops an assert, and what
+    follows one here is an attribute only this class has, so the invariant
+    would fail as an `AttributeError` from somewhere else entirely.
+    """
+    if not isinstance(transaction, Trading212Transaction):
+        raise TypeError(
+            f"{type(transaction).__name__} was not read from a Trading 212 export"
+        )
+    return transaction
 
 
 @dataclass(frozen=True)
@@ -544,6 +571,11 @@ class SplitHalf:
     """
 
     transaction: Trading212Transaction
+    # The holding this row restates. Kept here rather than read back off the
+    # transaction, where it is still `str | None`: `_read_split_half` refuses
+    # a blank ticker, and carrying the proven value spares everything
+    # downstream a check for a state that cannot reach it.
+    symbol: str
     quantity: Decimal
     price: Decimal
     price_currency: str
@@ -577,10 +609,82 @@ def _split_error(transaction: Trading212Transaction, message: str) -> ParsingErr
     return ParsingError(file, message, row_index=row)
 
 
+def _exported_time(transaction: Trading212Transaction) -> str:
+    """Return the timestamp spelling used by this export row."""
+    row = transaction.exported_row
+    return (
+        row.get(Trading212Column.TIME)
+        or row.get(Trading212Column.TIME_UTC)
+        or transaction.datetime.isoformat()
+    )
+
+
+def _describe_half(half: SplitHalf) -> str:
+    """Describe one pairing candidate with its source and checked fields."""
+    transaction = half.transaction
+    return (
+        f"{transaction.raw_action} at {transaction.where()} "
+        f"(Ticker={half.symbol!r}, No. of shares={half.quantity}, "
+        f"Price / share={half.price} {half.price_currency}, "
+        f"Exchange rate={half.exchange_rate}, Total={half.total} "
+        f"{transaction.currency}, Time={_exported_time(transaction)})"
+    )
+
+
+def _split_period(halves: list[SplitHalf]) -> str:
+    """Name every UK date covered by a set of pairing rows."""
+    days = sorted({half.transaction.date for half in halves})
+    return str(days[0]) if len(days) == 1 else f"{days[0]} through {days[-1]}"
+
+
+def _split_pair_remedy(day: object) -> str:
+    """Tell a user how to replace ambiguous or incomplete pairing evidence.
+
+    The second sentence is not padding. A RAW `STOCK_SPLIT` row is what
+    settles every other unprovable reorganisation, and it cannot settle this
+    one: the refusal happens while the CSV is read, before the calculator
+    assembles the day and reaches the RAW row that would override it. Saying
+    only "re-export" leaves a reader whose export is already complete with
+    nothing to do but edit the file, which the sentence before forbids.
+    """
+    return (
+        "Check the named fields and rows against Trading 212, then replace "
+        f"these files with one complete export covering {day}; do not delete "
+        "or edit a row merely to force a match. If a complete export still "
+        "states this, cgt-calc cannot work the day out and a RAW STOCK_SPLIT "
+        "row cannot override it: leave this account out and work the day out "
+        "by hand (consider professional advice)."
+    )
+
+
+def _check_split_has_no_money(transaction: Trading212Transaction) -> None:
+    """Refuse financial evidence that contradicts a share reorganisation."""
+    row = transaction.exported_row
+    for column in SPLIT_ZERO_COLUMNS:
+        # Several of these columns are read nowhere else, so this is their
+        # first parse -- and it happens long after `read_transactions` has
+        # stopped wrapping a bad cell in a `ParsingError`. Left bare, an
+        # unreadable one reaches the user as "Unexpected error!" and a
+        # traceback with no file and no row.
+        try:
+            value = decimal_or_none(row, column)
+        except ValueError as err:
+            raise _split_error(transaction, str(err)) from err
+        if value is not None and (not value.is_finite() or value != 0):
+            raise _split_error(
+                transaction,
+                f"{transaction.raw_action} states {column.value} of {value}. A "
+                "share reorganisation moves no money and realises nothing, so "
+                "this row is not one, or it is not supported. Check this row "
+                "against Trading 212 and replace the export with a complete "
+                f"one covering {transaction.date}.",
+            )
+
+
 def _read_split_half(transaction: Trading212Transaction) -> SplitHalf:
     """Check one reorganisation row and read the fields pairing needs."""
-    row = transaction.exported_row
-    if not transaction.symbol:
+    symbol = transaction.symbol
+    if not symbol:
         raise _split_error(
             transaction,
             f"{transaction.raw_action} does not say which holding it restates: "
@@ -595,6 +699,21 @@ def _read_split_half(transaction: Trading212Transaction) -> SplitHalf:
     if price is None or not price.is_finite() or price <= 0:
         raise _split_error(
             transaction, f"{transaction.raw_action} needs a positive price per share"
+        )
+    # A price is a number of some currency, and pairing multiplies it out
+    # into a position value that is then compared against another row's.
+    # An exchange rate does not supply the missing currency: it says how many
+    # of one buy the other, not which two those are. Left unchecked, a rate
+    # of 1 was enough to let two halves reconcile on figures neither row said
+    # the currency of.
+    if transaction.currency_foreign in {"", "Not available"}:
+        raise _split_error(
+            transaction,
+            f"{transaction.raw_action} states a price of {price} but leaves "
+            f"{Trading212Column.CURRENCY_PRICE_PER_SHARE.value} "
+            f"{transaction.currency_foreign!r}. A price with no currency "
+            "cannot be checked against the total. Re-export the range "
+            f"covering {transaction.date} with every column included.",
         )
     total = transaction.amount
     # Zero is allowed: a small enough position rounds to nothing in the
@@ -619,17 +738,10 @@ def _read_split_half(transaction: Trading212Transaction) -> SplitHalf:
         raise _split_error(
             transaction, f"{transaction.raw_action} needs a positive exchange rate"
         )
-    for column in SPLIT_ZERO_COLUMNS:
-        value = decimal_or_none(row, column)
-        if value is not None and (not value.is_finite() or value != 0):
-            raise _split_error(
-                transaction,
-                f"{transaction.raw_action} states {column.value} of {value}. A "
-                "share reorganisation moves no money and realises nothing, so "
-                "this row is not one, or it is not supported.",
-            )
+    _check_split_has_no_money(transaction)
     return SplitHalf(
         transaction=transaction,
+        symbol=symbol,
         quantity=quantity,
         price=price,
         price_currency=transaction.currency_foreign,
@@ -638,35 +750,55 @@ def _read_split_half(transaction: Trading212Transaction) -> SplitHalf:
     )
 
 
-def _halves_are_compatible(open_half: SplitHalf, close_half: SplitHalf) -> bool:
-    """Whether these two rows can be the two halves of one reorganisation.
+def _half_incompatibilities(open_half: SplitHalf, close_half: SplitHalf) -> list[str]:
+    """Name every check that prevents two rows forming one reorganisation.
 
     A differing identifier is deliberately not tested here. Two rows for one
     ticker on one day under two identifiers are a reorganisation that changes
     the security as well, and saying so is more use than leaving them
     unpaired for no stated reason.
     """
+    issues: list[str] = []
     gap = open_half.transaction.datetime - close_half.transaction.datetime
     if not timedelta(0) <= gap <= SPLIT_PAIR_MAX_GAP:
-        return False
+        issues.append(
+            f"Time: {SPLIT_CLOSE_ACTION}="
+            f"{_exported_time(close_half.transaction)}; {SPLIT_OPEN_ACTION}="
+            f"{_exported_time(open_half.transaction)} (the open must be from "
+            "zero to one second after the close)"
+        )
     # Two already-rounded account-currency figures, so no relative part.
     if not approx_equal(open_half.total, close_half.total, TOTAL_ABS_TOLERANCE):
-        return False
-    for half in (open_half, close_half):
+        issues.append(
+            f"Total: {SPLIT_CLOSE_ACTION}={close_half.total}; "
+            f"{SPLIT_OPEN_ACTION}={open_half.total}"
+        )
+    issues.extend(
+        (
+            f"{half.transaction.raw_action} calculated position value="
+            f"{half.value} {half.transaction.currency}; Total={half.total} "
+            f"{half.transaction.currency}"
+        )
+        for half in (open_half, close_half)
         if not approx_equal_scaled(
             half.value,
             half.total,
             reference=half.total,
             rel_tolerance=VALUE_REL_TOLERANCE,
             abs_tolerance=TOTAL_ABS_TOLERANCE,
-        ):
-            return False
-    return approx_equal_scaled(
+        )
+    )
+    if not approx_equal_scaled(
         open_half.value,
         close_half.value,
         reference=max(abs(open_half.value), abs(close_half.value)),
         rel_tolerance=VALUE_REL_TOLERANCE,
-    )
+    ):
+        issues.append(
+            f"calculated position value: {SPLIT_CLOSE_ACTION}="
+            f"{close_half.value}; {SPLIT_OPEN_ACTION}={open_half.value}"
+        )
+    return issues
 
 
 class Trading212Parser(BaseDirParser[BrokerTransaction]):
@@ -720,13 +852,12 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
     ) -> tuple[datetime, bool]:
         """Sort by the instant the export stated, and by action type."""
 
-        if isinstance(transaction, Trading212Transaction):
-            instant = transaction.datetime
-        else:
+        if isinstance(transaction, StockSplitTransaction):
             # A reorganisation, which is two rows combined into one event.
             # It exists from the instant of its `open` half.
-            assert isinstance(transaction, StockSplitTransaction)
             instant = max(transaction.event.instants)
+        else:
+            instant = _as_trading212(transaction).datetime
 
         # If there's a deposit in the same second as a buy
         # (happens with the referral award at least)
@@ -745,40 +876,56 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
     def _deduplicate(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:
-        """Keep one copy of each transaction the export identifies.
+        """Merge overlapping exports without losing within-file multiplicity.
 
         Exports are requested by date range, so consecutive downloads
         routinely cover the same days and report the same transaction twice.
-        Two rows sharing an id state one transaction, so they must agree
-        about it; a blank id identifies nothing, and two legitimate events
-        can then be indistinguishable, so nothing is collapsed on whole-row
-        equality alone.
+        For matching recorded content, the largest count in any one export is
+        authoritative. Distinct nonblank IDs can prove additional fills, but
+        an ID never joins rows with different content: Trading 212 reuses IDs.
+
+        Every split row is checked before any overlap copy can be dropped, so
+        a richer schema cannot hide a cash leg or other contrary evidence.
         """
-        canonical: dict[str, Trading212Transaction] = {}
+        groups: dict[tuple[object, ...], list[Trading212Transaction]] = defaultdict(
+            list
+        )
+        for row in transactions:
+            transaction = _as_trading212(row)
+            if transaction.is_split_half:
+                _read_split_half(transaction)
+            elif transaction.action is ActionType.STOCK_SPLIT:
+                _check_split_has_no_money(transaction)
+            groups[transaction.recorded_fields()].append(transaction)
+
         kept: list[BrokerTransaction] = []
-        for transaction in transactions:
-            assert isinstance(transaction, Trading212Transaction)
-            identifier = transaction.transaction_id
-            if not identifier:
-                kept.append(transaction)
-                continue
-            seen = canonical.get(identifier)
-            if seen is None:
-                canonical[identifier] = transaction
-                kept.append(transaction)
-                continue
-            disagreements = seen.disagreements(transaction)
-            if disagreements:
-                raise _split_error(
-                    transaction,
-                    f"Transaction {identifier} is also at {seen.where()}, and "
-                    f"the two rows disagree about {', '.join(disagreements)}. "
-                    "One id is one transaction, so there is no telling which "
-                    "of these it is.",
-                )
-            # The first copy read is the canonical one, which is
-            # deterministic: files are globbed in sorted order, read in row
-            # order.
+        for group in groups.values():
+            per_export = Counter(
+                transaction.source.file if transaction.source is not None else None
+                for transaction in group
+            )
+            identified: dict[str, Trading212Transaction] = {}
+            for transaction in group:
+                if transaction.transaction_id:
+                    identified.setdefault(transaction.transaction_id, transaction)
+
+            # One row per id the export tells apart, then topped up to the
+            # largest count any single export reported. `keep_count` caps the
+            # top-up, never the rows already seeded: the ids are evidence in
+            # their own right. The comparison is `>=` so that stays true by
+            # construction -- with `==`, a `keep_count` that ever fell below
+            # the seed would sail past the break and keep the whole group,
+            # turning "at most one copy per export" into "every copy".
+            keep_count = max(*per_export.values(), len(identified))
+            chosen = list(identified.values())
+            chosen_objects = {id(transaction) for transaction in chosen}
+            for transaction in group:
+                if len(chosen) >= keep_count:
+                    break
+                if id(transaction) not in chosen_objects:
+                    chosen.append(transaction)
+                    chosen_objects.add(id(transaction))
+            kept.extend(chosen)
         return kept
 
     @classmethod
@@ -807,59 +954,311 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
         rest = [
             transaction for transaction in transactions if id(transaction) not in paired
         ]
-        events = cls._pair_split_halves([_read_split_half(half) for half in halves])
+        split_halves = [_read_split_half(half) for half in halves]
+        legacy_splits = [
+            _as_trading212(transaction)
+            for transaction in rest
+            if transaction.action is ActionType.STOCK_SPLIT
+        ]
+        events = cls._pair_split_halves(split_halves, legacy_splits)
         for event in events:
             cls._refuse_rows_between_halves(event, rest)
         return sorted([*rest, *events], key=cls._by_date_and_action)
 
-    @classmethod
-    def _pair_split_halves(cls, halves: list[SplitHalf]) -> list[StockSplitTransaction]:
-        """Pair every reorganisation row with the row that completes it."""
-        groups: dict[tuple[object, ...], list[SplitHalf]] = defaultdict(list)
+    @staticmethod
+    def _split_candidates(halves: list[SplitHalf]) -> list[list[SplitHalf]]:
+        """Group unresolved halves only far enough to write one useful error.
+
+        Event ownership is settled before this diagnostic window is used.
+        Each group is anchored at its first row rather than extended from its
+        last, so a chain of unrelated rows cannot grow it without bound.
+
+        The account bucket has exactly one key today: `finalize_transactions`
+        runs once per declared boundary, and every file in one runs under one
+        token. It is kept as the guard it is rather than dropped, because the
+        rows it would otherwise put in one error belong to accounts the docs
+        promise are never read together -- but it is a guard, not a grouping,
+        so nothing here relies on it separating anything.
+        """
+        by_account: dict[object, list[SplitHalf]] = defaultdict(list)
         for half in halves:
-            transaction = half.transaction
-            source = transaction.source
-            groups[
-                source.account if source is not None else None,
-                transaction.date,
-                transaction.symbol,
-                half.price_currency,
-                transaction.currency,
-            ].append(half)
-        return [event for group in groups.values() for event in cls._pair_group(group)]
+            source = half.transaction.source
+            by_account[source.account if source is not None else None].append(half)
+
+        clusters: list[list[SplitHalf]] = []
+        for account_halves in by_account.values():
+            # Stable, so halves stamped at one instant keep the order they
+            # were read in and the grouping is deterministic.
+            account_halves.sort(key=lambda half: half.transaction.datetime)
+            cluster: list[SplitHalf] = []
+            for half in account_halves:
+                if (
+                    cluster
+                    and half.transaction.datetime - cluster[0].transaction.datetime
+                    > SPLIT_CANDIDATE_WINDOW
+                ):
+                    clusters.append(cluster)
+                    cluster = []
+                cluster.append(half)
+            clusters.append(cluster)
+        return clusters
 
     @classmethod
-    def _pair_group(cls, group: list[SplitHalf]) -> list[StockSplitTransaction]:
-        """Pair the two reorganisation rows for one security on one day.
+    def _pair_split_halves(
+        cls,
+        halves: list[SplitHalf],
+        legacy_splits: list[Trading212Transaction],
+    ) -> list[StockSplitTransaction]:
+        """Pair every row only when the strict evidence has one full matching."""
+        possibilities: dict[int, list[SplitHalf]] = {id(half): [] for half in halves}
+        opens = [half for half in halves if half.is_open]
+        closes = [half for half in halves if not half.is_open]
+        for close_half in closes:
+            close_source = close_half.transaction.source
+            close_key = (
+                close_source.account if close_source is not None else None,
+                close_half.symbol,
+                close_half.price_currency,
+                close_half.transaction.currency,
+            )
+            for open_half in opens:
+                open_source = open_half.transaction.source
+                open_key = (
+                    open_source.account if open_source is not None else None,
+                    open_half.symbol,
+                    open_half.price_currency,
+                    open_half.transaction.currency,
+                )
+                if close_key == open_key and not _half_incompatibilities(
+                    open_half, close_half
+                ):
+                    possibilities[id(close_half)].append(open_half)
+                    possibilities[id(open_half)].append(close_half)
 
-        Exactly one of each. A half without its partner says nothing about
-        what happened to the holding, and the calculator refuses two
-        reorganisations of one security on one date in any case, so a larger
-        group has no reading worth searching for.
+        pairs: list[tuple[SplitHalf, SplitHalf]] = []
+        unresolved: list[SplitHalf] = []
+        visited: set[int] = set()
+        for half in halves:
+            if id(half) in visited:
+                continue
+            if not possibilities[id(half)]:
+                visited.add(id(half))
+                unresolved.append(half)
+                continue
+            component: list[SplitHalf] = []
+            pending = [half]
+            while pending:
+                candidate = pending.pop()
+                if id(candidate) in visited:
+                    continue
+                visited.add(id(candidate))
+                component.append(candidate)
+                pending.extend(possibilities[id(candidate)])
+            matching = cls._unique_split_matching(component, possibilities)
+            if matching is None:
+                cls._refuse_unpaired_group(component, component)
+            else:
+                pairs.extend(matching)
+
+        events: list[StockSplitTransaction] = []
+        for open_half, close_half in pairs:
+            cls._refuse_legacy_split(open_half, close_half, legacy_splits)
+            events.append(cls._combine(open_half, close_half))
+
+        for candidates in cls._split_candidates(unresolved):
+            opens = [half for half in candidates if half.is_open]
+            closes = [half for half in candidates if not half.is_open]
+            if len(opens) == 1 and len(closes) == 1:
+                open_half, close_half = opens[0], closes[0]
+                pairing_fields = (
+                    (
+                        Trading212Column.TICKER.value,
+                        close_half.symbol,
+                        open_half.symbol,
+                    ),
+                    (
+                        Trading212Column.CURRENCY_PRICE_PER_SHARE.value,
+                        close_half.price_currency,
+                        open_half.price_currency,
+                    ),
+                    (
+                        Trading212Column.CURRENCY_TOTAL.value,
+                        close_half.transaction.currency,
+                        open_half.transaction.currency,
+                    ),
+                )
+                disagreements = [
+                    f"{field}: {SPLIT_CLOSE_ACTION}={close!r}; "
+                    f"{SPLIT_OPEN_ACTION}={after!r}"
+                    for field, close, after in pairing_fields
+                    if close != after
+                ]
+                if disagreements:
+                    row = open_half.transaction
+                    raise _split_error(
+                        row,
+                        f"The only {SPLIT_CLOSE_ACTION} and {SPLIT_OPEN_ACTION} "
+                        f"rows stamped together around {row.date} disagree "
+                        f"about {'; '.join(disagreements)}. Rows: "
+                        f"{_describe_half(close_half)}; "
+                        f"{_describe_half(open_half)}. "
+                        f"{_split_pair_remedy(_split_period(candidates))}",
+                    )
+
+            groups: dict[tuple[object, ...], list[SplitHalf]] = defaultdict(list)
+            for half in candidates:
+                source = half.transaction.source
+                groups[
+                    source.account if source is not None else None,
+                    half.symbol,
+                    half.price_currency,
+                    half.transaction.currency,
+                ].append(half)
+            for group in groups.values():
+                related = [
+                    half for half in candidates if half.symbol == group[0].symbol
+                ]
+                cls._refuse_unpaired_group(group, related)
+        return events
+
+    @staticmethod
+    def _unique_split_matching(
+        component: list[SplitHalf],
+        possibilities: dict[int, list[SplitHalf]],
+    ) -> list[tuple[SplitHalf, SplitHalf]] | None:
+        """Return the sole complete matching, or None if there is not one."""
+        solutions: list[list[tuple[SplitHalf, SplitHalf]]] = []
+
+        def search(
+            closes: list[SplitHalf],
+            available_opens: set[int],
+            chosen: list[tuple[SplitHalf, SplitHalf]],
+        ) -> None:
+            if len(solutions) > 1:
+                return
+            if not closes:
+                if not available_opens:
+                    solutions.append(chosen)
+                return
+            close_half = min(
+                closes,
+                key=lambda close: sum(
+                    id(candidate) in available_opens
+                    for candidate in possibilities[id(close)]
+                ),
+            )
+            candidates = [
+                candidate
+                for candidate in possibilities[id(close_half)]
+                if id(candidate) in available_opens
+            ]
+            remaining = [close for close in closes if close is not close_half]
+            for open_half in candidates:
+                search(
+                    remaining,
+                    available_opens - {id(open_half)},
+                    [*chosen, (open_half, close_half)],
+                )
+
+        search(
+            [half for half in component if not half.is_open],
+            {id(half) for half in component if half.is_open},
+            [],
+        )
+        return solutions[0] if len(solutions) == 1 else None
+
+    @staticmethod
+    def _refuse_legacy_split(
+        open_half: SplitHalf,
+        close_half: SplitHalf,
+        legacy_splits: list[Trading212Transaction],
+    ) -> None:
+        """Refuse old and new export shapes that may state one event twice.
+
+        Both of the pair's UK dates count, not just the one the event ends up
+        filed under. A pair stamped either side of UK midnight puts its close
+        on the previous day, and a legacy row on that day, more than a window
+        from either half, once escaped both tests and let the same
+        consolidation be applied a second time -- silently, because the
+        calculator plans each day on its own and never saw the two together.
+        """
+        pair_dates = {
+            open_half.transaction.date,
+            close_half.transaction.date,
+        }
+        conflicts = [
+            row
+            for row in legacy_splits
+            if row.symbol == open_half.symbol
+            and (
+                row.date in pair_dates
+                or min(
+                    abs(row.datetime - open_half.transaction.datetime),
+                    abs(row.datetime - close_half.transaction.datetime),
+                )
+                <= SPLIT_CANDIDATE_WINDOW
+            )
+        ]
+        if not conflicts:
+            return
+        rows = [open_half.transaction, close_half.transaction, *conflicts]
+        days = sorted({row.date for row in rows})
+        period = str(days[0]) if len(days) == 1 else f"{days[0]} through {days[-1]}"
+        row = conflicts[0]
+        legacy = "; ".join(
+            f"{split.raw_action} at {split.where()} "
+            f"(Ticker={split.symbol!r}, No. of shares={split.quantity}, "
+            f"Time={_exported_time(split)})"
+            for split in conflicts
+        )
+        raise _split_error(
+            row,
+            f"{row.symbol} is reported as both Stock Split and Stock split "
+            "close/open. They may describe one corporate action, so applying "
+            "both could restate the holding twice, while discarding either "
+            f"could erase a separate event. Rows: {legacy}; "
+            f"{_describe_half(close_half)}; {_describe_half(open_half)}. "
+            f"{_split_pair_remedy(period)}",
+        )
+
+    @staticmethod
+    def _refuse_unpaired_group(
+        group: list[SplitHalf], candidates: list[SplitHalf]
+    ) -> NoReturn:
+        """Refuse rows the ownership matcher could not pair.
+
+        A half without its partner says nothing about what happened to the
+        holding, and a larger group has no reading worth guessing.
+        ``candidates`` contains only the nearby rows for this holding, so the
+        error cannot implicate an unrelated security.
         """
         opens = [half for half in group if half.is_open]
         closes = [half for half in group if not half.is_open]
         if len(opens) != 1 or len(closes) != 1:
             row = (opens or closes)[0].transaction
+            period = _split_period(candidates)
+            when = f"on {period}" if " through " not in period else f"across {period}"
             raise _split_error(
                 row,
-                f"{row.symbol} on {row.date} has {len(closes)} "
+                f"{row.symbol} {when} has {len(closes)} "
                 f"{SPLIT_CLOSE_ACTION} and {len(opens)} {SPLIT_OPEN_ACTION} "
                 "rows. A reorganisation is exported as the position before it "
-                "and the position after it, once each.",
+                "and the position after it, once each. Candidate rows: "
+                f"{'; '.join(_describe_half(half) for half in candidates)}. "
+                f"{_split_pair_remedy(period)}",
             )
         open_half, close_half = opens[0], closes[0]
-        if not _halves_are_compatible(open_half, close_half):
-            row = open_half.transaction
-            raise _split_error(
-                row,
-                f"The {SPLIT_OPEN_ACTION} and {SPLIT_CLOSE_ACTION} rows for "
-                f"{row.symbol} on {row.date} are not the two halves of one "
-                "event. Their totals, position values or timestamps disagree, "
-                "and pairing them anyway would restate the holding by a ratio "
-                "nothing in the export supports.",
-            )
-        return [cls._combine(open_half, close_half)]
+        incompatibilities = _half_incompatibilities(open_half, close_half)
+        detail = "; ".join(incompatibilities) or "there is no unique pairing"
+        row = open_half.transaction
+        raise _split_error(
+            row,
+            f"The {SPLIT_OPEN_ACTION} and {SPLIT_CLOSE_ACTION} rows for "
+            f"{row.symbol} on {row.date} cannot be proved to be the two "
+            f"halves of one event: {detail}. Rows: "
+            f"{_describe_half(close_half)}; {_describe_half(open_half)}. "
+            f"{_split_pair_remedy(_split_period(group))}",
+        )
 
     @classmethod
     def _combine(
@@ -879,7 +1278,9 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
                 f"the ISIN from {before.isin} to {after.isin}, which is a "
                 "different security. Moving a holding between two securities "
                 "needs authoritative relationship data this cannot get from "
-                "the export.",
+                f"the export. Rows: {close_half.transaction.where()}; "
+                f"{open_half.transaction.where()}. "
+                f"{_split_pair_remedy(_split_period([close_half, open_half]))}",
             )
         ratio = recover_ratio(close_half.quantity, open_half.quantity)
         if isinstance(ratio, UnresolvedRatio):
@@ -893,8 +1294,8 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
                 after.date,
                 ratio.describe(),
             )
-        symbol = after.symbol
-        assert symbol is not None
+        # Proven non-blank when the half was read, so no check here.
+        symbol = open_half.symbol
         event = StockSplitEvent(
             date=after.date,
             broker=after.broker,
@@ -926,15 +1327,22 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
         """
         first = min(event.event.instants)
         last = max(event.event.instants)
-        for other in others:
-            if other.symbol != event.symbol or quantity_sign(other.action) == 0:
+        for row in others:
+            if row.symbol != event.symbol or quantity_sign(row.action) == 0:
                 continue
-            assert isinstance(other, Trading212Transaction)
+            other = _as_trading212(row)
             if first <= other.datetime <= last:
                 raise _split_error(
                     other,
                     f"This row is stamped between the two halves of the "
                     f"{event.symbol} reorganisation on {event.date}, so there "
                     "is no telling whether its share count is stated in the "
-                    "units before it or the units after it.",
+                    f"units before it or the units after it. Rows: "
+                    f"{other.raw_action} at {other.where()} "
+                    f"(No. of shares={other.quantity}, "
+                    f"Time={_exported_time(other)}); the reorganisation at "
+                    f"{first} and {last}. Check this row against Trading 212; "
+                    "if it really was dealt while the reorganisation was in "
+                    f"flight, leave {event.symbol} out and work it out by hand "
+                    "(consider professional advice).",
                 )

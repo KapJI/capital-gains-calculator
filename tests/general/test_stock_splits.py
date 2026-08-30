@@ -1623,6 +1623,85 @@ def test_a_raw_row_does_not_collapse_separately_timed_reorganisations() -> None:
     )
 
 
+def test_one_accounts_events_conflict_even_from_different_files() -> None:
+    """One account exported as several files is still one source.
+
+    A directory of date-range exports is how a Trading 212 account is
+    supplied, so which CSV an event landed in says nothing about how many
+    events there were. Keying the conflict check on the file put each event
+    in a bucket of its own, found no conflict, and let one RAW row stand for
+    both -- restating the day's disposal into the wrong units while leaving
+    the closing share count right, so nothing else noticed.
+    """
+    account = "One account"
+    morning = datetime.datetime.combine(EVENT_DAY, datetime.time(9))
+    afternoon = datetime.datetime.combine(EVENT_DAY, datetime.time(11))
+    first = legacy_split(EVENT_DAY, "FOO", "10", source=elsewhere(0, account=account))
+    second = legacy_split(EVENT_DAY, "FOO", "15", source=elsewhere(1, account=account))
+    assert first.source is not None
+    assert second.source is not None
+    # The only difference from the same-file case: two exports of one account.
+    first.source = replace(first.source, timestamp=morning, file=Path("a-morning.csv"))
+    second.source = replace(
+        second.source, timestamp=afternoon, file=Path("b-afternoon.csv")
+    )
+
+    with pytest.raises(CalculationError, match="same source reports") as error:
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                raw_split(EVENT_DAY, "FOO", "25"),
+                first,
+                trade(EVENT_DAY, ActionType.SELL, "FOO", "5", "20"),
+                second,
+            ]
+        )
+    assert "Leave the day's STOCK_SPLIT rows out and work this day out by hand" in str(
+        error.value
+    )
+
+
+def test_two_accounts_in_different_files_still_do_not_conflict() -> None:
+    """Separately configured inputs remain independent after that fix.
+
+    Two accounts timing one corporate action differently is the case the RAW
+    override exists for, and it must survive keying the check on the account.
+    """
+    morning = datetime.datetime.combine(EVENT_DAY, datetime.time(9))
+    afternoon = datetime.datetime.combine(EVENT_DAY, datetime.time(11))
+    first = legacy_split(EVENT_DAY, "FOO", "5", source=elsewhere(0, account="First"))
+    second = legacy_split(EVENT_DAY, "FOO", "5", source=elsewhere(0, account="Second"))
+    assert first.source is not None
+    assert second.source is not None
+    first.source = replace(first.source, timestamp=morning, file=Path("first.csv"))
+    second.source = replace(second.source, timestamp=afternoon, file=Path("second.csv"))
+
+    calculator = run(
+        [
+            trade(
+                POOL_DAY,
+                ActionType.BUY,
+                "FOO",
+                "5",
+                "10",
+                source=elsewhere(0, account="First"),
+            ),
+            trade(
+                POOL_DAY,
+                ActionType.BUY,
+                "FOO",
+                "5",
+                "10",
+                source=elsewhere(0, account="Second"),
+            ),
+            first,
+            second,
+            raw_split(EVENT_DAY, "FOO", "10"),
+        ]
+    )
+    assert calculator.portfolio["FOO"].quantity == Decimal(20)
+
+
 def test_an_invalid_raw_override_keeps_its_named_quantity_error() -> None:
     """Override validation must not turn a bad RAW delta into a Decimal error."""
     with pytest.raises(CalculationError, match="which is not a number of shares"):

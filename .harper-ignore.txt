@@ -34,3 +34,6 @@
 ^stock_splits\.py:.*ThatThan
 # "a very small holding" is a shareholding, not a smallholding.
 ^trading212\.md:.*CompoundNouns
+# "Trading 212's timestamp" is possessive; Harper reads the digits as the
+# end of a sentence and the "s" as a word of its own.
+^trading212\.py:.*`s`

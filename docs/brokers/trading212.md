@@ -38,8 +38,17 @@ trading212/
 
 The base filenames do not matter. cgt-calc reads every CSV file directly inside the directory, but
 it does not search subdirectories. Do not add unrelated CSV files, and make sure there are no gaps
-between date ranges. Overlaps are safe: exact repeated transactions are removed using their Trading
-212 transaction ID.
+between date ranges. Matching transactions in overlapping files are reconciled using their recorded
+contents and the number of copies in each export. IDs help distinguish otherwise identical fills,
+but are not treated as globally unique because Trading 212 can reuse one ID for different
+transactions. If overlapping files represent one split in both the older one-row form and the newer
+open/close form, cgt-calc refuses rather than risk applying it twice; replace them with one complete
+export covering the named dates.
+
+One overlap cannot be reconciled: if two exports give the same transaction different IDs, cgt-calc
+reads them as two separate fills and counts both. Reorganisation rows are refused rather than
+doubled when that happens, but an ordinary trade is not, so check the final portfolio against
+Trading 212 if you keep overlapping exports.
 
 You can compare the structure with this
 [sanitised example export](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/trading212/data/2024/inputs/transactions.csv).
@@ -83,13 +92,17 @@ takes a different share of the same cost
 the event on its own, with the counts either side and the ratio.
 
 The `Total`, `Price / share` and `Exchange rate` columns on those rows are checked against each
-other and against the counts, and are not read as proceeds or as a new cost. A row that states a
-result, a fee, a tax or a cash movement is refused: a consolidation that pays cash may be a part
-disposal rather than a reorganisation, and that is not the same calculation.
+other and against the counts, and are not read as proceeds or as a new cost. Both currency columns
+have to be filled in: a price with no stated currency cannot be checked against a total, and an
+exchange rate does not supply the missing name. A row that states a result, a fee, a tax or a cash
+movement is refused: a consolidation that pays cash may be a part disposal rather than a
+reorganisation, and that is not the same calculation.
 
-If a half is missing, if two halves cannot be matched one to one, or if the two rows disagree about
-the ticker, the identifier, the currencies or the value of the position, cgt-calc stops and names
-the rows. Exporting the full date range around the event is usually enough to fix it.
+Every original split row is checked before overlapping copies are removed. If a half is missing, if
+two halves cannot be matched one to one, or if the two rows disagree about the ticker, identifier,
+currencies, time or value of the position, cgt-calc stops and names the rows, fields and values.
+Check those rows against Trading 212 and replace partial files with one complete export covering the
+event date.
 
 ### Dates and time zones
 
@@ -105,16 +118,28 @@ transaction stamped after 23:00 UTC on 5 April belongs to the following tax year
     report.
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
     supported.
-- One `--trading212-dir` directory is one Trading 212 account. Nothing in the CSV identifies the
-    account, so passing a directory is how you declare it, and rows in two separately configured
-    directories are never combined — including the two halves of one reorganisation.
+- One run covers one Trading 212 account. `--trading212-dir` takes a single directory and every file
+    in it is read as one account, because nothing in the CSV identifies which account a row belongs
+    to. If you hold the same security in two Trading 212 accounts, their exports cannot be combined
+    in one run: a reorganisation of that security appears twice, and cgt-calc refuses rather than
+    guess which half belongs to which account.
+- A reorganisation cgt-calc cannot pair is refused while the CSV is read, which is before the
+    calculator assembles the day. A RAW `STOCK_SPLIT` row, which overrides an unprovable
+    reorganisation from any other input, therefore cannot override this one.
 - The same reorganisation reported by two brokers cannot be told from two separate events, so
     cgt-calc refuses a day with more than one for the same security.
-- A reorganisation that also changes the ticker or the ISIN is not supported. Moving a holding
-    between two securities needs relationship data the export does not carry.
+- A known ticker alias is supported because cgt-calc applies its `TICKER_RENAMES` mapping before
+    pairing. For example, both `FB` and `META` are treated as `META`; an unknown ticker change is
+    refused.
+- A genuine ISIN change is always refused: if both halves state an ISIN and the values differ,
+    cgt-calc will not pair them. Moving a holding between two different securities needs
+    relationship data the export does not carry.
 - A reorganisation of a very small holding can leave the ratio unrecoverable, because the exported
     counts are rounded. cgt-calc still calculates it exactly when your whole holding is the one the
-    export describes; otherwise it stops rather than guess the ratio.
+    export describes; otherwise it stops rather than guess the ratio. Ratios beyond about 1,000 to 1
+    are outside the range it searches, and one of those applied to a holding of around a
+    hundred-thousandth of a share is a narrow edge case where the nearest ratio within range may be
+    used instead of the event being reported as unrecoverable.
 - A trade of the same security stamped between the two halves of a reorganisation is refused: there
     is no telling whether its count is in the units before it or after it. The same applies to a
     same-day trade from another input that carries no comparable time.
