@@ -1308,47 +1308,48 @@ def test_two_tight_pairs_inside_the_diagnostic_window_stay_separate(
     ]
 
 
-def test_the_only_complete_tight_pairing_is_accepted(tmp_path: Path) -> None:
-    """A locally shared candidate is safe when only one full matching exists."""
-    transactions = load(
-        tmp_path,
-        {
-            "export.csv": [
-                HEADER_2026,
-                close_row(
-                    time="2026-02-02 07:44:13.000",
-                    shares="9",
-                    price="10",
-                    transaction_id="close-1",
-                ),
-                open_row(
-                    time="2026-02-02 07:44:13.000",
-                    shares="3",
-                    price="30",
-                    transaction_id="open-1",
-                ),
-                close_row(
-                    time="2026-02-02 07:44:13.500",
-                    shares="3",
-                    price="30",
-                    transaction_id="close-2",
-                ),
-                open_row(
-                    time="2026-02-02 07:44:13.500",
-                    shares="1",
-                    price="90",
-                    transaction_id="open-2",
-                ),
-            ]
-        },
-    )
+def test_chained_pairs_sharing_evidence_are_refused(tmp_path: Path) -> None:
+    """Rows whose evidence overlaps are refused rather than searched.
 
-    events = [
-        transaction
-        for transaction in transactions
-        if isinstance(transaction, StockSplitTransaction)
-    ]
-    assert [event.event.ratio for event in events] == [Fraction(1, 3), Fraction(1, 3)]
+    The first close could pair with either open here, and settling that
+    requires searching the component for a complete matching, which grows
+    factorially on rows deduplication legitimately keeps. Nothing real is
+    lost by refusing: both readings are two reorganisations of one security
+    on one date, which the calculator refuses anyway.
+    """
+    with pytest.raises(ParsingError, match="once each"):
+        load(
+            tmp_path,
+            {
+                "export.csv": [
+                    HEADER_2026,
+                    close_row(
+                        time="2026-02-02 07:44:13.000",
+                        shares="9",
+                        price="10",
+                        transaction_id="close-1",
+                    ),
+                    open_row(
+                        time="2026-02-02 07:44:13.000",
+                        shares="3",
+                        price="30",
+                        transaction_id="open-1",
+                    ),
+                    close_row(
+                        time="2026-02-02 07:44:13.500",
+                        shares="3",
+                        price="30",
+                        transaction_id="close-2",
+                    ),
+                    open_row(
+                        time="2026-02-02 07:44:13.500",
+                        shares="1",
+                        price="90",
+                        transaction_id="open-2",
+                    ),
+                ]
+            },
+        )
 
 
 def test_an_unrelated_security_cannot_bridge_two_tight_pairs(tmp_path: Path) -> None:

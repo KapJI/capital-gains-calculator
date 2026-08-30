@@ -113,6 +113,9 @@ TOTAL_ABS_TOLERANCE: Final = Decimal("0.01")
 # 100,000 position already differs by 1.8e-4.
 VALUE_REL_TOLERANCE: Final = Decimal("1E-7")
 
+# A reorganisation is two rows: the position before it and the one after.
+HALVES_PER_SPLIT: Final = 2
+
 # The two halves are stamped at the same instant or milliseconds apart.
 SPLIT_PAIR_MAX_GAP: Final = timedelta(seconds=1)
 
@@ -428,11 +431,12 @@ class Trading212Transaction(BrokerTransaction):
         isin = Isin(isin_raw) if isin_raw else None
         self.transaction_id = row.get(Trading212Column.TRANSACTION_ID)
         self.notes = row.get(Trading212Column.NOTES)
-        # The row as it was exported. Deduplication compares transactions
-        # that share an id cell for cell, and a summary of the fields this
-        # parser happens to read would let two rows differing only in one it
-        # ignores collapse into one. Pairing reads it too, to prove that a
-        # reorganisation row fills nothing it should not.
+        # The row as it was exported. Pairing reads it to prove that a
+        # reorganisation row fills nothing it should not. Deduplication does
+        # not: it groups by the recorded transaction content instead, because
+        # Trading 212 reuses ids and its exports have changed columns more
+        # than once, so neither the id nor the raw cells identify a
+        # transaction across exports.
         self.exported_row = row
         broker = "Trading212"
         super().__init__(
@@ -1054,11 +1058,19 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
                 visited.add(id(candidate))
                 component.append(candidate)
                 pending.extend(possibilities[id(candidate)])
-            matching = cls._unique_split_matching(component, possibilities)
-            if matching is None:
-                cls._refuse_unpaired_group(component, component)
+            # Exactly one close and one open, or refuse. Edges only join a
+            # close to an open, so a two-row component is necessarily one of
+            # each. A larger component means several rows share the same
+            # evidence, and searching it for a unique matching is a factorial
+            # walk on rows deduplication legitimately keeps (distinct ids
+            # across overlapping exports), while the calculator refuses more
+            # than one reorganisation of one security on one date anyway.
+            if len(component) == HALVES_PER_SPLIT:
+                open_half = next(half for half in component if half.is_open)
+                close_half = next(half for half in component if not half.is_open)
+                pairs.append((open_half, close_half))
             else:
-                pairs.extend(matching)
+                cls._refuse_unpaired_group(component, component)
 
         events: list[StockSplitTransaction] = []
         for open_half, close_half in pairs:
@@ -1120,52 +1132,6 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
                 ]
                 cls._refuse_unpaired_group(group, related)
         return events
-
-    @staticmethod
-    def _unique_split_matching(
-        component: list[SplitHalf],
-        possibilities: dict[int, list[SplitHalf]],
-    ) -> list[tuple[SplitHalf, SplitHalf]] | None:
-        """Return the sole complete matching, or None if there is not one."""
-        solutions: list[list[tuple[SplitHalf, SplitHalf]]] = []
-
-        def search(
-            closes: list[SplitHalf],
-            available_opens: set[int],
-            chosen: list[tuple[SplitHalf, SplitHalf]],
-        ) -> None:
-            if len(solutions) > 1:
-                return
-            if not closes:
-                if not available_opens:
-                    solutions.append(chosen)
-                return
-            close_half = min(
-                closes,
-                key=lambda close: sum(
-                    id(candidate) in available_opens
-                    for candidate in possibilities[id(close)]
-                ),
-            )
-            candidates = [
-                candidate
-                for candidate in possibilities[id(close_half)]
-                if id(candidate) in available_opens
-            ]
-            remaining = [close for close in closes if close is not close_half]
-            for open_half in candidates:
-                search(
-                    remaining,
-                    available_opens - {id(open_half)},
-                    [*chosen, (open_half, close_half)],
-                )
-
-        search(
-            [half for half in component if not half.is_open],
-            {id(half) for half in component if half.is_open},
-            [],
-        )
-        return solutions[0] if len(solutions) == 1 else None
 
     @staticmethod
     def _refuse_legacy_split(
