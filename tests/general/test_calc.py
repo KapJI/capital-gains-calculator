@@ -1223,7 +1223,7 @@ def test_main_returns_failure_on_unexpected_error(
     def explode(args: argparse.Namespace) -> None:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("cgt_calc.main.calculate_cgt", explode)
+    monkeypatch.setattr("cgt_calc.cli.calculate_cgt", explode)
     monkeypatch.setattr(sys, "argv", ["cgt-calc", "--year", "2021"])
 
     # main() enables the FloatOperation trap on the active decimal context;

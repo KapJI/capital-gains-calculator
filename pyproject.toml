@@ -59,7 +59,7 @@ dependencies = [
 "Release Notes" = "https://github.com/cgt-calc/capital-gains-calculator/releases"
 
 [project.scripts]
-cgt-calc = "cgt_calc.main:init"
+cgt-calc = "cgt_calc.cli:init"
 
 [dependency-groups]
 dev = [
