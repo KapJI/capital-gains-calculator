@@ -105,7 +105,7 @@ def test_no_treaty_when_the_source_country_cannot_be_determined(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Without an ISIN, GBP says nothing about where the income came from."""
-    with caplog.at_level(logging.WARNING, logger="cgt_calc.main"):
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
         assert _treaty_country(_dividend_pair(CurrencyCode("GBP"), None)) is None
     assert "Source country of the GBP dividend is unknown" in caplog.text
 
@@ -114,7 +114,7 @@ def test_no_treaty_when_withholding_does_not_match_the_treaty_rate(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Relief is refused when the rate deducted is not the treaty rate."""
-    with caplog.at_level(logging.WARNING, logger="cgt_calc.main"):
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
         assert (
             _treaty_country(
                 _dividend_pair(CurrencyCode("GBP"), US_ISIN, Decimal("0.30"))

@@ -78,7 +78,7 @@ def test_treaty_mismatch_warning_scoped_to_tax_year(
     transactions = _dividend_with_unexpected_withholding(date)
     calculator = _calculator(transactions)
 
-    with caplog.at_level(logging.WARNING, logger="cgt_calc.main"):
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
         calculator.convert_to_hmrc_transactions(transactions)
         calculator.calculate_capital_gain()
 
