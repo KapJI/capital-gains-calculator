@@ -110,7 +110,7 @@ The importer recognises these exact values from the main CSV's `Action` column:
 | `Security Transfer`                                                | An `ACH`-related cash movement; an `Amount` is required and no holding is moved     |
 | `Reinvest Shares`                                                  | A purchase of the reinvested shares                                                 |
 | `Reinvest Dividend`                                                | Unsupported; the row is ignored and cgt-calc prints a warning                       |
-| `Stock Split`                                                      | Adds the exported new shares at no cost                                             |
+| `Stock Split`                                                      | A share reorganisation: the pooled cost is unchanged and spread over the new count  |
 | `Spin-off`                                                         | Adds the new holding and moves part of the old holding's pooled cost to it          |
 | `Cash Merger` followed by `Cash Merger Adj`                        | A disposal for cash, built from the adjacent amount and quantity rows               |
 | `Full Redemption Adj` followed by `Full Redemption`                | A disposal for cash, built from the adjacent amount and quantity rows               |
@@ -157,8 +157,21 @@ interest with the trade confirmation before relying on the result.
 
 ### Corporate actions
 
-A `Stock Split` row must contain the positive number of new shares added by the split. A
-consolidation or reverse split that removes shares is not supported by this action.
+A `Stock Split` row states the change the event made to this account's holding: positive for the new
+shares a split added, negative for the shares a consolidation removed. cgt-calc applies it as a
+share reorganisation: nothing is bought or sold, and the pooled cost is unchanged and spread over
+the new count ([TCGA 1992 s127](https://www.legislation.gov.uk/ukpga/1992/12/part/IV/chapter/II)).
+
+Two situations are refused rather than guessed:
+
+- If the same security also has units from another input, one account's change does not state the
+    whole pooled holding's. Replace the Schwab row's effect with a RAW
+    [`STOCK_SPLIT` row](raw.md#share-reorganisations) stating the change to all of them together;
+    where a date has both, the RAW row is used and the Schwab row is ignored. See
+    [`also has units from`](raw.md#also-has-units-from-on-a-stock_split-row).
+- Because Schwab rows carry dates without times, a purchase, sale, gift or transfer of the same
+    security on the day of the split cannot be placed before or after it, and the day is refused.
+    See [`cannot be placed either side of it`](raw.md#cannot-be-placed-either-side-of-it).
 
 For a `Spin-off`, cgt-calc needs to know the old holding from which the new shares came. It asks for
 the old ticker during an interactive run and saves the answer in `out/spin_offs.csv`. For a
@@ -259,7 +272,6 @@ use the one with the correct quantity.
     above.
 - A cash merger that gives replacement shares as well as cash is not supported. The cash-only
     importer prints a warning for every merger so you remember to check this.
-- `Stock Split` supports extra shares from a split, not shares removed by a consolidation.
 - All values in Schwab CSV and JSON files are treated as USD. Changing a currency symbol in the CSV
     does not convert the data.
 - cgt-calc does not remove duplicates from Schwab exports, because the CSV has no transaction ID to
