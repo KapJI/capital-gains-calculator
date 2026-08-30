@@ -89,7 +89,7 @@ def _unattributed_warnings(
     # once, and those records must not be counted again here.
     caplog.clear()
     calculator = _calculator(transactions, tax_year)
-    with caplog.at_level(logging.WARNING, logger="cgt_calc.main"):
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
         calculator.convert_to_hmrc_transactions(transactions)
         calculator.process_dividends()
     return [

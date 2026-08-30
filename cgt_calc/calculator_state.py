@@ -16,7 +16,6 @@ if TYPE_CHECKING:
         CalculationEntry,
         CalculationLog,
         CurrencyCode,
-        DividendTaxAttribution,
         ExcessReportedIncomeDistributionLog,
         ExcessReportedIncomeLog,
         ForeignAmountLog,
@@ -89,7 +88,6 @@ class CalculatorState:
     dividend_dates: dict[tuple[str, str], set[datetime.date]] = field(
         default_factory=lambda: defaultdict(set)
     )
-    _attributed_dividend_tax: DividendTaxAttribution | None = None
     interest_list: dict[
         tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
     ] = field(default_factory=lambda: defaultdict(ForeignCurrencyAmount))
