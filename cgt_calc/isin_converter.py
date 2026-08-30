@@ -14,7 +14,12 @@ from pyrate_limiter.abstracts.rate import Duration
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 from requests import exceptions as requests_exceptions
 
-from .const import CGT_MODE, INITIAL_ISIN_TRANSLATION_RESOURCE, RuntimeMode
+from .const import (
+    CGT_MODE,
+    INITIAL_ISIN_TRANSLATION_RESOURCE,
+    ISIN_TICKER_ALIASES,
+    RuntimeMode,
+)
 from .exceptions import (
     ExternalApiError,
     InvalidTransactionError,
@@ -73,8 +78,20 @@ class IsinConverter:
         )
         self.session = RateLimitedRequestsSession(limiter)
         self.isin_translation_file = isin_translation_file
+        # Reference data: the bundled table, the user's cache file and live
+        # OpenFIGI results. One consistent set of mappings, which is what
+        # validate_data checks, so the tickers this run's transactions carry
+        # are kept out of it and tracked below instead.
         self.data: dict[Isin, set[str]] = {}
+        # The subset written back to the cache file. That file caches OpenFIGI
+        # lookups; a ticker learned from a transaction stored there is what
+        # makes one run's holding conflict with the next run's.
         self.write_data: dict[Isin, set[str]] = {}
+        # The tickers this run's transactions carry, and the reverse index.
+        # Two transactions disagreeing about a security is the one case where
+        # a pool really splits, and the only one refused here.
+        self.transaction_symbols: dict[Isin, set[str]] = {}
+        self.transaction_isins: dict[str, Isin] = {}
         self._read_isin_translation_data()
         self.validate_data()
 
@@ -99,33 +116,88 @@ class IsinConverter:
                 reverse_cache[symbol] = isin
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
-        """Add the ISIN to symbol mapping from an existing transaction."""
-        if transaction.symbol and transaction.isin:
-            current_symbols = self.data.get(transaction.isin)
-            if current_symbols and transaction.symbol not in current_symbols:
-                raise InvalidTransactionError(
-                    transaction,
-                    f"Ticker {transaction.symbol} does not match existing mapping: "
-                    f"ISIN {transaction.isin} is linked to {', '.join(sorted(current_symbols))}",
-                )
+        """Normalise the transaction's ticker and record what it links to.
 
-            if transaction.symbol not in (current_symbols or set()):
-                self.data.setdefault(transaction.isin, set()).add(transaction.symbol)
-                self.write_data.setdefault(transaction.isin, set()).add(
-                    transaction.symbol
-                )
-                self._write_isin_translation_file()
+        A known exchange alias is rewritten in place, on the transaction the
+        rest of the calculation reads, so the holding pools, matches and
+        prices under one ticker instead of one per listing.
+
+        Anything else is recorded as this run's name for the ISIN. Only two
+        transactions disagreeing are refused, in either direction: one ISIN
+        arriving under two tickers, which splits its pool, and one ticker
+        arriving under two ISINs, which pools two securities as one. A ticker
+        that merely differs from reference data - the bundled table, an
+        OpenFIGI result, the user's cache - does neither, and refusing it
+        turned a stale cache row from an earlier run into a failure of an
+        otherwise correct one.
+        """
+        if not transaction.symbol or not transaction.isin:
+            return
+
+        canonical = ISIN_TICKER_ALIASES.get((transaction.isin, transaction.symbol))
+        if canonical is not None:
+            LOGGER.debug(
+                "ISIN %s: reporting exchange alias %s as %s",
+                transaction.isin,
+                transaction.symbol,
+                canonical,
+            )
+            transaction.symbol = canonical
+
+        recorded = self.transaction_symbols.get(transaction.isin) or set()
+        known = self.data.get(transaction.isin) or set()
+        # Reference data listing all of them on one row is a security known by
+        # several names rather than two exports disagreeing. Those holdings
+        # pool separately, as they always have: that is a wider problem than
+        # this check, and failing here would not choose a ticker for them.
+        if (
+            recorded
+            and transaction.symbol not in recorded
+            and not recorded | {transaction.symbol} <= known
+        ):
+            raise InvalidTransactionError(
+                transaction,
+                f"Ticker {transaction.symbol} does not match "
+                f"{', '.join(sorted(recorded))}, used by another transaction for "
+                f"ISIN {transaction.isin}. One security under two tickers would "
+                "be pooled and matched as two holdings. Check the exports; if "
+                "both are listings of the same security, report the ISIN and "
+                "both tickers so the pair can be added",
+            )
+
+        # The other direction. Reference data cannot vouch for this one:
+        # validate_data already rules out a ticker linked to two ISINs there,
+        # so a second claim on one can only be two exports disagreeing.
+        owner = self.transaction_isins.get(transaction.symbol)
+        if owner is not None and owner != transaction.isin:
+            raise InvalidTransactionError(
+                transaction,
+                f"Ticker {transaction.symbol} is already used by another "
+                f"transaction for ISIN {owner}, so it cannot also stand for "
+                f"ISIN {transaction.isin}. Two securities under one ticker "
+                "would be pooled and matched as one holding",
+            )
+
+        self.transaction_symbols.setdefault(transaction.isin, set()).add(
+            transaction.symbol
+        )
+        self.transaction_isins[transaction.symbol] = transaction.isin
 
     def get_symbols(self, isin: Isin) -> set[str]:
-        """Return the set of symbols associated with the input ISIN (may be empty)."""
+        """Return the set of symbols associated with the input ISIN (may be empty).
+
+        A ticker this run's transactions carry answers for the ISIN as well as
+        a stored one does, and spares the lookup.
+        """
+        recorded = self.transaction_symbols.get(isin) or set()
         result = self.data.get(isin)
-        if result is None:
+        if result is None and not recorded:
             result = self._fetch_live(isin)
             self.data[isin] = result
             if result:
                 self.write_data[isin] = result
                 self._write_isin_translation_file()
-        return result
+        return (result or set()) | recorded
 
     def get_symbol_to_isin_map(self) -> dict[str, Isin]:
         """Return a map from symbols to ISINs.
@@ -140,6 +212,9 @@ class IsinConverter:
             for symbol in symbols:
                 if symbol:
                     symbol_to_isin[symbol] = isin
+        # Last, so that a ticker this run's transactions carry outranks a
+        # stored row that gives it to another ISIN.
+        symbol_to_isin.update(self.transaction_isins)
         return symbol_to_isin
 
     def _read_isin_translation_data(self) -> None:
@@ -185,6 +260,10 @@ class IsinConverter:
             self.data.update(self.write_data)
 
     def _write_isin_translation_file(self) -> None:
+        # Over every reference source, not just the rows about to be written:
+        # the next run reads this file alongside the bundled table, so a
+        # looked-up ticker that another ISIN already owns has to be refused
+        # here rather than break that run's construction.
         self.validate_data()
         if self.isin_translation_file is None or CGT_MODE != RuntimeMode.PROD:
             return

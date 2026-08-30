@@ -862,6 +862,77 @@ def _rename_transaction(date: datetime.date, old: str, new: str) -> BrokerTransa
     )
 
 
+@pytest.mark.parametrize(
+    ("isin", "alias", "canonical"),
+    [
+        (Isin("US67066G1040"), "NVD", "NVDA"),
+        (Isin("US11135F1012"), "1YD", "AVGO"),
+    ],
+)
+def test_exchange_alias_pools_under_one_ticker(
+    isin: Isin, alias: str, canonical: str
+) -> None:
+    """One security bought under two of its listings is one Section 104 pool.
+
+    Trading 212 exports the Xetra line of a US share under its German code,
+    so a history can hold both. Pooling and matching are keyed by ticker, so
+    without normalisation the two halves never meet: the sale below has only
+    half the units it needs under its own name.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    buy_alias = BrokerTransaction(
+        date=datetime.date(2024, 5, 1),
+        action=ActionType.BUY,
+        symbol=alias,
+        description=f"buy {alias}",
+        quantity=Decimal(10),
+        price=Decimal(10),
+        fees=Decimal(0),
+        amount=Decimal(-100),
+        currency=CurrencyCode("GBP"),
+        broker="Trading 212",
+        isin=isin,
+    )
+    transactions: list[BrokerTransaction] = [
+        buy_alias,
+        BrokerTransaction(
+            date=datetime.date(2024, 6, 1),
+            action=ActionType.BUY,
+            symbol=canonical,
+            description=f"buy {canonical}",
+            quantity=Decimal(10),
+            price=Decimal(20),
+            fees=Decimal(0),
+            amount=Decimal(-200),
+            currency=CurrencyCode("GBP"),
+            broker="Trading 212",
+            isin=isin,
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 9, 1),
+            action=ActionType.SELL,
+            symbol=canonical,
+            description=f"sell {canonical}",
+            quantity=Decimal(15),
+            price=Decimal(30),
+            fees=Decimal(0),
+            amount=Decimal(450),
+            currency=CurrencyCode("GBP"),
+            broker="Trading 212",
+            isin=isin,
+        ),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert buy_alias.symbol == canonical
+    assert alias not in calculator.portfolio
+    # 20 units costing 300 in one pool: 15 sold for 450 leaves 5 costing 75.
+    assert calculator.portfolio[canonical].quantity == Decimal(5)
+    assert calculator.portfolio[canonical].amount == Decimal(75)
+    assert report.total_gain() == Decimal(225)
+
+
 def test_rename_transfers_pool_to_new_ticker() -> None:
     """RENAME moves pool cost and quantity from old to new ticker; logs a RENAME entry."""
     calculator = create_calculator(tax_year=2024, balance_check=False)

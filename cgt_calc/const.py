@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from dateutil.relativedelta import relativedelta
 
-from .model import TaxTreaty
+from .model import Isin, TaxTreaty
 
 # =============================================================================
 # Allowances
@@ -126,6 +126,18 @@ ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 
 TICKER_RENAMES: Final[dict[str, str]] = {
     "FB": "META",
+}
+
+# Exchange-specific tickers for one security, mapped to the ticker the report
+# uses. Trading 212 lists the Xetra line of a US share under its German code,
+# so one holding arrives under two names and pools, matches and prices as two.
+# Keyed by ISIN as well as ticker, and deliberately not in TICKER_RENAMES: a
+# ticker code belongs to an exchange rather than to a security, so `NVD` is
+# NVDA only under US67066G1040, and TICKER_RENAMES is applied at parse time,
+# before any ISIN is known. Add a pair only once both listings are confirmed.
+ISIN_TICKER_ALIASES: Final[dict[tuple[Isin, str], str]] = {
+    (Isin("US67066G1040"), "NVD"): "NVDA",
+    (Isin("US11135F1012"), "1YD"): "AVGO",
 }
 
 # For ActionType.RENAME: set symbol=new_ticker, description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}"
