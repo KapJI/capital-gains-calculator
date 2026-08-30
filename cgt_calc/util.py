@@ -84,6 +84,26 @@ def approx_equal(
     return abs(val_a - val_b) < approx_quantity
 
 
+def approx_equal_scaled(
+    val_a: Decimal,
+    val_b: Decimal,
+    *,
+    reference: Decimal,
+    rel_tolerance: Decimal,
+    abs_tolerance: Decimal = Decimal(0),
+) -> bool:
+    """Check two decimals agree to a tolerance that grows with the values.
+
+    `approx_equal` takes a fixed tolerance, which fits a figure whose error
+    is a rounding step. It does not fit one reconstructed from a price and an
+    exchange rate: that error is a proportion of the value, so a bound fitted
+    to a holding worth a few hundred pounds rejects an ordinary one. Give
+    `reference` the value the error scales with, and `abs_tolerance` any
+    fixed rounding on top of it.
+    """
+    return abs(val_a - val_b) < abs_tolerance + rel_tolerance * abs(reference)
+
+
 def open_with_parents(path: Path, *, clear_content: bool = True) -> TextIO:
     """Open a file for writing, creating parent directories if they do not exist.
 

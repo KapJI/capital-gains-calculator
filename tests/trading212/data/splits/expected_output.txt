@@ -1,0 +1,29 @@
+Final portfolio
+  FOO: 600.00
+
+Final balance
+  Trading212: 9500.00 (GBP)
+
+Portfolio at the end of 2024/2025 tax year
+  FOO: 600.00, £1,200.00
+
+Tax summary for 2024/2025
+
+Capital gains
+  Disposals:                  2
+  Disposal proceeds:  £2,400.00
+  Allowable costs:    £1,700.00
+  Gain:                 £700.00
+  Loss:                   £0.00
+  Total gain:           £700.00
+  Taxable gain:           £0.00
+
+Dividends
+  Proceeds:               £0.00
+  Tax-free allowance:   £500.00
+  Taxable proceeds:       £0.00
+
+Interest
+  UK proceeds:            £0.00
+  Foreign proceeds:       £0.00
+  Tax paid:               £0.00

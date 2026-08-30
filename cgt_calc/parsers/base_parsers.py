@@ -127,6 +127,10 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         load passes its own token so every file in it shares one boundary; a
         file loaded on its own is a boundary of its own.
         """
+        # A file passed on its own is a boundary of its own, and nothing
+        # follows it, so it finalizes here. A directory load supplies its own
+        # token and finalizes once over every file instead.
+        standalone = account is None
         boundary = (
             account if account is not None else next_account_token(cls.pretty_name)
         )
@@ -142,7 +146,10 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         if not transactions and warn_on_empty:
             LOGGER.warning("No transactions detected in file %s", file_path)
         cls.stamp_source(transactions, file_path, boundary)
-        return cls.post_process_transactions(transactions)
+        transactions = cls.post_process_transactions(transactions)
+        if standalone:
+            transactions = cls.finalize_transactions(transactions)
+        return transactions
 
     @classmethod
     def stamp_source(
@@ -183,6 +190,17 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
     def file_path_filter(cls, file_path: Path) -> bool:  # noqa: ARG003
         """Choose which files to parse."""
         return True
+
+    @classmethod
+    def finalize_transactions(cls, transactions: list[T]) -> list[T]:
+        """Post-process once every file in one declared boundary is read.
+
+        `post_process_transactions` runs per file as well as over the union of
+        a directory, so work that needs the whole boundary at once cannot go
+        there: it would run on the first file alone and reject what the
+        second file completes. This runs exactly once per boundary.
+        """
+        return transactions
 
 
 class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
@@ -335,4 +353,4 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                 dir_path,
                 cls.pretty_name,
             )
-        return cls.post_process_transactions(transactions)
+        return cls.finalize_transactions(cls.post_process_transactions(transactions))

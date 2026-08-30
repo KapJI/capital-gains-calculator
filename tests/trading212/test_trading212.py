@@ -1123,10 +1123,10 @@ def test_load_from_dir_deduplicates_overlapping_exports(tmp_path: Path) -> None:
     """Collapse a transaction that two overlapping exports both report.
 
     Exports are requested by date range, so consecutive downloads routinely
-    cover the same days. Deduplication rests on `Trading212Transaction.__hash__`
-    together with the field-by-field `__eq__` that `BrokerTransaction` gets as a
-    dataclass, so any field that varies with the source file would keep both
-    copies and double the holding.
+    cover the same days. Rows are merged on the content the export recorded
+    and the number of copies each file carries, so any field that varies with
+    the source file rather than with the transaction would keep both copies
+    and double the holding.
     """
 
     folder = tmp_path / "inputs"

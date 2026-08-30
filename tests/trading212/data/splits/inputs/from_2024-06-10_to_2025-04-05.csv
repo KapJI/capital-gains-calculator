@@ -1,0 +1,6 @@
+Action,Time (UTC),ISIN,Ticker,Name,No. of shares,Price / share,Currency (Price / share),Exchange rate,Result,Currency (Result),Total,Currency (Total),ID
+Stock split open,2024-06-10T07:00:00+00:00,US0000000002,FOO,"Foo Company",1000.0000000000,2.00,GBP,,,,2000.00,"GBP",split-foo-open
+Stock split close,2024-07-15T07:00:00.000+00:00,US0000000010,BAR,"Bar Company",90.0000000000,10.00,GBP,,0.00,"GBP",900.00,"GBP",split-bar-close
+Stock split open,2024-07-15T07:00:00.009+00:00,US0000000010,BAR,"Bar Company",10.0000000000,90.00,GBP,,,,900.00,"GBP",split-bar-open
+Market sell,2024-09-02T11:00:00+00:00,US0000000002,FOO,"Foo Company",400.0000000000,3.00,GBP,,400.00,"GBP",1200.00,"GBP",sell-foo
+Market sell,2024-10-02T11:00:00+00:00,US0000000010,BAR,"Bar Company",10.0000000000,120.00,GBP,,300.00,"GBP",1200.00,"GBP",sell-bar
