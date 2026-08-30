@@ -9,10 +9,10 @@ The following configuration files and options allow you to customize the calcula
     `out/exchange_rates.csv`. You can override these by providing your own file in the same format
     using the `--exchange-rates-file` option.
 
-- **ISIN to ticker translation.** When your broker doesn't provide ticker symbols, the tool
-    automatically translates ISIN codes using the
+- **ISIN to ticker translation.** When an ERI row carries only an ISIN, the tool automatically
+    translates it to ticker symbols using the
     [Open FIGI API](https://www.openfigi.com/api/overview). This is used for calculating Excess
-    Reportable Income (ERI) on offshore funds. The default read/write cache is
+    Reported Income (ERI) on offshore funds. The default read/write cache is
     `out/isin_translation.csv`; `--isin-translation-file` selects a different cache path. Existing
     entries are read, and cgt-calc can create or rewrite the file after a successful Open FIGI
     lookup or after learning a mapping from broker transactions. Pre-packaged mappings are available
