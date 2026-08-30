@@ -21,6 +21,17 @@ def test_url_split_across_string_literals_is_recovered(tmp_path: Path) -> None:
     }
 
 
+def test_url_in_a_comment_is_collected(tmp_path: Path) -> None:
+    """Comments are dropped by ast, so they are read from the token stream."""
+    (tmp_path / "note.py").write_text(
+        "# See https://cgt-calc.uk/docker/#volumes\nVALUE = 1\n", encoding="utf-8"
+    )
+
+    assert collect_urls(tmp_path) == {
+        "https://cgt-calc.uk/docker/#volumes": f"{tmp_path / 'note.py'}:1"
+    }
+
+
 def test_sentence_punctuation_is_not_part_of_the_url(tmp_path: Path) -> None:
     """A URL ending a sentence keeps the full stop, which is not part of it."""
     (tmp_path / "message.py").write_text(
