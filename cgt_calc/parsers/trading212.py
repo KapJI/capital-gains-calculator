@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 import csv
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
+from itertools import combinations
 import logging
+import math
 from pathlib import Path
 from typing import ClassVar, Final, NoReturn, TextIO, override
 
@@ -429,7 +431,19 @@ class Trading212Transaction(BrokerTransaction):
 
         isin_raw = row[Trading212Column.ISIN]
         isin = Isin(isin_raw) if isin_raw else None
-        self.transaction_id = row.get(Trading212Column.TRANSACTION_ID)
+        # An export without the ID column gives None; one with the column
+        # but no value gives "". Both mean "no identity", so they must not
+        # be told apart when matching rows across exports.
+        # Every instant an export stated for this transaction. A merge keeps
+        # one copy of a row two exports both report, and the copies can
+        # disagree below the second. The chronology a reorganisation is
+        # checked against has to see all of them: keeping only the survivor's
+        # would let one export's stamp erase another's evidence that a trade
+        # fell between the two halves.
+        self.stated_instants: frozenset[datetime] = frozenset({self.datetime})
+
+        transaction_id = (row.get(Trading212Column.TRANSACTION_ID) or "").strip()
+        self.transaction_id = transaction_id or None
         self.notes = row.get(Trading212Column.NOTES)
         # The row as it was exported. Pairing reads it to prove that a
         # reorganisation row fills nothing it should not. Deduplication does
@@ -518,30 +532,71 @@ class Trading212Transaction(BrokerTransaction):
         """Whether this row is one half of a share reorganisation."""
         return self.raw_action in SPLIT_ACTIONS
 
+    @property
+    def is_reorganisation(self) -> bool:
+        """Whether this row states a share reorganisation, in either form."""
+        return self.action is ActionType.STOCK_SPLIT
+
     def recorded_fields(self) -> tuple[object, ...]:
         """Return the exported transaction content used to merge overlaps.
 
-        The base dataclass contains the tax-relevant values common to every
-        broker. Trading 212's timestamp, action label and foreign-currency
-        values are additional recorded evidence, while its ID is deliberately
-        absent: the broker can reuse one ID for distinct transactions.
+        Two rows sharing this are candidates for being one transaction that
+        two overlapping exports both report. The fields are listed rather
+        than read from `dataclasses.fields`, so that adding a field to the
+        model cannot silently change what counts as the same transaction.
+
+        The timestamp is truncated to a whole second. Older exports state
+        seconds and newer ones milliseconds, so comparing the stated instant
+        would keep both copies of every row in an overlap that spans that
+        change. Comparing the aware UTC value is also what lets the `Time`
+        and `Time (UTC)` columns meet. `date` derives from the same value, so
+        it needs no entry of its own.
+
+        The ID is deliberately absent: Trading 212 reuses one ID across a buy
+        and the sell that closes it, so an ID tells rows apart within a group
+        rather than forming one.
+
+        So are `price_foreign`, `currency_foreign`, `exchange_rate` and
+        `notes`. Nothing outside this module reads them, and the price check
+        that does runs at parse time, so whichever copy of a row survives,
+        the calculation sees the same values. Keeping them would instead
+        block a merge whenever two exports differ only in presentation.
+
+        Reorganisation rows are the exception on both counts, and take the
+        exact instant and those figures back. See below.
         """
-        recorded: list[object] = []
-        for field in fields(self):
-            if not field.compare:
-                continue
-            value = getattr(self, field.name)
-            if isinstance(value, dict):
-                value = tuple(sorted(value.items()))
-            recorded.append(value)
+        recorded = (
+            self.datetime.replace(microsecond=0),
+            self.action,
+            self.raw_action,
+            self.symbol,
+            self.description,
+            self.quantity,
+            self.price,
+            self.fees,
+            self.amount,
+            self.currency,
+            self.broker,
+            self.isin,
+            tuple(sorted(self.foreign_fees.items())),
+            self.ambiguous_quantity,
+        )
+        if not self.is_reorganisation:
+            return recorded
+        # A reorganisation is proved by rows read together, and the checks
+        # that protect it read more than the content above: pairing the two
+        # halves compares the figures below, and a trade is refused for being
+        # stamped between the halves, which turns on their exact instants.
+        # Merging two rows that differ in any of that would let one export's
+        # account of the event stand in for another's, and the evidence that
+        # made the other refuse would go with it. So a reorganisation row
+        # merges only with one that states the event identically.
         return (
             *recorded,
             self.datetime,
-            self.raw_action,
             self.price_foreign,
             self.currency_foreign,
             self.exchange_rate,
-            self.notes or "",
         )
 
     def where(self) -> str:
@@ -621,6 +676,25 @@ def _exported_time(transaction: Trading212Transaction) -> str:
         or row.get(Trading212Column.TIME_UTC)
         or transaction.datetime.isoformat()
     )
+
+
+def _stated_times(transaction: Trading212Transaction) -> str:
+    """Return every instant the exports stated for this row.
+
+    A merged row usually states one, and then this reads as the export
+    wrote it. Where two exports disagreed below the second, naming only the
+    survivor's would point the reader at a stamp that is not the one the
+    refusal turned on.
+    """
+    exported = _exported_time(transaction)
+    if len(transaction.stated_instants) <= 1:
+        return exported
+    others = sorted(
+        instant.isoformat()
+        for instant in transaction.stated_instants
+        if instant != transaction.datetime
+    )
+    return f"{exported}, also reported as {', '.join(others)}"
 
 
 def _describe_half(half: SplitHalf) -> str:
@@ -805,6 +879,72 @@ def _half_incompatibilities(open_half: SplitHalf, close_half: SplitHalf) -> list
     return issues
 
 
+# Where a row came from. Unique per row, and the handle the merge marks rows
+# by, so that transactions never need to be hashable.
+type Provenance = tuple[Path, int]
+
+# The most subset combinations the merge will rank before giving up and taking
+# rows by their own timestamps. C(12, 6) is the dearest way to choose from
+# twelve rows, so anything a real export offers stays exact. The gate is the
+# number of candidates rather than the bucket size: C(13, 13) is one candidate
+# and C(100, 1) is a hundred, both trivial, and the first is how a single file
+# arrives here.
+ANONYMOUS_CANDIDATE_LIMIT: Final = 924
+
+
+def _source_file(transaction: Trading212Transaction) -> Path:
+    """Return the export a row was read from."""
+    source = transaction.source
+    assert source is not None, "transactions are stamped before post-processing"
+    assert source.file is not None
+    return source.file
+
+
+def _provenance(transaction: Trading212Transaction) -> Provenance:
+    """Identify one row by where it came from."""
+    source = transaction.source
+    assert source is not None
+    assert source.index is not None
+    return (_source_file(transaction), source.index)
+
+
+def _row_order_key(transaction: Trading212Transaction) -> tuple[bool, int, int]:
+    """Order rows within one source, most informative timestamp first.
+
+    A row stating a fraction of a second is preferred to one stating a whole
+    second, because the two can be the same transaction reported at different
+    precision and the finer value is the better record.
+    """
+    microsecond = transaction.datetime.microsecond
+    source = transaction.source
+    index = source.index if source is not None and source.index is not None else 0
+    return (microsecond == 0, microsecond, index)
+
+
+def _collection_order_key(
+    rows: list[Trading212Transaction],
+) -> tuple[int, int, tuple[int, ...], tuple[Provenance, ...]]:
+    """Order whole candidate selections, best first.
+
+    Prefers keeping fractional timestamps, then keeping distinct ones. The
+    second test is what stops an export that repeats one fraction displacing
+    one that tells its rows apart: given `.100`/`.500` against `.100`/`.100`,
+    both have two fractions, but only the first has two different ones.
+    Without it the ascending comparison would pick `(.100, .100)` and lose the
+    `.500` occurrence.
+
+    The last two are tie-breaks with no meaning of their own, present so that
+    the order is total and the result cannot depend on filenames.
+    """
+    fractions = sorted(row.datetime.microsecond for row in rows)
+    return (
+        -sum(1 for fraction in fractions if fraction),
+        -len(set(fractions)),
+        tuple(fractions),
+        tuple(sorted(_provenance(row) for row in rows)),
+    )
+
+
 class Trading212Parser(BaseDirParser[BrokerTransaction]):
     """Trading 212 parser."""
 
@@ -884,9 +1024,15 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
 
         Exports are requested by date range, so consecutive downloads
         routinely cover the same days and report the same transaction twice.
-        For matching recorded content, the largest count in any one export is
-        authoritative. Distinct nonblank IDs can prove additional fills, but
-        an ID never joins rows with different content: Trading 212 reuses IDs.
+        Rows recording the same content are gathered into a group, and how
+        many of them are real is settled by the export reporting the most:
+        no export may be assumed complete, but none is expected to invent a
+        fill either.
+
+        This runs per file as well as over a directory, and on one file it
+        cannot change anything: that file supplies the whole group, so the
+        count it reports is the count kept. Removing a repeated row there
+        would lose a real fill, and the invariant is what stops it.
 
         Every split row is checked before any overlap copy can be dropped, so
         a richer schema cannot hide a cash leg or other contrary evidence.
@@ -902,35 +1048,184 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
                 _check_split_has_no_money(transaction)
             groups[transaction.recorded_fields()].append(transaction)
 
-        kept: list[BrokerTransaction] = []
+        selected: set[Provenance] = set()
         for group in groups.values():
-            per_export = Counter(
-                transaction.source.file if transaction.source is not None else None
-                for transaction in group
-            )
-            identified: dict[str, Trading212Transaction] = {}
-            for transaction in group:
-                if transaction.transaction_id:
-                    identified.setdefault(transaction.transaction_id, transaction)
+            selected.update(cls._select_group(group))
+            # The copies this group collapses into one can disagree below the
+            # second, and the survivor is chosen without regard to a
+            # reorganisation it might sit inside. Give every kept row the
+            # instants all of them stated, so the chronology check still sees
+            # the evidence the discarded copies carried.
+            instants = frozenset(row.datetime for row in group)
+            if len(instants) > 1:
+                for row in group:
+                    row.stated_instants = instants
+        cls._warn_conflicting_content(groups)
 
-            # One row per id the export tells apart, then topped up to the
-            # largest count any single export reported. `keep_count` caps the
-            # top-up, never the rows already seeded: the ids are evidence in
-            # their own right. The comparison is `>=` so that stays true by
-            # construction -- with `==`, a `keep_count` that ever fell below
-            # the seed would sail past the break and keep the whole group,
-            # turning "at most one copy per export" into "every copy".
-            keep_count = max(*per_export.values(), len(identified))
-            chosen = list(identified.values())
-            chosen_objects = {id(transaction) for transaction in chosen}
-            for transaction in group:
-                if len(chosen) >= keep_count:
-                    break
-                if id(transaction) not in chosen_objects:
-                    chosen.append(transaction)
-                    chosen_objects.add(id(transaction))
-            kept.extend(chosen)
-        return kept
+        # Filtering the original list rather than concatenating the groups
+        # keeps the relative order of what survives, which matters because
+        # the sort that follows is stable and rows within one second tie on
+        # its key.
+        return [
+            row for row in transactions if _provenance(_as_trading212(row)) in selected
+        ]
+
+    @classmethod
+    def _select_group(cls, group: list[Trading212Transaction]) -> set[Provenance]:
+        """Decide which rows recording one transaction to keep.
+
+        Identified rows are taken a whole source bucket at a time, so that a
+        repeated copy in one export can never stand in for a distinct
+        occurrence in another, and so that an ID reported twice by one export
+        keeps both of its rows.
+        """
+        by_source: dict[Path, list[Trading212Transaction]] = defaultdict(list)
+        for row in group:
+            by_source[_source_file(row)].append(row)
+        file_count = max(len(rows) for rows in by_source.values())
+
+        # One pass over the group, rather than rescanning every source for
+        # each distinct ID, which is quadratic once a group holds many.
+        id_buckets: dict[str, dict[Path, list[Trading212Transaction]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
+        for row in group:
+            if row.transaction_id:
+                id_buckets[row.transaction_id][_source_file(row)].append(row)
+
+        identified: list[Trading212Transaction] = []
+        for transaction_id in sorted(id_buckets):
+            buckets = list(id_buckets[transaction_id].values())
+            multiplicity = max(len(bucket) for bucket in buckets)
+            tied = [bucket for bucket in buckets if len(bucket) == multiplicity]
+            best = min(tied, key=_collection_order_key)
+            identified += best
+
+        chosen = list(identified)
+        needed = max(file_count, len(identified)) - len(identified)
+        if needed:
+            chosen += cls._best_anonymous(by_source, identified, needed, file_count)
+        return {_provenance(row) for row in chosen}
+
+    @classmethod
+    def _best_anonymous(
+        cls,
+        by_source: dict[Path, list[Trading212Transaction]],
+        identified: list[Trading212Transaction],
+        needed: int,
+        file_count: int,
+    ) -> list[Trading212Transaction]:
+        """Fill the remaining slots from one export's rows without an ID.
+
+        Only the exports reporting the most rows for this content are
+        eligible, and the completed selection is ranked as a whole rather
+        than the anonymous rows alone. Ranking them alone would let a second
+        copy of a timestamp already taken beat a row carrying one not yet
+        represented.
+        """
+        best_key = None
+        best: list[Trading212Transaction] = []
+        # Any source that could not be ranked exactly taints the comparison,
+        # not just the one that wins: its approximate subset is what gets
+        # ranked, so it can lose a contest its exact subset would have won,
+        # and which export the rows come from then depends on the gate.
+        approximated: list[Path] = []
+        for source in sorted(by_source):
+            rows = by_source[source]
+            if len(rows) != file_count:
+                continue
+            anonymous = sorted(
+                (row for row in rows if row.transaction_id is None),
+                key=_row_order_key,
+            )
+            subset, used_fallback = cls._best_subset(identified, anonymous, needed)
+            if used_fallback:
+                approximated.append(source)
+            key = _collection_order_key([*identified, *subset])
+            if best_key is None or key < best_key:
+                best_key, best = key, subset
+
+        if approximated:
+            LOGGER.warning(
+                "Too many ways to choose %d of the transactions that share one "
+                "second and are identical in every detail used to match "
+                "exports, so they were taken by timestamp alone from %s, "
+                "preferring rows that state a fraction of a second over rows "
+                "that state a whole one, then the lowest fractions. The number "
+                "of transactions and the tax figures are unaffected, but which "
+                "rows were kept, and which export they came from, may differ "
+                "from an exact comparison.",
+                needed,
+                ", ".join(str(source) for source in approximated),
+            )
+        return best
+
+    @staticmethod
+    def _best_subset(
+        identified: list[Trading212Transaction],
+        anonymous: list[Trading212Transaction],
+        needed: int,
+    ) -> tuple[list[Trading212Transaction], bool]:
+        """Choose `needed` of one export's rows without an ID.
+
+        Ranking every candidate is exact but grows combinatorially, so it is
+        gated on how many candidates there are rather than how many rows:
+        taking all of a large bucket, or one row from it, is cheap and stays
+        exact. Returns the rows and whether that gate was hit, so the caller
+        can report it once it knows which source won.
+        """
+        if math.comb(len(anonymous), needed) <= ANONYMOUS_CANDIDATE_LIMIT:
+            exact = min(
+                combinations(anonymous, needed),
+                key=lambda subset: _collection_order_key([*identified, *subset]),
+            )
+            return list(exact), False
+        return anonymous[:needed], True
+
+    @staticmethod
+    def _warn_conflicting_content(
+        groups: dict[tuple[object, ...], list[Trading212Transaction]],
+    ) -> None:
+        """Report an ID that two exports describe differently.
+
+        Trading 212 reuses an ID across a buy and the sell that closes it, so
+        an ID under several groups is ordinary and must not warn. What is not
+        ordinary is the same ID at the same instant for the same action
+        described two ways, which is one export restating a row another still
+        reports the old way. Both are kept, so the totals may count it twice,
+        and only re-exporting can settle it.
+        """
+        sources: dict[tuple[str, tuple[object, ...]], set[Path]] = defaultdict(set)
+        for fingerprint, group in groups.items():
+            for row in group:
+                if row.transaction_id:
+                    sources[row.transaction_id, fingerprint].add(_source_file(row))
+
+        by_id: dict[str, list[tuple[object, ...]]] = defaultdict(list)
+        for transaction_id, fingerprint in sources:
+            by_id[transaction_id].append(fingerprint)
+
+        for transaction_id, fingerprints in by_id.items():
+            for first, second in combinations(fingerprints, 2):
+                # A fingerprint opens with the truncated instant and the
+                # action, which together are what a restatement holds fixed
+                # and a reused ID does not.
+                if first[:2] != second[:2]:
+                    continue
+                files = sources[transaction_id, first]
+                others = sources[transaction_id, second]
+                if files & others:
+                    # One export lists both, so they are separate rows rather
+                    # than two accounts of one row.
+                    continue
+                LOGGER.warning(
+                    "Transaction ID %s is described differently by %s. Both "
+                    "rows were kept, so totals may count this transaction "
+                    "twice. Re-export the overlapping range so the files "
+                    "agree.",
+                    transaction_id,
+                    " and ".join(str(f) for f in sorted(files | others)),
+                )
 
     @classmethod
     @override
@@ -1297,7 +1592,7 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
             if row.symbol != event.symbol or quantity_sign(row.action) == 0:
                 continue
             other = _as_trading212(row)
-            if first <= other.datetime <= last:
+            if any(first <= instant <= last for instant in other.stated_instants):
                 raise _split_error(
                     other,
                     f"This row is stamped between the two halves of the "
@@ -1306,7 +1601,7 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
                     f"units before it or the units after it. Rows: "
                     f"{other.raw_action} at {other.where()} "
                     f"(No. of shares={other.quantity}, "
-                    f"Time={_exported_time(other)}); the reorganisation at "
+                    f"Time={_stated_times(other)}); the reorganisation at "
                     f"{first} and {last}. Check this row against Trading 212; "
                     "if it really was dealt while the reorganisation was in "
                     f"flight, leave {event.symbol} out and work it out by hand "
