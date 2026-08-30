@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Literal
 
 from colorama import Fore, Style
 
+from .calculator_state import CalculatorState
 from .cli import calculate_cgt, init, main
 from .const import (
     BALANCE_CHECK_CONTEXT_ROWS,
@@ -56,7 +57,6 @@ from .model import (
     DividendTaxAttribution,
     ExcessReportedIncome,
     ExcessReportedIncomeDistribution,
-    ExcessReportedIncomeDistributionLog,
     ExcessReportedIncomeLog,
     ForeignAmountLog,
     ForeignCurrencyAmount,
@@ -286,97 +286,32 @@ class CapitalGainsCalculator:
         self.cgt_exempt_tickers = frozenset(
             ticker.upper() for ticker in cgt_exempt_tickers or []
         )
-        self.total_uk_interest = Decimal(0)
-        self.total_foreign_interest = Decimal(0)
-        self.total_interest_tax = Decimal(0)
+        self.state = CalculatorState()
 
-        self.acquisition_list: HmrcTransactionLog = {}
-        self.disposal_list: HmrcTransactionLog = {}
-        # No gain/no loss transfers to a spouse/civil partner. Kept separate from
-        # disposal_list so they never enter the taxable disposal totals.
-        self.transfer_to_spouse_list: HmrcTransactionLog = {}
-        self.bnb_list: HmrcTransactionLog = {}
-        # What each share reorganisation does to a holding, by date and
-        # symbol. Decided once from the chronological source view and
-        # replayed by both passes: deciding again in the second pass is how
-        # one pass ends up substituting the broker's count while the other
-        # scales by the ratio.
-        self.splits: dict[datetime.date, dict[str, SplitTransformation]] = defaultdict(
-            dict
-        )
-        # What a decrease may still take, on a day a reorganisation restated
-        # a holding. The recorded replay puts the day's increases and its
-        # reconciliation before its decreases, and this pass meets them
-        # interleaved, so its running count dips below what the day really
-        # holds on one side or the other of the correction.
-        self.split_day_capacity: dict[tuple[str, datetime.date], Decimal] = {}
-        # Which declared account boundaries have put units into each holding.
-        # A broker's own single-row split states a change to its own account,
-        # so it may only be read as a change to the whole pool when the whole
-        # pool came from that one source. Only rows that add units count: a
-        # sale or a hand-written gift takes units out of the pool and supplies
-        # none, and the sources are forgotten again once a day closes with
-        # the holding empty, so that a ticker traded at one broker years ago
-        # cannot veto a reorganisation of a pool rebuilt entirely at another.
-        self.holding_sources: dict[str, set[str]] = defaultdict(set)
-        # Stores old->new mapping when a symbol changes its name.
-        self.rename_list: dict[datetime.date, dict[str, str]] = defaultdict(dict)
+    @property
+    def portfolio(self) -> dict[str, Position]:
+        """Holdings built up so far, by symbol."""
+        return self.state.portfolio
 
-        self.dividend_list: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
-        # Withholding is matched to a dividend of the same broker as well as
-        # the same symbol, so both are keyed by broker. The dividends stay
-        # merged across brokers in dividend_list, which is what the report
-        # rows are built from.
-        self.dividend_tax_list: dict[
-            tuple[str, str, datetime.date], ForeignCurrencyAmount
-        ] = defaultdict(ForeignCurrencyAmount)
-        self.dividend_dates: dict[tuple[str, str], set[datetime.date]] = defaultdict(
-            set
-        )
-        self._attributed_dividend_tax: DividendTaxAttribution | None = None
-        self.interest_list: dict[
-            tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
-        ] = defaultdict(ForeignCurrencyAmount)
-        self.interest_tax_list: dict[
-            tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
-        ] = defaultdict(ForeignCurrencyAmount)
+    @property
+    def bnb_list(self) -> HmrcTransactionLog:
+        """Acquisitions reserved by the bed and breakfast rule."""
+        return self.state.bnb_list
 
-        # Log for the report section related only to interests and dividends
-        self.calculation_log_yields: CalculationLog = defaultdict(dict)
+    @property
+    def splits(self) -> dict[datetime.date, dict[str, SplitTransformation]]:
+        """What each share reorganisation does to a holding."""
+        return self.state.splits
 
-        self.portfolio: dict[str, Position] = defaultdict(Position)
-        self.spin_offs: dict[datetime.date, list[SpinOff]] = defaultdict(list)
-        # What the first pass recorded for each spun-off holding, by date and
-        # symbol. It is only an estimate, and the second pass swaps exactly
-        # this much out of the day's acquisitions for the real figure.
-        self.spin_off_estimates: dict[tuple[datetime.date, str], Decimal] = defaultdict(
-            Decimal
-        )
-        self.calculated = False
-        # Disposals that are gifts at market value rather than sales, and
-        # whether the recipient is a connected person. A loss on a gift to a
-        # connected person is clogged (TCGA 1992 s18(3)) and reported on its own.
-        self.gift_disposals: dict[tuple[datetime.date, str], bool] = {}
-        # Days on which a symbol was sold, redeemed or cashed out.
-        self.sale_days: set[tuple[datetime.date, str]] = set()
-        # The value per unit each day's gifts to a connected person stated,
-        # to refuse a second value: one holding has one market value on a day.
-        self.gift_prices: dict[
-            tuple[datetime.date, str], tuple[Decimal, CurrencyCode]
-        ] = {}
-        # Days on which a symbol was charged a management fee. A fee adds to
-        # the pool's cost with no shares, so it cannot be told from the pool
-        # itself once it is in.
-        self.fee_days: set[tuple[datetime.date, str]] = set()
-        # The source side of each spin-off, recorded when it is applied and
-        # collected into the calculation log by date.
-        self.spin_off_entries: dict[
-            datetime.date, dict[str, list[CalculationEntry]]
-        ] = defaultdict(lambda: defaultdict(list))
-        self.eris: ExcessReportedIncomeLog = defaultdict(dict)
-        self.eris_distribution: ExcessReportedIncomeDistributionLog = defaultdict(
-            lambda: defaultdict(ExcessReportedIncomeDistribution)
-        )
+    @property
+    def eris(self) -> ExcessReportedIncomeLog:
+        """Excess Reported Income by date and symbol."""
+        return self.state.eris
+
+    @property
+    def calculation_log_yields(self) -> CalculationLog:
+        """Calculation log for the interest and dividend report sections."""
+        return self.state.calculation_log_yields
 
     def date_in_tax_year(self, date: datetime.date) -> bool:
         """Check if date is within current tax year."""
@@ -389,7 +324,7 @@ class CapitalGainsCalculator:
 
     def get_eri(self, symbol: str, date: datetime.date) -> ExcessReportedIncome | None:
         """Return Excess Reported Income at specific date for the input symbol."""
-        return self.eris.get(date, {}).get(symbol)
+        return self.state.eris.get(date, {}).get(symbol)
 
     def add_acquisition(
         self,
@@ -440,13 +375,13 @@ class CapitalGainsCalculator:
             amount = -amount
 
         quantity = self._pooled_quantity(transaction)
-        self.portfolio[symbol] += Position(quantity, amount)
+        self.state.portfolio[symbol] += Position(quantity, amount)
 
         gbp_amount = self.currency_converter.to_gbp_for(amount, transaction)
         if transaction.action is ActionType.SPIN_OFF:
-            self.spin_off_estimates[transaction.date, symbol] += gbp_amount
+            self.state.spin_off_estimates[transaction.date, symbol] += gbp_amount
         add_to_list(
-            self.acquisition_list,
+            self.state.acquisition_list,
             transaction.date,
             symbol,
             quantity,
@@ -469,12 +404,12 @@ class CapitalGainsCalculator:
         capacity answers instead, which its decreases cannot exceed because
         planning refused a day that closes below zero.
         """
-        capacity = self.split_day_capacity.get((symbol, date_index))
+        capacity = self.state.split_day_capacity.get((symbol, date_index))
         if capacity is not None:
             return capacity
-        if symbol not in self.portfolio:
+        if symbol not in self.state.portfolio:
             return None
-        return self.portfolio[symbol].quantity
+        return self.state.portfolio[symbol].quantity
 
     def _provisional_cost(self, symbol: str, quantity: Decimal) -> Decimal:
         """Cost to take out of the first-pass pool for shares leaving it.
@@ -484,7 +419,7 @@ class CapitalGainsCalculator:
         reorganisation day the running count can sit at or below zero here,
         and there is then nothing to apportion.
         """
-        position = self.portfolio[symbol]
+        position = self.state.portfolio[symbol]
         if position.quantity <= 0:
             return Decimal(0)
         return normalize_amount(position.amount * quantity / position.quantity)
@@ -501,8 +436,8 @@ class CapitalGainsCalculator:
         cleared when a day closes with nothing held, in
         ``_open_transaction_day``.
         """
-        if self.portfolio[symbol].quantity == 0:
-            del self.portfolio[symbol]
+        if self.state.portfolio[symbol].quantity == 0:
+            del self.state.portfolio[symbol]
 
     def _pooled_quantity(self, transaction: BrokerTransaction) -> Decimal:
         """Return the count to pool, in the units in force at the day's end."""
@@ -727,7 +662,7 @@ class CapitalGainsCalculator:
                 )
             (before_rows if placement == "before" else after_rows).append(other)
 
-        day_open_quantity = self.portfolio[symbol].quantity
+        day_open_quantity = self.state.portfolio[symbol].quantity
         holding_at_event = day_open_quantity + sum(
             (
                 quantity_sign(other.action) * get_quantity_or_fail(other)
@@ -809,7 +744,7 @@ class CapitalGainsCalculator:
                 "units."
             )
 
-        self.splits[date_index][symbol] = SplitTransformation(
+        self.state.splits[date_index][symbol] = SplitTransformation(
             event=event,
             mode=mode,
             ratio=exact_ratio,
@@ -834,14 +769,14 @@ class CapitalGainsCalculator:
         # its own last disposal. A negative reconciliation can leave the count
         # briefly below zero here, ahead of the day's acquisitions, which
         # nothing reads.
-        position = self.portfolio[symbol]
-        self.portfolio[symbol] = Position(
+        position = self.state.portfolio[symbol]
+        self.state.portfolio[symbol] = Position(
             scaled_day_open_quantity + reconciliation_delta, position.amount
         )
         # Everything the day can give up, in the order the replay puts it:
         # the restated opening, then every increase, then the reconciliation.
         # Decreases draw on this rather than on the running count.
-        self.split_day_capacity[symbol, date_index] = (
+        self.state.split_day_capacity[symbol, date_index] = (
             scaled_day_open_quantity
             + self._signed_quantity(
                 [
@@ -910,7 +845,7 @@ class CapitalGainsCalculator:
                 f"{strip_zeros(holding_at_event)}."
             )
         if not isinstance(row, RawTransaction):
-            contributors = self.holding_sources.get(symbol, set()) | {
+            contributors = self.state.holding_sources.get(symbol, set()) | {
                 source_account(other)
                 for other in before_rows
                 if quantity_sign(other.action) > 0
@@ -998,13 +933,13 @@ class CapitalGainsCalculator:
         quantity = self._pooled_quantity(transaction)
 
         ticker = self.spin_off_handler.get_spin_off_source(
-            symbol, transaction.date, self.portfolio
+            symbol, transaction.date, self.state.portfolio
         )
         # Nothing to apportion from an empty holding, and no proportion of
         # value to work out either. On a day the source is itself created by
         # a spin-off, this is the first sign the rows are out of order, and
         # it comes before any price is asked for.
-        if self.portfolio[ticker].quantity == 0:
+        if self.state.portfolio[ticker].quantity == 0:
             raise CalculationError(
                 f"{ticker} holds no shares on {transaction.date} when {symbol} "
                 f"is spun off from it. If {ticker} is itself spun off that day, "
@@ -1019,7 +954,7 @@ class CapitalGainsCalculator:
         already_spun_from = next(
             (
                 spin_off
-                for spin_off in self.spin_offs[transaction.date]
+                for spin_off in self.state.spin_offs[transaction.date]
                 if spin_off.source == symbol
             ),
             None,
@@ -1037,11 +972,11 @@ class CapitalGainsCalculator:
         dst_price = self.price_fetcher.get_closing_price(symbol, transaction.date)
         src_price = self.price_fetcher.get_closing_price(ticker, transaction.date)
         dst_amount = quantity * dst_price
-        src_amount = self.portfolio[ticker].quantity * src_price
-        original_src_amount = self.portfolio[ticker].amount
+        src_amount = self.state.portfolio[ticker].quantity * src_price
+        original_src_amount = self.state.portfolio[ticker].amount
 
         share_of_original_cost = src_amount / (dst_amount + src_amount)
-        self.spin_offs[transaction.date].append(
+        self.state.spin_offs[transaction.date].append(
             SpinOff(
                 dest=symbol,
                 source=ticker,
@@ -1088,7 +1023,7 @@ class CapitalGainsCalculator:
         amount = get_amount_or_fail(transaction)
         price = transaction.price
 
-        self.portfolio[symbol] -= Position(pooled_quantity, amount)
+        self.state.portfolio[symbol] -= Position(pooled_quantity, amount)
 
         self._drop_empty_holding(symbol)
 
@@ -1096,7 +1031,7 @@ class CapitalGainsCalculator:
             raise PriceMissingError(transaction)
         # A gift to a connected person on the same day is refused (see
         # add_gift); a gift to anyone else folds into this ordinary disposal.
-        if self.gift_disposals.get((transaction.date, symbol)):
+        if self.state.gift_disposals.get((transaction.date, symbol)):
             raise CalculationError(
                 self._sale_and_gift_message(symbol, transaction.date)
             )
@@ -1110,14 +1045,14 @@ class CapitalGainsCalculator:
         ):
             raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
         add_to_list(
-            self.disposal_list,
+            self.state.disposal_list,
             transaction.date,
             symbol,
             pooled_quantity,
             self.currency_converter.to_gbp_for(amount, transaction),
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
-        self.sale_days.add((transaction.date, symbol))
+        self.state.sale_days.add((transaction.date, symbol))
 
     def add_transfer_to_spouse(
         self,
@@ -1161,12 +1096,12 @@ class CapitalGainsCalculator:
         # cost. Reduce the first-pass holding so later same-symbol transactions
         # validate correctly; the actual pool cost is recomputed in the second
         # pass.
-        self.portfolio[symbol] -= Position(
+        self.state.portfolio[symbol] -= Position(
             quantity, self._provisional_cost(symbol, quantity)
         )
         self._drop_empty_holding(symbol)
         add_to_list(
-            self.transfer_to_spouse_list,
+            self.state.transfer_to_spouse_list,
             transaction.date,
             symbol,
             quantity,
@@ -1225,11 +1160,11 @@ class CapitalGainsCalculator:
         # sale, or such a gift, alongside a gift to a connected person is
         # refused: a loss on the single disposal could not then be split for
         # the s18(3) restriction.
-        if connected and key in self.sale_days:
+        if connected and key in self.state.sale_days:
             raise CalculationError(
                 self._sale_and_gift_message(symbol, transaction.date)
             )
-        if self.gift_disposals.get(key, connected) != connected:
+        if self.state.gift_disposals.get(key, connected) != connected:
             raise CalculationError(self._mixed_gifts_message(symbol, transaction.date))
         # Connected gifts must also agree on the value per unit. One holding
         # of one class has one market value on a day, so a second value means
@@ -1238,13 +1173,13 @@ class CapitalGainsCalculator:
         # Everything at one value is treated as one gift to one person.
         if connected:
             value = (transaction.price, transaction.currency)
-            if self.gift_prices.setdefault(key, value) != value:
+            if self.state.gift_prices.setdefault(key, value) != value:
                 raise CalculationError(
                     self._gift_values_differ_message(symbol, transaction.date)
                 )
         # Reduce the first-pass holding so later same-symbol transactions
         # validate; the pool cost is recomputed in the second pass.
-        self.portfolio[symbol] -= Position(
+        self.state.portfolio[symbol] -= Position(
             quantity, self._provisional_cost(symbol, quantity)
         )
         self._drop_empty_holding(symbol)
@@ -1252,7 +1187,7 @@ class CapitalGainsCalculator:
         # that proceeds come to the market value and the fees are allowed as
         # a cost of the disposal.
         add_to_list(
-            self.disposal_list,
+            self.state.disposal_list,
             transaction.date,
             symbol,
             quantity,
@@ -1261,7 +1196,7 @@ class CapitalGainsCalculator:
             ),
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
-        self.gift_disposals[transaction.date, symbol] = connected
+        self.state.gift_disposals[transaction.date, symbol] = connected
 
     def _disposal_log_prefix(self, date_index: datetime.date, symbol: str) -> str:
         """Name the kind of disposal recorded for a symbol on a day.
@@ -1276,10 +1211,10 @@ class CapitalGainsCalculator:
         if self.is_cgt_exempt(symbol):
             return "exempt"
         key = (date_index, symbol)
-        connected = self.gift_disposals.get(key)
+        connected = self.state.gift_disposals.get(key)
         if connected:
             return "gift"
-        if connected is None or key in self.sale_days:
+        if connected is None or key in self.state.sale_days:
             return "sell"
         return "gift-unconnected"
 
@@ -1482,7 +1417,7 @@ class CapitalGainsCalculator:
             if not symbol:
                 continue
 
-            for report_date, report_by_symbol in self.eris.items():
+            for report_date, report_by_symbol in self.state.eris.items():
                 if symbol in report_by_symbol and report_date == transaction.date:
                     previous_price = report_by_symbol[symbol].price
                     if approx_equal(previous_price, price, Decimal("0.0001")):
@@ -1497,7 +1432,7 @@ class CapitalGainsCalculator:
                         f"{report_date} of £{previous_price}",
                     )
 
-            self.eris[transaction.date][symbol] = ExcessReportedIncome(
+            self.state.eris[transaction.date][symbol] = ExcessReportedIncome(
                 price=price,
                 symbol=symbol,
                 date=transaction.date,
@@ -1517,16 +1452,16 @@ class CapitalGainsCalculator:
                 transaction,
                 "Rename transaction does not identify the old symbol",
             )
-        existing = self.rename_list[transaction.date].get(old_symbol)
+        existing = self.state.rename_list[transaction.date].get(old_symbol)
         if existing is not None and existing != new_symbol:
             raise CalculationError(
                 self._two_renames_message(
                     old_symbol, transaction.date, existing, new_symbol
                 )
             )
-        self.rename_list[transaction.date][old_symbol] = new_symbol
-        position = self.portfolio.pop(old_symbol, Position())
-        self.portfolio[new_symbol] += position
+        self.state.rename_list[transaction.date][old_symbol] = new_symbol
+        position = self.state.portfolio.pop(old_symbol, Position())
+        self.state.portfolio[new_symbol] += position
         # The units keep the accounts that put them there; only the name
         # changes. Nothing is forgotten here, whatever the count says. The
         # merged stream's order within a day is not chronology, so a count of
@@ -1535,9 +1470,9 @@ class CapitalGainsCalculator:
         # question is settled where every earlier day has closed, in
         # ``_open_transaction_day``, which is the only place a holding's
         # accounts are dropped.
-        moved = self.holding_sources.pop(old_symbol, set())
+        moved = self.state.holding_sources.pop(old_symbol, set())
         if moved:
-            self.holding_sources[new_symbol] |= moved
+            self.state.holding_sources[new_symbol] |= moved
 
     def add_management_fee(self, transaction: BrokerTransaction) -> Decimal:
         """Record a fee that increases the holding's pooled cost."""
@@ -1557,9 +1492,9 @@ class CapitalGainsCalculator:
         transaction.quantity = Decimal(0)
         gbp_fees = self.currency_converter.to_gbp_for(transaction.fees, transaction)
         symbol = get_symbol_or_fail(transaction)
-        self.fee_days.add((transaction.date, symbol))
+        self.state.fee_days.add((transaction.date, symbol))
         add_to_list(
-            self.acquisition_list,
+            self.state.acquisition_list,
             transaction.date,
             symbol,
             transaction.quantity,
@@ -1626,13 +1561,16 @@ class CapitalGainsCalculator:
             # nothing in it, and its sources must not outlive the units either.
             for symbol in [
                 held
-                for held in self.holding_sources
-                if held not in self.portfolio or self.portfolio[held].quantity == 0
+                for held in self.state.holding_sources
+                if held not in self.state.portfolio
+                or self.state.portfolio[held].quantity == 0
             ]:
-                del self.holding_sources[symbol]
+                del self.state.holding_sources[symbol]
             self.plan_stock_splits(transaction.date, days[transaction.date])
         if quantity_sign(transaction.action) > 0 and transaction.symbol:
-            self.holding_sources[transaction.symbol].add(source_account(transaction))
+            self.state.holding_sources[transaction.symbol].add(
+                source_account(transaction)
+            )
 
     def convert_to_hmrc_transactions(
         self,
@@ -1703,10 +1641,12 @@ class CapitalGainsCalculator:
                 symbol = get_symbol_or_fail(transaction)
                 currency = transaction.currency
                 new_balance += amount
-                self.dividend_list[symbol, transaction.date] += ForeignCurrencyAmount(
-                    amount, currency
+                self.state.dividend_list[symbol, transaction.date] += (
+                    ForeignCurrencyAmount(amount, currency)
                 )
-                self.dividend_dates[transaction.broker, symbol].add(transaction.date)
+                self.state.dividend_dates[transaction.broker, symbol].add(
+                    transaction.date
+                )
                 if self.date_in_tax_year(transaction.date):
                     dividends[symbol, currency] += amount
             elif transaction.action is ActionType.DIVIDEND_TAX:
@@ -1714,7 +1654,7 @@ class CapitalGainsCalculator:
                 symbol = get_symbol_or_fail(transaction)
                 currency = transaction.currency
                 new_balance += amount
-                self.dividend_tax_list[
+                self.state.dividend_tax_list[
                     transaction.broker, symbol, transaction.date
                 ] += ForeignCurrencyAmount(amount, currency)
             # Cash moves and nothing else: a deposit or withdrawal, a
@@ -1728,7 +1668,7 @@ class CapitalGainsCalculator:
             elif transaction.action is ActionType.INTEREST:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
-                self.interest_list[
+                self.state.interest_list[
                     transaction.broker, transaction.currency, transaction.date
                 ] += ForeignCurrencyAmount(amount, transaction.currency)
                 if self.date_in_tax_year(transaction.date):
@@ -1736,7 +1676,7 @@ class CapitalGainsCalculator:
             elif transaction.action is ActionType.INTEREST_TAX:
                 amount = get_amount_or_fail(transaction)
                 new_balance += amount
-                self.interest_tax_list[
+                self.state.interest_tax_list[
                     transaction.broker, transaction.currency, transaction.date
                 ] += ForeignCurrencyAmount(amount, transaction.currency)
                 if self.date_in_tax_year(transaction.date):
@@ -1831,9 +1771,9 @@ class CapitalGainsCalculator:
         )
         bul = bullet(sys.stdout)
         print(style_text("Final portfolio", colour=Style.BRIGHT, emoji="📊"))
-        if not self.portfolio:
+        if not self.state.portfolio:
             print(f"{bul}(none)")
-        for stock, position in sorted(self.portfolio.items()):
+        for stock, position in sorted(self.state.portfolio.items()):
             print(f"{bul}{stock}: {position}")
         print()
         print(style_text("Final balance", colour=Style.BRIGHT, emoji="💰"))
@@ -1878,10 +1818,10 @@ class CapitalGainsCalculator:
         date_index: datetime.date,
     ) -> list[CalculationEntry]:
         """Process single acquisition."""
-        acquisition = self.acquisition_list[date_index][symbol]
+        acquisition = self.state.acquisition_list[date_index][symbol]
         spin_offs_here = [
             spin_off
-            for spin_off in self.spin_offs.get(date_index, [])
+            for spin_off in self.state.spin_offs.get(date_index, [])
             if spin_off.dest == symbol
         ]
         spin_off = spin_offs_here[0] if spin_offs_here else None
@@ -1906,7 +1846,7 @@ class CapitalGainsCalculator:
                 events.setdefault(row.source, []).append(row)
             for source_symbol, rows in events.items():
                 first = rows[0]
-                source = self.portfolio[
+                source = self.state.portfolio[
                     self._spin_off_pool(date_index, source_symbol, first.dest)
                 ]
                 assert first.source_price is not None
@@ -1917,7 +1857,7 @@ class CapitalGainsCalculator:
                 proportion = source_value / total_value if total_value else Decimal(1)
                 share = round_decimal((1 - proportion) * source.amount, 2)
                 carried += share
-                self.spin_off_entries[date_index][source_symbol].append(
+                self.state.spin_off_entries[date_index][source_symbol].append(
                     CalculationEntry(
                         RuleType.SPIN_OFF,
                         quantity=source.quantity,
@@ -1933,11 +1873,11 @@ class CapitalGainsCalculator:
                     )
                 )
                 source.amount -= share
-            acquisition.amount += carried - self.spin_off_estimates.pop(
+            acquisition.amount += carried - self.state.spin_off_estimates.pop(
                 (date_index, symbol), Decimal(0)
             )
         modified_amount = acquisition.amount
-        position = self.portfolio[symbol]
+        position = self.state.portfolio[symbol]
         calculation_entries = []
         # Management fee transaction can have 0 quantity
         assert acquisition.quantity >= 0
@@ -1947,8 +1887,10 @@ class CapitalGainsCalculator:
         bnb_acquisition = HmrcTransactionData()
         bed_and_breakfast_fees = Decimal(0)
 
-        if acquisition.quantity > 0 and has_key(self.bnb_list, date_index, symbol):
-            bnb_acquisition = self.bnb_list[date_index][symbol]
+        if acquisition.quantity > 0 and has_key(
+            self.state.bnb_list, date_index, symbol
+        ):
+            bnb_acquisition = self.state.bnb_list[date_index][symbol]
             assert bnb_acquisition.quantity <= acquisition.quantity
             # Multiply by the B&B quantity before dividing to avoid rounding errors from division
             bnb_cost_basis = normalize_amount(
@@ -1972,7 +1914,7 @@ class CapitalGainsCalculator:
                     eris=bnb_acquisition.eris,
                 )
             )
-        self.portfolio[symbol] += Position(
+        self.state.portfolio[symbol] += Position(
             acquisition.quantity,
             modified_amount,
         )
@@ -2010,14 +1952,16 @@ class CapitalGainsCalculator:
         ``transfer_to_spouse_list`` (which carry no fees and no proceeds).
         """
         disposal = (
-            self.transfer_to_spouse_list if no_gain_no_loss else self.disposal_list
+            self.state.transfer_to_spouse_list
+            if no_gain_no_loss
+            else self.state.disposal_list
         )[date_index][symbol]
         disposal_quantity = disposal.quantity
         proceeds_amount = disposal.amount
         original_disposal_quantity = disposal_quantity
         disposal_price = proceeds_amount / disposal_quantity
-        current_quantity = self.portfolio[symbol].quantity
-        current_amount = self.portfolio[symbol].amount
+        current_quantity = self.state.portfolio[symbol].quantity
+        current_amount = self.state.portfolio[symbol].amount
         assert disposal_quantity <= current_quantity
         chargeable_gain = Decimal(0)
         calculation_entries = []
@@ -2112,8 +2056,8 @@ class CapitalGainsCalculator:
                 # reorganisation of a holding renamed *into* this name is
                 # deliberately not picked up: the shares disposed of here left
                 # before that one arrived, so they were never its shares.
-                renames = self.rename_list.get(search_index, {})
-                day_splits = self.splits.get(search_index, {})
+                renames = self.state.rename_list.get(search_index, {})
+                day_splits = self.state.splits.get(search_index, {})
                 renamed_symbol = renames.get(effective_symbol, effective_symbol)
                 transformation = day_splits.get(effective_symbol) or day_splits.get(
                     renamed_symbol
@@ -2144,25 +2088,29 @@ class CapitalGainsCalculator:
                 )
                 if acquisition.quantity > 0:
                     bnb_acquisition = (
-                        self.bnb_list[search_index][effective_symbol]
-                        if has_key(self.bnb_list, search_index, effective_symbol)
+                        self.state.bnb_list[search_index][effective_symbol]
+                        if has_key(self.state.bnb_list, search_index, effective_symbol)
                         else HmrcTransactionData()
                     )
                     assert bnb_acquisition.quantity <= acquisition.quantity
 
                     same_day_disposal = (
-                        self.disposal_list[search_index][effective_symbol]
-                        if has_key(self.disposal_list, search_index, effective_symbol)
+                        self.state.disposal_list[search_index][effective_symbol]
+                        if has_key(
+                            self.state.disposal_list, search_index, effective_symbol
+                        )
                         else HmrcTransactionData()
                     )
                     # A same-day transfer to spouse competes for the same-day
                     # acquisition like a same-day sale, so reserve its share too.
                     if has_key(
-                        self.transfer_to_spouse_list, search_index, effective_symbol
+                        self.state.transfer_to_spouse_list,
+                        search_index,
+                        effective_symbol,
                     ):
                         same_day_disposal = (
                             same_day_disposal
-                            + self.transfer_to_spouse_list[search_index][
+                            + self.state.transfer_to_spouse_list[search_index][
                                 effective_symbol
                             ]
                         )
@@ -2183,7 +2131,7 @@ class CapitalGainsCalculator:
                         continue
                     if any(
                         spin_off.dest == effective_symbol
-                        for spin_off in self.spin_offs.get(search_index, [])
+                        for spin_off in self.state.spin_offs.get(search_index, [])
                     ):
                         # What those shares cost is a share of the source's pool
                         # on the day of the spin-off, and the walk has not
@@ -2293,9 +2241,9 @@ class CapitalGainsCalculator:
                         )
                         total_dist_amount += eri_distribution.amount
                         if self.date_in_tax_year(eri.distribution_date):
-                            self.eris_distribution[eri.distribution_date][symbol] += (
-                                eri_distribution
-                            )
+                            self.state.eris_distribution[eri.distribution_date][
+                                symbol
+                            ] += eri_distribution
 
                     bed_and_breakfast_gain = (
                         bed_and_breakfast_proceeds - bed_and_breakfast_allowable_cost
@@ -2327,7 +2275,7 @@ class CapitalGainsCalculator:
                             f"current amount {current_amount}"
                         )
                     add_to_list(
-                        self.bnb_list,
+                        self.state.bnb_list,
                         search_index,
                         effective_symbol,
                         consumed_acquisition_units,
@@ -2410,7 +2358,7 @@ class CapitalGainsCalculator:
         assert round_decimal(disposal_quantity, 23) == 0, (
             f"disposal quantity {disposal_quantity}"
         )
-        self.portfolio[symbol] = Position(
+        self.state.portfolio[symbol] = Position(
             current_quantity, normalize_amount(current_amount)
         )
         chargeable_gain = round_decimal(chargeable_gain, 2)
@@ -2418,15 +2366,15 @@ class CapitalGainsCalculator:
 
     def process_rename(self, old: str, new: str) -> CalculationEntry:
         """Transfer pool from old ticker to new ticker (no disposal)."""
-        pos = self.portfolio.pop(old, Position())
-        self.portfolio[new] += pos
+        pos = self.state.portfolio.pop(old, Position())
+        self.state.portfolio[new] += pos
         return CalculationEntry(
             rule_type=RuleType.RENAME,
             quantity=pos.quantity,
             amount=Decimal(0),
             fees=Decimal(0),
-            new_quantity=self.portfolio[new].quantity,
-            new_pool_cost=self.portfolio[new].amount,
+            new_quantity=self.state.portfolio[new].quantity,
+            new_pool_cost=self.state.portfolio[new].amount,
             allowable_cost=pos.amount,
             renamed_to=new,
         )
@@ -2444,8 +2392,10 @@ class CapitalGainsCalculator:
         exports this was built from, which is enough to leave a disposal of
         the whole holding short of zero.
         """
-        renames = self.rename_list.get(date_index, {})
-        for symbol, transformation in sorted(self.splits.get(date_index, {}).items()):
+        renames = self.state.rename_list.get(date_index, {})
+        for symbol, transformation in sorted(
+            self.state.splits.get(date_index, {}).items()
+        ):
             chained = self._rename_chain_at(symbol, renames)
             if chained is not None:
                 raise CalculationError(
@@ -2456,7 +2406,7 @@ class CapitalGainsCalculator:
                 raise CalculationError(
                     self._rename_and_split_message(symbol, date_index, *pooled)
                 )
-            position = self.portfolio[symbol]
+            position = self.state.portfolio[symbol]
             if position.quantity != transformation.day_open_quantity:
                 raise CalculationError(
                     f"Cannot apply the reorganisation of {symbol} on "
@@ -2466,7 +2416,7 @@ class CapitalGainsCalculator:
                     "the reorganisation was worked out. Please report this: "
                     "the two passes over the history disagree."
                 )
-            self.portfolio[symbol] = Position(
+            self.state.portfolio[symbol] = Position(
                 transformation.scaled_day_open_quantity, position.amount
             )
 
@@ -2477,9 +2427,12 @@ class CapitalGainsCalculator:
         the portfolio still holds the day-opening pool; an acquisition later
         today lands before the rename, which is applied at the end of the day.
         """
-        if symbol in self.portfolio and self.portfolio[symbol].quantity != 0:
+        if (
+            symbol in self.state.portfolio
+            and self.state.portfolio[symbol].quantity != 0
+        ):
             return True
-        return has_key(self.acquisition_list, date_index, symbol)
+        return has_key(self.state.acquisition_list, date_index, symbol)
 
     @staticmethod
     def _rename_chain_at(
@@ -2560,8 +2513,10 @@ class CapitalGainsCalculator:
         sum. It buys nothing and sells nothing, so it changes no cost and
         takes no part in same-day or 30-day identification.
         """
-        for symbol, transformation in sorted(self.splits.get(date_index, {}).items()):
-            position = self.portfolio[symbol]
+        for symbol, transformation in sorted(
+            self.state.splits.get(date_index, {}).items()
+        ):
+            position = self.state.portfolio[symbol]
             quantity = position.quantity + transformation.reconciliation_delta
             if quantity < 0:
                 raise CalculationError(
@@ -2569,7 +2524,7 @@ class CapitalGainsCalculator:
                     f"{date_index}: reconciling to the broker's count leaves "
                     f"{strip_zeros(quantity)} units."
                 )
-            self.portfolio[symbol] = Position(quantity, position.amount)
+            self.state.portfolio[symbol] = Position(quantity, position.amount)
             if date_index < tax_year_start_index:
                 continue
             event = transformation.event
@@ -2610,9 +2565,11 @@ class CapitalGainsCalculator:
         holding onward again or pools it with a second one is refused before
         any of this (see ``apply_split_openings``).
         """
-        renames = self.rename_list.get(date_index, {})
-        for symbol, transformation in sorted(self.splits.get(date_index, {}).items()):
-            closing = self.portfolio[renames.get(symbol, symbol)].quantity
+        renames = self.state.rename_list.get(date_index, {})
+        for symbol, transformation in sorted(
+            self.state.splits.get(date_index, {}).items()
+        ):
+            closing = self.state.portfolio[renames.get(symbol, symbol)].quantity
             if closing != transformation.expected_day_close:
                 raise CalculationError(
                     f"Cannot apply the reorganisation of {symbol} on "
@@ -2825,7 +2782,7 @@ class CapitalGainsCalculator:
         received by spin-off that day are not a trade; dependency order has
         already put them in its pool.
         """
-        renames = self.rename_list.get(date_index, {})
+        renames = self.state.rename_list.get(date_index, {})
         # Follow the day's renames back from the source, a holding renamed
         # twice in a morning being two hops from its pool. Only renames on
         # this chain matter; what happened to other symbols that day does not.
@@ -2855,8 +2812,11 @@ class CapitalGainsCalculator:
         holding = sorted(
             name
             for name in names
-            if name in self.portfolio
-            and (self.portfolio[name].quantity > 0 or self.portfolio[name].amount != 0)
+            if name in self.state.portfolio
+            and (
+                self.state.portfolio[name].quantity > 0
+                or self.state.portfolio[name].amount != 0
+            )
         )
         if len(holding) > 1:
             raise CalculationError(
@@ -2873,21 +2833,21 @@ class CapitalGainsCalculator:
             spun_in = sum(
                 (
                     spin_off.quantity
-                    for spin_off in self.spin_offs.get(date_index, [])
+                    for spin_off in self.state.spin_offs.get(date_index, [])
                     if spin_off.dest == name
                 ),
                 Decimal(0),
             )
             if (
-                has_key(self.acquisition_list, date_index, name)
-                and self.acquisition_list[date_index][name].quantity > spun_in
+                has_key(self.state.acquisition_list, date_index, name)
+                and self.state.acquisition_list[date_index][name].quantity > spun_in
             ):
                 activity.append("bought")
-            if has_key(self.disposal_list, date_index, name):
+            if has_key(self.state.disposal_list, date_index, name):
                 activity.append("sold")
-            if has_key(self.transfer_to_spouse_list, date_index, name):
+            if has_key(self.state.transfer_to_spouse_list, date_index, name):
                 activity.append("transferred to a spouse")
-            if (date_index, name) in self.fee_days:
+            if (date_index, name) in self.state.fee_days:
                 activity.append("charged a fee")
         if activity:
             raise CalculationError(
@@ -2916,7 +2876,7 @@ class CapitalGainsCalculator:
         """
         sources: dict[str, list[str]] = defaultdict(list)
         first_event: dict[str, int] = {}
-        for index, spin_off in enumerate(self.spin_offs.get(date_index, [])):
+        for index, spin_off in enumerate(self.state.spin_offs.get(date_index, [])):
             sources[spin_off.dest].append(spin_off.source)
             first_event.setdefault(spin_off.dest, index)
 
@@ -2926,7 +2886,7 @@ class CapitalGainsCalculator:
             return 1 + max((depth(source) for source in sources[symbol]), default=-1)
 
         return sorted(
-            self.acquisition_list[date_index],
+            self.state.acquisition_list[date_index],
             key=lambda symbol: (depth(symbol), first_event.get(symbol, -1)),
         )
 
@@ -3011,9 +2971,9 @@ class CapitalGainsCalculator:
         were never acquired (TCGA 1992 s127, CG51805), so they never enter
         ``acquisition_list`` in the first place.
         """
-        if not has_key(self.acquisition_list, date_index, symbol):
+        if not has_key(self.state.acquisition_list, date_index, symbol):
             return HmrcTransactionData()
-        return self.acquisition_list[date_index][symbol]
+        return self.state.acquisition_list[date_index][symbol]
 
     def _contending_acquisitions(
         self,
@@ -3052,7 +3012,10 @@ class CapitalGainsCalculator:
                 # is spoken for before either of ours can reach it. On the
                 # disposal day itself the sale and the transfer are the two
                 # laying claim, so subtracting them would hide the clash.
-                for log in (self.disposal_list, self.transfer_to_spouse_list):
+                for log in (
+                    self.state.disposal_list,
+                    self.state.transfer_to_spouse_list,
+                ):
                     if has_key(log, day, ticker):
                         taken += log[day][ticker].quantity
             return acquisition.quantity - taken > 0
@@ -3062,7 +3025,7 @@ class CapitalGainsCalculator:
         for i in range(BED_AND_BREAKFAST_DAYS):
             search_index = date_index + datetime.timedelta(days=i + 1)
             # HMRC treats renames as the same security for B&B purposes.
-            effective_symbol = self.rename_list.get(search_index, {}).get(
+            effective_symbol = self.state.rename_list.get(search_index, {}).get(
                 effective_symbol, effective_symbol
             )
             if has_shares_going_spare(
@@ -3078,13 +3041,13 @@ class CapitalGainsCalculator:
         contended: list[datetime.date],
     ) -> str:
         """Explain why a same-day sale and transfer cannot be calculated."""
-        sold = self.disposal_list[date_index][symbol].quantity
-        transferred = self.transfer_to_spouse_list[date_index][symbol].quantity
+        sold = self.state.disposal_list[date_index][symbol].quantity
+        transferred = self.state.transfer_to_spouse_list[date_index][symbol].quantity
         shown = ", ".join(str(date) for date in contended[:MAX_CONTENDED_DATES_SHOWN])
         if len(contended) > MAX_CONTENDED_DATES_SHOWN:
             shown += f" and {len(contended) - MAX_CONTENDED_DATES_SHOWN} more"
-        has_gift = (date_index, symbol) in self.gift_disposals
-        has_sale = (date_index, symbol) in self.sale_days
+        has_gift = (date_index, symbol) in self.state.gift_disposals
+        has_sale = (date_index, symbol) in self.state.sale_days
         if has_gift and has_sale:
             verb, noun = ("sold or gave away", "disposal")
         elif has_gift:
@@ -3123,13 +3086,13 @@ class CapitalGainsCalculator:
         exactly like a disposal (see ``process_disposal``), but with a nil gain,
         so it is kept out of the taxable disposal totals.
         """
-        if date_index not in self.transfer_to_spouse_list:
+        if date_index not in self.state.transfer_to_spouse_list:
             return
-        for symbol in self.transfer_to_spouse_list[date_index]:
+        for symbol in self.state.transfer_to_spouse_list[date_index]:
             # HMRC does not define how to identify a taxable sale and a no gain/no
             # loss transfer of the same shares on the same day, so refuse the
             # cases where that identification actually changes the answer.
-            if has_key(self.disposal_list, date_index, symbol) and (
+            if has_key(self.state.disposal_list, date_index, symbol) and (
                 contended := self._contending_acquisitions(
                     symbol, date_index, bnb_claimed_before_today
                 )
@@ -3150,7 +3113,7 @@ class CapitalGainsCalculator:
                 logging.INFO if self.date_in_tax_year(date_index) else logging.DEBUG,
                 "Transferred %s units of %s to spouse on %s "
                 "(no gain/no loss, base cost £%s)",
-                self.transfer_to_spouse_list[date_index][symbol].quantity,
+                self.state.transfer_to_spouse_list[date_index][symbol].quantity,
                 symbol,
                 date_index,
                 round_decimal(base_cost, 2),
@@ -3166,8 +3129,8 @@ class CapitalGainsCalculator:
         """Process single excess reported income."""
         eri = self.get_eri(symbol, date_index)
         assert eri is not None
-        amount = self.portfolio[eri.symbol].amount
-        quantity = self.portfolio[eri.symbol].quantity
+        amount = self.state.portfolio[eri.symbol].amount
+        quantity = self.state.portfolio[eri.symbol].quantity
 
         if quantity == 0:
             return None
@@ -3186,10 +3149,10 @@ class CapitalGainsCalculator:
             amount,
             new_amount,
         )
-        self.portfolio[eri.symbol].amount = new_amount
+        self.state.portfolio[eri.symbol].amount = new_amount
 
         if self.date_in_tax_year(eri.distribution_date):
-            self.eris_distribution[eri.distribution_date][symbol] += (
+            self.state.eris_distribution[eri.distribution_date][symbol] += (
                 ExcessReportedIncomeDistribution(
                     price=eri.price,
                     amount=allowable_cost,
@@ -3244,20 +3207,20 @@ class CapitalGainsCalculator:
         It groups them by month, using the last date on each month for the report
         and updates the interest totals for the year.
         """
-        monthly_interests = self._group_by_month(self.interest_list)
+        monthly_interests = self._group_by_month(self.state.interest_list)
 
         for (broker, currency, date), foreign_amount in monthly_interests.items():
             gbp_amount = self.currency_converter.to_gbp(
                 foreign_amount.amount, currency, date
             )
             if currency == UK_CURRENCY:
-                self.total_uk_interest += gbp_amount
+                self.state.total_uk_interest += gbp_amount
                 rule_prefix = "interestUK"
             else:
-                self.total_foreign_interest += gbp_amount
+                self.state.total_foreign_interest += gbp_amount
                 rule_prefix = f"interest{currency}"
 
-            self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
+            self.state.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
                 CalculationEntry(
                     rule_type=RuleType.INTEREST,
                     quantity=Decimal(1),
@@ -3268,7 +3231,7 @@ class CapitalGainsCalculator:
                 )
             ]
 
-        monthly_interest_taxes = self._group_by_month(self.interest_tax_list)
+        monthly_interest_taxes = self._group_by_month(self.state.interest_tax_list)
 
         for (broker, currency, date), foreign_amount in monthly_interest_taxes.items():
             gbp_amount = self.currency_converter.to_gbp(
@@ -3278,9 +3241,9 @@ class CapitalGainsCalculator:
             # positive reversal rows then cancel out across months.
             tax_amount = -gbp_amount
             rule_prefix = f"interestTax{currency}"
-            self.total_interest_tax += tax_amount
+            self.state.total_interest_tax += tax_amount
 
-            self.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
+            self.state.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
                 CalculationEntry(
                     rule_type=RuleType.INTEREST_TAX,
                     quantity=Decimal(1),
@@ -3401,11 +3364,11 @@ class CapitalGainsCalculator:
         """
         matched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         unmatched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
-        for (broker, symbol, date), tax in self.dividend_tax_list.items():
+        for (broker, symbol, date), tax in self.state.dividend_tax_list.items():
             if not tax.amount:
                 continue
             candidates = self._dividends_for_tax(
-                date, self.dividend_dates.get((broker, symbol), set())
+                date, self.state.dividend_dates.get((broker, symbol), set())
             )
             if len(candidates) == 1:
                 matched[symbol, candidates[0]] += tax
@@ -3423,9 +3386,11 @@ class CapitalGainsCalculator:
 
         The two must agree, and attributing twice would warn twice.
         """
-        if self._attributed_dividend_tax is None:
-            self._attributed_dividend_tax = self._attribute_dividend_tax()
-        return self._attributed_dividend_tax
+        if self.state._attributed_dividend_tax is None:  # noqa: SLF001
+            self.state._attributed_dividend_tax = (  # noqa: SLF001
+                self._attribute_dividend_tax()
+            )
+        return self.state._attributed_dividend_tax  # noqa: SLF001
 
     def process_dividends(self) -> None:
         """Process all dividend events and taxes.
@@ -3433,7 +3398,7 @@ class CapitalGainsCalculator:
         It updates the interest total for the year if needed.
         """
         attributed_tax = self._dividend_tax_attribution().matched
-        for (symbol, date), foreign_amount in self.dividend_list.items():
+        for (symbol, date), foreign_amount in self.state.dividend_list.items():
             # Dividends outside the computed tax year are not reported, so
             # neither are the warnings raised while resolving their treaty.
             if not self.date_in_tax_year(date):
@@ -3510,7 +3475,7 @@ class CapitalGainsCalculator:
                 tax_treaty=treaty,
             )
 
-            self.calculation_log_yields[date][f"dividend${symbol}"] = [
+            self.state.calculation_log_yields[date][f"dividend${symbol}"] = [
                 CalculationEntry(
                     rule_type=RuleType.DIVIDEND,
                     quantity=Decimal(1),
@@ -3523,13 +3488,13 @@ class CapitalGainsCalculator:
             ]
 
             if is_interest_fund:
-                self.total_foreign_interest += amount
+                self.state.total_foreign_interest += amount
 
     def _warn_unmatched_cgt_exempt_tickers(self) -> None:
         """Warn for any exempt ticker with no transactions."""
         logged_symbols = {
             sym.upper()
-            for log in (self.acquisition_list, self.disposal_list)
+            for log in (self.state.acquisition_list, self.state.disposal_list)
             for day in log.values()
             for sym in day
         }
@@ -3549,12 +3514,12 @@ class CapitalGainsCalculator:
         estimates as it replaces them and accumulates bed and breakfast
         claims as it makes them, so a second run would count both twice.
         """
-        if self.calculated:
+        if self.state.calculated:
             raise RuntimeError(
                 "calculate_capital_gain() runs once per calculator; build a "
                 "new one to calculate again"
             )
-        self.calculated = True
+        self.state.calculated = True
         self._warn_unmatched_cgt_exempt_tickers()
         begin_index = INTERNAL_START_DATE
         tax_year_start_index = self.tax_year_start_date
@@ -3570,8 +3535,8 @@ class CapitalGainsCalculator:
 
         # The first pass left its estimates in the portfolio; the walk rebuilds
         # it from nothing.
-        self.portfolio.clear()
-        self.spin_off_entries.clear()
+        self.state.portfolio.clear()
+        self.state.spin_off_entries.clear()
         calculation_log: CalculationLog = defaultdict(dict)
 
         for date_index in (
@@ -3584,14 +3549,14 @@ class CapitalGainsCalculator:
             bnb_claimed_before_today = (
                 {
                     (day, ticker): data.quantity
-                    for day, tickers in self.bnb_list.items()
+                    for day, tickers in self.state.bnb_list.items()
                     for ticker, data in tickers.items()
                 }
-                if date_index in self.transfer_to_spouse_list
+                if date_index in self.state.transfer_to_spouse_list
                 else {}
             )
             self.apply_split_openings(date_index)
-            if date_index in self.acquisition_list:
+            if date_index in self.state.acquisition_list:
                 for symbol in self._acquisition_order(date_index):
                     calculation_entries = self.process_acquisition(
                         symbol,
@@ -3601,26 +3566,30 @@ class CapitalGainsCalculator:
                         calculation_log[date_index][f"buy${symbol}"] = (
                             calculation_entries
                         )
-            for source, entries in self.spin_off_entries.pop(date_index, {}).items():
+            for source, entries in self.state.spin_off_entries.pop(
+                date_index, {}
+            ).items():
                 if date_index >= tax_year_start_index:
                     calculation_log[date_index][f"spin-off${source}"] = entries
             self.record_split_reconciliations(
                 date_index, tax_year_start_index, calculation_log
             )
-            if date_index in self.disposal_list:
-                for symbol in self.disposal_list[date_index]:
+            if date_index in self.state.disposal_list:
+                for symbol in self.state.disposal_list[date_index]:
                     transaction_capital_gain, calculation_entries = (
                         self.process_disposal(symbol, date_index)
                     )
                     if date_index >= tax_year_start_index:
-                        transaction_amount = self.disposal_list[date_index][
+                        transaction_amount = self.state.disposal_list[date_index][
                             symbol
                         ].amount
-                        transaction_fees = self.disposal_list[date_index][symbol].fees
+                        transaction_fees = self.state.disposal_list[date_index][
+                            symbol
+                        ].fees
                         transaction_disposal_proceeds = (
                             transaction_amount + transaction_fees
                         )
-                        transaction_quantity = self.disposal_list[date_index][
+                        transaction_quantity = self.state.disposal_list[date_index][
                             symbol
                         ].quantity
                         calculated_quantity = Decimal(0)
@@ -3677,8 +3646,8 @@ class CapitalGainsCalculator:
                             else:
                                 capital_loss += transaction_capital_gain
 
-            if date_index in self.rename_list:
-                for old, new in self.rename_list[date_index].items():
+            if date_index in self.state.rename_list:
+                for old, new in self.state.rename_list[date_index].items():
                     entry = self.process_rename(old, new)
                     if date_index >= tax_year_start_index:
                         calculation_log[date_index][f"rename${old}"] = [entry]
@@ -3693,8 +3662,8 @@ class CapitalGainsCalculator:
             self.verify_split_day_closes(date_index)
 
             # Excess Reported incomes should be reported at the end of the day
-            if date_index in self.eris:
-                for symbol in self.eris[date_index]:
+            if date_index in self.state.eris:
+                for symbol in self.state.eris[date_index]:
                     maybe_entry = self.process_eri(symbol, date_index)
                     if not maybe_entry:
                         continue
@@ -3707,13 +3676,13 @@ class CapitalGainsCalculator:
                         ] = [maybe_entry]
 
             # Lastly all the ERI distribution events
-            if date_index in self.eris_distribution:
-                for symbol in self.eris_distribution[date_index]:
-                    data = self.eris_distribution[date_index][symbol]
+            if date_index in self.state.eris_distribution:
+                for symbol in self.state.eris_distribution[date_index]:
+                    data = self.state.eris_distribution[date_index][symbol]
                     is_interest = symbol in self.interest_fund_tickers
                     if is_interest:
-                        self.total_foreign_interest += data.amount
-                    self.calculation_log_yields[date_index][
+                        self.state.total_foreign_interest += data.amount
+                    self.state.calculation_log_yields[date_index][
                         f"excess-reported-income-distribution${symbol}"
                     ] = [
                         CalculationEntry(
@@ -3753,7 +3722,7 @@ class CapitalGainsCalculator:
             self.tax_year,
             [
                 self.make_portfolio_entry(symbol, position.quantity, position.amount)
-                for symbol, position in self.portfolio.items()
+                for symbol, position in self.state.portfolio.items()
             ],
             disposal_count,
             round_decimal(disposal_proceeds, 2),
@@ -3763,10 +3732,10 @@ class CapitalGainsCalculator:
             Decimal(allowance) if allowance is not None else None,
             Decimal(dividend_allowance) if dividend_allowance is not None else None,
             calculation_log,
-            dict(sorted(self.calculation_log_yields.items())),
-            round_decimal(self.total_uk_interest, 2),
-            round_decimal(self.total_foreign_interest, 2),
-            round_decimal(self.total_interest_tax, 2),
+            dict(sorted(self.state.calculation_log_yields.items())),
+            round_decimal(self.state.total_uk_interest, 2),
+            round_decimal(self.state.total_foreign_interest, 2),
+            round_decimal(self.state.total_interest_tax, 2),
             show_unrealized_gains=self.calc_unrealized_gains,
             gift_loss=round_decimal(gift_loss, 2),
             period_start=self.period_start,
