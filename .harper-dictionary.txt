@@ -95,6 +95,7 @@ I/O
 IBKR
 IBKR's
 idx
+ingester
 InvalidOperation
 InvalidTransactionError
 Invesco
