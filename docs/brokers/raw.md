@@ -184,6 +184,12 @@ created 209, and the sale below it is written in post-split shares at the post-s
     from another input is refused unless both sides carry times. Put the day's rows for that symbol
     in one input, or work that day out by hand.
 
+cgt-calc has no way to check the order you wrote. A sale placed on the wrong side of a `STOCK_SPLIT`
+row is refused when its quantity only makes sense on the other side, but a quantity that is
+plausible in both unit systems computes without complaint and gives wrong figures. After a run,
+check the report's reorganisation entry: it states the unit counts either side of the event, so a
+sale that landed in the wrong units shows up as a count you do not recognise.
+
 This is about the RAW file you write yourself. cgt-calc assumes nothing about the order of the rows
 inside a broker's own export, so if you keep a small RAW file alongside a broker export, it is the
 RAW rows that need to be in the order things happened.
@@ -423,6 +429,25 @@ Include the earlier acquisition and any split, spin-off or transfer that establi
 Use the same ticker throughout unless the broker-specific history supplies a supported rename. Check
 the final portfolio and every disposal against the broker records rather than adding a made-up
 purchase to make the calculation run.
+
+### `also has units from` on a `STOCK_SPLIT` row
+
+A broker's own split row states the change at that one account, and the holding also has units that
+another input put there, so applying it to the whole pool would restate the holding by a ratio that
+was never the corporate one. Add up the holdings across your accounts and write one RAW
+`STOCK_SPLIT` row stating the change to all of them together; where a date has both, the RAW row is
+used and the broker's own row for the same event is ignored. See
+[Holdings spread across brokers](#holdings-spread-across-brokers).
+
+### `cannot be placed either side of it`
+
+A same-day row changes the quantity of the security, but cgt-calc cannot establish whether that
+quantity uses the units before or after the reorganisation. This happens across separate inputs,
+within a broker export whose row order is not a record of what happened first, and when a timed row
+falls at or between the two timestamps of a paired reorganisation. If you know the real order, put
+that day's rows for the symbol in one RAW input in [that order](#the-order-of-rows-on-one-date),
+without [importing the same rows twice](#combining-raw-with-a-broker-export). Otherwise, work that
+day out by hand and leave its rows out.
 
 Do not upload an unredacted RAW file to GitHub: it can contain dates, holdings, income and other
 sensitive financial information.
