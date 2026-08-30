@@ -60,7 +60,8 @@ Some offshore bond funds have income that must be reported as interest rather th
 checking the fund's classification, pass its ticker to `--interest-fund-tickers`. Use a
 comma-separated list for several tickers. This setting applies to both cash distributions and ERI;
 see the [offshore-fund checklist](offshore-funds.md#what-to-check). It reports the income as foreign
-interest, so do not use it for a UK fund.
+interest, so do not use it for a UK fund. If cgt-calc reports a UK bond fund distribution as a
+dividend, adjust the income figures outside cgt-calc.
 
 ### CGT-exempt instruments (advanced)
 
