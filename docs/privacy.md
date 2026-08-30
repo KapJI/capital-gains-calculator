@@ -2,15 +2,25 @@
 
 ## Privacy and data security
 
-**Your financial data stays on your computer.** This tool processes all transactions locally and
-does **not send your transaction history or personal information** to any external services.
+**Your transaction files stay on your computer.** cgt-calc processes them locally. Lookup payloads
+do not include transaction amounts or personal fields, but external services still receive
+connection data such as your IP address. cgt-calc may also send identifiers and dates for the
+lookups below.
 
-The only external API calls made are:
+The external services used are:
 
 - [**UK Trade Tariff API**](https://www.trade-tariff.service.gov.uk/exchange_rates) – to fetch
-    monthly GBP exchange rates (no personal data sent)
+    monthly GBP exchange rates for 2021 onwards
+- [**HMRC's legacy exchange-rate service**](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html)
+    – to fetch monthly GBP exchange rates for periods before 2021
 - [**Open FIGI API**](https://www.openfigi.com/api/overview) – to translate ISIN codes to tickers
-    when needed (only ISIN codes are queried, no transaction amounts or personal details)
+    when needed (only ISIN codes are queried)
+- [**Yahoo Finance**](https://uk.help.yahoo.com/kb/finance/privacy-policy-sln6177.html) – to fetch
+    current prices when you use `--unrealized-gains`, or historical prices when the transaction
+    history contains a spin-off (ticker symbols and, for historical lookups, dates are queried)
+
+Reports and cache files are saved locally. Store them under the same access, retention and deletion
+controls as your own tax records.
 
 ## Disclaimer
 
