@@ -38,7 +38,7 @@ which report values belong in each ERI_RAW column.
 Vanguard UK publishes annual Reportable Income reports at the bottom of this page:
 <https://www.vanguardinvestor.co.uk/investing-explained/general-account-tax-information>
 
-Use Vanguard Investment Series Plc reports for traditional funds and Vanguard Funds Plc reports for
+Use Vanguard Investment Series plc reports for traditional funds and Vanguard Funds plc reports for
 ETFs. Check the fund company in your fund documents if you are unsure.
 
 - **ISIN:** same name column
