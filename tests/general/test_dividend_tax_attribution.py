@@ -744,7 +744,9 @@ def test_autoconvert_refuses_two_foreign_currencies_for_one_dividend() -> None:
         _dividend_at(DIVIDEND_DATE, 400, "B", PLN),
     ]
 
-    with pytest.raises(CalculationError, match="cannot choose between two foreign"):
+    with pytest.raises(
+        CalculationError, match="does not convert between foreign currencies"
+    ):
         _reported(
             transactions,
             autoconvert_currency=True,

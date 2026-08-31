@@ -324,9 +324,9 @@ class CurrencyConverter:
         With `autoconvert`, a GBP row is converted at `date` into the one
         foreign currency present and the sum is stated in that, so that the
         currency the payment arrived in survives to name its source country.
-        Two foreign currencies are still refused: picking one of them would
-        decide the double taxation treaty on nothing better than which row
-        was larger or came first.
+        Two foreign currencies are still refused: where no ISIN names the
+        source country, picking one of them decides the double taxation
+        treaty on nothing better than which row was larger or came first.
         """
         if (
             autoconvert
@@ -339,9 +339,8 @@ class CurrencyConverter:
                     "Cannot combine amounts in different currencies: "
                     f"{first.currency} and {second.currency}. "
                     "--autoconvert-currency combines GBP with one foreign "
-                    "currency, and cannot choose between two foreign "
-                    "currencies without also choosing which double taxation "
-                    "treaty applies. Report these rows in one currency."
+                    "currency; it does not convert between foreign "
+                    "currencies. Report these rows in one currency."
                 )
             foreign, sterling = (
                 (second, first) if first.currency == UK_CURRENCY else (first, second)

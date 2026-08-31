@@ -79,17 +79,26 @@ dividend, adjust the income figures outside cgt-calc.
 
 ### Income reported in more than one currency
 
-Dividends and withholding tax reported in different currencies can cause **Cannot combine amounts in
-different currencies**. If the rows describe the same dividend and use GBP plus one foreign
-currency, pass `--autoconvert-currency` to convert the GBP rows at the HMRC rate used for that date:
+Two brokers reporting the same dividend in different currencies, or a dividend and its withholding
+tax in different currencies, stop the calculation with **Cannot combine amounts in different
+currencies** or **Dividend and withholding tax currencies do not match**.
+
+If the rows really are the same dividend and use GBP plus one foreign currency, pass
+`--autoconvert-currency`:
 
 ```shell
 cgt-calc --year 2024 --revolut-file revolut.csv --trading212-dir trading212/ --autoconvert-currency
 ```
 
-The option is off by default. It does not detect whether rows with the same ticker and date describe
-the same security or payment. Check that before enabling it. Two different non-GBP currencies still
-produce an error; correct the input rather than choosing one currency.
+cgt-calc then reports them as one figure, converting the foreign amounts at the HMRC rate for the
+date of the dividend. Withholding posted in a later month is converted at that same rate, not the
+rate for the month it posted in. Amounts already in GBP are used as they are.
+
+The option is off by default, and it cannot tell whether two rows with the same ticker and date
+describe the same security and payment. Compare the ISIN and payment details on each broker's
+statement before enabling it. Two different non-GBP currencies remain an error: the option does not
+convert between foreign currencies. If your broker cannot provide a verified amount in one currency,
+report that dividend outside cgt-calc.
 
 Where an ISIN is available, cgt-calc uses it to determine the dividend's source country. Without an
 ISIN, it falls back to the currency of the dividend itself, never that of the tax. For a dividend
