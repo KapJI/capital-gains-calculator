@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from decimal import Decimal
 from fractions import Fraction
 import logging
@@ -213,6 +214,21 @@ def _match_gifts_to_rows(
                 return True
             available[reading] += 1
     return False
+
+
+@dataclass(frozen=True)
+class FirstPassTotals:
+    """Running totals the first pass reports at the end.
+
+    `dividends` and `dividends_tax` are keyed by (symbol, currency); the
+    rest by (broker, currency).
+    """
+
+    balance: dict[tuple[str, CurrencyCode], Decimal]
+    dividends: dict[tuple[str, CurrencyCode], Decimal]
+    dividends_tax: dict[tuple[str, CurrencyCode], Decimal]
+    interests: dict[tuple[str, CurrencyCode], Decimal]
+    interest_taxes: dict[tuple[str, CurrencyCode], Decimal]
 
 
 class TransactionIngester:
@@ -1645,21 +1661,16 @@ class TransactionIngester:
                 dividends_tax[symbol, tax.currency] += tax.amount
 
         self.first_pass_report(
-            balance,
-            dividends,
-            dividends_tax,
-            interests,
-            interest_taxes,
+            FirstPassTotals(
+                balance=balance,
+                dividends=dividends,
+                dividends_tax=dividends_tax,
+                interests=interests,
+                interest_taxes=interest_taxes,
+            )
         )
 
-    def first_pass_report(
-        self,
-        balance: dict[tuple[str, CurrencyCode], Decimal],
-        dividends: dict[tuple[str, CurrencyCode], Decimal],
-        dividends_tax: dict[tuple[str, CurrencyCode], Decimal],
-        interests: dict[tuple[str, CurrencyCode], Decimal],
-        interest_taxes: dict[tuple[str, CurrencyCode], Decimal],
-    ) -> None:
+    def first_pass_report(self, totals: FirstPassTotals) -> None:
         """Print the results of the first pass."""
         LOGGER.info(
             "\n%s\n",
@@ -1675,19 +1686,21 @@ class TransactionIngester:
             print(f"{bul}{stock}: {position}")
         print()
         print(style_text("Final balance", colour=Style.BRIGHT, emoji="💰"))
-        for (broker, currency), amount in balance.items():
+        for (broker, currency), amount in totals.balance.items():
             print(f"{bul}{broker}: {round_decimal(amount, 2)} ({currency})")
         # Withholding can arrive without income in the same run, so taxed
         # symbols are listed even when no dividend was paid. A tax-only
         # entry whose withholding rounds to 0.00, or is a net refund, has
         # nothing to display, so it is left out entirely.
-        keys = list(dividends)
-        keys += [key for key in dividends_tax if key not in dividends]
+        keys = list(totals.dividends)
+        keys += [key for key in totals.dividends_tax if key not in totals.dividends]
         dividend_lines = []
         for symbol, currency in keys:
-            amount = dividends.get((symbol, currency), Decimal(0))
-            tax = round_decimal(-dividends_tax.get((symbol, currency), Decimal(0)), 2)
-            if (symbol, currency) not in dividends and tax <= 0:
+            amount = totals.dividends.get((symbol, currency), Decimal(0))
+            tax = round_decimal(
+                -totals.dividends_tax.get((symbol, currency), Decimal(0)), 2
+            )
+            if (symbol, currency) not in totals.dividends and tax <= 0:
                 continue
             tax_str = f", excluding {tax} taxed at source" if tax > 0 else ""
             dividend_lines.append(
@@ -1698,15 +1711,15 @@ class TransactionIngester:
             print(style_text("Dividends", colour=Style.BRIGHT, emoji="💵"))
             for line in dividend_lines:
                 print(line)
-        if interests:
+        if totals.interests:
             print()
             print(style_text("Interest", colour=Style.BRIGHT, emoji="🏦"))
-            for (broker, currency), amount in interests.items():
+            for (broker, currency), amount in totals.interests.items():
                 print(f"{bul}{broker}: {round_decimal(amount, 2)} ({currency})")
-        if interest_taxes:
+        if totals.interest_taxes:
             print()
             print(style_text("Interest taxes", colour=Style.BRIGHT, emoji="🧾"))
-            for (broker, currency), amount in interest_taxes.items():
+            for (broker, currency), amount in totals.interest_taxes.items():
                 print(f"{bul}{broker}: {round_decimal(-amount, 2)} ({currency})")
         print()
 

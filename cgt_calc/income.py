@@ -138,7 +138,7 @@ class IncomeProcessor:
                 )
             ]
 
-    def dividend_source_country(
+    def _dividend_source_country(
         self, symbol: str, currency: CurrencyCode
     ) -> str | None:
         """Return the country a dividend was paid from, or None if unknown.
@@ -313,7 +313,7 @@ class IncomeProcessor:
                         "Cannot apply taxation treaty for bond fund %s", symbol
                     )
                 else:
-                    country = self.dividend_source_country(symbol, currency)
+                    country = self._dividend_source_country(symbol, currency)
                     if country is None:
                         LOGGER.warning(
                             "Source country of the %s dividend is unknown (ticker: %s), "

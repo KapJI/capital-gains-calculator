@@ -22,7 +22,6 @@ from .model import (
     BrokerTransaction,
     CalculationLog,
     CapitalGainsReport,
-    CurrencyCode,
     ExcessReportedIncomeLog,
     HmrcTransactionLog,
     PortfolioEntry,
@@ -35,6 +34,7 @@ if TYPE_CHECKING:
 
     from .currency_converter import CurrencyConverter
     from .current_price_fetcher import CurrentPriceFetcher
+    from .ingestion import FirstPassTotals
     from .initial_prices import InitialPrices
     from .isin_converter import IsinConverter
     from .spin_off_handler import SpinOffHandler
@@ -159,18 +159,9 @@ class CapitalGainsCalculator:
         """Convert broker transactions to HMRC transactions."""
         self.ingester.convert_to_hmrc_transactions(transactions)
 
-    def first_pass_report(
-        self,
-        balance: dict[tuple[str, CurrencyCode], Decimal],
-        dividends: dict[tuple[str, CurrencyCode], Decimal],
-        dividends_tax: dict[tuple[str, CurrencyCode], Decimal],
-        interests: dict[tuple[str, CurrencyCode], Decimal],
-        interest_taxes: dict[tuple[str, CurrencyCode], Decimal],
-    ) -> None:
+    def first_pass_report(self, totals: FirstPassTotals) -> None:
         """Print the results of the first pass."""
-        self.ingester.first_pass_report(
-            balance, dividends, dividends_tax, interests, interest_taxes
-        )
+        self.ingester.first_pass_report(totals)
 
     def process_dividends(self) -> None:
         """Process all dividend events and taxes."""

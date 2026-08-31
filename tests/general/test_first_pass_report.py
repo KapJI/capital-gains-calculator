@@ -6,6 +6,7 @@ import pytest
 
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
+from cgt_calc.ingestion import FirstPassTotals
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
@@ -36,7 +37,14 @@ def _dividend_lines(
     dividends_tax: dict[tuple[str, CurrencyCode], Decimal],
 ) -> list[str]:
     """Run the report and return the printed dividend lines."""
-    _calculator().first_pass_report({}, dividends, dividends_tax, {}, {})
+    totals = FirstPassTotals(
+        balance={},
+        dividends=dividends,
+        dividends_tax=dividends_tax,
+        interests={},
+        interest_taxes={},
+    )
+    _calculator().first_pass_report(totals)
     lines = capsys.readouterr().out.splitlines()
     header = next((i for i, line in enumerate(lines) if "Dividends" in line), None)
     if header is None:
