@@ -13,6 +13,13 @@
 # is checked before the site is deployed. lychee requires an absolute file://
 # target for a remap, hence the interpolation of the repository root below.
 #
+# The offline pass also reads the package sources, where the error messages
+# print documentation URLs. lychee treats any file it does not recognise as
+# plain text, so those are found in strings and comments alike, but only when
+# a URL is written contiguously: a literal split across two lines ends at the
+# closing quote and loses its anchor. Remote URLs in the sources are excluded
+# by --offline, so this pass stays deterministic.
+#
 # Usage: scripts/check_links.sh [offline|external]
 
 set -uo pipefail
@@ -59,7 +66,7 @@ run_pass() {
 
 check_offline() {
     run_pass "Local files and heading anchors" \
-        --offline --include-fragments=anchor-only './**/*.md'
+        --offline --include-fragments=anchor-only './**/*.md' './cgt_calc/**/*.py'
 }
 
 check_external() {

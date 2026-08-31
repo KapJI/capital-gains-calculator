@@ -128,8 +128,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
                 "one has been examined, so cgt-calc cannot establish the "
                 "correct treatment. Keep the export unchanged and please "
                 "report this row so that the format can be supported. See "
-                "https://cgt-calc.uk/brokers/vanguard/"
-                "#a-reversed-purchase-or-disposal",
+                "https://cgt-calc.uk/brokers/vanguard/#a-reversed-purchase-or-disposal",
             )
 
     raise ParsingError(file, f"Unknown action: {label}")
