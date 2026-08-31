@@ -79,16 +79,30 @@ dividend, adjust the income figures outside cgt-calc.
 
 ### Income reported in more than one currency
 
-Dividends & withholding tax reported in different currencies (e.g. across different brokers) cause
-an error (**Cannot combine amounts in different currencies**). Use `--autoconvert-currency` to
-suppress this error, and instead convert the rows at that date's HMRC rate:
+Dividends and withholding tax reported in different currencies can cause **Cannot combine amounts in
+different currencies**. If the rows describe the same dividend and use GBP plus one foreign
+currency, pass `--autoconvert-currency` to convert the GBP rows at the HMRC rate used for that date:
 
 ```shell
 cgt-calc --year 2024 --revolut-file revolut.csv --trading212-dir trading212/ --autoconvert-currency
 ```
 
-The foreign currency is favoured over GBP so that (where no ISIN is available), the currency can be
-used to infer any applicable double taxation treaty.
+The option is off by default. It does not detect whether rows with the same ticker and date describe
+the same security or payment. Check that before enabling it. Two different non-GBP currencies still
+produce an error; correct the input rather than choosing one currency.
+
+Where an ISIN is available, cgt-calc uses it to determine the dividend's source country. Without an
+ISIN, it falls back to the currency of the dividend itself, never that of the tax. For a dividend
+your broker reports already converted to GBP, cgt-calc therefore cannot determine a treaty
+automatically: it warns that the source country is unknown and leaves the relief out of the report.
+
+A payment currency does not prove where the paying company is resident, especially when a broker
+converts payments into your account currency.
+[HMRC's dividend treaty guidance](https://www.gov.uk/hmrc-internal-manuals/international-manual/intm164020)
+bases treaty treatment on the residence of the company paying the dividend. Check that residence and
+the tax deducted on your broker's tax voucher. If the fallback is wrong or missing, add a verified
+mapping under [ISIN to ticker translation](#isin-to-ticker-translation); if you cannot, calculate
+the relief outside cgt-calc rather than relying on the treaty figure in the report.
 
 ### CGT-exempt instruments (advanced)
 

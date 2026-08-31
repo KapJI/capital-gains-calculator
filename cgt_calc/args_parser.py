@@ -144,9 +144,10 @@ Environment variables:
         "--autoconvert-currency",
         action="store_true",
         default=False,
-        help="attempt to convert multicurrency dividends (e.g. across different brokers) "
-        "and intelligently infer any applicable double taxation treaty "
-        "where no ISIN is available",
+        help=(
+            "combine GBP and one foreign currency for the same dividend; "
+            "different foreign currencies remain an error"
+        ),
     )
     calc_group.add_argument(
         "--unrealized-gains",
