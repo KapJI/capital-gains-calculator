@@ -63,6 +63,7 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
     format_name: str
     full_arg: str
     deprecated_flags: ClassVar[list[str]] = []
+    argument_help: ClassVar[str | None] = None
     encoding: str = "utf-8"
     # Set only where the format documents that rows sharing a date are in the
     # order they happened. It decides whether a row can be placed either side
@@ -87,8 +88,8 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
                 type=existing_file_or_stdin_type,
                 default=None,
                 metavar="PATH",
-                help=f"{cls.pretty_name} transaction history "
-                f"in {cls.format_name} format",
+                help=cls.argument_help
+                or f"{cls.pretty_name} transaction history in {cls.format_name} format",
             ),
             shtab.FILE,
         )
