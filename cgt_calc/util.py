@@ -3,10 +3,33 @@
 from collections.abc import Generator
 from contextlib import contextmanager
 import decimal
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import sys
 from typing import TextIO
+
+
+def parse_decimal(value: str, context: str, *, strip: str = "") -> Decimal:
+    """Parse an exported field as a finite decimal amount.
+
+    `context` names the field in the error, in whatever wording the parser
+    already uses, e.g. `column 'Quantity'`. `strip` lists the characters to
+    remove before parsing, such as the thousands separators and currency
+    symbols a broker writes into a number; the error still quotes the field
+    as the export wrote it.
+
+    "NaN" and "Infinity" parse as decimals but are not amounts. Refused here,
+    where the field is still known, rather than at the first arithmetic that
+    touches them, which raises a bare decimal exception naming neither the
+    file nor the row.
+    """
+    try:
+        parsed = Decimal(value.translate(str.maketrans("", "", strip)))
+    except InvalidOperation as err:
+        raise ValueError(f"Invalid decimal in {context}: {value!r}") from err
+    if not parsed.is_finite():
+        raise ValueError(f"Invalid decimal in {context}: {value!r}")
+    return parsed
 
 
 def round_decimal(value: Decimal, digits: int = 0) -> Decimal:

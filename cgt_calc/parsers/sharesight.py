@@ -6,7 +6,7 @@ from collections.abc import Iterable, Iterator, Mapping
 import csv
 from dataclasses import dataclass
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
@@ -23,6 +23,7 @@ from cgt_calc.model import (
     CurrencyCode,
     TransactionSource,
 )
+from cgt_calc.util import parse_decimal
 
 from .base_parsers import BaseDirParser
 
@@ -229,13 +230,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
         row_dict: Mapping[Col, str], column: Col
     ) -> Decimal:
         """Convert column value to Decimal."""
-        raw_value = row_dict[column]
-        try:
-            return Decimal(raw_value.replace(",", ""))
-        except InvalidOperation as err:
-            raise ValueError(
-                f"Invalid decimal in column '{column.value}': {raw_value!r}"
-            ) from err
+        return parse_decimal(row_dict[column], f"column '{column.value}'", strip=",")
 
     @classmethod
     def _maybe_decimal[Col: StrEnum](

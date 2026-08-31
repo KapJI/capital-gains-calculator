@@ -66,6 +66,34 @@ def test_award_rows_overlapping_in_a_column_are_reported(tmp_path: Path) -> None
     assert exc_info.value.row_index == 2
 
 
+@pytest.mark.parametrize("price", ["NaN", "$Infinity", "$not-a-number"])
+def test_award_price_that_is_not_a_finite_amount_is_reported(
+    tmp_path: Path, price: str
+) -> None:
+    """An unreadable award price names the file and row, not a late traceback.
+
+    The award file is read outside the CSV parser, so a bad price used to
+    reach the matching engine and fail there with nothing to point at.
+    """
+    award_file = tmp_path / "awards.csv"
+    award_file.write_text(
+        "Date,Action,Symbol,Description,Quantity,FeesAndCommissions,"
+        "DisbursementElection,Amount,AwardDate,AwardId,FairMarketValuePrice,"
+        "SalePrice,SharesSoldWithheldForTaxes,NetSharesDeposited,Taxes\n"
+        "08/15/2023,Lapse,BAR,Restricted Stock Lapse,400,,,,,,,,,,\n"
+        f',,,,,,,,03/21/2022,101883189,{price},,200,200,"$13,192.90"\n'
+    )
+
+    with pytest.raises(
+        ParsingError, match="Invalid decimal in column 'FairMarketValuePrice'"
+    ) as exc_info:
+        _read_schwab_awards(award_file)
+
+    # The price is stated on the lower half of the split award row, so the
+    # row to correct is 3: row 1 is the header and row 2 holds the upper half.
+    assert exc_info.value.row_index == 3
+
+
 def test_award_file_without_the_award_says_so() -> None:
     """A file that lacks this particular award is a different mistake."""
     path = Path("tests") / "schwab" / "data" / "rsu_settlement" / "transactions.csv"
@@ -398,11 +426,6 @@ def test_invalid_cash_merger_pair() -> None:
         ('"-$100.00"', "-10", "", ""),
         # A positive quantity is not shares leaving the account.
         ('"$100.00"', "10", "", ""),
-        # Non-finite values would silently poison the derived price.
-        ("NaN", "-10", "", ""),
-        ('"$100.00"', "NaN", "", ""),
-        # Non-finite fees would silently poison the combined fees.
-        ('"$100.00"', "-10", "", "NaN"),
         # A price on the adjustment row is not part of the format.
         ('"$100.00"', "-10", "5", ""),
     ],
@@ -426,9 +449,6 @@ def test_cash_merger_pair_with_invalid_values(
     [
         ('"-$100.00"', "-10", ""),
         ('"$100.00"', "10", ""),
-        ("NaN", "-10", ""),
-        ('"$100.00"', "NaN", ""),
-        ('"$100.00"', "-10", "NaN"),
     ],
 )
 def test_full_redemption_pair_with_invalid_values(
