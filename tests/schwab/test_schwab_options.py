@@ -321,3 +321,31 @@ def test_plausible_but_unreconciled_share_row_is_refused() -> None:
             "05/17/2024,Assigned,META 05/17/2024 350.00 C,Assignment,,1,,",
             "05/02/2024,Sell to Open,META 05/17/2024 350.00 C,Open,$2.00,1,$0.65,$199.35",
         )
+
+
+def test_option_opened_and_closed_in_different_export_files() -> None:
+    """A long history arrives as several files; the lifecycle spans them."""
+    with tempfile.TemporaryDirectory() as directory:
+        export = Path(directory)
+        (export / "2024-05.csv").write_text(
+            HEADER
+            + "05/01/2024,Sell to Open,META 05/17/2024 500.00 C,Open,$1.00,1,$0.65,$99.35\n",
+            encoding="utf-8",
+        )
+        (export / "2024-06.csv").write_text(
+            HEADER
+            + "06/10/2024,Buy to Close,META 05/17/2024 500.00 C,Close,$0.10,1,$0.65,(10.65)\n",
+            encoding="utf-8",
+        )
+        transactions = SchwabParser.load_from_dir(export)
+
+    grant = next(row for row in transactions if row.action is ActionType.OPTION_GRANT)
+    accounts = {row.source.account for row in transactions if row.source is not None}
+
+    assert grant.written_option_tax is not None
+    assert grant.written_option_tax.taxable_quantity == Decimal(1)
+    assert [cost.amount for cost in grant.written_option_tax.close_costs] == [
+        Decimal("10.65")
+    ]
+    assert len(accounts) == 1
+    assert None not in accounts

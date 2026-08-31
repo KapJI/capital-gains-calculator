@@ -817,12 +817,38 @@ def _reject_overlapping_exports(exports: list[_Export]) -> None:
             )
 
 
+type SchwabRowKey = tuple[Path, int]
+
+
+def _row_source(transaction: SchwabTransaction) -> TransactionSource:
+    """Return where one row was read from, which reconciliation needs."""
+    source = transaction.source
+    if source is None or source.file is None or source.row is None:
+        raise TypeError("Schwab row has no stamped source provenance")
+    return source
+
+
 def _row_file(transaction: SchwabTransaction) -> Path:
     """Return the file one row was read from, for pointing an error at it."""
-    source = transaction.source
-    if source is None or source.file is None:
-        raise TypeError("Schwab row has no stamped source file")
-    return source.file
+    file = _row_source(transaction).file
+    assert file is not None
+    return file
+
+
+def _row_key(transaction: SchwabTransaction) -> SchwabRowKey:
+    """Identify one exported row by the file and line it was read from.
+
+    Object identity would do while every row happens to be alive in one
+    list, but it says nothing about which row of which export this is, and
+    breaks silently the first time a pass rebuilds a row rather than keeping
+    it. Stamped provenance is what actually identifies a row. Reconciliation
+    runs once per declared account, so the file and line are unique within
+    everything it sees.
+    """
+    source = _row_source(transaction)
+    assert source.file is not None
+    assert source.row is not None
+    return source.file, source.row
 
 
 
@@ -1014,7 +1040,7 @@ def _find_assignment_share_transaction(
     transactions: list[SchwabTransaction],
     assignment: SchwabTransaction,
     assigned_shares: Decimal,
-    used: set[int],
+    used: set[SchwabRowKey],
     file: Path,
 ) -> SchwabTransaction | None:
     """Find Schwab's separate stock row created by an option assignment."""
@@ -1026,7 +1052,7 @@ def _find_assignment_share_transaction(
     candidates = [
         transaction
         for transaction in transactions
-        if id(transaction) not in used
+        if _row_key(transaction) not in used
         and transaction.option_contract is None
         and transaction.action is expected_action
         and transaction.symbol == contract.underlying
@@ -1065,7 +1091,7 @@ def _find_assignment_share_transaction(
 def _apply_option_assignment(
     transactions: list[SchwabTransaction],
     assignment: _OptionAssignment,
-    used_share_transactions: set[int],
+    used_share_transactions: set[SchwabRowKey],
     file: Path,
 ) -> BrokerTransaction:
     """Return the assigned shares, dated on the assignment itself.
@@ -1090,7 +1116,7 @@ def _apply_option_assignment(
     adjustments = _assignment_adjustments(assignment.allocations)
 
     if share_transaction is not None:
-        used_share_transactions.add(id(share_transaction))
+        used_share_transactions.add(_row_key(share_transaction))
         amount = share_transaction.amount
         assert amount is not None
         price = share_transaction.price
@@ -1193,9 +1219,9 @@ def _reconcile_written_options(
             assert tax_data is not None
             tax_data.taxable_quantity -= lot.assigned
 
-    used_share_transactions: set[int] = set()
+    used_share_transactions: set[SchwabRowKey] = set()
     settlements = {
-        id(assignment.transaction): _apply_option_assignment(
+        _row_key(assignment.transaction): _apply_option_assignment(
             transactions,
             assignment,
             used_share_transactions,
@@ -1209,11 +1235,12 @@ def _reconcile_written_options(
     # every other row of the export.
     reconciled: list[BrokerTransaction] = []
     for transaction in transactions:
-        if id(transaction) in used_share_transactions:
+        row_key = _row_key(transaction)
+        if row_key in used_share_transactions:
             continue
         if transaction.action is ActionType.OPTION_EXPIRY:
             continue
-        settlement = settlements.get(id(transaction))
+        settlement = settlements.get(row_key)
         reconciled.append(settlement if settlement is not None else transaction)
     return reconciled
 
