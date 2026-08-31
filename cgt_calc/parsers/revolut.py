@@ -46,12 +46,16 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _parse_timestamp(value: str) -> datetime.datetime:
-    """Convert a Revolut timestamp to the UK instant it fell on.
+    """Convert a Revolut timestamp to the instant it names, in UTC.
 
     The export states its times in UTC, so a value without a zone is read
-    as UTC too rather than as the machine's local time. The date that
-    drives the tax year and the matching rules is the UK one, so the
-    instant is stated in UK time and the date taken from it.
+    as UTC too rather than as the machine's local time. The instant is kept
+    in UTC rather than in UK time because two aware datetimes sharing one
+    `tzinfo` are compared by their wall clocks, ignoring `fold`: stated in
+    London, 00:30 UTC on the morning the clocks go back reads as 01:30 BST
+    and compares as later than 01:15 GMT, which is the instant 45 minutes
+    after it. The date is taken in UK time, where the tax year and the
+    matching rules are counted.
     """
 
     try:
@@ -60,7 +64,7 @@ def _parse_timestamp(value: str) -> datetime.datetime:
         raise ValueError(f"Invalid timestamp: {value!r}") from err
     if timestamp.tzinfo is None:
         timestamp = timestamp.replace(tzinfo=datetime.UTC)
-    return timestamp.astimezone(UK_TIMEZONE)
+    return timestamp.astimezone(datetime.UTC)
 
 
 def _action_from_str(label: str, file: Path) -> ActionType:
@@ -181,7 +185,7 @@ class RevolutTransaction(BrokerTransaction):
             price = total / quantity  # override CSV's rounding
         amount = -total if action is ActionType.BUY else total
         super().__init__(
-            timestamp.date(),
+            timestamp.astimezone(UK_TIMEZONE).date(),
             action,
             symbol,
             description,

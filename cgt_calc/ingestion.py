@@ -97,14 +97,28 @@ def relative_to_split(
     stable ordering and its action priorities for gifts, spouse transfers and
     vests are calculation plumbing rather than evidence of corporate-action
     chronology. Returns None when it cannot be told.
+
+    What a lone instant proves is one-sided. An export that states the whole
+    holding on both sides of the event brackets the restatement in the
+    broker's own books, and its own counts are what the ratio comes from, so
+    a row outside that bracket is placed against a figure the broker stated.
+    An export that posts the event as one row states only when it booked the
+    entry: everything after it is in the new units, because the holding had
+    already been restated when the row was written, but a row before it may
+    have traded in either unit system - the market restates at the opening of
+    the ex-date, and nothing says the broker's book-keeping ran to the same
+    clock. Guessing there would not merely misplace that row: a single row
+    states a net change, so `before_quantity` is whatever was placed ahead of
+    it and the corporate ratio is derived from that. One row on the wrong
+    side rewrites the ratio for the entire holding.
     """
     if instants and other_source is not None and other_source.timestamp is not None:
-        if other_source.timestamp < min(instants):
-            return "before"
         if other_source.timestamp > max(instants):
             return "after"
-        # At or between the two halves of the reorganisation, where neither
-        # unit system can be proved.
+        if len(instants) > 1 and other_source.timestamp < min(instants):
+            return "before"
+        # At or between the two halves of the reorganisation, or ahead of a
+        # lone booking instant: no unit system can be proved.
         return None
     if (
         split_source is not None
