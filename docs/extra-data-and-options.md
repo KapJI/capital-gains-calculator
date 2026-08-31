@@ -28,8 +28,9 @@ existing mappings first and queries the [Open FIGI API](https://www.openfigi.com
 if needed. It saves new mappings in `out/isin_translation.csv` by default; `--isin-translation-file`
 selects another path.
 
-cgt-calc can create or rewrite this file after a successful lookup or after learning a mapping from
-broker transactions. It starts with the bundled
+cgt-calc can create or rewrite this file after a successful lookup. Tickers read from your broker
+transactions are used for the run but never written to the file: cached, they would be read back as
+reference data and could contradict a later run. It starts with the bundled
 [`initial_isin_translation.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv).
 If you edit the cache, a row for an existing ISIN replaces its bundled symbols. Put every verified
 ticker for that ISIN on the same row.

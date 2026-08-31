@@ -37,3 +37,6 @@
 # "Trading 212's timestamp" is possessive; Harper reads the digits as the
 # end of a sentence and the "s" as a word of its own.
 ^trading212\.py:.*`s`
+# The ISIN in the comment on the exchange-alias table, naming the security
+# whose ticker code the sentence is about.
+^const\.py:.*`US67066G1040`

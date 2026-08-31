@@ -58,6 +58,13 @@ def test_live_isin_lookup_announces_itself(
 ISIN_A = Isin("US0378331005")
 ISIN_B = Isin("US5949181045")
 
+# ISINs with a curated exchange alias.
+NVIDIA_ISIN = Isin("US67066G1040")
+BROADCOM_ISIN = Isin("US11135F1012")
+
+# A bundled row listing one security under two tickers.
+VANGUARD_ISIN = Isin("IE00B3XXRP09")
+
 FigiData = list[dict[str, str]]
 
 
@@ -94,7 +101,7 @@ class FakeSession:
         return FakeResponse(self._payload)
 
 
-def _transaction(isin: Isin, symbol: str | None) -> BrokerTransaction:
+def _transaction(isin: Isin | None, symbol: str | None) -> BrokerTransaction:
     """Create a minimal transaction with the given ISIN and symbol."""
     return BrokerTransaction(
         date=datetime.date(2023, 1, 1),
@@ -214,13 +221,175 @@ def test_validate_data_rejects_conflicting_symbols() -> None:
         converter.validate_data()
 
 
-def test_add_from_transaction_rejects_mismatched_symbol() -> None:
-    """Reject transactions conflicting with the existing mapping."""
+def test_add_from_transaction_rejects_two_transaction_symbols() -> None:
+    """Reject a second, unrecognised ticker for an ISIN this run has seen.
+
+    Both tickers come from transactions, so the holding really would be
+    pooled and matched as two.
+    """
+    converter = IsinConverter()
+    converter.add_from_transaction(_transaction(ISIN_A, "FOO"))
+
+    with pytest.raises(InvalidTransactionError, match="does not match FOO"):
+        converter.add_from_transaction(_transaction(ISIN_A, "BAR"))
+
+
+def test_add_from_transaction_accepts_reference_only_conflict() -> None:
+    """Accept a ticker that only disagrees with stored reference data.
+
+    A cache row left by an earlier run says FOO; this run's transactions all
+    say BAR. Nothing splits, so the run has to go through with BAR recorded
+    as another name for the ISIN.
+    """
     converter = IsinConverter()
     converter.data[ISIN_A] = {"FOO"}
 
-    with pytest.raises(InvalidTransactionError, match="does not match"):
-        converter.add_from_transaction(_transaction(ISIN_A, "BAR"))
+    transaction = _transaction(ISIN_A, "BAR")
+    converter.add_from_transaction(transaction)
+
+    assert transaction.symbol == "BAR"
+    assert converter.get_symbols(ISIN_A) == {"FOO", "BAR"}
+
+
+@pytest.mark.parametrize(
+    ("isin", "alias", "canonical"),
+    [(NVIDIA_ISIN, "NVD", "NVDA"), (BROADCOM_ISIN, "1YD", "AVGO")],
+)
+def test_add_from_transaction_normalises_exchange_alias(
+    isin: Isin, alias: str, canonical: str
+) -> None:
+    """Rewrite a known exchange alias, on the transaction itself."""
+    converter = IsinConverter()
+
+    aliased = _transaction(isin, alias)
+    converter.add_from_transaction(aliased)
+    converter.add_from_transaction(_transaction(isin, canonical))
+
+    assert aliased.symbol == canonical
+    assert converter.get_symbols(isin) == {canonical}
+
+
+def test_add_from_transaction_normalises_alias_resolved_from_reference() -> None:
+    """Rewrite a known alias on a row with no ISIN of its own, too.
+
+    docs/extra-data-and-options.md documents listing every verified ticker
+    for an ISIN on one cache row, such as ``US67066G1040,NVD,NVDA``. A broker
+    that never reports an ISIN still has its ISIN resolved from that row, so
+    the alias must be applied there as well - resolving the ISIN without
+    then normalising the ticker would leave NVD and NVDA pooling separately
+    exactly as before.
+    """
+    converter = IsinConverter()
+    converter.data[NVIDIA_ISIN] = {"NVD", "NVDA"}
+
+    aliased = _transaction(None, "NVD")
+    converter.add_from_transaction(aliased)
+    converter.add_from_transaction(_transaction(None, "NVDA"))
+
+    assert aliased.symbol == "NVDA"
+    assert converter.transaction_symbols[NVIDIA_ISIN] == {"NVDA"}
+
+
+def test_add_from_transaction_alias_is_scoped_to_its_isin() -> None:
+    """The same ticker code under another ISIN is left alone.
+
+    Ticker codes belong to an exchange, not to a security, so NVD is only
+    NVDA for the ISIN it was confirmed against.
+    """
+    converter = IsinConverter()
+
+    unrelated = _transaction(ISIN_A, "NVD")
+    converter.add_from_transaction(unrelated)
+
+    assert unrelated.symbol == "NVD"
+
+
+def test_add_from_transaction_rejects_one_ticker_under_two_isins() -> None:
+    """Reject a ticker this run has already tied to a different ISIN.
+
+    Both claims come from transactions, so the two securities would be pooled
+    and matched as one holding. Reference data cannot excuse this one:
+    validate_data already forbids a ticker linked to two ISINs there.
+    """
+    converter = IsinConverter()
+    converter.add_from_transaction(_transaction(ISIN_A, "SAME"))
+
+    with pytest.raises(InvalidTransactionError, match="already used for"):
+        converter.add_from_transaction(_transaction(ISIN_B, "SAME"))
+
+
+def test_add_from_transaction_rejects_reference_owned_ticker_reassignment() -> None:
+    """A stored row giving the ticker to another ISIN is still a conflict.
+
+    Unlike a same-ISIN mismatch, this direction cannot be a stale cache row:
+    validate_data() already guarantees one ISIN per reference ticker, so a
+    transaction reusing one reference gave to a different security is the
+    real thing this check exists to catch, not a false positive to excuse.
+    """
+    converter = IsinConverter()
+    converter.data[ISIN_B] = {"SAME"}
+
+    with pytest.raises(InvalidTransactionError, match="already used for"):
+        converter.add_from_transaction(_transaction(ISIN_A, "SAME"))
+
+
+def test_add_from_transaction_checks_isin_less_rows_against_reference() -> None:
+    """A row with no ISIN is still checked when reference data names one.
+
+    A broker that never reports an ISIN would otherwise let its rows split a
+    holding past every check above just by leaving the field blank: the
+    ticker alone is enough to find the ISIN reference already links it to.
+    """
+    converter = IsinConverter()
+    converter.data[ISIN_A] = {"FOO"}
+    converter.add_from_transaction(_transaction(ISIN_A, "BAR"))
+
+    with pytest.raises(InvalidTransactionError, match="does not match BAR"):
+        converter.add_from_transaction(_transaction(None, "FOO"))
+
+
+def test_add_from_transaction_links_isin_less_row_without_conflict() -> None:
+    """A row with no ISIN is recorded once reference data resolves one."""
+    converter = IsinConverter()
+    converter.data[ISIN_A] = {"FOO"}
+
+    converter.add_from_transaction(_transaction(None, "FOO"))
+
+    assert converter.transaction_symbols[ISIN_A] == {"FOO"}
+
+
+def test_add_from_transaction_ignores_isin_less_unknown_ticker() -> None:
+    """A row with no ISIN and no reference match records nothing."""
+    converter = IsinConverter()
+
+    converter.add_from_transaction(_transaction(None, "UNKNOWN"))
+
+    assert converter.transaction_symbols == {}
+
+
+def test_add_from_transaction_accepts_a_bundled_multi_ticker_row() -> None:
+    """Accept every ticker of a bundled row listing a security under several.
+
+    IE00B3XXRP09 ships as VUSA and VUSD, and those holdings pool separately
+    today. That silent split predates the exchange-alias work and is not what
+    this check is for, so both tickers go through as they always have.
+    """
+    converter = IsinConverter()
+    assert converter.data[VANGUARD_ISIN] == {"VUSA", "VUSD"}
+
+    converter.add_from_transaction(_transaction(VANGUARD_ISIN, "VUSA"))
+    converter.add_from_transaction(_transaction(VANGUARD_ISIN, "VUSD"))
+
+    assert converter.transaction_symbols[VANGUARD_ISIN] == {"VUSA", "VUSD"}
+
+
+def test_add_from_transaction_ignores_rows_without_both_fields() -> None:
+    """A row missing a ticker or an ISIN records nothing."""
+    converter = IsinConverter()
+
+    converter.add_from_transaction(_transaction(ISIN_A, None))
+
+    assert converter.transaction_symbols == {}
 
 
 def test_add_from_transaction_adds_mapping() -> None:
@@ -255,12 +424,17 @@ def test_symbol_map_skips_unknown_tickers() -> None:
 def test_translation_file_roundtrip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Write learned mappings to the translation file and read them back."""
+    """Write looked-up mappings to the translation file and read them back."""
     monkeypatch.setattr(cgt_calc.isin_converter, "CGT_MODE", RuntimeMode.PROD)
     translation_file = tmp_path / "isin_translation.csv"
 
     converter = IsinConverter(isin_translation_file=translation_file)
-    converter.add_from_transaction(_transaction(ISIN_A, "FOO"))
+    monkeypatch.setattr(
+        converter,
+        "session",
+        FakeSession([{"data": [{"ticker": "FOO", "exchCode": "LN"}]}]),
+    )
+    assert converter.get_symbols(ISIN_A) == {"FOO"}
 
     assert (
         translation_file.read_text(encoding="utf-8") == f"ISIN,symbol\n{ISIN_A},FOO\n"
@@ -268,6 +442,49 @@ def test_translation_file_roundtrip(
 
     restored = IsinConverter(isin_translation_file=translation_file)
     assert restored.get_symbols(ISIN_A) == {"FOO"}
+
+
+def test_translation_file_excludes_transaction_symbols(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Never cache a ticker learned from a transaction.
+
+    The file caches OpenFIGI lookups. A transaction ticker stored there is
+    read back as reference data by the next run, which is how a history
+    holding one listing of a security used to fail a later run holding the
+    other.
+    """
+    monkeypatch.setattr(cgt_calc.isin_converter, "CGT_MODE", RuntimeMode.PROD)
+    translation_file = tmp_path / "isin_translation.csv"
+
+    converter = IsinConverter(isin_translation_file=translation_file)
+    converter.add_from_transaction(_transaction(ISIN_A, "FOO"))
+
+    assert converter.write_data == {}
+    assert not translation_file.exists()
+
+
+def test_live_lookup_refuses_a_ticker_another_isin_owns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Refuse to cache a looked-up ticker the bundled table already assigns.
+
+    The cache is read back alongside the bundled table, so writing the row
+    would leave a file that fails the next run's construction.
+    """
+    monkeypatch.setattr(cgt_calc.isin_converter, "CGT_MODE", RuntimeMode.PROD)
+    translation_file = tmp_path / "isin_translation.csv"
+    converter = IsinConverter(isin_translation_file=translation_file)
+    monkeypatch.setattr(
+        converter,
+        "session",
+        FakeSession([{"data": [{"ticker": "VUSA", "exchCode": "LN"}]}]),
+    )
+
+    with pytest.raises(IsinTranslationError, match="already linked"):
+        converter.get_symbols(UNKNOWN_ISIN)
+
+    assert not translation_file.exists()
 
 
 def test_translation_file_empty(tmp_path: Path) -> None:
