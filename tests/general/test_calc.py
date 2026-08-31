@@ -933,6 +933,70 @@ def test_exchange_alias_pools_under_one_ticker(
     assert report.total_gain() == Decimal(225)
 
 
+def test_exchange_alias_pools_under_one_ticker_without_a_transaction_isin() -> None:
+    """The alias still normalises when a broker never reports an ISIN.
+
+    docs/extra-data-and-options.md documents putting every verified ticker
+    for an ISIN on one cache row, such as ``US67066G1040,NVD,NVDA``. A broker
+    that never supplies an ISIN has its ISIN resolved from that row alone, so
+    the alias has to be applied there too: resolving the ISIN without then
+    normalising the ticker would leave this pooling as two holdings, exactly
+    as it did before either check existed.
+    """
+    isin = Isin("US67066G1040")
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[isin] = {"NVD", "NVDA"}
+
+    buy_alias = BrokerTransaction(
+        date=datetime.date(2024, 5, 1),
+        action=ActionType.BUY,
+        symbol="NVD",
+        description="buy NVD",
+        quantity=Decimal(10),
+        price=Decimal(10),
+        fees=Decimal(0),
+        amount=Decimal(-100),
+        currency=CurrencyCode("GBP"),
+        broker="Test",
+    )
+    transactions: list[BrokerTransaction] = [
+        buy_alias,
+        BrokerTransaction(
+            date=datetime.date(2024, 6, 1),
+            action=ActionType.BUY,
+            symbol="NVDA",
+            description="buy NVDA",
+            quantity=Decimal(10),
+            price=Decimal(20),
+            fees=Decimal(0),
+            amount=Decimal(-200),
+            currency=CurrencyCode("GBP"),
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 9, 1),
+            action=ActionType.SELL,
+            symbol="NVDA",
+            description="sell NVDA",
+            quantity=Decimal(5),
+            price=Decimal(30),
+            fees=Decimal(0),
+            amount=Decimal(150),
+            currency=CurrencyCode("GBP"),
+            broker="Test",
+        ),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert buy_alias.symbol == "NVDA"
+    assert "NVD" not in calculator.portfolio
+    # 20 units costing 300 in one pool: 5 sold for 150 leaves 15 costing 225.
+    assert calculator.portfolio["NVDA"].quantity == Decimal(15)
+    assert calculator.portfolio["NVDA"].amount == Decimal(225)
+    assert report.total_gain() == Decimal(75)
+
+
 def test_transaction_ticker_cannot_reassign_a_reference_owned_isin() -> None:
     """A transaction cannot silently move a reference-linked ticker to a new ISIN.
 

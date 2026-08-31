@@ -269,6 +269,27 @@ def test_add_from_transaction_normalises_exchange_alias(
     assert converter.get_symbols(isin) == {canonical}
 
 
+def test_add_from_transaction_normalises_alias_resolved_from_reference() -> None:
+    """Rewrite a known alias on a row with no ISIN of its own, too.
+
+    docs/extra-data-and-options.md documents listing every verified ticker
+    for an ISIN on one cache row, such as ``US67066G1040,NVD,NVDA``. A broker
+    that never reports an ISIN still has its ISIN resolved from that row, so
+    the alias must be applied there as well - resolving the ISIN without
+    then normalising the ticker would leave NVD and NVDA pooling separately
+    exactly as before.
+    """
+    converter = IsinConverter()
+    converter.data[NVIDIA_ISIN] = {"NVD", "NVDA"}
+
+    aliased = _transaction(None, "NVD")
+    converter.add_from_transaction(aliased)
+    converter.add_from_transaction(_transaction(None, "NVDA"))
+
+    assert aliased.symbol == "NVDA"
+    assert converter.transaction_symbols[NVIDIA_ISIN] == {"NVDA"}
+
+
 def test_add_from_transaction_alias_is_scoped_to_its_isin() -> None:
     """The same ticker code under another ISIN is left alone.
 

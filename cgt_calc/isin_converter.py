@@ -132,10 +132,12 @@ class IsinConverter:
         rest of the calculation reads, so the holding pools, matches and
         prices under one ticker instead of one per listing.
 
-        A row without an ISIN is still checked when reference data already
-        ties its ticker to exactly one: a broker that never reports an ISIN
-        would otherwise let a holding split past every check below just by
-        leaving the field blank.
+        A row without an ISIN is resolved from reference data first, when its
+        ticker already ties to exactly one, and then treated exactly like a
+        row that carried that ISIN - alias rewriting included. A broker that
+        never reports an ISIN would otherwise let a holding split past every
+        check below, and past the alias table, just by leaving the field
+        blank.
 
         Anything else is recorded as this run's name for the ISIN. Two
         transactions disagreeing is refused, in either direction: one ISIN
@@ -154,20 +156,20 @@ class IsinConverter:
             return
 
         isin = transaction.isin
-        if isin is not None:
-            canonical = ISIN_TICKER_ALIASES.get((isin, transaction.symbol))
-            if canonical is not None:
-                LOGGER.debug(
-                    "ISIN %s: reporting exchange alias %s as %s",
-                    isin,
-                    transaction.symbol,
-                    canonical,
-                )
-                transaction.symbol = canonical
-        else:
+        if isin is None:
             isin = self._isin_for_symbol(transaction.symbol)
             if isin is None:
                 return
+
+        canonical = ISIN_TICKER_ALIASES.get((isin, transaction.symbol))
+        if canonical is not None:
+            LOGGER.debug(
+                "ISIN %s: reporting exchange alias %s as %s",
+                isin,
+                transaction.symbol,
+                canonical,
+            )
+            transaction.symbol = canonical
 
         symbol = transaction.symbol
         recorded = self.transaction_symbols.get(isin) or set()
