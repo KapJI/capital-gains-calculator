@@ -552,16 +552,17 @@ def test_the_pdf_shows_a_gain_on_a_gift_like_any_other(tmp_path: Path) -> None:
     source = _latex(tmp_path, 30)
 
     assert "4 units of FOO given away at a market value of £120.00" in source
-    assert "Chargeable \\textbf{gain} is £80.00, before any relief" in source
+    assert "Chargeable gain: \\textbf{£80.00}" in source
+    assert "before any relief" in source
 
 
 def test_the_pdf_keeps_a_loss_on_a_gift_out_of_the_total(tmp_path: Path) -> None:
     """A £20 loss is shown with the s18(3) note and no running loss total."""
     source = _latex(tmp_path, 5)
 
-    assert "\\textbf{Clogged loss} of £20.00 on a gift, kept out of the loss" in source
-    assert "Losses on gifts, kept separate: £20.00" in source
-    assert "Capital loss to date" not in source
+    assert "Clogged loss: \\textbf{£20.00}, kept separate" in source
+    assert r"\summaryrow{Losses on gifts (kept separate)}{£20.00}" in source
+    assert "Cumulative loss:" not in source
 
 
 def test_the_pdf_shows_an_unconnected_loss_as_an_ordinary_loss(
@@ -571,8 +572,8 @@ def test_the_pdf_shows_an_unconnected_loss_as_an_ordinary_loss(
     source = _latex(tmp_path, 5, ActionType.GIFT_UNCONNECTED)
 
     assert "given away at a market value of £20.00" in source
-    assert "Chargeable \\textbf{loss} is £20.00" in source
-    assert "Capital loss to date is £20.00" in source
+    assert "Chargeable loss: \\textbf{£20.00}" in source
+    assert "Cumulative loss: £20.00" in source
     assert "Clogged" not in source
 
 

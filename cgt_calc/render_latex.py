@@ -20,6 +20,11 @@ from .util import round_decimal, strip_zeros
 LOGGER = logging.getLogger(__name__)
 
 
+def format_gbp(value: Decimal, digits: int = 2) -> str:
+    """Format a sterling amount consistently for the LaTeX report."""
+    return f"£{round_decimal(value, digits):,}"
+
+
 def render_pdf(
     report: CapitalGainsReport,
     output_path: Path,
@@ -56,6 +61,7 @@ def render_pdf(
     template = latex_template_env.get_template(LATEX_TEMPLATE_RESOURCE)
     output_text = template.render(
         report=report,
+        gbp=format_gbp,
         round_decimal=round_decimal,
         strip_zeros=strip_zeros,
         Decimal=Decimal,

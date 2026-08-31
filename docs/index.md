@@ -32,9 +32,10 @@ relevant [broker guide](brokers/index.md) and the
 [offshore funds limitations](offshore-funds.md#unsupported-functionality) before relying on the
 result.
 
-The PDF report includes separate **Capital Gains** and **Interest and Dividends** sections, with a
-summary at the end. Interest is grouped **monthly per broker** to keep reports concise, even for
-brokers that pay daily interest.
+The PDF report opens with a tax summary, followed by separate **Capital gains** and **Dividend and
+interest** event sections. Interest is grouped **monthly per broker** to keep reports concise, even
+for brokers that pay daily interest. The summary focuses on tax values; the detailed sections number
+the underlying events.
 
 ## Example report
 

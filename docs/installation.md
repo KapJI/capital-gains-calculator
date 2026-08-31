@@ -45,6 +45,10 @@ nix run nixpkgs#cgt-calc
 
 ## Installing LaTeX
 
+The report template uses only packages included in the base LaTeX installation; no additional TeX
+Live collections are required. If Source Sans Pro is already available, the report uses it
+automatically; otherwise it falls back to LaTeX's built-in sans-serif font.
+
 ### macOS
 
 ```shell

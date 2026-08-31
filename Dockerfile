@@ -46,6 +46,7 @@ RUN --mount=type=cache,target=/root/.cache \
 
 FROM base AS runtime
 
+# The report uses base LaTeX for colour and falls back to its built-in sans font.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash texlive-latex-base \
     && rm -rf /var/lib/apt/lists/*

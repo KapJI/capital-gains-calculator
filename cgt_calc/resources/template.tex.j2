@@ -1,9 +1,68 @@
-\documentclass{article}
+\documentclass[11pt,a4paper]{article}
 \usepackage[utf8]{inputenc}
-\usepackage[a4paper, margin=3cm]{geometry}
-\setlength{\parindent}{0pt} %--don't indent paragraphs
+\IfFileExists{sourcesanspro.sty}{%
+    \usepackage[scaled=0.94]{sourcesanspro}%
+}{}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage[
+    margin=2.4cm,
+    headheight=22pt,
+    headsep=0.6cm,
+    footskip=1.1cm
+]{geometry}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{fancyhdr}
+\usepackage{color}
+
+\definecolor{ReportNavy}{RGB}{31, 56, 77}
+\definecolor{ReportTeal}{RGB}{0, 116, 122}
+\definecolor{ReportMuted}{RGB}{91, 105, 116}
+\definecolor{ReportRule}{RGB}{197, 208, 214}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.3em}
+\setlength{\emergencystretch}{1em}
+
+\newcommand{\reportpagestyle}{%
+    \fancyhf{}%
+    \fancyhead[L]{\small\color{ReportNavy}Capital Gains Tax Report}%
+    \fancyhead[R]{\small\color{ReportMuted}\VAR{ report.title_period }}%
+    \fancyfoot[C]{\small\color{ReportMuted}Page \thepage}%
+    \renewcommand{\headrulewidth}{0.4pt}%
+    \renewcommand{\footrulewidth}{0pt}%
+}
+\fancypagestyle{report}{\reportpagestyle}
+\fancypagestyle{plain}{\reportpagestyle}
+\pagestyle{report}
+
+\newcolumntype{R}{>{\raggedleft\arraybackslash}p{4.2cm}}
+\newenvironment{summarytable}
+    {\begingroup\renewcommand{\arraystretch}{1.18}\tabularx{\textwidth}{@{}X R@{}}}
+    {\endtabularx\endgroup}
+\newcommand{\summaryheading}[1]{%
+    \par\vspace{0.8em}%
+    {\large\bfseries\color{ReportTeal}#1}\par
+    \vspace{0.2em}{\color{ReportRule}\hrule}\vspace{0.35em}%
+}
+\newcommand{\summaryrow}[2]{#1 & #2\\}
+\newcommand{\summarynote}[2]{{\small\color{ReportMuted}\quad #1} & {\small\color{ReportMuted}#2}\\}
+\newcommand{\summarytotal}[2]{\noalign{\vskip0.25em}{\bfseries\color{ReportNavy}#1} & {\bfseries\color{ReportNavy}#2}\\}
+\newcommand{\reportsection}[1]{\section*{\color{ReportNavy}#1}}
+\newcommand{\reportdate}[1]{\subsection*{\color{ReportTeal}#1}}
+\newcommand{\reportevent}[1]{\subsubsection*{\color{ReportNavy}#1}}
+\newcommand{\reportneedspace}[1]{%
+    \par\begingroup
+    \dimen0=\pagegoal
+    \advance\dimen0 by -\pagetotal
+    \ifdim\dimen0<#1\relax\newpage\fi
+    \endgroup
+}
+\newenvironment{reportlist}
+    {\begin{enumerate}\setlength{\itemsep}{0.4em}\setlength{\topsep}{0.4em}}
+    {\end{enumerate}}
 \begin{document}
-\centerline{\Large\bfseries Capital Gains Tax Calculations for \VAR{ report.title_period }}
+\thispagestyle{report}
 
 \BLOCK{ set total_gain = namespace(value=Decimal(0)) }
 \BLOCK{ set total_loss = namespace(value=Decimal(0)) }
@@ -14,19 +73,108 @@
 \BLOCK{ set interest_count = namespace(value=0) }
 \BLOCK{ set interest_tax_count = namespace(value=0) }
 \BLOCK{ set eri_count = namespace(value=0) }
+\BLOCK{ set rule_labels = {
+    "SECTION_104": "Section 104",
+    "SAME_DAY": "Same-day rule",
+    "BED_AND_BREAKFAST": "30-day rule",
+    "SPIN_OFF": "Spin-off",
+    "DIVIDEND": "Dividend",
+    "INTEREST": "Interest",
+    "EXCESS_REPORTED_INCOME": "Excess reported income",
+    "EXCESS_REPORTED_INCOME_DISTRIBUTION": "Excess reported income distribution"
+} }
 
-\section*{Capital Gains Events}
+\vspace*{0.25cm}
+{\color{ReportNavy}\Huge\bfseries Capital Gains Tax Report\par}
+\vspace{0.15em}
+{\color{ReportMuted}\large
+\BLOCK{ if report.period_start is not none and report.period_end is not none }
+Reporting period \VAR{ report.period_start.strftime("%d %B %Y") } to \VAR{ report.period_end.strftime("%d %B %Y") }%
+\BLOCK{ else }
+Tax year \VAR{ report.title_period }%
+\BLOCK{ endif }
+\par}
+
+\reportsection{Tax summary}
+
+\summaryheading{Capital gains}
+\begin{summarytable}
+\summaryrow{Disposals}{\VAR{ report.disposal_count }}
+\summaryrow{Disposal proceeds}{\VAR{ gbp(report.disposal_proceeds) }}
+\summaryrow{Allowable costs}{\VAR{ gbp(report.allowable_costs) }}
+\summaryrow{Gains}{\VAR{ gbp(report.capital_gain) }}
+\summaryrow{Losses}{\VAR{ gbp(-report.capital_loss) }}
+\BLOCK{ if report.gift_loss < 0 }
+\summaryrow{Losses on gifts (kept separate)}{\VAR{ gbp(-report.gift_loss) }}
+\BLOCK{ endif }
+\BLOCK{ if report.exempt_disposal_count > 0 }
+\summaryrow{Exempt disposals}{\VAR{ report.exempt_disposal_count }}
+\summaryrow{Exempt disposal proceeds}{\VAR{ gbp(report.exempt_disposal_proceeds) }}
+\BLOCK{ endif }
+\summarytotal{Total gain}{\VAR{ gbp(report.total_gain()) }}
+\BLOCK{ if report.capital_gain_allowance is not none }
+\summaryrow{Annual exempt amount}{\VAR{ gbp(report.capital_gain_allowance) }}
+\summarytotal{Taxable gain}{\VAR{ gbp(report.taxable_gain()) }}
+\BLOCK{ else }
+\summaryrow{Annual exempt amount}{Not available}
+\BLOCK{ endif }
+\end{summarytable}
+{\small\color{ReportMuted}
+Amounts are rounded to the nearest penny individually, so a line may differ
+from its components by a penny.\par}
+
+\summaryheading{Dividends}
+\begin{summarytable}
+\summaryrow{Dividend income}{\VAR{ gbp(report.total_dividends_amount()) }}
+\BLOCK{ if report.total_eri_amount(is_interest=False) > 0 }
+\summarynote{of which excess reported income}{\VAR{ gbp(report.total_eri_amount(is_interest=False)) }}
+\BLOCK{ endif }
+\BLOCK{ if report.total_dividend_taxes_in_tax_treaties_amount() > 0 }
+\summaryrow{Tax treaty reclaim}{\VAR{ gbp(report.total_dividend_taxes_in_tax_treaties_amount()) }}
+\BLOCK{ endif }
+\BLOCK{ if report.dividend_allowance is not none }
+\summaryrow{Dividend allowance}{\VAR{ gbp(report.dividend_allowance) }}
+\BLOCK{ endif }
+\BLOCK{ if report.dividend_allowance is not none or report.total_dividend_taxes_in_tax_treaties_amount() > 0 }
+\summarytotal{Taxable dividend income}{\VAR{ gbp(report.total_dividend_taxable_gain()) }}
+\BLOCK{ endif }
+\end{summarytable}
+
+\summaryheading{Interest}
+\begin{summarytable}
+\summaryrow{UK interest income}{\VAR{ gbp(report.total_uk_interest) }}
+\summaryrow{Foreign interest income}{\VAR{ gbp(report.total_foreign_interest) }}
+\BLOCK{ if report.total_eri_amount(is_interest=True) > 0 }
+\summarynote{of which excess reported income}{\VAR{ gbp(report.total_eri_amount(is_interest=True)) }}
+\BLOCK{ endif }
+\summaryrow{Interest tax paid}{\VAR{ gbp(report.total_interest_tax) }}
+\end{summarytable}
+
+\clearpage
+
+\reportsection{Capital gains events}
 
 \BLOCK{ for date_index, symbol_dict in report.calculation_log.items() }
 
-\subsection*{\VAR{ date_index.strftime("%d %B %Y") }}
+\reportneedspace{10\baselineskip}
+\reportdate{\VAR{ date_index.strftime("%d %B %Y") }}
 \BLOCK{ for symbol, entries in symbol_dict.items() }
+\BLOCK{ set is_disposal = False }
+\BLOCK{ set is_acquisition = False }
+\BLOCK{ set is_spin_off = False }
+\BLOCK{ set is_eri = False }
+\BLOCK{ set is_rename = False }
+\BLOCK{ set is_transfer_to_spouse = False }
+\BLOCK{ set is_gift = False }
+\BLOCK{ set is_clogged = False }
+\BLOCK{ set is_split = False }
+\BLOCK{ set is_exempt = False }
 \BLOCK{ if symbol.startswith("sell$") }
     \BLOCK{ set symbol = symbol[5:] }
     \BLOCK{ set is_disposal = True }
 \BLOCK{ elif symbol.startswith("buy$") }
     \BLOCK{ set symbol = symbol[4:] }
-    \BLOCK{ set is_aquisition = True }
+    \BLOCK{ set is_acquisition = True }
 \BLOCK{ elif symbol.startswith("spin-off$") }
     \BLOCK{ set symbol = symbol[9:] }
     \BLOCK{ set is_spin_off = True }
@@ -61,74 +209,89 @@
     \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount") + entries|sum(attribute="fees"), 2) }
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
-    \subsubsection*{
-        Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol }
-        \BLOCK{ if is_gift }given away at a market value of\BLOCK{ else }for\BLOCK{ endif } £\VAR{ "{:,}".format(overall_disposed) }
-        (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
+    \reportevent{
+        Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) }
+        \VAR{ "unit" if overall_quantity == 1 else "units" } of \VAR{ symbol }
+        \BLOCK{ if is_gift }given away at a market value of\BLOCK{ else }for\BLOCK{ endif }
+        \VAR{ gbp(overall_disposed) }
+        (\VAR{ gbp(overall_disposed/overall_quantity) } per unit)%
         \BLOCK{ if overall_fees > 0 }
-            , £\VAR{ "{:,}".format(overall_fees) } fees allowed as cost
+            , with fees of \VAR{ gbp(overall_fees) } treated as allowable cost
         \BLOCK{ endif }
     }
     \BLOCK{ if overall_gain > 0 -}
-        Chargeable \textbf{gain} is £\VAR{ "{:,}".format(overall_gain) }\BLOCK{ if is_gift }, before any relief:
-        a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns\BLOCK{ endif }
+        Chargeable gain: \textbf{\VAR{ gbp(overall_gain) }}%
+        \BLOCK{ if is_gift }, before any relief.
+
+        Gift Hold-over Relief can defer the gain on qualifying shares when both
+        parties make the required joint claim on their returns.
+        \BLOCK{ else }.
+        \BLOCK{ endif }
 
         \BLOCK{ set total_gain.value = total_gain.value + overall_gain }
-        Capital gain to date is £\VAR{ "{:,}".format(total_gain.value) }
+        Cumulative gain: \VAR{ gbp(total_gain.value) }
     \BLOCK{ elif overall_gain == 0 }
         Neither a gain nor a loss.
     \BLOCK{ elif is_clogged }
-        \textbf{Clogged loss} of £\VAR{ "{:,}".format(-overall_gain) } on a gift, kept out of the loss total:
-        a loss on a gift to a connected person can only be set against gains on disposals to the same person while still connected (TCGA 1992 s18(3)).
+        Clogged loss: \textbf{\VAR{ gbp(-overall_gain) }}, kept separate
+        from other capital losses. A loss on a gift to a connected person can
+        only be set against gains on disposals to that person while they remain
+        connected (TCGA 1992 s18(3)).
 
         \BLOCK{ set gift_loss.value = gift_loss.value - overall_gain }
-        Losses on gifts to date are £\VAR{ "{:,}".format(gift_loss.value) }
+        Cumulative losses on gifts: \VAR{ gbp(gift_loss.value) }
     \BLOCK{ else }
-        Chargeable \textbf{loss} is £\VAR{ "{:,}".format(-overall_gain) }
+        Chargeable loss: \textbf{\VAR{ gbp(-overall_gain) }}
 
         \BLOCK{ set total_loss.value = total_loss.value - overall_gain }
-        Capital loss to date is £\VAR{ "{:,}".format(total_loss.value) }
+        Cumulative loss: \VAR{ gbp(total_loss.value) }
     \BLOCK{ endif }
-\BLOCK{ elif is_aquisition } % if is_aquisition
+\BLOCK{ elif is_acquisition } % if is_acquisition
     \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
     \BLOCK{ if overall_quantity > 0 }
         \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
-        \subsubsection*{
-            Acquisition \VAR{ acquisition_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(acquisition_cost) }
-            (£\VAR{ "{:,}".format(round_decimal(acquisition_cost/overall_quantity, 2)) }/unit)%
+        \reportevent{
+            Acquisition \VAR{ acquisition_count.value }: \VAR{ strip_zeros(overall_quantity) }
+            \VAR{ "unit" if overall_quantity == 1 else "units" } of \VAR{ symbol }
+            for \VAR{ gbp(acquisition_cost) }
+            (\VAR{ gbp(acquisition_cost/overall_quantity) } per unit)%
             \BLOCK{ if overall_fees > 0 }
-                , including £\VAR{ "{:,}".format(overall_fees) } fees
+                , including fees of \VAR{ gbp(overall_fees) }
             \BLOCK{ endif }
         }
     \BLOCK{ else }
-        \subsubsection*{Management fee for \VAR{ symbol } of £\VAR{ "{:,}".format(acquisition_cost) }}
+        \reportevent{Management fee for \VAR{ symbol }: \VAR{ gbp(acquisition_cost) }}
     \BLOCK{ endif}
 \BLOCK{ elif is_spin_off } % if is_spin_off
     \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
     \BLOCK{ if overall_quantity > 0 }
         \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
-        \subsubsection*{
-            Spin-off adjustment \VAR{ acquisition_count.value }: \VAR{ entries[0].spin_off.source } cost adjusted because of \VAR{ entries[0].spin_off.dest } shares spinned off
+        \reportevent{
+            Spin-off adjustment \VAR{ acquisition_count.value }:
+            \VAR{ entries[0].spin_off.source } pool cost adjusted after
+            \VAR{ entries[0].spin_off.dest } shares were spun off
         }
     \BLOCK{ endif }
 \BLOCK{ elif is_eri } % if is_eri
     \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
     \BLOCK{ if overall_quantity > 0 }
-        \subsubsection*{
-            Excess Reported Income: \VAR{ symbol } cost increased by £\VAR{ "{:,}".format(acquisition_cost) }
-            (£\VAR{ "{:,}".format(round_decimal(entries[0].eris[0].price, 4)) }/unit)%
+        \reportevent{
+            Excess reported income: \VAR{ symbol } pool cost increased by \VAR{ gbp(acquisition_cost) }
+            (\VAR{ gbp(entries[0].eris[0].price, 4) } per unit)%
         }
     \BLOCK{ endif }
 \BLOCK{ elif is_rename } % if is_rename
-    \subsubsection*{
+    \reportevent{
         \VAR{ symbol } was renamed to \VAR{ entries[0].renamed_to }%
         \BLOCK{ if entries[0].quantity > 0 }
-            : \VAR{ strip_zeros(entries[0].quantity) } units with pool cost £\VAR{ "{:,}".format(round_decimal(entries[0].allowable_cost, 2)) } transferred
+            : \VAR{ strip_zeros(entries[0].quantity) }
+            \VAR{ "unit" if entries[0].quantity == 1 else "units" } with pool cost
+            \VAR{ gbp(entries[0].allowable_cost) } transferred
         \BLOCK{ endif }
     }
 \BLOCK{ elif is_split } % if is_split
     \BLOCK{ set split = entries[0].stock_split }
-    \subsubsection*{
+    \reportevent{
         Share reorganisation: \VAR{ strip_zeros(split.day_open_quantity) } units of \VAR{ symbol } restated as \VAR{ strip_zeros(split.scaled_day_open_quantity) } (ratio \VAR{ split.ratio_description })
     }
     Neither a disposal nor an acquisition: the new holding is the same asset, held from the same dates, with the same pooled cost (TCGA 1992 s127).
@@ -141,66 +304,72 @@
 
     Units in the pool at this point in the day: \VAR{ strip_zeros(entries[0].new_quantity) }%
     \BLOCK{ if entries[0].new_quantity > 0 },
-        pool cost: £\VAR{ "{:,}".format(round_decimal(entries[0].new_pool_cost, 2)) }
-        (£\VAR{ "{:,}".format(round_decimal(entries[0].new_pool_cost/entries[0].new_quantity, 2)) }/unit)%
+        pool cost \VAR{ gbp(entries[0].new_pool_cost) }
+        (\VAR{ gbp(entries[0].new_pool_cost/entries[0].new_quantity) } per unit)%
     \BLOCK{ endif }.
 \BLOCK{ elif is_transfer_to_spouse } % if is_transfer_to_spouse
-    \subsubsection*{
-        Transferred to spouse: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } (no gain/no loss)
+    \reportevent{
+        Transfer to spouse: \VAR{ strip_zeros(overall_quantity) }
+        \VAR{ "unit" if overall_quantity == 1 else "units" } of \VAR{ symbol }
+        (no gain, no loss)
     }
-    Base cost of £\VAR{ "{:,}".format(round_decimal(entries|sum(attribute="allowable_cost"), 2)) } passes to the recipient.
+    An allowable cost of \VAR{ gbp(entries|sum(attribute="allowable_cost")) }
+    passes to the recipient.
 
     \BLOCK{ set pool = entries[-1] }
-    Number of units left in the pool: \VAR{ strip_zeros(pool.new_quantity) }%
+    Closing pool: \VAR{ strip_zeros(pool.new_quantity) }
+    \VAR{ "unit" if pool.new_quantity == 1 else "units" }%
     \BLOCK{ if pool.new_quantity > 0 },
-        new pool cost: £\VAR{ "{:,}".format(round_decimal(pool.new_pool_cost, 2)) }
-        (£\VAR{ "{:,}".format(round_decimal(pool.new_pool_cost/pool.new_quantity, 2)) }/unit)%
+        allowable cost \VAR{ gbp(pool.new_pool_cost) }
+        (\VAR{ gbp(pool.new_pool_cost/pool.new_quantity) } per unit)%
     \BLOCK{ endif }.
 \BLOCK{ elif is_exempt } % if is_exempt
     \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount") + entries|sum(attribute="fees"), 2) }
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
-    \subsubsection*{
-        Exempt disposal: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } valued at £\VAR{ "{:,}".format(overall_disposed) }
-        (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
+    \reportevent{
+        Exempt disposal: \VAR{ strip_zeros(overall_quantity) }
+        \VAR{ "unit" if overall_quantity == 1 else "units" } of \VAR{ symbol }
+        valued at \VAR{ gbp(overall_disposed) }
+        (\VAR{ gbp(overall_disposed/overall_quantity) } per unit)%
         \BLOCK{ if overall_fees > 0 }
-            , £\VAR{ "{:,}".format(overall_fees) } disposal expenses included in the illustrative calculation
+            , \VAR{ gbp(overall_fees) } disposal expenses included in the illustrative calculation
         \BLOCK{ endif }
     }
     The cost and disposal expenses shown below are used for this illustrative calculation only;
     they are not allowable deductions against other gains.
 
     \BLOCK{ if overall_gain > 0 -}
-        Gain is £\VAR{ "{:,}".format(overall_gain) }; the gain or loss is disregarded (exempt asset).
+        Gain is \VAR{ gbp(overall_gain) }; the gain or loss is disregarded (exempt asset).
     \BLOCK{ elif overall_gain == 0 }
         Neither a gain nor a loss; the gain or loss is disregarded (exempt asset).
     \BLOCK{ else }
-        Loss is £\VAR{ "{:,}".format(-overall_gain) }; the gain or loss is disregarded (exempt asset).
+        Loss is \VAR{ gbp(-overall_gain) }; the gain or loss is disregarded (exempt asset).
     \BLOCK{ endif }
 \BLOCK{ endif }
 
 \BLOCK{ if not is_rename and not is_transfer_to_spouse and not is_split }
-\begin{enumerate}
+\begin{reportlist}
 \BLOCK{ for entry in entries }
-\item \textbf{\VAR{ entry.rule_type.name.replace("_", " ") }}. Quantity: \VAR{ strip_zeros(entry.quantity) },
+\item \textbf{\VAR{ rule_labels.get(entry.rule_type.name, entry.rule_type.name.replace("_", " ").title()) }}.~Quantity:
+\VAR{ strip_zeros(entry.quantity) },
 \BLOCK{ if is_disposal }
     \BLOCK{ if entry.quantity < overall_quantity }
-        disposal proceeds: £\VAR{ "{:,}".format(round_decimal(entry.amount + entry.fees, 2)) },
+        proceeds: \VAR{ gbp(entry.amount + entry.fees) },
     \BLOCK{ endif }
-    allowable
     \BLOCK{ if entry.rule_type.name == "BED_AND_BREAKFAST" }
-        cost on \mbox{\VAR{ entry.bed_and_breakfast_date_index.strftime("%d %b %Y") }:}
+        allowable cost (matched on \mbox{\VAR{ entry.bed_and_breakfast_date_index.strftime("%d %b %Y") }}):
     \BLOCK{ else }
-        cost:
+        allowable cost:
     \BLOCK{ endif }
-    £\VAR{ "{:,}".format(round_decimal(entry.allowable_cost, 2)) },
+    \VAR{ gbp(entry.allowable_cost) },
     \BLOCK{ if entry.gain > 0}
-        \mbox{gain: £\VAR{ "{:,}".format(round_decimal(entry.gain, 2)) }.}
+        gain: \VAR{ gbp(entry.gain) }.
     \BLOCK{ else }
-        \mbox{loss: £\VAR{ "{:,}".format(round_decimal(-entry.gain, 2)) }.}
+        loss: \VAR{ gbp(-entry.gain) }.
     \BLOCK{ endif }
 \BLOCK{ elif is_exempt }
     \BLOCK{ if entry.quantity < overall_quantity }
-        disposal proceeds: £\VAR{ "{:,}".format(round_decimal(entry.amount + entry.fees, 2)) },
+        disposal proceeds: \VAR{ gbp(entry.amount + entry.fees) },
     \BLOCK{ endif }
     cost used for this illustrative
     \BLOCK{ if entry.rule_type.name == "BED_AND_BREAKFAST" }
@@ -208,47 +377,46 @@
     \BLOCK{ else }
         calculation:
     \BLOCK{ endif }
-    £\VAR{ "{:,}".format(round_decimal(entry.allowable_cost, 2)) },
+    \VAR{ gbp(entry.allowable_cost) },
     \BLOCK{ if entry.gain > 0}
-        \mbox{disregarded gain: £\VAR{ "{:,}".format(round_decimal(entry.gain, 2)) }.}
+        \mbox{disregarded gain: \VAR{ gbp(entry.gain) }.}
     \BLOCK{ else }
-        \mbox{disregarded loss: £\VAR{ "{:,}".format(round_decimal(-entry.gain, 2)) }.}
+        \mbox{disregarded loss: \VAR{ gbp(-entry.gain) }.}
     \BLOCK{ endif }
 \BLOCK{ elif is_spin_off }
-    original cost of \VAR{ entry.spin_off.source }: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2))}, after spin-off: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2))}
+    cost before adjustment: \VAR{ gbp(-entry.amount) },
+    cost after spin-off: \VAR{ gbp(entry.new_pool_cost) }
 \BLOCK{ elif is_eri }
-    original cost of \VAR{ symbol }: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2))}, after income distribution: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2))}%
-\BLOCK{ else } % if is_aquisition
-    actual cost: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2)) }.
+    cost before adjustment: \VAR{ gbp(-entry.amount) },
+    cost after adjustment: \VAR{ gbp(entry.new_pool_cost) }%
+\BLOCK{ else } % if is_acquisition
+    actual cost: \VAR{ gbp(-entry.amount) }.
 \BLOCK{ endif}
 
-\BLOCK{ if is_disposal or is_exempt }
-    Number of units left in the pool:
-\BLOCK{ else }
-    Number of units in the pool:
-\BLOCK{ endif }
-\VAR{ strip_zeros(entry.new_quantity) }%
+Closing pool: \VAR{ strip_zeros(entry.new_quantity) }
+\VAR{ "unit" if entry.new_quantity == 1 else "units" }%
 \BLOCK{ if entry.new_quantity > 0 },
-    new pool cost: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2)) }
-    (£\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost/entry.new_quantity, 2)) }/unit)%
-    \BLOCK{ if is_aquisition and entry.spin_off}
+    allowable cost \VAR{ gbp(entry.new_pool_cost) }
+    (\VAR{ gbp(entry.new_pool_cost/entry.new_quantity) } per unit)%
+    \BLOCK{ if is_acquisition and entry.spin_off}
 
-    Cost basis calculated based on cost of \VAR{entry.spin_off.source} share pool from which \VAR{ symbol } shares were spinned off%
+    Pool cost calculated from the \VAR{entry.spin_off.source} share pool from which
+    \VAR{ symbol } shares were spun off%
     \BLOCK{ endif }
-    \BLOCK{ if is_aquisition }
+    \BLOCK{ if is_acquisition }
         \BLOCK{ for eri in entry.eris }
             \BLOCK{ set eri_cost = round_decimal(eri.price * entry.quantity, 2) }
             \BLOCK{ set eri_date = eri.date.strftime("%d %b %Y") }
 
-    Cost basis increased by £\VAR{ "{:,}".format(eri_cost)}
-    (£\VAR{ "{:,}".format(round_decimal(eri.price, 4)) }/unit)%
-    , due to exccess reported income on \mbox{\VAR{ eri_date }}%
+    Pool cost increased by \VAR{ gbp(eri_cost) }
+    (\VAR{ gbp(eri.price, 4) } per unit)
+    due to excess reported income on \mbox{\VAR{ eri_date }}%
         \BLOCK{ endfor }
     \BLOCK{ endif }
 \BLOCK{ endif }.
 
 \BLOCK{ endfor}
-\end{enumerate}
+\end{reportlist}
 \BLOCK{ endif }
 
 \BLOCK{ endfor }
@@ -256,20 +424,25 @@
 \BLOCK{ endfor }
 
 \BLOCK{ if report.calculation_log_yields }
-    \clearpage
-    \section*{Interest and Dividends Events}
+    \reportsection{Dividend and interest events}
 
     \BLOCK{ for date_index, symbol_dict in report.calculation_log_yields.items() }
 
-    \subsection*{\VAR{ date_index.strftime("%d %B %Y") }}
+    \reportneedspace{7\baselineskip}
+    \reportdate{\VAR{ date_index.strftime("%d %B %Y") }}
     \BLOCK{ for symbol, entries in symbol_dict.items() }
+    \BLOCK{ set is_dividend = False }
+    \BLOCK{ set is_interest = False }
+    \BLOCK{ set is_interest_tax = False }
+    \BLOCK{ set is_eri_tax = False }
     \BLOCK{ if symbol.startswith("dividend$") }
         \BLOCK{ set symbol = symbol[9:] }
         \BLOCK{ set is_dividend = True }
     \BLOCK{ elif symbol.startswith("interestTax") }
-        \BLOCK{ set symbol = symbol.split('$')[0][11:] }
+        \BLOCK{ set interest_tax_currency = symbol.split('$')[0][11:] }
+        \BLOCK{ set symbol = symbol.split('$', 1)[1] }
         \BLOCK{ set is_interest_tax = True }
-        \BLOCK{ if symbol == "GBP" }
+        \BLOCK{ if interest_tax_currency == "GBP" }
             \BLOCK{ set interest_tax_str = "UK" }
         \BLOCK{ else }
             \BLOCK{ set interest_tax_str = "Foreign" }
@@ -279,7 +452,8 @@
         \BLOCK{ set is_interest = True }
         \BLOCK{ set interest_str = "UK" }
     \BLOCK{ elif symbol.startswith("interest") }
-        \BLOCK{ set symbol = symbol.split('$')[0][8:] }
+        \BLOCK{ set interest_currency = symbol.split('$', 1)[0][8:] }
+        \BLOCK{ set symbol = symbol.split('$', 1)[1] }
         \BLOCK{ set is_interest = True }
         \BLOCK{ set interest_str = "Foreign" }
     \BLOCK{ elif symbol.startswith("excess-reported-income-distribution$") }
@@ -292,19 +466,26 @@
         \BLOCK{ if entries[0].dividend.is_interest }
             \BLOCK{ set type_str = " (interest)" }
         \BLOCK{ endif }
-        \textbf{Dividend \VAR{ dividend_count.value }:} \VAR{ symbol + type_str } for £\VAR{ "{:,}".format(round_decimal(entries[0].amount, 2)) }
+        \textbf{Dividend \VAR{ dividend_count.value }:} \VAR{ symbol + type_str },
+        \VAR{ gbp(entries[0].amount) }%
         \BLOCK{ if not entries[0].dividend.is_interest }
-            (tax paid at source: £\VAR{ "{:,}".format(round_decimal(-entries[0].dividend.tax_at_source, 2)) })
+            ; tax paid at source \VAR{ gbp(-entries[0].dividend.tax_at_source) }%
         \BLOCK{ endif }
         \BLOCK{ if entries[0].dividend.tax_treaty }
-            , tax treaty amount: £\VAR{ "{:,}".format(round_decimal(entries[0].dividend.tax_treaty_amount, 2)) } (treaty rate for \VAR{ entries[0].dividend.tax_treaty.country }: \VAR{ round_decimal(100 * entries[0].dividend.tax_treaty.treaty_rate, 2) }\%)
-        \BLOCK{ endif }
+            ; tax treaty reclaim \VAR{ gbp(entries[0].dividend.tax_treaty_amount) }
+            (\VAR{ entries[0].dividend.tax_treaty.country } treaty rate:
+            \VAR{ round_decimal(100 * entries[0].dividend.tax_treaty.treaty_rate, 2) }\%)%
+        \BLOCK{ endif }.\par
     \BLOCK{ elif is_interest } % if is_interest
         \BLOCK{ set interest_count.value = interest_count.value + 1 }
-        \textbf{Interest \VAR{ interest_str } \VAR{ interest_count.value }:} \VAR{ symbol } for £\VAR{ "{:,}".format(round_decimal(entries[0].amount, 2)) }
+        \textbf{\VAR{ interest_str } interest \VAR{ interest_count.value }:}
+        \VAR{ symbol }\BLOCK{ if interest_str == "Foreign" } (\VAR{ interest_currency })\BLOCK{ endif },
+        \VAR{ gbp(entries[0].amount) }.\par
     \BLOCK{ elif is_interest_tax } % if is_interest_tax
         \BLOCK{ set interest_tax_count.value = interest_tax_count.value + 1 }
-        \textbf{Interest tax \VAR{ interest_tax_str } \VAR{ interest_tax_count.value }:} \VAR{ symbol } for £\VAR{ "{:,}".format(round_decimal(entries[0].amount, 2)) }
+        \textbf{\VAR{ interest_tax_str } interest tax \VAR{ interest_tax_count.value }:}
+        \VAR{ symbol }\BLOCK{ if interest_tax_str == "Foreign" } (\VAR{ interest_tax_currency })\BLOCK{ endif },
+        \VAR{ gbp(entries[0].amount) }.\par
     \BLOCK{ elif is_eri_tax } % if is_eri_tax
         \BLOCK{ if entries[0].eris[0].is_interest }
             \BLOCK{ set type_str = " (interest)" }
@@ -313,49 +494,13 @@
         \BLOCK{ endif }
         \BLOCK{ set eri_income = round_decimal(entries[0].amount, 2) }
         \BLOCK{ set eri_count.value = eri_count.value + 1 }
-        \textbf{Excess Reported Income Distribution \VAR{ eri_count.value }}: \VAR{ symbol + type_str } for £\VAR{ "{:,}".format(eri_income) }
-        (£\VAR{ "{:,}".format(round_decimal(entries[0].eris[0].price, 4)) }/unit)%
+        \textbf{Excess reported income distribution \VAR{ eri_count.value }:}
+        \VAR{ symbol + type_str }, \VAR{ gbp(eri_income) }
+        (\VAR{ gbp(entries[0].eris[0].price, 4) } per unit).\par
     \BLOCK{ endif }
 
     \BLOCK{ endfor }
 
     \BLOCK{ endfor }
 \BLOCK{ endif }
-
-\clearpage
-\section*{Overall - Capital Gains}
-\subsection*{Number of acquisitions: \VAR{ acquisition_count.value }}
-\subsection*{Number of disposals: \VAR{ disposal_count.value }}
-\subsection*{Total disposal proceeds: £\VAR{ "{:,}".format(report.disposal_proceeds) }}
-\subsection*{Total capital gain before loss: £\VAR{ "{:,}".format(total_gain.value) }}
-\subsection*{Total capital loss: £\VAR{ "{:,}".format(total_loss.value) }}
-\BLOCK{ if gift_loss.value > 0 }
-\subsection*{Losses on gifts, kept separate: £\VAR{ "{:,}".format(gift_loss.value) }}
-\BLOCK{ endif }
-\BLOCK{ if report.exempt_disposal_count > 0 }
-\subsection*{Number of exempt disposals: \VAR{ report.exempt_disposal_count }}
-\subsection*{Total exempt disposal proceeds: £\VAR{ "{:,}".format(report.exempt_disposal_proceeds) }}
-\BLOCK{ endif }
-\subsection*{Total capital gain after loss: £\VAR{ "{:,}".format(total_gain.value - total_loss.value) }}
-\vspace{1em}
-Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.
-\vspace{2em}
-\section*{Overall - Dividends and Interests}
-\subsection*{Number of dividend distributions: \VAR{ dividend_count.value }}
-\subsection*{Number of interest transactions: \VAR{ interest_count.value }}
-\subsection*{Number of interest tax transactions: \VAR{ interest_tax_count.value }}
-\subsection*{Number of excess reported income distributions: \VAR{ eri_count.value }}
-\subsection*{Total amount of dividends proceeds: £\VAR{ "{:,}".format(round_decimal(report.total_dividends_amount(), 2)) }}
-\BLOCK{ if report.total_eri_amount(is_interest=False) > 0 }
-\subsubsection*{   (including £\VAR{ "{:,}".format(round_decimal(report.total_eri_amount(is_interest=False), 2))} from excess reported income distributions)}
-\BLOCK{ endif }
-\subsection*{Total amount of dividends tax allowance due to double taxation treaties: £\VAR{ "{:,}".format(round_decimal(report.total_dividend_taxes_in_tax_treaties_amount(), 2)) }}
-\subsection*{Total amount of dividends tax yearly allowance: £\VAR{ "{:,}".format(round_decimal(report.dividend_allowance or Decimal(), 2)) }}
-\subsection*{Total amount of taxable dividends proceeds: £\VAR{ "{:,}".format(round_decimal(report.total_dividend_taxable_gain(), 2)) }}
-\subsection*{Total amount of UK interests proceeds: £\VAR{ "{:,}".format(report.total_uk_interest) }}
-\subsection*{Total amount of foreign interests proceeds: £\VAR{ "{:,}".format(report.total_foreign_interest) }}
-\BLOCK{ if report.total_eri_amount(is_interest=True) > 0 }
-\subsubsection*{   (including £\VAR{ "{:,}".format(round_decimal(report.total_eri_amount(is_interest=True), 2))} from excess reported income distributions)}
-\BLOCK{ endif }
-\subsection*{Total amount of interest tax paid: £\VAR{ "{:,}".format(report.total_interest_tax) }}
 \end{document}

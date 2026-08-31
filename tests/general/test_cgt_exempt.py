@@ -296,10 +296,10 @@ def test_pdf_report_rendering_exempt_disposal(tmp_path: Path) -> None:
     assert "cost used for this illustrative calculation: £10,000" in source_flat
     assert "not allowable deductions against other gains" in source_flat
 
-    # Check Overall section line
-    assert "Number of exempt disposals: 1" in source_flat
-    assert "Total exempt disposal proceeds: £12,000" in source_flat
-    assert "Number of disposals: 0" in source_flat
+    # Check Tax summary rows
+    assert "\\summaryrow{Exempt disposals}{1}" in source_flat
+    assert "\\summaryrow{Exempt disposal proceeds}{£12,000.00}" in source_flat
+    assert "\\summaryrow{Disposals}{0}" in source_flat
 
 
 def test_pdf_report_rendering_exempt_bed_and_breakfast(tmp_path: Path) -> None:

@@ -45,11 +45,12 @@ TRANSACTIONS = [
 
 HEADING = re.compile(r"^Disposal \d+: \S+ units of (\w+) for £([\d,.]+)")
 ENTRY = re.compile(
-    r"\\item \\textbf\{[A-Z0-9 ]+\}\. Quantity: [\d.]+, "
-    r"(?:disposal proceeds: £([\d,.]+), )?"
-    r"allowable cost(?: on [^:]+)?: £([\d,.]+), (gain|loss): £([\d,.]+)\."
+    r"\\item \\textbf\{[^}]+\}\.~Quantity: [\d.]+, "
+    r"(?:proceeds: £([\d,.]+), )?"
+    r"allowable cost(?: \(matched on [^)]+\))?: £([\d,.]+), "
+    r"(gain|loss): £([\d,.]+)\."
 )
-TOTAL = re.compile(r"Total disposal proceeds: £([\d,.]+)")
+TOTAL = re.compile(r"\\summaryrow\{Disposal proceeds\}\{£([\d,.]+)\}")
 
 
 def money(text: str) -> Decimal:
@@ -74,7 +75,7 @@ def disposals(
 ) -> list[tuple[str, Decimal, list[tuple[Decimal | None, Decimal, Decimal]]]]:
     """Each disposal's symbol and proceeds with its (proceeds, cost, gain) lines."""
     found = []
-    for block in source.split("\\subsubsection*{ ")[1:]:
+    for block in re.split(r"\\(?:subsubsection\*|reportevent)\{ ", source)[1:]:
         heading = HEADING.match(block)
         if heading is None:
             continue
