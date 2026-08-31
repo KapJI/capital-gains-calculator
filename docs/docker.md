@@ -6,6 +6,9 @@ and do not want to install these tools on your computer. Images are available fo
 
 Open a terminal in the directory containing your transaction files, then start the container:
 
+On native Linux, add `--user "$(id -u):$(id -g)"` immediately after `docker run` in the commands
+below so generated files are owned by you.
+
 ```shell
 cd ~/Taxes/Transactions
 docker run --rm -it -v "$PWD":/data ghcr.io/cgt-calc/capital-gains-calculator
@@ -19,8 +22,7 @@ cgt-calc --year 2024 --schwab-file schwab_transactions.csv
 ```
 
 The generated `out/` directory remains on your computer after the container stops. Run `exit` when
-you are finished. On native Linux, Docker may create these files as `root`. If this happens, add
-`--user "$(id -u):$(id -g)"` to the `docker run` command so new files are owned by your user.
+you are finished.
 
 You can also run a single command directly:
 
