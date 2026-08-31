@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+import os
 from pathlib import Path
+import re
+import subprocess
 import tempfile
 
 import pytest
@@ -27,6 +30,7 @@ from cgt_calc.model import (
 from cgt_calc.parsers.schwab import SchwabParser
 from cgt_calc.parsers.schwab_options import parse_option_contract
 from cgt_calc.spin_off_handler import SpinOffHandler
+from tests.utils import build_cmd, stderr_alerts
 
 HEADER = "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
 USD = CurrencyCode("USD")
@@ -368,3 +372,31 @@ def test_contract_not_delivering_100_shares_is_refused(symbol: str) -> None:
 
     with pytest.raises(ParsingError, match="Cannot parse the option contract"):
         _read(f"05/01/2024,Sell to Open,{symbol},Open,$1.00,1,$0.65,$99.35")
+
+
+def test_schwab_options_run_from_csv_to_report(tmp_path: Path) -> None:
+    """The whole path: a real export, the CLI, and the rendered report."""
+    output = tmp_path / "schwab-options.pdf"
+    pdf_enabled = bool(os.getenv("ENABLE_PDFLATEX"))
+    cmd = build_cmd(
+        "--year",
+        "2024",
+        "--schwab-file",
+        "tests/schwab/data/options/transactions.csv",
+        "--output",
+        str(output),
+        keep_tex=not pdf_enabled,
+    )
+
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+
+    assert result.returncode == 0, result.stderr
+    assert stderr_alerts(result.stderr) == []
+    # The lapsed grant, and the assigned call folded into the share disposal.
+    assert re.search(r"^\s+Disposals:\s+2$", result.stdout, re.MULTILINE) is not None
+    if pdf_enabled:
+        assert output.is_file()
+    else:
+        source = output.with_suffix(".tex").read_text(encoding="utf-8")
+        assert "META call option expiring 2024-05-17" in source
+        assert "does not change the Section 104 holding" in source
