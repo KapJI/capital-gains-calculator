@@ -216,11 +216,14 @@ where that crosses 5 April. A later close changes the gain on the original grant
 replaces that option gain with the combined share transaction. Re-run earlier tax years when a
 previously open option reaches either outcome, and amend a submitted return if necessary.
 
-Schwab posts the underlying share transaction of an assignment on its own settlement date, which can
-be a few days after the assignment and can fall in the next tax year. cgt-calc dates the share
-transaction on the assignment instead, and uses the exported settlement row's amounts. Where more
-than one exported row could be that settlement, or where the only candidate does not reconcile with
-the strike, quantity and fees, the import stops rather than guess.
+Schwab posts the underlying share transaction of an assignment on its own settlement date, which is
+a business day or two later and can fall in the next tax year. cgt-calc dates the share transaction
+on the assignment instead, and takes its amounts from the exported settlement row. That row has to
+be in the export: the shares are never invented from the assignment alone, because the settlement
+row turning up later would then dispose of the same shares twice. The import stops, naming the
+transaction it looked for, when it is missing, when more than one exported row could be it, when the
+only candidate does not reconcile with the strike, quantity and fees, or when one contract is
+assigned more than once on a day, which the export gives no way to pair up with its share rows.
 
 Purchased options (`Buy to Open`, `Sell to Close`, `Exercised`) are not supported. Neither are
 cash-settled index options, nor adjusted contracts, whose root carries a numeric suffix such as

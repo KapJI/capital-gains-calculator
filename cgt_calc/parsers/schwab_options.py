@@ -40,13 +40,35 @@ if TYPE_CHECKING:
 
 
 OPTION_ASSIGNMENT_SHARES: Final = Decimal(100)
-OPTION_ASSIGNMENT_MATCH_DAYS: Final = 3
+# How far after an assignment its stock row may be posted. Settlement runs in
+# business days, so the gap in calendar days depends on where the weekend and
+# any holidays fall, and the standard period was T+2 until 28 May 2024, which
+# older exports still contain. A Friday assignment settling T+2 over a
+# two-holiday long weekend lands six days later, so the window is wider than
+# any of those and the candidate has to reconcile exactly to be used at all.
+OPTION_SETTLEMENT_MATCH_DAYS: Final = 7
 # Roots whose options settle in cash rather than delivering shares. A floor,
 # not a claim to recognise every index: it refuses the ones a symbol alone can
 # identify, and anything else that does not deliver 100 shares fails later,
 # where the assignment cannot be reconciled with a stock row.
 CASH_SETTLED_ROOTS: Final = frozenset(
-    {"DJX", "NDX", "OEX", "RUT", "SPX", "SPXW", "VIX", "XSP"}
+    {
+        "DJX",
+        "MRUT",
+        "NDX",
+        "NDXP",
+        "NQX",
+        "OEX",
+        "RUT",
+        "RUTW",
+        "SPX",
+        "SPXW",
+        "VIX",
+        "VIXW",
+        "XEO",
+        "XND",
+        "XSP",
+    }
 )
 
 _HUMAN_OPTION_SYMBOL: Final = re.compile(
@@ -326,7 +348,7 @@ def _find_assignment_share_transaction(
     assigned_shares: Decimal,
     used: set[SchwabRowKey],
     file: Path,
-) -> SchwabTransaction | None:
+) -> SchwabTransaction:
     """Find Schwab's separate stock row created by an option assignment."""
     contract = assignment.option_contract
     assert contract is not None
@@ -343,7 +365,7 @@ def _find_assignment_share_transaction(
         and transaction.quantity == assigned_shares
         and assignment.date
         <= transaction.date
-        <= assignment.date + datetime.timedelta(days=OPTION_ASSIGNMENT_MATCH_DAYS)
+        <= assignment.date + datetime.timedelta(days=OPTION_SETTLEMENT_MATCH_DAYS)
     ]
     settling = [
         candidate
@@ -356,10 +378,28 @@ def _find_assignment_share_transaction(
             f"Cannot identify which {contract.underlying} stock transaction "
             f"belongs to the assignment of {contract} on {assignment.date}",
         )
-    if not settling and candidates:
-        # Falling through to a synthesized row here would leave this one in
-        # the history as an unrelated trade, disposing of the same shares
-        # twice.
+    if not settling and not candidates:
+        # Synthesizing the shares here would double the disposal as soon as
+        # the settlement row turned out to be present after all, posted
+        # outside the window or under a symbol this did not expect. It is
+        # also how a cash-settled contract that slipped past the root check
+        # would acquire 100 shares of an index that delivers none.
+        raise ParsingError(
+            file,
+            f"The assignment of {contract} on {assignment.date} has no "
+            f"{contract.underlying} transaction that settles it: expected a "
+            f"{expected_action.name.lower()} of {strip_zeros(assigned_shares)} "
+            f"shares at {strip_zeros(contract.strike)}, dated on or within "
+            f"{OPTION_SETTLEMENT_MATCH_DAYS} days of the assignment. Export "
+            "the history through settlement, which can be days later than the "
+            "assignment. If the contract settles in cash rather than in "
+            "shares, it is not supported: remove its rows and record the "
+            "result by hand.",
+        )
+    if not settling:
+        # A row this close to the assignment is far more likely to be its
+        # settlement than an unrelated trade, so a mismatch is a reason to
+        # stop rather than to look past it.
         raise ParsingError(
             file,
             f"A {contract.underlying} stock transaction on {candidates[0].date} "
@@ -369,7 +409,7 @@ def _find_assignment_share_transaction(
             f"{strip_zeros(contract.strike)}. Correct the row, or remove the "
             "option rows and record the trade by hand.",
         )
-    return settling[0] if settling else None
+    return settling[0]
 
 
 def _apply_option_assignment(
@@ -397,50 +437,24 @@ def _apply_option_assignment(
         used_share_transactions,
         file,
     )
-    adjustments = _assignment_adjustments(assignment.allocations)
-
-    if share_transaction is not None:
-        used_share_transactions.add(_row_key(share_transaction))
-        amount = share_transaction.amount
-        assert amount is not None
-        price = share_transaction.price
-        assert price is not None
-        return BrokerTransaction(
-            date=transaction.date,
-            action=share_transaction.action,
-            symbol=contract.underlying,
-            description=share_transaction.description,
-            quantity=assigned_shares,
-            price=price,
-            fees=share_transaction.fees,
-            amount=amount,
-            currency=share_transaction.currency,
-            broker=share_transaction.broker,
-            source=share_transaction.source,
-            capital_adjustments=adjustments,
-        )
-
-    fees = transaction.fees
-    gross_amount = assigned_shares * contract.strike
-    if contract.option_type is OptionType.CALL:
-        action = ActionType.SELL
-        amount = gross_amount - fees
-    else:
-        action = ActionType.BUY
-        amount = -(gross_amount + fees)
+    used_share_transactions.add(_row_key(share_transaction))
+    amount = share_transaction.amount
+    assert amount is not None
+    price = share_transaction.price
+    assert price is not None
     return BrokerTransaction(
         date=transaction.date,
-        action=action,
+        action=share_transaction.action,
         symbol=contract.underlying,
-        description=f"Shares delivered on assignment of {contract}",
+        description=share_transaction.description,
         quantity=assigned_shares,
-        price=contract.strike,
-        fees=fees,
+        price=price,
+        fees=share_transaction.fees,
         amount=amount,
-        currency=transaction.currency,
-        broker=transaction.broker,
-        source=transaction.source,
-        capital_adjustments=adjustments,
+        currency=share_transaction.currency,
+        broker=share_transaction.broker,
+        source=share_transaction.source,
+        capital_adjustments=_assignment_adjustments(assignment.allocations),
     )
 
 
@@ -502,9 +516,19 @@ def _scan_option_activity(
                 lot.assigned += quantity
             key = (transaction.date, contract)
             if key in assignments:
-                assignments[key].allocations.extend(allocations)
-            else:
-                assignments[key] = _OptionAssignment(transaction, allocations)
+                # Each assignment settles into a stock row of its own, and
+                # nothing in the export says which row belongs to which
+                # assignment. Merging them asks for one row of the combined
+                # size, which Schwab did not write, and pairing them up is
+                # guesswork.
+                raise ParsingError(
+                    _row_file(transaction),
+                    f"Schwab reports more than one assignment of {contract} on "
+                    f"{transaction.date}. Reconciling each one to the shares "
+                    "it delivered is not supported: remove the rows for this "
+                    "contract and record the result by hand.",
+                )
+            assignments[key] = _OptionAssignment(transaction, allocations)
 
     # An assigned contract's premium belongs to the share transaction, so it
     # must not also be taxed as a disposal of the option.

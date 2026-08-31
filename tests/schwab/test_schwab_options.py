@@ -125,6 +125,22 @@ def test_written_call_bought_to_close_reduces_grant_gain() -> None:
     assert entries[0].quantity == Decimal(1)
 
 
+def test_written_call_closed_above_the_premium_is_a_loss() -> None:
+    """Closing for more than the option was written for is a capital loss."""
+    report = _report(
+        [
+            "05/10/2024,Buy to Close,META 05/17/2024 500.00 C,Close,$3.00,1,$0.65,(300.65)",
+            "05/01/2024,Sell to Open,META 05/17/2024 500.00 C,Open,$1.00,1,$0.65,$99.35",
+        ]
+    )
+
+    assert report.disposal_count == 1
+    assert report.disposal_proceeds == Decimal("100.00")
+    assert report.allowable_costs == Decimal("301.30")
+    assert report.capital_gain == Decimal(0)
+    assert report.capital_loss == Decimal("-201.30")
+
+
 def test_closing_cost_uses_the_close_date_exchange_rate() -> None:
     """A later closing debit is not converted at the original grant rate."""
     transactions = _read(
@@ -194,6 +210,7 @@ def test_assigned_written_put_reduces_share_acquisition_cost() -> None:
     """A written-put premium reduces the basis of assigned shares."""
     report = _report(
         [
+            "05/17/2024,Buy,META,META PLATFORMS INC,$50.00,100,,-$5000.00",
             "05/17/2024,Assigned,META 05/17/2024 50.00 P,Assignment,,1,,",
             "05/02/2024,Sell to Open,META 05/17/2024 50.00 P,Open,$1.00,1,$0.65,$99.35",
         ]
@@ -364,6 +381,12 @@ def test_option_opened_and_closed_in_different_export_files() -> None:
         "META1  240517C00500000",
         "SPX 05/17/2024 5000.00 C",
         "SPXW  240517C05000000",
+        "XND 05/17/2024 180.00 C",
+        "NQX  240517C05000000",
+        "NDXP  240517C18000000",
+        "RUTW 05/17/2024 2000.00 P",
+        "MRUT 05/17/2024 200.00 P",
+        "VIXW  240517C00020000",
     ],
 )
 def test_contract_not_delivering_100_shares_is_refused(symbol: str) -> None:
@@ -431,3 +454,46 @@ def test_schwab_options_run_from_csv_to_report(tmp_path: Path) -> None:
         source = output.with_suffix(".tex").read_text(encoding="utf-8")
         assert "META call option expiring 2024-05-17" in source
         assert "does not change the Section 104 holding" in source
+
+
+def test_assignment_without_a_settlement_row_is_refused() -> None:
+    """Inventing the shares would double the disposal if the row turns up."""
+    with pytest.raises(ParsingError, match="no META transaction that settles"):
+        _read(
+            "05/17/2024,Assigned,META 05/17/2024 350.00 C,Assignment,,1,,",
+            "05/02/2024,Sell to Open,META 05/17/2024 350.00 C,Open,$2.00,1,$0.65,$199.35",
+            "05/01/2024,Buy,META,META PLATFORMS INC,$300.00,100,,-$30000.00",
+        )
+
+
+def test_settlement_posted_after_a_long_weekend_is_matched() -> None:
+    """Settlement runs in business days, so it can be five calendar days out.
+
+    Assigned on Friday 24 May 2024 and settled on Wednesday 29 May: Memorial
+    Day fell on the Monday, and the trade predates the move to T+1 on 28 May,
+    so this is an ordinary T+2 of its time.
+    """
+    transactions = _read(
+        "05/29/2024,Sell,META,META PLATFORMS INC,$350.00,100,,$35000.00",
+        "05/24/2024,Assigned,META 05/24/2024 350.00 C,Assignment,,1,,",
+        "05/02/2024,Sell to Open,META 05/24/2024 350.00 C,Open,$2.00,1,$0.65,$199.35",
+        "05/01/2024,Buy,META,META PLATFORMS INC,$300.00,100,,-$30000.00",
+    )
+    sales = [row for row in transactions if row.action is ActionType.SELL]
+
+    assert len(sales) == 1
+    assert sales[0].date == datetime.date(2024, 5, 24)
+    assert sales[0].quantity == Decimal(100)
+
+
+def test_two_assignments_of_one_contract_on_one_day_are_refused() -> None:
+    """Each assignment settles separately, and pairing them up is guesswork."""
+    with pytest.raises(ParsingError, match="more than one assignment"):
+        _read(
+            "05/17/2024,Sell,META,META PLATFORMS INC,$350.00,100,,$35000.00",
+            "05/17/2024,Sell,META,META PLATFORMS INC,$350.00,100,,$35000.00",
+            "05/17/2024,Assigned,META 05/17/2024 350.00 C,Assignment,,1,,",
+            "05/17/2024,Assigned,META 05/17/2024 350.00 C,Assignment,,1,,",
+            "05/02/2024,Sell to Open,META 05/17/2024 350.00 C,Open,$2.00,2,$1.30,$398.70",
+            "05/01/2024,Buy,META,META PLATFORMS INC,$300.00,200,,-$60000.00",
+        )
