@@ -33,15 +33,16 @@ def test_read_eri_raw_raises_on_invalid_date(tmp_path: Path) -> None:
         ERIRawParser.load_from_file(file_path)
 
 
-def test_read_eri_raw_raises_on_invalid_decimal(tmp_path: Path) -> None:
-    """Raise ParsingError when ERI decimal field cannot be parsed."""
+@pytest.mark.parametrize("value", ["not-a-number", "NaN", "Infinity"])
+def test_read_eri_raw_raises_on_invalid_decimal(tmp_path: Path, value: str) -> None:
+    """Raise ParsingError when ERI decimal field is not a finite amount."""
     file_path = tmp_path / "eri.csv"
     file_path.write_text(
-        HEADER + f"{VALID_ISIN},01/02/2024,USD,not-a-number\n",
+        HEADER + f"{VALID_ISIN},01/02/2024,USD,{value}\n",
         encoding="utf8",
     )
 
-    with pytest.raises(ParsingError, match="Invalid decimal 'not-a-number'"):
+    with pytest.raises(ParsingError, match=f"Invalid decimal '{value}'"):
         ERIRawParser.load_from_file(file_path)
 
 

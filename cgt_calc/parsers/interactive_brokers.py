@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from enum import StrEnum
 from itertools import chain
 import re
@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, ClassVar, Final, override
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
+from cgt_calc.util import parse_decimal
 
 from .base_parsers import StandardCSVParser
 
@@ -113,11 +114,7 @@ def _parse_decimal(row: dict[str, str], column: str) -> Decimal | None:
     if value == "-":
         return None
 
-    normalized = value.replace(",", "")
-    try:
-        return Decimal(normalized)
-    except InvalidOperation as err:
-        raise ValueError(f"Invalid decimal in column '{column}': {value!r}") from err
+    return parse_decimal(value, f"column '{column}'", strip=",")
 
 
 class InteractiveBrokersTransaction(BrokerTransaction):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from enum import StrEnum
 import io
 import re
@@ -18,6 +18,7 @@ from cgt_calc.model import (
     CurrencyCode,
     TransactionSource,
 )
+from cgt_calc.util import parse_decimal
 
 from .base_parsers import BaseSingleFileParser
 
@@ -137,11 +138,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
 def _parse_decimal(value: str, context: str) -> Decimal:
     """Parse decimal value, raising ValueError with contextual message on failure."""
 
-    normalized = value.replace(",", "")
-    try:
-        return Decimal(normalized)
-    except InvalidOperation as err:
-        raise ValueError(f"Invalid decimal in {context}: {value!r}") from err
+    return parse_decimal(value, context, strip=",")
 
 
 def _parse_details(

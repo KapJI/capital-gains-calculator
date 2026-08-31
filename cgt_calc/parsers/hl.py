@@ -14,6 +14,7 @@ import pdfplumber
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 from cgt_calc.parsers.base_parsers import BaseDirParser, StandardCSVParser
+from cgt_calc.util import parse_decimal
 
 # PDF parser regexes
 DATE_REGEX = re.compile(r"Date[^\d]*(\d{2}/\d{2}/\d{4})", re.IGNORECASE)
@@ -177,9 +178,11 @@ class HargreavesLansdownParser(
         symbol = None
         isin = None
 
-        amount_str = row.get("Value (£)", "0").replace(",", "")
+        amount_str = row.get("Value (£)", "0")
         amount = (
-            Decimal(amount_str) if amount_str and amount_str != "n/a" else Decimal(0)
+            parse_decimal(amount_str, "column 'Value (£)'", strip=",")
+            if amount_str and amount_str != "n/a"
+            else Decimal(0)
         )
 
         # Live PDF lookup only when needed for buy/sell actions

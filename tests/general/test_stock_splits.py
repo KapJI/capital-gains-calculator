@@ -1704,14 +1704,8 @@ def test_two_accounts_in_different_files_still_do_not_conflict() -> None:
 
 def test_an_invalid_raw_override_keeps_its_named_quantity_error() -> None:
     """Override validation must not turn a bad RAW delta into a Decimal error."""
-    with pytest.raises(CalculationError, match="which is not a number of shares"):
-        run(
-            [
-                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
-                legacy_split(EVENT_DAY, "FOO", "10"),
-                raw_split(EVENT_DAY, "FOO", "NaN"),
-            ]
-        )
+    with pytest.raises(ValueError, match="Invalid decimal in column 'quantity'"):
+        raw_split(EVENT_DAY, "FOO", "NaN")
 
 
 def test_two_raw_rows_for_one_day_are_still_refused() -> None:

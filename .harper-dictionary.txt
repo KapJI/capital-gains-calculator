@@ -201,6 +201,7 @@ SpinOffs
 SplitHistory
 sqrt
 ss126
+StandardCSVParser
 stderr
 stdin
 stdout

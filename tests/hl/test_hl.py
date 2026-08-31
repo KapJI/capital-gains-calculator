@@ -253,6 +253,20 @@ def test_read_row_interest() -> None:
     assert transaction.fees == Decimal(0)
 
 
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "not-a-number"])
+def test_read_row_unreadable_value(value: str) -> None:
+    """Refuse a value column that is not a finite amount, naming the column."""
+    row = {
+        "Reference": "Interest",
+        "Description": "Gross interest",
+        "Trade date": "01/03/2026",
+        "Value (\u00a3)": value,
+    }
+
+    with pytest.raises(ValueError, match=r"Invalid decimal in column 'Value"):
+        HargreavesLansdownParser.read_row(row, Path("statement.csv"))
+
+
 def test_read_row_transfer_with_na_value() -> None:
     """Read a fee row where the value column is n/a."""
     row = {
