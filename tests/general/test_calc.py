@@ -862,6 +862,189 @@ def _rename_transaction(date: datetime.date, old: str, new: str) -> BrokerTransa
     )
 
 
+@pytest.mark.parametrize(
+    ("isin", "alias", "canonical"),
+    [
+        (Isin("US67066G1040"), "NVD", "NVDA"),
+        (Isin("US11135F1012"), "1YD", "AVGO"),
+    ],
+)
+def test_exchange_alias_pools_under_one_ticker(
+    isin: Isin, alias: str, canonical: str
+) -> None:
+    """One security bought under two of its listings is one Section 104 pool.
+
+    Trading 212 exports the Xetra line of a US share under its German code,
+    so a history can hold both. Pooling and matching are keyed by ticker, so
+    without normalisation the two halves never meet: the sale below has only
+    half the units it needs under its own name.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    buy_alias = BrokerTransaction(
+        date=datetime.date(2024, 5, 1),
+        action=ActionType.BUY,
+        symbol=alias,
+        description=f"buy {alias}",
+        quantity=Decimal(10),
+        price=Decimal(10),
+        fees=Decimal(0),
+        amount=Decimal(-100),
+        currency=CurrencyCode("GBP"),
+        broker="Trading 212",
+        isin=isin,
+    )
+    transactions: list[BrokerTransaction] = [
+        buy_alias,
+        BrokerTransaction(
+            date=datetime.date(2024, 6, 1),
+            action=ActionType.BUY,
+            symbol=canonical,
+            description=f"buy {canonical}",
+            quantity=Decimal(10),
+            price=Decimal(20),
+            fees=Decimal(0),
+            amount=Decimal(-200),
+            currency=CurrencyCode("GBP"),
+            broker="Trading 212",
+            isin=isin,
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 9, 1),
+            action=ActionType.SELL,
+            symbol=canonical,
+            description=f"sell {canonical}",
+            quantity=Decimal(15),
+            price=Decimal(30),
+            fees=Decimal(0),
+            amount=Decimal(450),
+            currency=CurrencyCode("GBP"),
+            broker="Trading 212",
+            isin=isin,
+        ),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert buy_alias.symbol == canonical
+    assert alias not in calculator.portfolio
+    # 20 units costing 300 in one pool: 15 sold for 450 leaves 5 costing 75.
+    assert calculator.portfolio[canonical].quantity == Decimal(5)
+    assert calculator.portfolio[canonical].amount == Decimal(75)
+    assert report.total_gain() == Decimal(225)
+
+
+def test_exchange_alias_pools_under_one_ticker_without_a_transaction_isin() -> None:
+    """The alias still normalises when a broker never reports an ISIN.
+
+    docs/extra-data-and-options.md documents putting every verified ticker
+    for an ISIN on one cache row, such as ``US67066G1040,NVD,NVDA``. A broker
+    that never supplies an ISIN has its ISIN resolved from that row alone, so
+    the alias has to be applied there too: resolving the ISIN without then
+    normalising the ticker would leave this pooling as two holdings, exactly
+    as it did before either check existed.
+    """
+    isin = Isin("US67066G1040")
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[isin] = {"NVD", "NVDA"}
+
+    buy_alias = BrokerTransaction(
+        date=datetime.date(2024, 5, 1),
+        action=ActionType.BUY,
+        symbol="NVD",
+        description="buy NVD",
+        quantity=Decimal(10),
+        price=Decimal(10),
+        fees=Decimal(0),
+        amount=Decimal(-100),
+        currency=CurrencyCode("GBP"),
+        broker="Test",
+    )
+    transactions: list[BrokerTransaction] = [
+        buy_alias,
+        BrokerTransaction(
+            date=datetime.date(2024, 6, 1),
+            action=ActionType.BUY,
+            symbol="NVDA",
+            description="buy NVDA",
+            quantity=Decimal(10),
+            price=Decimal(20),
+            fees=Decimal(0),
+            amount=Decimal(-200),
+            currency=CurrencyCode("GBP"),
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 9, 1),
+            action=ActionType.SELL,
+            symbol="NVDA",
+            description="sell NVDA",
+            quantity=Decimal(5),
+            price=Decimal(30),
+            fees=Decimal(0),
+            amount=Decimal(150),
+            currency=CurrencyCode("GBP"),
+            broker="Test",
+        ),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert buy_alias.symbol == "NVDA"
+    assert "NVD" not in calculator.portfolio
+    # 20 units costing 300 in one pool: 5 sold for 150 leaves 15 costing 225.
+    assert calculator.portfolio["NVDA"].quantity == Decimal(15)
+    assert calculator.portfolio["NVDA"].amount == Decimal(225)
+    assert report.total_gain() == Decimal(75)
+
+
+def test_transaction_ticker_cannot_reassign_a_reference_owned_isin() -> None:
+    """A transaction cannot silently move a reference-linked ticker to a new ISIN.
+
+    Regression test: the ISIN/ticker link is also read to route ERI reports
+    to the right pool via ``get_symbols``. If a transaction were allowed to
+    quietly reassign a ticker reference already gave to a different ISIN,
+    an ERI report for that other ISIN would be applied to both the correct
+    holding and the one that stole its ticker, inflating the wrong pool's
+    cost. This must be refused up front instead.
+    """
+    reassigned_isin = Isin("US0378331005")
+    reference_isin = Isin("US5949181045")
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[reference_isin] = {"SAME"}
+
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),
+            action=ActionType.BUY,
+            symbol="SAME",
+            description="buy SAME",
+            quantity=Decimal(10),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-100),
+            currency=CurrencyCode("GBP"),
+            broker="Test",
+            isin=reassigned_isin,
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),
+            action=ActionType.BUY,
+            symbol="B2",
+            description="buy B2",
+            quantity=Decimal(10),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-100),
+            currency=CurrencyCode("GBP"),
+            broker="Test",
+            isin=reference_isin,
+        ),
+    ]
+
+    with pytest.raises(InvalidTransactionError, match="already used for"):
+        calculator.convert_to_hmrc_transactions(transactions)
+
+
 def test_rename_transfers_pool_to_new_ticker() -> None:
     """RENAME moves pool cost and quantity from old to new ticker; logs a RENAME entry."""
     calculator = create_calculator(tax_year=2024, balance_check=False)

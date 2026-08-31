@@ -113,6 +113,21 @@ winter and BST in summer, before taking the date. The tax year boundary and the 
 matching rules all run on UK calendar days, and the boundary always falls inside BST, so a
 transaction stamped after 23:00 UTC on 5 April belongs to the following tax year.
 
+### Tickers and exchange listings
+
+Trading 212 names a security by the ticker of the listing you traded, so one security can appear
+under two tickers: the Xetra line of a US share carries its German code. cgt-calc pools, matches and
+prices holdings by ticker, so it rewrites the aliases it has confirmed to the ticker of the primary
+listing, and the report shows one holding rather than two. `NVD` under `US67066G1040` is reported as
+`NVDA`, and `1YD` under `US11135F1012` as `AVGO`. The rewrite is scoped to that ISIN: the same
+ticker code under another security is left alone.
+
+Only confirmed pairs are rewritten. Where your exports disagree about a security, cgt-calc refuses
+rather than guess: an unrecognised second ticker for one ISIN, or one ticker used for two ISINs.
+Combining the wrong two holdings, or splitting one, changes the gain. If you hit that, please
+[open an issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the ISIN and
+both tickers.
+
 ### Known limitations
 
 - Dividends are recorded at the CSV `Total`, which is net of withholding tax. The `Withholding tax`

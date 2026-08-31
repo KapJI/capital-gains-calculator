@@ -128,9 +128,11 @@ nixpkgs
 nonblank
 noqa
 num
+NVD
 NVDA
 NVIDIA
 OCI
+OpenFIGI
 OPRA
 OSError
 OTGLY
@@ -235,5 +237,6 @@ ValueError
 VanguardTransaction
 VTI
 worktree
+Xetra
 xtrackers
 yfinance
