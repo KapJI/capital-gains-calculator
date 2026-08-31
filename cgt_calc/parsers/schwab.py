@@ -37,6 +37,10 @@ from cgt_calc.model import (
     TransactionSource,
 )
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
+from cgt_calc.parsers.schwab_options import (
+    parse_option_contract,
+    reconcile_written_options,
+)
 from cgt_calc.util import parse_decimal
 
 from .base_parsers import BaseSingleFileParser, next_account_token
@@ -114,6 +118,26 @@ def action_from_str(label: str, file: Path) -> ActionType:
 
     if label == "Sell":
         return ActionType.SELL
+
+    if label == "Sell to Open":
+        return ActionType.OPTION_GRANT
+
+    if label == "Buy to Close":
+        return ActionType.OPTION_CLOSE
+
+    if label == "Expired":
+        return ActionType.OPTION_EXPIRY
+
+    if label == "Assigned":
+        return ActionType.OPTION_ASSIGNMENT
+
+    if label in {"Buy to Open", "Sell to Close", "Exercised"}:
+        raise ParsingError(
+            file,
+            f"Schwab action '{label}' is a purchased-option transaction. "
+            "Only written equity options (Sell to Open followed by Buy to "
+            "Close, Expired or Assigned) are currently supported.",
+        )
 
     if label in {
         "MoneyLink Transfer",
@@ -193,7 +217,12 @@ def _parse_decimal(
     if raw_value.strip(" $,") == "":
         return None
 
-    return parse_decimal(raw_value, f"column '{column.value}'", strip="$,")
+    # An option debit is written in accounting notation: (100.65) is -100.65.
+    value = raw_value.strip()
+    if value.startswith("(") and value.endswith(")"):
+        value = f"-{value[1:-1]}"
+
+    return parse_decimal(value, f"column '{column.value}'", strip="$,")
 
 
 class SchwabTransaction(BrokerTransaction):
@@ -230,7 +259,24 @@ class SchwabTransaction(BrokerTransaction):
         action = action_from_str(self.raw_action, file)
         symbol_header = RequiredTransactionsColumn.SYMBOL.value
         symbol = row_dict[symbol_header] if row_dict[symbol_header] != "" else None
-        if symbol is not None:
+        option_contract = None
+        if action in {
+            ActionType.OPTION_GRANT,
+            ActionType.OPTION_CLOSE,
+            ActionType.OPTION_EXPIRY,
+            ActionType.OPTION_ASSIGNMENT,
+        }:
+            if (
+                symbol is None
+                or (option_contract := parse_option_contract(symbol)) is None
+            ):
+                raise ParsingError(
+                    file,
+                    f"Cannot parse the option contract symbol {symbol!r} for "
+                    f"Schwab action '{self.raw_action}'",
+                )
+            symbol = str(option_contract)
+        elif symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
         description = row_dict[RequiredTransactionsColumn.DESCRIPTION.value]
         if (
@@ -263,6 +309,7 @@ class SchwabTransaction(BrokerTransaction):
             amount,
             currency,
             broker,
+            option_contract=option_contract,
         )
 
     @staticmethod
@@ -821,7 +868,7 @@ def _read_schwab_awards(
     return AwardPrices(award_prices=dict(initial_prices))
 
 
-class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
+class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
     """Parser for Charles Schwab transaction files."""
 
     arg_name = "schwab"
@@ -899,16 +946,31 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
     @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
-    ) -> list[SchwabTransaction]:
+    ) -> list[BrokerTransaction]:
         """Read Schwab transactions from file."""
         transactions = cls._read_rows(file, file_path)
         transactions = _unify_schwab_paired_transactions(transactions, file_path)
         transactions = _filter_cancelled_buy_transactions(transactions, file_path)
         transactions.reverse()
-        return transactions
+        return list(transactions)
 
     @classmethod
-    def load_from_dir(cls, dir_path: Path) -> list[SchwabTransaction]:
+    @override
+    def finalize_transactions(
+        cls, transactions: list[BrokerTransaction]
+    ) -> list[BrokerTransaction]:
+        """Reconcile option lifecycles once the whole account is read.
+
+        An opening row and its outcome can sit in different files of one
+        `--schwab-dir` export, so this cannot run per file. The boundary hook
+        runs exactly once, after every file has been read and stamped.
+        """
+        return reconcile_written_options(
+            [row for row in transactions if isinstance(row, SchwabTransaction)]
+        )
+
+    @classmethod
+    def load_from_dir(cls, dir_path: Path) -> list[BrokerTransaction]:
         """Read every CSV in the directory as one export.
 
         Schwab limits how much history one export can cover, so a long history
@@ -991,7 +1053,12 @@ class SchwabParser(BaseSingleFileParser[SchwabTransaction]):
                 dir_path,
                 cls.pretty_name,
             )
-        return cls.post_process_transactions(transactions)
+        # A directory is one account boundary and does not go through
+        # load_from_file, so it finalizes here instead.
+        parsed_transactions: list[BrokerTransaction] = list(transactions)
+        return cls.finalize_transactions(
+            cls.post_process_transactions(parsed_transactions)
+        )
 
     @classmethod
     def _directory_help(cls, file_path: Path) -> str:

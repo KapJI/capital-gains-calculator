@@ -10,7 +10,13 @@ import re
 from typing import TYPE_CHECKING, Final, NamedTuple, Self, override
 
 from .exceptions import CalculationError
-from .util import approx_equal, luhn_check_digit, normalize_amount, round_decimal
+from .util import (
+    approx_equal,
+    luhn_check_digit,
+    normalize_amount,
+    round_decimal,
+    strip_zeros,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -198,6 +204,91 @@ class ForeignCurrencyAmount:
         return result
 
 
+class OptionType(Enum):
+    """Whether an option gives the holder the right to buy or sell."""
+
+    CALL = "call"
+    PUT = "put"
+
+
+@dataclass(frozen=True)
+class OptionContract:
+    """Identity and delivery terms of a standard equity option contract."""
+
+    underlying: str
+    expiry: datetime.date
+    strike: Decimal
+    option_type: OptionType
+    multiplier: Decimal = Decimal(100)
+
+    @override
+    def __str__(self) -> str:
+        """Name the contract the way a person would say it.
+
+        This is what the report calls the asset, so it says in words what
+        kind of thing it is: a bare "META 2024-05-17 500 call" reads like a
+        share of something.
+        """
+        return (
+            f"{self.underlying} {self.option_type.value} option expiring "
+            f"{self.expiry.isoformat()} at a strike of {strip_zeros(self.strike)}"
+        )
+
+
+@dataclass(frozen=True)
+class DatedAmount:
+    """An amount converted for tax at the exchange rate on its own date."""
+
+    date: datetime.date
+    amount: Decimal
+    currency: CurrencyCode
+
+
+@dataclass
+class WrittenOptionTaxData:
+    """Tax details attached to the grant of a written option.
+
+    ``taxable_quantity`` excludes contracts which were assigned, since their
+    premium is folded into the underlying share transaction instead. Closing
+    costs are attached to the original grant under TCGA 1992 s148.
+    """
+
+    taxable_quantity: Decimal
+    close_costs: list[DatedAmount] = field(default_factory=list)
+
+
+@dataclass
+class OptionDisposalData:
+    """Aggregated figures for grants of one option series on one date."""
+
+    quantity: Decimal = Decimal(0)
+    proceeds: Decimal = Decimal(0)
+    allowable_cost: Decimal = Decimal(0)
+
+    def __add__(self, other: OptionDisposalData) -> OptionDisposalData:
+        """Combine grants which share a date and option series."""
+        return self.__class__(
+            quantity=self.quantity + other.quantity,
+            proceeds=self.proceeds + other.proceeds,
+            allowable_cost=self.allowable_cost + other.allowable_cost,
+        )
+
+
+@dataclass(frozen=True)
+class CapitalAdjustment:
+    """An option-related adjustment to an underlying share transaction.
+
+    ``net_amount`` follows the broker transaction's sign convention: a
+    positive value increases disposal proceeds or reduces acquisition cost.
+    ``fees`` records the related incidental cost separately for reporting.
+    """
+
+    date: datetime.date
+    net_amount: Decimal
+    fees: Decimal
+    currency: CurrencyCode
+
+
 HmrcTransactionLog = dict[datetime.date, dict[str, HmrcTransactionData]]
 ForeignAmountLog = dict[tuple[str, datetime.date], ForeignCurrencyAmount]
 ExcessReportedIncomeLog = dict[datetime.date, dict[str, ExcessReportedIncome]]
@@ -258,6 +349,14 @@ class ActionType(Enum):
     # exists so that a row which slips through is refused rather than booked
     # as an acquisition.
     CANCEL_BUY = 26
+    # Grant and closing cash flows for written exchange-traded options. The
+    # grant is a chargeable disposal unless assignment folds it into the
+    # underlying share transaction; a closing purchase is an allowable cost
+    # of that original grant (TCGA 1992 sections 144 and 148).
+    OPTION_GRANT = 27
+    OPTION_CLOSE = 28
+    OPTION_EXPIRY = 29
+    OPTION_ASSIGNMENT = 30
 
 
 class CalculationType(Enum):
@@ -336,6 +435,14 @@ class BrokerTransaction:
     calculation_quantity: Decimal | None = field(
         default=None, compare=False, repr=False
     )
+    # Present on broker rows for exchange-traded equity options.
+    option_contract: OptionContract | None = None
+    # Present only on a written option's opening row after its lifecycle has
+    # been reconciled by the broker parser.
+    written_option_tax: WrittenOptionTaxData | None = None
+    # Premiums from assigned options are converted on their original dates and
+    # folded into the tax basis/proceeds of the underlying share transaction.
+    capital_adjustments: list[CapitalAdjustment] = field(default_factory=list)
 
     @property
     def pool_quantity(self) -> Decimal | None:
@@ -377,6 +484,7 @@ class RuleType(Enum):
     INTEREST_TAX = 10
     TRANSFER_TO_SPOUSE = 11
     STOCK_SPLIT = 12
+    OPTION = 13
 
 
 @dataclass

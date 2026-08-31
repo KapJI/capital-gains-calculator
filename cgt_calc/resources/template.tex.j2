@@ -54,6 +54,10 @@
 \BLOCK{ elif symbol.startswith("exempt$") }
     \BLOCK{ set symbol = symbol[7:] }
     \BLOCK{ set is_exempt = True }
+\BLOCK{ elif symbol.startswith("option$") }
+    \BLOCK{ set symbol = symbol[7:] }
+    \BLOCK{ set is_disposal = True }
+    \BLOCK{ set is_option = True }
 \BLOCK{ endif }
 \BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
 \BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
@@ -61,14 +65,22 @@
     \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount") + entries|sum(attribute="fees"), 2) }
     \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
     \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
-    \subsubsection*{
-        Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol }
-        \BLOCK{ if is_gift }given away at a market value of\BLOCK{ else }for\BLOCK{ endif } £\VAR{ "{:,}".format(overall_disposed) }
-        (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
-        \BLOCK{ if overall_fees > 0 }
-            , £\VAR{ "{:,}".format(overall_fees) } fees allowed as cost
-        \BLOCK{ endif }
-    }
+    \BLOCK{ if is_option }
+        \subsubsection*{
+            Disposal \VAR{ disposal_count.value }: grant of \VAR{ strip_zeros(overall_quantity) }
+            contract\BLOCK{ if overall_quantity != 1 }s\BLOCK{ endif } of the \VAR{ symbol }
+            for £\VAR{ "{:,}".format(overall_disposed) }
+        }
+    \BLOCK{ else }
+        \subsubsection*{
+            Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol }
+            \BLOCK{ if is_gift }given away at a market value of\BLOCK{ else }for\BLOCK{ endif } £\VAR{ "{:,}".format(overall_disposed) }
+            (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
+            \BLOCK{ if overall_fees > 0 }
+                , £\VAR{ "{:,}".format(overall_fees) } fees allowed as cost
+            \BLOCK{ endif }
+        }
+    \BLOCK{ endif }
     \BLOCK{ if overall_gain > 0 -}
         Chargeable \textbf{gain} is £\VAR{ "{:,}".format(overall_gain) }\BLOCK{ if is_gift }, before any relief:
         a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns\BLOCK{ endif }
@@ -222,6 +234,9 @@
     actual cost: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2)) }.
 \BLOCK{ endif}
 
+\BLOCK{ if is_option }
+    The option grant does not change the Section 104 holding of the underlying shares.
+\BLOCK{ else }
 \BLOCK{ if is_disposal or is_exempt }
     Number of units left in the pool:
 \BLOCK{ else }
@@ -246,6 +261,7 @@
         \BLOCK{ endfor }
     \BLOCK{ endif }
 \BLOCK{ endif }.
+\BLOCK{ endif }
 
 \BLOCK{ endfor}
 \end{enumerate}

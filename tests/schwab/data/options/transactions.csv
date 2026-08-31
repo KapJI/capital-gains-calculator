@@ -1,0 +1,8 @@
+Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount
+06/21/2024,Assigned,META 06/21/2024 450.00 C,Assignment,,1,,
+06/21/2024,Sell,META,META PLATFORMS INC,$450.00,100,,$45000.00
+06/03/2024,Sell to Open,META 06/21/2024 450.00 C,Open,$3.00,1,$0.65,$299.35
+05/17/2024,Expired,META 05/17/2024 500.00 C,Expiration,,1,,
+05/01/2024,Sell to Open,META 05/17/2024 500.00 C,Open,$1.00,1,$0.65,$99.35
+04/30/2024,Buy,META,META PLATFORMS INC,$400.00,100,,-$40000.00
+04/29/2024,MoneyLink Deposit,,,,,,$50000.00

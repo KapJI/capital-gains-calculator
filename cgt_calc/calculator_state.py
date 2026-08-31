@@ -20,6 +20,7 @@ if TYPE_CHECKING:
         ExcessReportedIncomeLog,
         ForeignAmountLog,
         HmrcTransactionLog,
+        OptionDisposalData,
         SpinOff,
     )
     from .stock_splits import SplitTransformation
@@ -39,6 +40,12 @@ class CalculatorState:
 
     acquisition_list: HmrcTransactionLog = field(default_factory=dict)
     disposal_list: HmrcTransactionLog = field(default_factory=dict)
+    # Grants of written options, by date and contract name. Kept apart from
+    # disposal_list: a grant disposes of the option the grant creates, not of
+    # units of a holding, so it has no pool to draw a cost from.
+    option_disposal_list: dict[datetime.date, dict[str, OptionDisposalData]] = field(
+        default_factory=lambda: defaultdict(dict)
+    )
     # No gain/no loss transfers to a spouse/civil partner. Kept separate from
     # disposal_list so they never enter the taxable disposal totals.
     transfer_to_spouse_list: HmrcTransactionLog = field(default_factory=dict)

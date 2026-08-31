@@ -8,18 +8,18 @@ If your shares came from an employer, check the broker guide carefully. Schwab s
 award-export formats described in its guide, Morgan Stanley support is limited to Alphabet's GSU
 plan, and Sharesight requires equity grants to be recorded in a particular way.
 
-| Broker                                        | CLI option                                                                             | Notes                               |
-| --------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------- |
-| [Charles Schwab](schwab.md)                   | `--schwab-file` or `--schwab-dir`, `--schwab-award-file`, `--schwab-equity-award-json` | Some Equity Awards formats          |
-| [Freetrade](freetrade.md)                     | `--freetrade-file`                                                                     | Activity CSV export                 |
-| [Hargreaves Lansdown](hargreaves-lansdown.md) | `--hl-dir`                                                                             | Tax Centre CSVs plus contract notes |
-| [Interactive Brokers](interactive-brokers.md) | `--interactive-brokers-file`                                                           | Transaction history CSV             |
-| [Morgan Stanley](morgan-stanley.md)           | `--mssb-dir`                                                                           | Alphabet GSU reports only           |
-| [Revolut](revolut.md)                         | `--revolut-file`                                                                       | Invest account statement CSV        |
-| [Sharesight](sharesight.md)                   | `--sharesight-dir`                                                                     | Multi-broker portfolio tracker      |
-| [Trading 212](trading212.md)                  | `--trading212-dir`                                                                     | Folder of yearly exports            |
-| [Vanguard](vanguard.md)                       | `--vanguard-file`                                                                      | Client Transactions Listing CSV     |
-| [RAW format](raw.md)                          | `--raw-file`                                                                           | Generic fallback for other brokers  |
+| Broker                                        | CLI option                                                                             | Notes                                              |
+| --------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| [Charles Schwab](schwab.md)                   | `--schwab-file` or `--schwab-dir`, `--schwab-award-file`, `--schwab-equity-award-json` | Written equity options, some Equity Awards formats |
+| [Freetrade](freetrade.md)                     | `--freetrade-file`                                                                     | Activity CSV export                                |
+| [Hargreaves Lansdown](hargreaves-lansdown.md) | `--hl-dir`                                                                             | Tax Centre CSVs plus contract notes                |
+| [Interactive Brokers](interactive-brokers.md) | `--interactive-brokers-file`                                                           | Transaction history CSV                            |
+| [Morgan Stanley](morgan-stanley.md)           | `--mssb-dir`                                                                           | Alphabet GSU reports only                          |
+| [Revolut](revolut.md)                         | `--revolut-file`                                                                       | Invest account statement CSV                       |
+| [Sharesight](sharesight.md)                   | `--sharesight-dir`                                                                     | Multi-broker portfolio tracker                     |
+| [Trading 212](trading212.md)                  | `--trading212-dir`                                                                     | Folder of yearly exports                           |
+| [Vanguard](vanguard.md)                       | `--vanguard-file`                                                                      | Client Transactions Listing CSV                    |
+| [RAW format](raw.md)                          | `--raw-file`                                                                           | Generic fallback for other brokers                 |
 
 ## Dates and time zones
 
