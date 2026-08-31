@@ -10,7 +10,7 @@ edit_uri = "edit/main/docs/"
 
 nav = [
   { "Home" = [
-    { "Home" = "index.md" },
+    "index.md",
     { "Getting started" = [
       { "Installation" = "installation.md" },
       { "Generate a report" = "usage.md" },
@@ -55,8 +55,8 @@ features = [
   "content.action.edit",
   "content.code.copy",
   "content.tooltips",
-  "navigation.footer",
   "navigation.expand",
+  "navigation.footer",
   "navigation.indexes",
   "navigation.instant",
   "navigation.instant.prefetch",
