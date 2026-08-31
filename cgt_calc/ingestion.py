@@ -97,14 +97,28 @@ def relative_to_split(
     stable ordering and its action priorities for gifts, spouse transfers and
     vests are calculation plumbing rather than evidence of corporate-action
     chronology. Returns None when it cannot be told.
+
+    What a lone instant proves is one-sided. An export that states the whole
+    holding on both sides of the event brackets the restatement in the
+    broker's own books, and its own counts are what the ratio comes from, so
+    a row outside that bracket is placed against a figure the broker stated.
+    An export that posts the event as one row states only when it booked the
+    entry: everything after it is in the new units, because the holding had
+    already been restated when the row was written, but a row before it may
+    have traded in either unit system - the market restates at the opening of
+    the ex-date, and nothing says the broker's book-keeping ran to the same
+    clock. Guessing there would not merely misplace that row: a single row
+    states a net change, so `before_quantity` is whatever was placed ahead of
+    it and the corporate ratio is derived from that. One row on the wrong
+    side rewrites the ratio for the entire holding.
     """
     if instants and other_source is not None and other_source.timestamp is not None:
-        if other_source.timestamp < min(instants):
-            return "before"
         if other_source.timestamp > max(instants):
             return "after"
-        # At or between the two halves of the reorganisation, where neither
-        # unit system can be proved.
+        if len(instants) > 1 and other_source.timestamp < min(instants):
+            return "before"
+        # At or between the two halves of the reorganisation, or ahead of a
+        # lone booking instant: no unit system can be proved.
         return None
     if (
         split_source is not None
@@ -592,7 +606,9 @@ class TransactionIngester:
             placement = relative_to_split(instants, row.source, other.source)
             if placement is None:
                 raise CalculationError(
-                    self._split_chronology_message(symbol, date_index, row, other)
+                    self._split_chronology_message(
+                        symbol, date_index, row, other, instants
+                    )
                 )
             (before_rows if placement == "before" else after_rows).append(other)
 
@@ -1786,14 +1802,34 @@ class TransactionIngester:
         date_index: datetime.date,
         row: BrokerTransaction,
         other: BrokerTransaction,
+        instants: tuple[datetime.datetime, ...],
     ) -> str:
-        """Explain why a same-day row cannot be placed around a reorganisation."""
-        return (
+        """Explain why a same-day row cannot be placed around a reorganisation.
+
+        Times the export does state are not always enough, so the reason has
+        to say which of the two situations this is. Telling someone whose
+        export already states its times to supply times would send them
+        looking for a file that does not exist.
+        """
+        preamble = (
             f"Cannot apply the reorganisation of {symbol} on {date_index}: "
             f"this row is on the same day and cannot be placed either side of "
             f"it, so there is no telling whether its count is stated in the "
             f"units before or after:\n  {other}\n"
             f"The reorganisation is:\n  {row}\n"
+        )
+        stated = other.source is not None and other.source.timestamp is not None
+        if len(instants) == 1 and stated:
+            return preamble + (
+                "Both rows state their times, but the reorganisation is a "
+                "single row, and the instant on it is when the broker booked "
+                "the entry rather than when the units changed: a share trades "
+                "in the new units from the opening of the ex-date, which need "
+                "not be when the broker wrote the row. Anything the export "
+                "booked after that row is in the new units; this row was not. "
+                "Work the day out by hand (consider professional advice)."
+            )
+        return preamble + (
             "The two come from different inputs, or from an export that gives "
             "neither times nor a documented order, or the row falls between "
             "the two halves of the reorganisation. Run again with the day's "

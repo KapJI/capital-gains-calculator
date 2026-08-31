@@ -2220,6 +2220,70 @@ def test_a_row_stamped_after_the_event_is_left_alone() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(120)
 
 
+def test_a_row_stamped_before_a_lone_booking_instant_is_refused() -> None:
+    """One row states when the event was booked, not when the units changed.
+
+    A market restates at the opening of the ex-date and nothing says the
+    broker's book-keeping ran to the same clock, so a row ahead of a single
+    posted instant may have been made in either unit system. Placing it would
+    not merely misstate that row: a single row states a net change, so the
+    ratio for the whole holding is derived from what was placed before it.
+    """
+    with pytest.raises(CalculationError, match="cannot be placed either side") as error:
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                trade(
+                    EVENT_DAY,
+                    ActionType.BUY,
+                    "FOO",
+                    "2",
+                    "10",
+                    source=_stamped(SPLIT_OPENED - datetime.timedelta(minutes=1)),
+                ),
+                legacy_split(EVENT_DAY, "FOO", "10", source=_stamped(SPLIT_OPENED)),
+            ]
+        )
+    message = str(error.value)
+    assert "the instant on it is when the broker booked the entry" in message
+    # Both rows state their times, so asking for times would send the reader
+    # after a file that does not exist.
+    assert "in one input that states times" not in message
+
+
+def test_a_row_stamped_after_a_lone_booking_instant_is_left_alone() -> None:
+    """What a lone instant does prove is that the holding was already restated.
+
+    The broker wrote the row against the new count, so anything it booked
+    later is stated in the new units too.
+    """
+    calculator = run(
+        [
+            trade(
+                POOL_DAY,
+                ActionType.BUY,
+                "FOO",
+                "10",
+                "10",
+                source=_stamped(SPLIT_OPENED - datetime.timedelta(days=1)),
+            ),
+            legacy_split(EVENT_DAY, "FOO", "10", source=_stamped(SPLIT_OPENED)),
+            trade(
+                EVENT_DAY,
+                ActionType.BUY,
+                "FOO",
+                "2",
+                "10",
+                source=_stamped(SPLIT_CLOSED + datetime.timedelta(minutes=1)),
+            ),
+        ]
+    )
+    # Ten doubled to twenty, and the two bought after that are already twenty's
+    # units.
+    assert calculator.portfolio["FOO"].quantity == Decimal(22)
+    assert calculator.portfolio["FOO"].amount == Decimal(120)
+
+
 def test_a_day_that_sells_more_than_it_can_give_is_refused() -> None:
     """The day's own ledger has to survive the reorganisation."""
     with pytest.raises(CalculationError, match="would leave -10 units"):

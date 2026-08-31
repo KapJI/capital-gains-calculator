@@ -216,6 +216,7 @@ transferor
 transferor's
 txn
 ty
+tzinfo
 UCITS
 un
 unmapped
