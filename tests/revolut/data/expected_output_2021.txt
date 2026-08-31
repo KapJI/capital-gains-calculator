@@ -1,0 +1,33 @@
+Final portfolio
+  NVDA: 7.64
+  QCOM: 12.00
+  TSM: 88.00
+
+Final balance
+  Revolut: 2554.28 (USD)
+
+Portfolio at the end of 2021/2022 tax year
+  NVDA: 7.64, £740.91
+  QCOM: 50.00, £4,867.90
+  TSM: 88.00, £7,166.38
+
+Tax summary for 2021/2022
+
+Capital gains
+  Disposals:                  1
+  Disposal proceeds:    £850.28
+  Allowable costs:      £740.91
+  Gain:                 £109.37
+  Loss:                   £0.00
+  Total gain:           £109.37
+  Taxable gain:           £0.00
+
+Dividends
+  Proceeds:               £0.00
+  Tax-free allowance: £2,000.00
+  Taxable proceeds:       £0.00
+
+Interest
+  UK proceeds:            £0.00
+  Foreign proceeds:       £0.00
+  Tax paid:               £0.00
