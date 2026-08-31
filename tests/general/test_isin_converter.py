@@ -101,7 +101,7 @@ class FakeSession:
         return FakeResponse(self._payload)
 
 
-def _transaction(isin: Isin, symbol: str | None) -> BrokerTransaction:
+def _transaction(isin: Isin | None, symbol: str | None) -> BrokerTransaction:
     """Create a minimal transaction with the given ISIN and symbol."""
     return BrokerTransaction(
         date=datetime.date(2023, 1, 1),
@@ -293,22 +293,57 @@ def test_add_from_transaction_rejects_one_ticker_under_two_isins() -> None:
     converter = IsinConverter()
     converter.add_from_transaction(_transaction(ISIN_A, "SAME"))
 
-    with pytest.raises(InvalidTransactionError, match="already used by another"):
+    with pytest.raises(InvalidTransactionError, match="already used for"):
         converter.add_from_transaction(_transaction(ISIN_B, "SAME"))
 
 
-def test_add_from_transaction_accepts_reference_only_isin_conflict() -> None:
-    """A stored row giving the ticker to another ISIN is not a conflict.
+def test_add_from_transaction_rejects_reference_owned_ticker_reassignment() -> None:
+    """A stored row giving the ticker to another ISIN is still a conflict.
 
-    Only the transaction's claim describes this run's holdings, so it wins the
-    symbol map rather than failing the run.
+    Unlike a same-ISIN mismatch, this direction cannot be a stale cache row:
+    validate_data() already guarantees one ISIN per reference ticker, so a
+    transaction reusing one reference gave to a different security is the
+    real thing this check exists to catch, not a false positive to excuse.
     """
     converter = IsinConverter()
     converter.data[ISIN_B] = {"SAME"}
 
-    converter.add_from_transaction(_transaction(ISIN_A, "SAME"))
+    with pytest.raises(InvalidTransactionError, match="already used for"):
+        converter.add_from_transaction(_transaction(ISIN_A, "SAME"))
 
-    assert converter.get_symbol_to_isin_map()["SAME"] == ISIN_A
+
+def test_add_from_transaction_checks_isin_less_rows_against_reference() -> None:
+    """A row with no ISIN is still checked when reference data names one.
+
+    A broker that never reports an ISIN would otherwise let its rows split a
+    holding past every check above just by leaving the field blank: the
+    ticker alone is enough to find the ISIN reference already links it to.
+    """
+    converter = IsinConverter()
+    converter.data[ISIN_A] = {"FOO"}
+    converter.add_from_transaction(_transaction(ISIN_A, "BAR"))
+
+    with pytest.raises(InvalidTransactionError, match="does not match BAR"):
+        converter.add_from_transaction(_transaction(None, "FOO"))
+
+
+def test_add_from_transaction_links_isin_less_row_without_conflict() -> None:
+    """A row with no ISIN is recorded once reference data resolves one."""
+    converter = IsinConverter()
+    converter.data[ISIN_A] = {"FOO"}
+
+    converter.add_from_transaction(_transaction(None, "FOO"))
+
+    assert converter.transaction_symbols[ISIN_A] == {"FOO"}
+
+
+def test_add_from_transaction_ignores_isin_less_unknown_ticker() -> None:
+    """A row with no ISIN and no reference match records nothing."""
+    converter = IsinConverter()
+
+    converter.add_from_transaction(_transaction(None, "UNKNOWN"))
+
+    assert converter.transaction_symbols == {}
 
 
 def test_add_from_transaction_accepts_a_bundled_multi_ticker_row() -> None:

@@ -933,6 +933,54 @@ def test_exchange_alias_pools_under_one_ticker(
     assert report.total_gain() == Decimal(225)
 
 
+def test_transaction_ticker_cannot_reassign_a_reference_owned_isin() -> None:
+    """A transaction cannot silently move a reference-linked ticker to a new ISIN.
+
+    Regression test: the ISIN/ticker link is also read to route ERI reports
+    to the right pool via ``get_symbols``. If a transaction were allowed to
+    quietly reassign a ticker reference already gave to a different ISIN,
+    an ERI report for that other ISIN would be applied to both the correct
+    holding and the one that stole its ticker, inflating the wrong pool's
+    cost. This must be refused up front instead.
+    """
+    reassigned_isin = Isin("US0378331005")
+    reference_isin = Isin("US5949181045")
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[reference_isin] = {"SAME"}
+
+    transactions: list[BrokerTransaction] = [
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),
+            action=ActionType.BUY,
+            symbol="SAME",
+            description="buy SAME",
+            quantity=Decimal(10),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-100),
+            currency=CurrencyCode("GBP"),
+            broker="Test",
+            isin=reassigned_isin,
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),
+            action=ActionType.BUY,
+            symbol="B2",
+            description="buy B2",
+            quantity=Decimal(10),
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal(-100),
+            currency=CurrencyCode("GBP"),
+            broker="Test",
+            isin=reference_isin,
+        ),
+    ]
+
+    with pytest.raises(InvalidTransactionError, match="already used for"):
+        calculator.convert_to_hmrc_transactions(transactions)
+
+
 def test_rename_transfers_pool_to_new_ticker() -> None:
     """RENAME moves pool cost and quantity from old to new ticker; logs a RENAME entry."""
     calculator = create_calculator(tax_year=2024, balance_check=False)

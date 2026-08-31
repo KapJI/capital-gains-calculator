@@ -115,6 +115,16 @@ class IsinConverter:
                     )
                 reverse_cache[symbol] = isin
 
+    def _isin_for_symbol(self, symbol: str) -> Isin | None:
+        """Return the one reference ISIN a ticker is known under, if any.
+
+        validate_data() guarantees at most one, so a match is unambiguous.
+        """
+        return next(
+            (isin for isin, symbols in self.data.items() if symbol in symbols),
+            None,
+        )
+
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Normalise the transaction's ticker and record what it links to.
 
@@ -122,66 +132,72 @@ class IsinConverter:
         rest of the calculation reads, so the holding pools, matches and
         prices under one ticker instead of one per listing.
 
-        Anything else is recorded as this run's name for the ISIN. Only two
-        transactions disagreeing are refused, in either direction: one ISIN
+        A row without an ISIN is still checked when reference data already
+        ties its ticker to exactly one: a broker that never reports an ISIN
+        would otherwise let a holding split past every check below just by
+        leaving the field blank.
+
+        Anything else is recorded as this run's name for the ISIN. Two
+        transactions disagreeing is refused, in either direction: one ISIN
         arriving under two tickers, which splits its pool, and one ticker
         arriving under two ISINs, which pools two securities as one. A ticker
-        that merely differs from reference data - the bundled table, an
-        OpenFIGI result, the user's cache - does neither, and refusing it
-        turned a stale cache row from an earlier run into a failure of an
-        otherwise correct one.
+        that merely differs from reference data for the SAME ISIN does
+        neither, and refusing it turned a stale cache row from an earlier run
+        into a failure of an otherwise correct one - so only that direction
+        excuses a reference-only mismatch. The other direction stays refused
+        even against reference data: validate_data() already guarantees one
+        ISIN per ticker there, so a transaction reusing a ticker reference
+        already gave to a different security is exactly the case this check
+        exists for, not a stale row to look past.
         """
-        if not transaction.symbol or not transaction.isin:
+        if not transaction.symbol:
             return
 
-        canonical = ISIN_TICKER_ALIASES.get((transaction.isin, transaction.symbol))
-        if canonical is not None:
-            LOGGER.debug(
-                "ISIN %s: reporting exchange alias %s as %s",
-                transaction.isin,
-                transaction.symbol,
-                canonical,
-            )
-            transaction.symbol = canonical
+        isin = transaction.isin
+        if isin is not None:
+            canonical = ISIN_TICKER_ALIASES.get((isin, transaction.symbol))
+            if canonical is not None:
+                LOGGER.debug(
+                    "ISIN %s: reporting exchange alias %s as %s",
+                    isin,
+                    transaction.symbol,
+                    canonical,
+                )
+                transaction.symbol = canonical
+        else:
+            isin = self._isin_for_symbol(transaction.symbol)
+            if isin is None:
+                return
 
-        recorded = self.transaction_symbols.get(transaction.isin) or set()
-        known = self.data.get(transaction.isin) or set()
+        symbol = transaction.symbol
+        recorded = self.transaction_symbols.get(isin) or set()
+        known = self.data.get(isin) or set()
         # Reference data listing all of them on one row is a security known by
         # several names rather than two exports disagreeing. Those holdings
         # pool separately, as they always have: that is a wider problem than
         # this check, and failing here would not choose a ticker for them.
-        if (
-            recorded
-            and transaction.symbol not in recorded
-            and not recorded | {transaction.symbol} <= known
-        ):
+        if recorded and symbol not in recorded and not recorded | {symbol} <= known:
             raise InvalidTransactionError(
                 transaction,
-                f"Ticker {transaction.symbol} does not match "
+                f"Ticker {symbol} does not match "
                 f"{', '.join(sorted(recorded))}, used by another transaction for "
-                f"ISIN {transaction.isin}. One security under two tickers would "
+                f"ISIN {isin}. One security under two tickers would "
                 "be pooled and matched as two holdings. Check the exports; if "
                 "both are listings of the same security, report the ISIN and "
                 "both tickers so the pair can be added",
             )
 
-        # The other direction. Reference data cannot vouch for this one:
-        # validate_data already rules out a ticker linked to two ISINs there,
-        # so a second claim on one can only be two exports disagreeing.
-        owner = self.transaction_isins.get(transaction.symbol)
-        if owner is not None and owner != transaction.isin:
+        owner = self.transaction_isins.get(symbol) or self._isin_for_symbol(symbol)
+        if owner is not None and owner != isin:
             raise InvalidTransactionError(
                 transaction,
-                f"Ticker {transaction.symbol} is already used by another "
-                f"transaction for ISIN {owner}, so it cannot also stand for "
-                f"ISIN {transaction.isin}. Two securities under one ticker "
-                "would be pooled and matched as one holding",
+                f"Ticker {symbol} is already used for ISIN {owner}, so it "
+                f"cannot also stand for ISIN {isin}. Two securities under one "
+                "ticker would be pooled and matched as one holding",
             )
 
-        self.transaction_symbols.setdefault(transaction.isin, set()).add(
-            transaction.symbol
-        )
-        self.transaction_isins[transaction.symbol] = transaction.isin
+        self.transaction_symbols.setdefault(isin, set()).add(symbol)
+        self.transaction_isins[symbol] = isin
 
     def get_symbols(self, isin: Isin) -> set[str]:
         """Return the set of symbols associated with the input ISIN (may be empty).
