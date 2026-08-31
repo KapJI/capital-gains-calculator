@@ -18,7 +18,7 @@ nav = [
     ] },
     { "Privacy & disclaimer" = "privacy.md" },
   ] },
-  { "Your data" = [
+  { "Brokers & data" = [
     { "Brokers" = [
       "brokers/index.md",
       { "Charles Schwab" = "brokers/schwab.md" },
