@@ -19,7 +19,9 @@ from cgt_calc.spin_off_handler import SpinOffHandler
 
 from .calc_test_data import dividend_tax_transaction, dividend_transaction
 
+GBP = CurrencyCode("GBP")
 USD = CurrencyCode("USD")
+PLN = CurrencyCode("PLN")
 
 # The tax year under test, a dividend inside it, and withholding placed at
 # various distances from that dividend: two days away, exactly at the
@@ -36,11 +38,19 @@ BORDER_TAX_DATE = datetime.date(2025, 4, 8)
 
 
 def _calculator(
-    transactions: list[BrokerTransaction], tax_year: int = TAX_YEAR
+    transactions: list[BrokerTransaction],
+    tax_year: int = TAX_YEAR,
+    *,
+    autoconvert_currency: bool = False,
+    gbp_prices: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
 ) -> CapitalGainsCalculator:
-    """Create a calculator with a flat 1:1 USD rate for the dates in use."""
-    gbp_prices = {t.date: {USD: Decimal(1)} for t in transactions}
-    currency_converter = CurrencyConverter(None, gbp_prices)
+    """Create a calculator with supplied rates or flat 1:1 USD rates."""
+    rates = (
+        gbp_prices
+        if gbp_prices is not None
+        else {t.date: {USD: Decimal(1)} for t in transactions}
+    )
+    currency_converter = CurrencyConverter(None, rates)
     return CapitalGainsCalculator(
         tax_year,
         currency_converter,
@@ -50,14 +60,24 @@ def _calculator(
         InitialPrices(),
         interest_fund_tickers=[],
         balance_check=False,
+        autoconvert_currency=autoconvert_currency,
     )
 
 
 def _reported(
-    transactions: list[BrokerTransaction], tax_year: int = TAX_YEAR
+    transactions: list[BrokerTransaction],
+    tax_year: int = TAX_YEAR,
+    *,
+    autoconvert_currency: bool = False,
+    gbp_prices: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
 ) -> list[tuple[datetime.date, Decimal, Decimal, bool]]:
     """Return date, amount, tax and whether a treaty applied, per reported row."""
-    calculator = _calculator(transactions, tax_year)
+    calculator = _calculator(
+        transactions,
+        tax_year,
+        autoconvert_currency=autoconvert_currency,
+        gbp_prices=gbp_prices,
+    )
     calculator.convert_to_hmrc_transactions(transactions)
     calculator.process_dividends()
     rows = []
@@ -117,7 +137,12 @@ def _summary_dividend_lines(
     return section[: section.index("")] if "" in section else section
 
 
-def _dividend_at(date: datetime.date, amount: float, broker: str) -> BrokerTransaction:
+def _dividend_at(
+    date: datetime.date,
+    amount: float,
+    broker: str,
+    currency: CurrencyCode = USD,
+) -> BrokerTransaction:
     """Create a dividend held at a named broker."""
     return BrokerTransaction(
         date,
@@ -128,7 +153,7 @@ def _dividend_at(date: datetime.date, amount: float, broker: str) -> BrokerTrans
         price=None,
         fees=Decimal(0),
         amount=Decimal(str(amount)),
-        currency=USD,
+        currency=currency,
         broker=broker,
     )
 
@@ -203,7 +228,10 @@ def test_tax_on_a_payment_day_is_never_in_doubt(
 
 
 def _tax_in_currency(
-    date: datetime.date, amount: float, currency: CurrencyCode
+    date: datetime.date,
+    amount: float,
+    currency: CurrencyCode,
+    broker: str = "A",
 ) -> BrokerTransaction:
     """Create withholding denominated in a given currency."""
     return BrokerTransaction(
@@ -216,7 +244,7 @@ def _tax_in_currency(
         fees=Decimal(0),
         amount=Decimal(str(amount)),
         currency=currency,
-        broker="A",
+        broker=broker,
     )
 
 
@@ -662,3 +690,93 @@ def test_dividend_without_withholding_leaves_no_entry(
 
     assert _reported(transactions) == [(DIVIDEND_DATE, Decimal(100), Decimal(0), False)]
     assert _unattributed_warnings(transactions, caplog) == []
+
+
+def test_autoconvert_combines_gbp_and_foreign_dividends_across_brokers() -> None:
+    """The intended multi-broker case reports one correct GBP total."""
+    transactions = [
+        _dividend_at(DIVIDEND_DATE, 100, "A", USD),
+        _tax_in_currency(DIVIDEND_DATE, -15, USD, "A"),
+        _dividend_at(DIVIDEND_DATE, 80, "B", GBP),
+        _tax_in_currency(DIVIDEND_DATE, -12, GBP, "B"),
+    ]
+
+    assert _reported(
+        transactions,
+        autoconvert_currency=True,
+        gbp_prices={DIVIDEND_DATE: {USD: Decimal("1.25")}},
+    ) == [(DIVIDEND_DATE, Decimal(160), Decimal(-24), True)]
+
+
+def test_autoconvert_handles_gbp_tax_on_a_foreign_dividend() -> None:
+    """Dividend and withholding use their own rates before comparison."""
+    transactions = [
+        _dividend_at(DIVIDEND_DATE, 100, "A", USD),
+        _tax_in_currency(DIVIDEND_DATE, -12, GBP, "A"),
+    ]
+
+    assert _reported(
+        transactions,
+        autoconvert_currency=True,
+        gbp_prices={DIVIDEND_DATE: {USD: Decimal("1.25")}},
+    ) == [(DIVIDEND_DATE, Decimal(80), Decimal(-12), True)]
+
+
+def test_autoconvert_refuses_dividend_and_tax_in_two_foreign_currencies() -> None:
+    """A second foreign currency cannot silently choose treaty treatment."""
+    transactions = [
+        _dividend_at(DIVIDEND_DATE, 100, "A", USD),
+        _tax_in_currency(DIVIDEND_DATE, -60, PLN, "A"),
+    ]
+
+    with pytest.raises(CalculationError, match="currencies do not match"):
+        _reported(
+            transactions,
+            autoconvert_currency=True,
+            gbp_prices={DIVIDEND_DATE: {USD: Decimal("1.25"), PLN: Decimal(5)}},
+        )
+
+
+def test_autoconvert_refuses_two_foreign_currencies_for_one_dividend() -> None:
+    """Two brokers paying the same dividend in different foreign currencies."""
+    transactions = [
+        _dividend_at(DIVIDEND_DATE, 100, "A", USD),
+        _dividend_at(DIVIDEND_DATE, 400, "B", PLN),
+    ]
+
+    with pytest.raises(CalculationError, match="cannot choose between two foreign"):
+        _reported(
+            transactions,
+            autoconvert_currency=True,
+            gbp_prices={DIVIDEND_DATE: {USD: Decimal("1.25"), PLN: Decimal(5)}},
+        )
+
+
+def test_autoconvert_gbp_dividend_with_foreign_tax_reports_no_treaty(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The source-country fallback reads the dividend's currency, not the tax's.
+
+    A broker that reports the payment already converted to GBP leaves nothing
+    to name the source country with. The tax is still converted at its own
+    rate, but the relief is left out and said to be missing rather than
+    guessed from the currency the withholding happened to be taken in.
+    """
+    transactions = [
+        _dividend_at(DIVIDEND_DATE, 80, "A", GBP),
+        _tax_in_currency(DIVIDEND_DATE, -15, USD, "A"),
+    ]
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
+        reported = _reported(
+            transactions,
+            autoconvert_currency=True,
+            gbp_prices={DIVIDEND_DATE: {USD: Decimal("1.25")}},
+        )
+
+    assert reported == [(DIVIDEND_DATE, Decimal(80), Decimal(-12), False)]
+    assert any(
+        "Source country of the GBP dividend is unknown" in record.message
+        for record in caplog.records
+    )

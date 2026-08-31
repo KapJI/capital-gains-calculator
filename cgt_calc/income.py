@@ -316,10 +316,13 @@ class IncomeProcessor:
             # only for tax deducted from an ordinary holding let a refund, or
             # any tax on a bond fund, be converted as though it were in the
             # dividend's currency. With --autoconvert-currency each is
-            # converted at its own rate instead.
+            # converted at its own rate instead, but only where either
+            # currency is GBP: converting between two foreign currencies would
+            # leave no single currency to read the source country from.
             tax_currency = tax.currency or currency
             if tax.amount and tax_currency != currency:
-                if not self.autoconvert_currency:
+                gbp_involved = UK_CURRENCY in {currency, tax_currency}
+                if not self.autoconvert_currency or not gbp_involved:
                     raise CalculationError(
                         f"Dividend and withholding tax currencies do not match "
                         f"for {symbol} on {date}: dividend "
