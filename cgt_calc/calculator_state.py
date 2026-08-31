@@ -81,10 +81,12 @@ class CalculatorState:
     # Withholding is matched to a dividend of the same broker as well as
     # the same symbol, so both are keyed by broker. The dividends stay
     # merged across brokers in dividend_list, which is what the report
-    # rows are built from.
-    dividend_tax_list: dict[tuple[str, str, datetime.date], ForeignCurrencyAmount] = (
-        field(default_factory=lambda: defaultdict(ForeignCurrencyAmount))
-    )
+    # rows are built from. The currency is part of the key so that rows in
+    # different ones are combined at the date of the dividend they are
+    # attributed to, not the date they happened to post on.
+    dividend_tax_list: dict[
+        tuple[str, str, datetime.date, CurrencyCode], ForeignCurrencyAmount
+    ] = field(default_factory=lambda: defaultdict(ForeignCurrencyAmount))
     dividend_dates: dict[tuple[str, str], set[datetime.date]] = field(
         default_factory=lambda: defaultdict(set)
     )

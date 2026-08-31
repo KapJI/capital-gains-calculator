@@ -977,3 +977,11 @@ def test_from_rejects_invalid_date() -> None:
         parser.parse_args(["--from", "2024-13-01", "--to", "2024-12-31"])
 
     assert exc_info.value.code == 2
+
+
+def test_autoconvert_currency_is_opt_in() -> None:
+    """Currency mismatches remain errors unless the user enables conversion."""
+    parser = create_parser()
+
+    assert parser.parse_args([]).autoconvert_currency is False
+    assert parser.parse_args(["--autoconvert-currency"]).autoconvert_currency is True

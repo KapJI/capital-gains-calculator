@@ -77,6 +77,42 @@ see the [offshore-fund checklist](offshore-funds.md#what-to-check). It reports t
 interest, so do not use it for a UK fund. If cgt-calc reports a UK bond fund distribution as a
 dividend, adjust the income figures outside cgt-calc.
 
+### Income reported in more than one currency
+
+Two brokers reporting the same dividend in different currencies, or a dividend and its withholding
+tax in different currencies, stop the calculation with **Cannot combine amounts in different
+currencies** or **Dividend and withholding tax currencies do not match**.
+
+If the rows really are the same dividend and use GBP plus one foreign currency, pass
+`--autoconvert-currency`:
+
+```shell
+cgt-calc --year 2024 --revolut-file revolut.csv --trading212-dir trading212/ --autoconvert-currency
+```
+
+cgt-calc then reports them as one figure, converting the foreign amounts at the HMRC rate for the
+date of the dividend. Withholding posted in a later month is converted at that same rate, not the
+rate for the month it posted in. Amounts already in GBP are used as they are.
+
+The option is off by default, and it cannot tell whether two rows with the same ticker and date
+describe the same security and payment. Compare the ISIN and payment details on each broker's
+statement before enabling it. Two different non-GBP currencies remain an error: the option does not
+convert between foreign currencies. If your broker cannot provide a verified amount in one currency,
+report that dividend outside cgt-calc.
+
+Where an ISIN is available, cgt-calc uses it to determine the dividend's source country. Without an
+ISIN, it falls back to the currency of the dividend itself, never that of the tax. For a dividend
+your broker reports already converted to GBP, cgt-calc therefore cannot determine a treaty
+automatically: it warns that the source country is unknown and leaves the relief out of the report.
+
+A payment currency does not prove where the paying company is resident, especially when a broker
+converts payments into your account currency.
+[HMRC's dividend treaty guidance](https://www.gov.uk/hmrc-internal-manuals/international-manual/intm164020)
+bases treaty treatment on the residence of the company paying the dividend. Check that residence and
+the tax deducted on your broker's tax voucher. If the fallback is wrong or missing, add a verified
+mapping under [ISIN to ticker translation](#isin-to-ticker-translation); if you cannot, calculate
+the relief outside cgt-calc rather than relying on the treaty figure in the report.
+
 ### CGT-exempt instruments (advanced)
 
 Most users should not use `--cgt-exempt-tickers`. Pass a comma-separated list only when you have

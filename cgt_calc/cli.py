@@ -58,6 +58,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         args.interest_fund_tickers,
         cgt_exempt_tickers=args.cgt_exempt_tickers,
         balance_check=args.balance_check,
+        autoconvert_currency=args.autoconvert_currency,
         calc_unrealized_gains=args.calc_unrealized_gains,
         period_start=args.period_from,
         period_end=args.period_to,

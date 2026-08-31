@@ -14,6 +14,8 @@ ArgumentParser
 ArgumentTypeError
 arm64
 AttributeError
+autoconvert
+autoconverted
 autosale
 BaseDirParser
 BaseSingleFileParser

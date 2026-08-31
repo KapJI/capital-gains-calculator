@@ -141,6 +141,15 @@ Environment variables:
         help="skip balance verification (useful for partial transaction records)",
     )
     calc_group.add_argument(
+        "--autoconvert-currency",
+        action="store_true",
+        default=False,
+        help=(
+            "combine GBP and one foreign currency for the same dividend; "
+            "different foreign currencies remain an error"
+        ),
+    )
+    calc_group.add_argument(
         "--unrealized-gains",
         dest="calc_unrealized_gains",
         action="store_true",

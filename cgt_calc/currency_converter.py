@@ -16,10 +16,15 @@ from pyrate_limiter.abstracts.rate import Duration
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 from requests.adapters import HTTPAdapter, Retry
 
-from .const import CGT_MODE, RuntimeMode
+from .const import CGT_MODE, UK_CURRENCY, RuntimeMode
 from .dates import is_date
-from .exceptions import ExchangeRateMissingError, ExternalApiError, ParsingError
-from .model import CurrencyCode
+from .exceptions import (
+    CalculationError,
+    ExchangeRateMissingError,
+    ExternalApiError,
+    ParsingError,
+)
+from .model import CurrencyCode, ForeignCurrencyAmount
 from .util import exclusive_lock, open_with_parents
 
 if TYPE_CHECKING:
@@ -303,6 +308,52 @@ class CurrencyConverter:
     def to_gbp_for(self, amount: Decimal, transaction: BrokerTransaction) -> Decimal:
         """Convert amount from transaction currency to GBP."""
         return self.to_gbp(amount, transaction.currency, transaction.date)
+
+    def combine_amounts(
+        self,
+        first: ForeignCurrencyAmount,
+        second: ForeignCurrencyAmount,
+        date: datetime.date,
+        *,
+        autoconvert: bool,
+    ) -> ForeignCurrencyAmount:
+        """Add two amounts that belong to the same report row.
+
+        Adding them refuses a mismatch in currency, because a figure the
+        report states in one currency cannot be the sum of two currencies.
+        With `autoconvert`, a GBP row is converted at `date` into the one
+        foreign currency present and the sum is stated in that, so that the
+        currency the payment arrived in survives to name its source country.
+        Two foreign currencies are still refused: where no ISIN names the
+        source country, picking one of them decides the double taxation
+        treaty on nothing better than which row was larger or came first.
+        """
+        if (
+            autoconvert
+            and first.currency is not None
+            and second.currency is not None
+            and first.currency != second.currency
+        ):
+            if UK_CURRENCY not in {first.currency, second.currency}:
+                raise CalculationError(
+                    "Cannot combine amounts in different currencies: "
+                    f"{first.currency} and {second.currency}. "
+                    "--autoconvert-currency combines GBP with one foreign "
+                    "currency; it does not convert between foreign "
+                    "currencies. Report these rows in one currency."
+                )
+            foreign, sterling = (
+                (second, first) if first.currency == UK_CURRENCY else (first, second)
+            )
+            assert foreign.currency is not None
+            # ponytail: only GBP plus one foreign currency; retain all source
+            # currencies before widening this rule.
+            return ForeignCurrencyAmount(
+                foreign.amount
+                + sterling.amount * self.currency_to_gbp_rate(foreign.currency, date),
+                foreign.currency,
+            )
+        return first + second
 
 
 class TestCurrencyConverter(CurrencyConverter):
