@@ -73,8 +73,10 @@ env
 ERI
 ESPP
 etc
+ETCs
 ETF
 ETFs
+ETNs
 expanduser
 f
 FeesAndCommissions
