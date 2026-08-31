@@ -13,7 +13,12 @@ from typing import TYPE_CHECKING, ClassVar, Final, Literal, TextIO, overload, ov
 
 from cgt_calc.const import TICKER_RENAMES, UK_TIMEZONE
 from cgt_calc.exceptions import ParsingError
-from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CurrencyCode,
+    TransactionSource,
+)
 
 from .base_parsers import StandardCSVParser
 
@@ -40,12 +45,13 @@ HEADER_LINE: Final = ",".join(COLUMNS) + "\n"
 LOGGER = logging.getLogger(__name__)
 
 
-def _parse_date(value: str) -> datetime.date:
-    """Convert a Revolut timestamp to the UK date it fell on.
+def _parse_timestamp(value: str) -> datetime.datetime:
+    """Convert a Revolut timestamp to the UK instant it fell on.
 
     The export states its times in UTC, so a value without a zone is read
     as UTC too rather than as the machine's local time. The date that
-    drives the tax year and the matching rules is the UK one.
+    drives the tax year and the matching rules is the UK one, so the
+    instant is stated in UK time and the date taken from it.
     """
 
     try:
@@ -54,7 +60,7 @@ def _parse_date(value: str) -> datetime.date:
         raise ValueError(f"Invalid timestamp: {value!r}") from err
     if timestamp.tzinfo is None:
         timestamp = timestamp.replace(tzinfo=datetime.UTC)
-    return timestamp.astimezone(UK_TIMEZONE).date()
+    return timestamp.astimezone(UK_TIMEZONE)
 
 
 def _action_from_str(label: str, file: Path) -> ActionType:
@@ -154,7 +160,7 @@ class RevolutTransaction(BrokerTransaction):
     ):
         """Create transaction from a CSV row keyed by column name."""
         currency = CurrencyCode(row[RevolutColumn.CURRENCY])
-        date = _parse_date(row[RevolutColumn.DATE])
+        timestamp = _parse_timestamp(row[RevolutColumn.DATE])
         description = row[RevolutColumn.ACTION]
         action = _action_from_str(description, file)
         symbol = row[RevolutColumn.TICKER] or None
@@ -175,7 +181,7 @@ class RevolutTransaction(BrokerTransaction):
             price = total / quantity  # override CSV's rounding
         amount = -total if action is ActionType.BUY else total
         super().__init__(
-            date,
+            timestamp.date(),
             action,
             symbol,
             description,
@@ -186,6 +192,10 @@ class RevolutTransaction(BrokerTransaction):
             currency,
             "Revolut",
         )
+        # The export times every row, which is what tells the calculation
+        # whether a row sharing a date with a share reorganisation happened
+        # before or after it.
+        self.source = TransactionSource(timestamp=timestamp)
 
 
 class RevolutParser(StandardCSVParser[RevolutTransaction]):

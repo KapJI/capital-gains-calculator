@@ -1,7 +1,7 @@
 """Test Revolut support."""
 
 import csv
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 import logging
 from pathlib import Path
@@ -341,3 +341,78 @@ def test_read_revolut_transactions_unknown_action(tmp_path: Path) -> None:
 
     with pytest.raises(ParsingError, match=", row 2: Unknown action: SPIN-OFF"):
         RevolutParser().load_from_file(path)
+
+
+def test_read_revolut_transactions_keep_the_exported_instant(tmp_path: Path) -> None:
+    """The export times every row, and the time is what orders a busy day."""
+    path = _write_csv(
+        tmp_path, [_default_row({RevolutColumn.DATE: "2021-11-02T12:34:56.789012Z"})]
+    )
+
+    (transaction,) = RevolutParser().load_from_file(path)
+
+    assert transaction.source is not None
+    assert transaction.source.timestamp == datetime(
+        2021, 11, 2, 12, 34, 56, 789012, tzinfo=UTC
+    )
+    # And the line the row came from is still recorded next to it.
+    assert transaction.source.row == 2
+
+
+def test_run_with_a_trade_before_a_same_day_split(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> None:
+    """A share bought hours before a split is pooled in pre-split units.
+
+    Nothing but the exported times can say which side of the reorganisation
+    the purchase falls on, so a run that discarded them would refuse the day.
+    """
+    path = _write_csv(
+        tmp_path,
+        [
+            _default_row(
+                {
+                    RevolutColumn.DATE: "2021-01-04T10:00:00.000000Z",
+                    RevolutColumn.TICKER: "",
+                    RevolutColumn.ACTION: "CASH TOP-UP",
+                    RevolutColumn.QUANTITY: "",
+                    RevolutColumn.PRICE_PER_SHARE: "",
+                    RevolutColumn.TOTAL_AMOUNT: "USD 20000",
+                }
+            ),
+            _default_row(
+                {
+                    RevolutColumn.DATE: "2021-07-20T09:00:00.000000Z",
+                    RevolutColumn.TICKER: "NVDA",
+                    RevolutColumn.ACTION: "BUY - MARKET",
+                    RevolutColumn.QUANTITY: "2",
+                    RevolutColumn.PRICE_PER_SHARE: "USD 500",
+                    RevolutColumn.TOTAL_AMOUNT: "USD 1000",
+                }
+            ),
+            _default_row(
+                {
+                    RevolutColumn.DATE: "2021-07-20T10:34:52.000000Z",
+                    RevolutColumn.TICKER: "NVDA",
+                    RevolutColumn.ACTION: "STOCK SPLIT",
+                    RevolutColumn.QUANTITY: "36",
+                    RevolutColumn.PRICE_PER_SHARE: "",
+                    RevolutColumn.TOTAL_AMOUNT: "USD 0",
+                }
+            ),
+        ],
+    )
+    cmd = build_cmd(
+        "--year",
+        "2021",
+        "--revolut-file",
+        str(path),
+        "--output",
+        report_path(request),
+    )
+
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    # Two shares became 38 rather than the day being refused.
+    assert "NVDA: 38.00" in result.stdout

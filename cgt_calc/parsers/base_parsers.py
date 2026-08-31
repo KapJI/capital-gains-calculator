@@ -272,7 +272,14 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                     )
                 transaction = cls.read_row(row, file_path)
                 if transaction:
-                    transaction.source = TransactionSource(row=index)
+                    # Whatever `read_row` recorded is kept, because it knows
+                    # what the row itself stated and this only adds the line
+                    # it came from. Replacing the source outright would drop
+                    # an exported instant, which is the only evidence that
+                    # can order two rows sharing a date.
+                    transaction.source = dataclasses.replace(
+                        transaction.source or TransactionSource(), row=index
+                    )
                     transactions.append(transaction)
             except ParsingError as err:
                 err.add_row_context(index)
