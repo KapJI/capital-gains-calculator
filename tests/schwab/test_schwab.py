@@ -89,7 +89,9 @@ def test_award_price_that_is_not_a_finite_amount_is_reported(
     ) as exc_info:
         _read_schwab_awards(award_file)
 
-    assert exc_info.value.row_index == 2
+    # The price is stated on the lower half of the split award row, so the
+    # row to correct is 3: row 1 is the header and row 2 holds the upper half.
+    assert exc_info.value.row_index == 3
 
 
 def test_award_file_without_the_award_says_so() -> None:

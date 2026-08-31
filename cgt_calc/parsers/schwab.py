@@ -810,8 +810,10 @@ def _read_schwab_awards(
         except ValueError as err:
             # This file is read outside StandardCSVParser, so nothing else
             # turns the helper's ValueError into an error naming the row.
+            # The format splits each award over two rows and states the price
+            # on the lower one, which is the row the reader has to correct.
             raise ParsingError(
-                schwab_award_transactions_file, str(err), row_index=row_index
+                schwab_award_transactions_file, str(err), row_index=row_index + 1
             ) from err
         if symbol is not None and price is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
