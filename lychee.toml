@@ -12,6 +12,9 @@ timeout = 20
 # markdown-link-check config needed for the Trade Tariff site.
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
+# Revolut Help uses a Cloudflare browser challenge and rejects link checkers.
+exclude = ["^https://help\\.revolut\\.com/"]
+
 # Reuse results between runs so unchanged links are not fetched again.
 cache = true
 max_cache_age = "1d"
