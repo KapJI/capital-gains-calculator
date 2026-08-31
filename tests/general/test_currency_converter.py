@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+from itertools import permutations
 import logging
 import re
 from typing import TYPE_CHECKING, NoReturn
@@ -18,8 +19,13 @@ from cgt_calc.currency_converter import (
     StrictTestCurrencyConverter,
     TestCurrencyConverter as RecordingCurrencyConverter,
 )
-from cgt_calc.exceptions import ExchangeRateMissingError, ExternalApiError, ParsingError
-from cgt_calc.model import CurrencyCode
+from cgt_calc.exceptions import (
+    CalculationError,
+    ExchangeRateMissingError,
+    ExternalApiError,
+    ParsingError,
+)
+from cgt_calc.model import CurrencyCode, ForeignCurrencyAmount
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -282,6 +288,9 @@ def test_hmrc_response_malformed_currency_code_raises_api_error(
 
 
 DATE = datetime.date(2024, 1, 1)
+GBP = CurrencyCode("GBP")
+USD = CurrencyCode("USD")
+PLN = CurrencyCode("PLN")
 
 
 class FakeResponse:
@@ -445,3 +454,57 @@ def test_strict_converter_refuses_to_fetch() -> None:
 
     with pytest.raises(RuntimeError, match="HMRC values missing for 2024-01"):
         converter.currency_to_gbp_rate(CurrencyCode("USD"), DATE)
+
+
+def test_combine_amounts_is_order_independent_for_gbp_and_one_foreign() -> None:
+    """Any ordering of supported rows produces the same foreign amount."""
+    converter = CurrencyConverter(initial_data={DATE: {USD: Decimal("1.25")}})
+    rows = [
+        ForeignCurrencyAmount(Decimal(100), USD),
+        ForeignCurrencyAmount(Decimal(40), GBP),
+        ForeignCurrencyAmount(Decimal(40), GBP),
+    ]
+
+    for ordered in permutations(rows):
+        total = ForeignCurrencyAmount()
+        for row in ordered:
+            total = converter.combine_amounts(total, row, DATE, autoconvert=True)
+        assert total == ForeignCurrencyAmount(Decimal(200), USD)
+
+
+def test_combine_amounts_keeps_mixed_currency_error_without_opt_in() -> None:
+    """The new conversion never weakens the default validation."""
+    converter = CurrencyConverter(initial_data={DATE: {USD: Decimal("1.25")}})
+
+    with pytest.raises(CalculationError, match="different currencies: USD and GBP"):
+        converter.combine_amounts(
+            ForeignCurrencyAmount(Decimal(100), USD),
+            ForeignCurrencyAmount(Decimal(80), GBP),
+            DATE,
+            autoconvert=False,
+        )
+
+
+@pytest.mark.parametrize(
+    "pln_amount",
+    [
+        # Equal to the USD row by value in GBP, so only a tie-break could
+        # pick a winner.
+        pytest.param(Decimal(400), id="equal-value"),
+        # The larger row by value, so only its size could pick a winner.
+        pytest.param(Decimal(4000), id="larger-value"),
+    ],
+)
+def test_combine_amounts_refuses_two_foreign_currencies_with_opt_in(
+    pln_amount: Decimal,
+) -> None:
+    """A row's size or position cannot choose a source country."""
+    converter = CurrencyConverter(
+        initial_data={DATE: {USD: Decimal("1.25"), PLN: Decimal(5)}}
+    )
+    usd = ForeignCurrencyAmount(Decimal(100), USD)
+    pln = ForeignCurrencyAmount(pln_amount, PLN)
+
+    for first, second in ((usd, pln), (pln, usd)):
+        with pytest.raises(CalculationError, match="different currencies"):
+            converter.combine_amounts(first, second, DATE, autoconvert=True)
