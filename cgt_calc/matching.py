@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 import datetime
 from decimal import Decimal
 from fractions import Fraction
@@ -56,6 +57,22 @@ class WalkResult(NamedTuple):
     exempt_disposal_count: int
     exempt_disposal_proceeds: Decimal
     calculation_log: CalculationLog
+
+
+@dataclass
+class DisposalContext:
+    """The running state of one disposal as the identification rules consume it."""
+
+    symbol: str
+    date_index: datetime.date
+    no_gain_no_loss: bool
+    disposal: HmrcTransactionData
+    disposal_quantity: Decimal
+    disposal_price: Decimal
+    current_quantity: Decimal
+    current_amount: Decimal
+    chargeable_gain: Decimal
+    calculation_entries: list[CalculationEntry]
 
 
 class Matcher:
@@ -246,81 +263,25 @@ class Matcher:
             if no_gain_no_loss
             else self.state.disposal_list
         )[date_index][symbol]
-        disposal_quantity = disposal.quantity
-        proceeds_amount = disposal.amount
-        original_disposal_quantity = disposal_quantity
-        disposal_price = proceeds_amount / disposal_quantity
-        current_quantity = self.state.portfolio[symbol].quantity
-        current_amount = self.state.portfolio[symbol].amount
-        assert disposal_quantity <= current_quantity
-        chargeable_gain = Decimal(0)
-        calculation_entries = []
-        # Same day rule is first, against the day's real purchases only. Shares
-        # from a split are not an acquisition (TCGA 1992 s127, CG51805) and cost
-        # nothing, so matching them would hand the disposal a nil allowable cost
-        # and, on a day that also has a purchase, spread that purchase's cost
-        # over the free shares as well.
-        same_day_acquisition = self._matchable_acquisition(date_index, symbol)
-        if same_day_acquisition.quantity > 0:
-            available_quantity = min(disposal_quantity, same_day_acquisition.quantity)
-            if available_quantity > 0:
-                fees = disposal.fees * available_quantity / original_disposal_quantity
-
-                # Multiply by available_quantity before divide to avoid rounding errors from division
-                acquisition_cost = normalize_amount(
-                    (available_quantity * same_day_acquisition.amount)
-                    / same_day_acquisition.quantity
-                )
-
-                acquisition_price = acquisition_cost / available_quantity
-                # No gain/no loss: deemed proceeds equal the allowable cost.
-                same_day_amount = (
-                    acquisition_cost
-                    if no_gain_no_loss
-                    else available_quantity * disposal_price
-                )
-                same_day_proceeds = same_day_amount + fees
-                same_day_allowable_cost = acquisition_cost + fees
-                same_day_gain = same_day_proceeds - same_day_allowable_cost
-                chargeable_gain += same_day_gain
-                LOGGER.debug(
-                    "SAME DAY, quantity %s, gain %s, disposal price %s, "
-                    "acquisition price %s",
-                    available_quantity,
-                    same_day_gain,
-                    disposal_price,
-                    acquisition_price,
-                )
-                disposal_quantity -= available_quantity
-                proceeds_amount -= available_quantity * disposal_price
-                current_quantity -= available_quantity
-                # These shares shouldn't be added to Section 104 holding
-                current_amount -= acquisition_cost
-                if current_quantity == 0:
-                    assert round_decimal(current_amount, 23) == 0, (
-                        f"current amount {current_amount}"
-                    )
-                calculation_entries.append(
-                    CalculationEntry(
-                        rule_type=(
-                            RuleType.TRANSFER_TO_SPOUSE
-                            if no_gain_no_loss
-                            else RuleType.SAME_DAY
-                        ),
-                        quantity=available_quantity,
-                        amount=same_day_amount,
-                        gain=same_day_gain,
-                        allowable_cost=same_day_allowable_cost,
-                        fees=fees,
-                        new_quantity=current_quantity,
-                        new_pool_cost=current_amount,
-                    )
-                )
+        ctx = DisposalContext(
+            symbol=symbol,
+            date_index=date_index,
+            no_gain_no_loss=no_gain_no_loss,
+            disposal=disposal,
+            disposal_quantity=disposal.quantity,
+            disposal_price=disposal.amount / disposal.quantity,
+            current_quantity=self.state.portfolio[symbol].quantity,
+            current_amount=self.state.portfolio[symbol].amount,
+            chargeable_gain=Decimal(0),
+            calculation_entries=[],
+        )
+        assert ctx.disposal_quantity <= ctx.current_quantity
+        self._match_same_day(ctx)
 
         # Bed and breakfast rule next
-        if disposal_quantity > 0:
+        if ctx.disposal_quantity > 0:
             eris = []
-            eri = self.get_eri(symbol, date_index)
+            eri = self.get_eri(ctx.symbol, ctx.date_index)
             if eri:
                 eris.append(eri)
 
@@ -331,10 +292,10 @@ class Matcher:
             # very error the exact ratio removed.
             cumulative_ratio = Fraction(1)
             unresolved_splits: list[tuple[datetime.date, StockSplitEvent]] = []
-            effective_symbol = symbol
+            effective_symbol = ctx.symbol
 
             for i in range(BED_AND_BREAKFAST_DAYS):
-                search_index = date_index + datetime.timedelta(days=i + 1)
+                search_index = ctx.date_index + datetime.timedelta(days=i + 1)
                 # HMRC treats renames as the same security for B&B purposes.
                 # A reorganisation is recorded under the name the holding
                 # carried when it happened, which on a day the holding is also
@@ -363,8 +324,8 @@ class Matcher:
                     LOGGER.warning(
                         "A split happened shortly after a disposal of %s, double check these transactions."
                         "Disposed on %s and split happened on %s",
-                        symbol,
-                        date_index,
+                        ctx.symbol,
+                        ctx.date_index,
                         search_index,
                     )
 
@@ -429,8 +390,8 @@ class Matcher:
                         # first-pass estimate, and that is wrong after any
                         # profitable sale, so refuse rather than use it.
                         raise CalculationError(
-                            f"Cannot compute the disposal of {symbol} on "
-                            f"{date_index}: a spin-off added {effective_symbol} "
+                            f"Cannot compute the disposal of {ctx.symbol} on "
+                            f"{ctx.date_index}: a spin-off added {effective_symbol} "
                             f"shares on {search_index}, within the following 30 "
                             "days, and the bed and breakfast rule would identify "
                             "this disposal against them. What they cost is a "
@@ -454,12 +415,12 @@ class Matcher:
                     # tax year; the rest of the history walk logs it at DEBUG.
                     LOGGER.log(
                         logging.INFO
-                        if self.date_in_tax_year(date_index)
+                        if self.date_in_tax_year(ctx.date_index)
                         else logging.DEBUG,
                         "Bed & breakfast match: %s %s %s, re-acquired %s",
-                        symbol,
-                        "transferred to spouse" if no_gain_no_loss else "disposed",
-                        date_index,
+                        ctx.symbol,
+                        "transferred to spouse" if ctx.no_gain_no_loss else "disposed",
+                        ctx.date_index,
                         search_index,
                     )
                     # The conversion needs the ratio, so this is where an
@@ -470,14 +431,14 @@ class Matcher:
                         split_date, unresolved_event = unresolved_splits[0]
                         raise CalculationError(
                             self._unresolved_bnb_message(
-                                unresolved_event, symbol, date_index, split_date
+                                unresolved_event, ctx.symbol, ctx.date_index, split_date
                             )
                         )
                     if cumulative_ratio != 1:
                         LOGGER.warning(
                             "Bed & breakfast for %s is taking into account a %sx split "
                             "that happened shortly before the repurchase of shares",
-                            symbol,
+                            ctx.symbol,
                             cumulative_ratio,
                         )
                     # Everything reserved here is counted in the acquisition's
@@ -492,16 +453,16 @@ class Matcher:
                     )
                     available_quantity, consumed_acquisition_units = (
                         self._match_across_splits(
-                            disposal_quantity,
+                            ctx.disposal_quantity,
                             available_acquisition_units,
                             cumulative_ratio,
-                            symbol=symbol,
-                            date_index=date_index,
+                            symbol=ctx.symbol,
+                            date_index=ctx.date_index,
                             search_index=search_index,
                         )
                     )
                     fees = (
-                        disposal.fees * available_quantity / original_disposal_quantity
+                        ctx.disposal.fees * available_quantity / ctx.disposal.quantity
                     )
                     # Multiply by the consumed quantity before dividing to
                     # avoid rounding errors from division. Both counts here
@@ -514,8 +475,8 @@ class Matcher:
                     # No gain/no loss: deemed proceeds equal the allowable cost.
                     bed_and_breakfast_amount = (
                         bnb_acquisition_cost
-                        if no_gain_no_loss
-                        else available_quantity * disposal_price
+                        if ctx.no_gain_no_loss
+                        else available_quantity * ctx.disposal_price
                     )
                     bed_and_breakfast_proceeds = bed_and_breakfast_amount + fees
                     bed_and_breakfast_allowable_cost = bnb_acquisition_cost + fees
@@ -532,37 +493,36 @@ class Matcher:
                         total_dist_amount += eri_distribution.amount
                         if self.date_in_tax_year(eri.distribution_date):
                             self.state.eris_distribution[eri.distribution_date][
-                                symbol
+                                ctx.symbol
                             ] += eri_distribution
 
                     bed_and_breakfast_gain = (
                         bed_and_breakfast_proceeds - bed_and_breakfast_allowable_cost
                     )
-                    chargeable_gain += bed_and_breakfast_gain
+                    ctx.chargeable_gain += bed_and_breakfast_gain
                     LOGGER.debug(
                         "BED & BREAKFAST, quantity %s, gain %s, disposal price %s, "
                         "acquisition price %s%s",
                         available_quantity,
                         bed_and_breakfast_gain,
-                        disposal_price,
+                        ctx.disposal_price,
                         acquisition_price,
                         f", added_excess_income: {total_dist_amount}"
                         if total_dist_amount > 0
                         else "",
                     )
-                    disposal_quantity -= available_quantity
-                    proceeds_amount -= available_quantity * disposal_price
+                    ctx.disposal_quantity -= available_quantity
 
                     # Multiply by available_quantity before divide to avoid rounding errors from division
                     amount_delta = normalize_amount(
-                        (available_quantity * current_amount) / current_quantity
+                        (available_quantity * ctx.current_amount) / ctx.current_quantity
                     )
 
-                    current_quantity -= available_quantity
-                    current_amount -= amount_delta
-                    if current_quantity == 0:
-                        assert round_decimal(current_amount, 23) == 0, (
-                            f"current amount {current_amount}"
+                    ctx.current_quantity -= available_quantity
+                    ctx.current_amount -= amount_delta
+                    if ctx.current_quantity == 0:
+                        assert round_decimal(ctx.current_amount, 23) == 0, (
+                            f"current amount {ctx.current_amount}"
                         )
                     add_to_list(
                         self.state.bnb_list,
@@ -573,11 +533,11 @@ class Matcher:
                         Decimal(0),
                         eris,
                     )
-                    calculation_entries.append(
+                    ctx.calculation_entries.append(
                         CalculationEntry(
                             rule_type=(
                                 RuleType.TRANSFER_TO_SPOUSE
-                                if no_gain_no_loss
+                                if ctx.no_gain_no_loss
                                 else RuleType.BED_AND_BREAKFAST
                             ),
                             quantity=available_quantity,
@@ -586,31 +546,111 @@ class Matcher:
                             allowable_cost=bed_and_breakfast_allowable_cost,
                             fees=fees,
                             bed_and_breakfast_date_index=search_index,
-                            new_quantity=current_quantity,
-                            new_pool_cost=current_amount,
+                            new_quantity=ctx.current_quantity,
+                            new_pool_cost=ctx.current_amount,
                         )
                     )
                     # If we completely matched the current disposal,
                     # there's no need to keep looking for more B&B days
-                    if disposal_quantity <= 0:
+                    if ctx.disposal_quantity <= 0:
                         break
-        if disposal_quantity > 0:
-            available_quantity = disposal_quantity
-            fees = disposal.fees * available_quantity / original_disposal_quantity
+        self._match_section_104(ctx)
+
+        assert round_decimal(ctx.disposal_quantity, 23) == 0, (
+            f"disposal quantity {ctx.disposal_quantity}"
+        )
+        self.state.portfolio[ctx.symbol] = Position(
+            ctx.current_quantity, normalize_amount(ctx.current_amount)
+        )
+        ctx.chargeable_gain = round_decimal(ctx.chargeable_gain, 2)
+        return ctx.chargeable_gain, ctx.calculation_entries
+
+    def _match_same_day(self, ctx: DisposalContext) -> None:
+        """Identify the disposal against the same day's acquisitions."""
+        # Same day rule is first, against the day's real purchases only. Shares
+        # from a split are not an acquisition (TCGA 1992 s127, CG51805) and cost
+        # nothing, so matching them would hand the disposal a nil allowable cost
+        # and, on a day that also has a purchase, spread that purchase's cost
+        # over the free shares as well.
+        same_day_acquisition = self._matchable_acquisition(ctx.date_index, ctx.symbol)
+        if same_day_acquisition.quantity > 0:
+            available_quantity = min(
+                ctx.disposal_quantity, same_day_acquisition.quantity
+            )
+            if available_quantity > 0:
+                fees = ctx.disposal.fees * available_quantity / ctx.disposal.quantity
+
+                # Multiply by available_quantity before divide to avoid rounding errors from division
+                acquisition_cost = normalize_amount(
+                    (available_quantity * same_day_acquisition.amount)
+                    / same_day_acquisition.quantity
+                )
+
+                acquisition_price = acquisition_cost / available_quantity
+                # No gain/no loss: deemed proceeds equal the allowable cost.
+                same_day_amount = (
+                    acquisition_cost
+                    if ctx.no_gain_no_loss
+                    else available_quantity * ctx.disposal_price
+                )
+                same_day_proceeds = same_day_amount + fees
+                same_day_allowable_cost = acquisition_cost + fees
+                same_day_gain = same_day_proceeds - same_day_allowable_cost
+                ctx.chargeable_gain += same_day_gain
+                LOGGER.debug(
+                    "SAME DAY, quantity %s, gain %s, disposal price %s, "
+                    "acquisition price %s",
+                    available_quantity,
+                    same_day_gain,
+                    ctx.disposal_price,
+                    acquisition_price,
+                )
+                ctx.disposal_quantity -= available_quantity
+                ctx.current_quantity -= available_quantity
+                # These shares shouldn't be added to Section 104 holding
+                ctx.current_amount -= acquisition_cost
+                if ctx.current_quantity == 0:
+                    assert round_decimal(ctx.current_amount, 23) == 0, (
+                        f"current amount {ctx.current_amount}"
+                    )
+                ctx.calculation_entries.append(
+                    CalculationEntry(
+                        rule_type=(
+                            RuleType.TRANSFER_TO_SPOUSE
+                            if ctx.no_gain_no_loss
+                            else RuleType.SAME_DAY
+                        ),
+                        quantity=available_quantity,
+                        amount=same_day_amount,
+                        gain=same_day_gain,
+                        allowable_cost=same_day_allowable_cost,
+                        fees=fees,
+                        new_quantity=ctx.current_quantity,
+                        new_pool_cost=ctx.current_amount,
+                    )
+                )
+
+    def _match_section_104(self, ctx: DisposalContext) -> None:
+        """Identify what is left of the disposal against the Section 104 pool."""
+        if ctx.disposal_quantity > 0:
+            available_quantity = ctx.disposal_quantity
+            fees = ctx.disposal.fees * available_quantity / ctx.disposal.quantity
 
             # Multiply by available_quantity before divide to avoid rounding errors from division
             amount_delta = normalize_amount(
-                (available_quantity * current_amount) / current_quantity
+                (available_quantity * ctx.current_amount) / ctx.current_quantity
             )
 
             # No gain/no loss: deemed proceeds equal the allowable cost.
             r104_amount = (
-                amount_delta if no_gain_no_loss else available_quantity * disposal_price
+                amount_delta
+                if ctx.no_gain_no_loss
+                else available_quantity * ctx.disposal_price
             )
             r104_proceeds = r104_amount + fees
             r104_allowable_cost = amount_delta + fees
             r104_gain = r104_proceeds - r104_allowable_cost
-            chargeable_gain += r104_gain
+            ctx.chargeable_gain += r104_gain
             LOGGER.debug(
                 "SECTION 104, quantity %s, gain %s, proceeds amount %s, "
                 "allowable cost %s",
@@ -619,19 +659,18 @@ class Matcher:
                 r104_proceeds,
                 r104_allowable_cost,
             )
-            disposal_quantity -= available_quantity
-            proceeds_amount -= available_quantity * disposal_price
-            current_quantity -= available_quantity
-            current_amount -= amount_delta
-            if current_quantity == 0:
-                assert round_decimal(current_amount, 10) == 0, (
-                    f"current amount {current_amount}"
+            ctx.disposal_quantity -= available_quantity
+            ctx.current_quantity -= available_quantity
+            ctx.current_amount -= amount_delta
+            if ctx.current_quantity == 0:
+                assert round_decimal(ctx.current_amount, 10) == 0, (
+                    f"current amount {ctx.current_amount}"
                 )
-            calculation_entries.append(
+            ctx.calculation_entries.append(
                 CalculationEntry(
                     rule_type=(
                         RuleType.TRANSFER_TO_SPOUSE
-                        if no_gain_no_loss
+                        if ctx.no_gain_no_loss
                         else RuleType.SECTION_104
                     ),
                     quantity=available_quantity,
@@ -639,20 +678,11 @@ class Matcher:
                     gain=r104_gain,
                     allowable_cost=r104_allowable_cost,
                     fees=fees,
-                    new_quantity=current_quantity,
-                    new_pool_cost=current_amount,
+                    new_quantity=ctx.current_quantity,
+                    new_pool_cost=ctx.current_amount,
                 )
             )
-            disposal_quantity = Decimal(0)
-
-        assert round_decimal(disposal_quantity, 23) == 0, (
-            f"disposal quantity {disposal_quantity}"
-        )
-        self.state.portfolio[symbol] = Position(
-            current_quantity, normalize_amount(current_amount)
-        )
-        chargeable_gain = round_decimal(chargeable_gain, 2)
-        return chargeable_gain, calculation_entries
+            ctx.disposal_quantity = Decimal(0)
 
     def process_rename(self, old: str, new: str) -> CalculationEntry:
         """Transfer pool from old ticker to new ticker (no disposal)."""
