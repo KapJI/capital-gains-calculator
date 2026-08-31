@@ -798,11 +798,21 @@ def _read_schwab_awards(
         fair_market_value_price_header = (
             RequiredAwardColumn.FAIR_MARKET_VALUE_PRICE.value
         )
-        price = (
-            Decimal(row_dict[fair_market_value_price_header].replace("$", ""))
-            if row_dict[fair_market_value_price_header] != ""
-            else None
-        )
+        price_str = row_dict[fair_market_value_price_header]
+        try:
+            price = (
+                parse_decimal(
+                    price_str, f"column '{fair_market_value_price_header}'", strip="$"
+                )
+                if price_str != ""
+                else None
+            )
+        except ValueError as err:
+            # This file is read outside StandardCSVParser, so nothing else
+            # turns the helper's ValueError into an error naming the row.
+            raise ParsingError(
+                schwab_award_transactions_file, str(err), row_index=row_index
+            ) from err
         if symbol is not None and price is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
             initial_prices[date][symbol] = price
