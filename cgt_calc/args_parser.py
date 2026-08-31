@@ -145,7 +145,8 @@ Environment variables:
         dest="calc_unrealized_gains",
         action="store_true",
         default=False,
-        help="estimate unrealized gains/losses for current holdings if sold today (under Section 104 rule)",
+        help="estimate today's unrealized gains/losses for holdings in the "
+        "report's ending portfolio using Section 104 pooled costs",
     )
     calc_group.add_argument(
         "--interest-fund-tickers",

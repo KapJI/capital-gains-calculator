@@ -54,8 +54,8 @@ acquired at different times, gains and losses, a dividend with overseas tax, and
 
 ## 📚 Documentation
 
-Full documentation — installation, per-broker export guides, offshore funds (ERI), configuration,
-and Docker usage — lives at **[cgt-calc.uk](https://cgt-calc.uk/)**.
+Full documentation — installation, per-broker export guides, offshore funds (ERI), extra data and
+options, and Docker usage — lives at **[cgt-calc.uk](https://cgt-calc.uk/)**.
 
 ## 🤝 Contributing
 

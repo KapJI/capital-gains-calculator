@@ -1,25 +1,31 @@
 # Docker
 
-Prebuilt images with LaTeX included are published to GitHub Container Registry for amd64 and arm64
-(Apple silicon), in case you would rather not have a systemwide LaTeX installation (or don't want to
-interfere with an existing one). Navigate to where you store your transaction data and drop into a
-shell with `cgt-calc` installed on `$PATH`:
+The published Docker image includes cgt-calc, Python and LaTeX. Use it if you already have Docker
+and do not want to install these tools on your computer. Images are available for amd64 and arm64
+(Apple silicon).
+
+Open a terminal in the directory containing your transaction files, then start the container:
 
 ```shell
-$ cd ~/Taxes/Transactions
-$ docker run --rm -it -v "$PWD":/data ghcr.io/cgt-calc/capital-gains-calculator
-a4800eca1914:/data# cgt-calc [...]
+cd ~/Taxes/Transactions
+docker run --rm -it -v "$PWD":/data ghcr.io/cgt-calc/capital-gains-calculator
 ```
 
-This will create a temporary Docker container with the current directory on the host (where your
-transaction data is) mounted inside the container at `/data`. Follow the usage instructions below as
-normal, and when you're done, simply exit the shell. You will be dropped back into the shell on your
-host, with your output report PDF etc.
+The container opens a shell in `/data`, which is the directory you started from. Run cgt-calc there
+using the normal [report instructions](usage.md). For example:
+
+```shell
+cgt-calc --year 2024 --schwab-file schwab_transactions.csv
+```
+
+The generated `out/` directory remains on your computer after the container stops. Run `exit` when
+you are finished.
 
 You can also run a single command directly:
 
 ```shell
-$ docker run --rm -v "$PWD":/data ghcr.io/cgt-calc/capital-gains-calculator -lc "cgt-calc [...]"
+docker run --rm -v "$PWD":/data ghcr.io/cgt-calc/capital-gains-calculator -lc \
+  "cgt-calc --year 2024 --schwab-file schwab_transactions.csv"
 ```
 
 ## Available tags
@@ -41,6 +47,6 @@ To build the image locally instead, run this with the cloned repository as the c
 directory:
 
 ```shell
-$ docker buildx build --tag capital-gains-calculator .
-$ docker run --rm -it -v "$PWD":/data capital-gains-calculator
+docker buildx build --tag capital-gains-calculator .
+docker run --rm -it -v "$PWD":/data capital-gains-calculator
 ```
