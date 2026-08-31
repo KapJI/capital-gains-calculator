@@ -14,7 +14,7 @@ award export or transaction type is supported.
 
 ## 🚀 Quick Start
 
-Install with [uv](https://docs.astral.sh/uv/concepts/tools/#the-uv-tool-interface) (or pipx/pip) and
+Install with [uv](https://docs.astral.sh/uv/getting-started/installation/) (or pipx/pip) and
 generate a report for a tax year:
 
 ```shell

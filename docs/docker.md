@@ -19,7 +19,8 @@ cgt-calc --year 2024 --schwab-file schwab_transactions.csv
 ```
 
 The generated `out/` directory remains on your computer after the container stops. Run `exit` when
-you are finished.
+you are finished. On native Linux, Docker may create these files as `root`. If this happens, add
+`--user "$(id -u):$(id -g)"` to the `docker run` command so new files are owned by your user.
 
 You can also run a single command directly:
 

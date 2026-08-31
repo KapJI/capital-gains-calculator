@@ -8,13 +8,13 @@
 
 ## Install cgt-calc
 
-Install the calculator with [uv](https://docs.astral.sh/uv/concepts/tools/#the-uv-tool-interface):
+Install the calculator with [uv](https://docs.astral.sh/uv/getting-started/installation/):
 
 ```shell
 uv tool install cgt-calc
 ```
 
-Alternatively, install it with [pipx](https://pipx.pypa.io/):
+Alternatively, install it with [pipx](https://pipx.pypa.io/latest/how-to/install-pipx.html):
 
 ```shell
 pipx install cgt-calc
