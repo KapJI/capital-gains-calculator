@@ -86,6 +86,7 @@ def _parse_decimal(
     *,
     allow_empty: Literal[True],
     default: Decimal,
+    strip_currency: CurrencyCode | None = ...,
 ) -> Decimal: ...
 
 
@@ -96,6 +97,7 @@ def _parse_decimal(
     *,
     allow_empty: Literal[True],
     default: None = ...,
+    strip_currency: CurrencyCode | None = ...,
 ) -> Decimal | None: ...
 
 
@@ -106,6 +108,7 @@ def _parse_decimal(
     *,
     allow_empty: Literal[False],
     default: None = ...,
+    strip_currency: CurrencyCode | None = ...,
 ) -> Decimal: ...
 
 
@@ -115,6 +118,7 @@ def _parse_decimal(
     *,
     allow_empty: bool,
     default: Decimal | None = None,
+    strip_currency: CurrencyCode | None = None,
 ) -> Decimal | None:
     """Parse decimal value from the row, raising ValueError with context on failure."""
 
@@ -123,7 +127,14 @@ def _parse_decimal(
         if allow_empty:
             return default
         raise ValueError(f"Missing value in column '{column.value}'")
-
+    if strip_currency is not None:
+        prefix = f"{strip_currency} "
+        if not value.startswith(prefix):
+            raise ValueError(
+                f"Expected format '{strip_currency} value' in column "
+                f"'{column.value}' but found: {value!r}"
+            )
+        value = value.removeprefix(prefix).strip()
     normalized = value.replace(",", "")
     try:
         return Decimal(normalized)
@@ -142,39 +153,23 @@ class RevolutTransaction(BrokerTransaction):
         file: Path,
     ):
         """Create transaction from a CSV row keyed by column name."""
-        # copied due to in-place removal of currency prefix from some columns
-        row_values = dict(row)
-        currency = CurrencyCode(row_values[RevolutColumn.CURRENCY])
-        for money_column in (RevolutColumn.PRICE_PER_SHARE, RevolutColumn.TOTAL_AMOUNT):
-            if row_values[money_column]:
-                try:
-                    _cur, row_values[money_column] = row_values[money_column].split(" ")
-                except ValueError as err:
-                    raise ParsingError(
-                        file,
-                        f"Expected format 'CURRENCY value' in '{money_column.value}' but found: {row_values[money_column]!r}",
-                    ) from err
-                _cur = CurrencyCode(_cur)
-                if currency != _cur:
-                    raise ParsingError(
-                        file,
-                        f"Expected currency for '{money_column.value}' to be '{currency}' but found '{_cur}'",
-                    )
-        date = _parse_date(row_values[RevolutColumn.DATE])
-        description = row_values[RevolutColumn.ACTION]
+        currency = CurrencyCode(row[RevolutColumn.CURRENCY])
+        date = _parse_date(row[RevolutColumn.DATE])
+        description = row[RevolutColumn.ACTION]
         action = _action_from_str(description, file)
-        symbol = row_values[RevolutColumn.TICKER] or None
+        symbol = row[RevolutColumn.TICKER] or None
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
-        quantity = _parse_decimal(row_values, RevolutColumn.QUANTITY, allow_empty=True)
+        quantity = _parse_decimal(row, RevolutColumn.QUANTITY, allow_empty=True)
         price = _parse_decimal(
-            row_values,
+            row,
             RevolutColumn.PRICE_PER_SHARE,
             allow_empty=True,
             default=Decimal(0),
+            strip_currency=currency,
         )
         total = _parse_decimal(
-            row_values, RevolutColumn.TOTAL_AMOUNT, allow_empty=False
+            row, RevolutColumn.TOTAL_AMOUNT, allow_empty=False, strip_currency=currency
         )
         if quantity:
             price = total / quantity  # override CSV's rounding
