@@ -94,6 +94,11 @@ icon = "fontawesome/brands/github"
 link = "https://github.com/cgt-calc/capital-gains-calculator"
 name = "GitHub repository"
 
+[[project.extra.social]]
+icon = "fontawesome/brands/python"
+link = "https://pypi.org/project/cgt-calc/"
+name = "cgt-calc on PyPI"
+
 [project.markdown_extensions]
 admonition = {}
 tables = {}
