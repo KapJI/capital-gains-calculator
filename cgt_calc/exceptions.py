@@ -154,7 +154,6 @@ class UnclassifiedGiftError(CgtError):
             "is not a connected person, write GIFT_UNCONNECTED instead and the "
             "loss counts like any other.\n"
             "\n"
-            # Kept on one line so the link check sees the whole URL.
             "See https://cgt-calc.uk/brokers/raw/#transfers-to-a-spouse-or-civil-partner"
         )
         super().__init__(self.message)

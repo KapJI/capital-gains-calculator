@@ -128,7 +128,6 @@ def action_from_str(label: str, file: Path) -> ActionType:
                 "one has been examined, so cgt-calc cannot establish the "
                 "correct treatment. Keep the export unchanged and please "
                 "report this row so that the format can be supported. See "
-                # Kept on one line so the link check sees the whole URL.
                 "https://cgt-calc.uk/brokers/vanguard/#a-reversed-purchase-or-disposal",
             )
 
