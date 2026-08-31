@@ -9,13 +9,16 @@ repo_name = "cgt-calc/capital-gains-calculator"
 edit_uri = "edit/main/docs/"
 
 nav = [
-  { "Home" = "index.md" },
-  { "Getting started" = [
-    { "Installation" = "installation.md" },
-    { "Generate a report" = "usage.md" },
-    { "Docker" = "docker.md" },
+  { "Home" = [
+    { "Home" = "index.md" },
+    { "Getting started" = [
+      { "Installation" = "installation.md" },
+      { "Generate a report" = "usage.md" },
+      { "Docker" = "docker.md" },
+    ] },
+    { "Privacy & disclaimer" = "privacy.md" },
   ] },
-  { "Input data" = [
+  { "Your data" = [
     { "Brokers" = [
       "brokers/index.md",
       { "Charles Schwab" = "brokers/schwab.md" },
@@ -31,11 +34,10 @@ nav = [
     ] },
     { "Offshore funds (ERI)" = "offshore-funds.md" },
     { "Custom ERI data" = "custom-eri-data.md" },
-    { "Extra data and options" = "configuration.md" },
+    { "Extra data and options" = "extra-data-and-options.md" },
   ] },
-  { "Privacy & disclaimer" = "privacy.md" },
   { "Development" = [
-    { "Contributing" = "development/index.md" },
+    { "Contributing" = "development/contributing.md" },
     { "Adding a broker" = "development/adding-a-broker.md" },
     { "Contributing ERI data" = "development/eri-data.md" },
     { "Release process" = "development/releasing.md" },
@@ -51,15 +53,15 @@ logo = "assets/logo.svg"
 favicon = "assets/favicon.png"
 features = [
   "content.action.edit",
-  "content.action.view",
   "content.code.copy",
   "content.tooltips",
   "navigation.footer",
+  "navigation.expand",
   "navigation.indexes",
   "navigation.instant",
   "navigation.instant.prefetch",
   "navigation.path",
-  "navigation.sections",
+  "navigation.tabs",
   "navigation.top",
   "navigation.tracking",
   "search.highlight",
