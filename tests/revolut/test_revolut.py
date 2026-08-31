@@ -1,7 +1,7 @@
 """Test Revolut support."""
 
 import csv
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 import logging
 from pathlib import Path
@@ -341,3 +341,165 @@ def test_read_revolut_transactions_unknown_action(tmp_path: Path) -> None:
 
     with pytest.raises(ParsingError, match=", row 2: Unknown action: SPIN-OFF"):
         RevolutParser().load_from_file(path)
+
+
+def test_read_revolut_transactions_keep_the_exported_instant(tmp_path: Path) -> None:
+    """The export times every row, and the time is what orders a busy day."""
+    path = _write_csv(
+        tmp_path, [_default_row({RevolutColumn.DATE: "2021-11-02T12:34:56.789012Z"})]
+    )
+
+    (transaction,) = RevolutParser().load_from_file(path)
+
+    assert transaction.source is not None
+    assert transaction.source.timestamp == datetime(
+        2021, 11, 2, 12, 34, 56, 789012, tzinfo=UTC
+    )
+    # And the line the row came from is still recorded next to it.
+    assert transaction.source.row == 2
+
+
+def test_read_revolut_transactions_order_across_the_autumn_clock_change(
+    tmp_path: Path,
+) -> None:
+    """Instants are kept in UTC, where the clocks going back cannot reorder them.
+
+    Two aware datetimes sharing one tzinfo are compared by their wall clocks,
+    ignoring `fold`. Stated in London the earlier of these reads as 01:30 BST
+    and the later as 01:15 GMT, so keeping them in UK time would put the
+    45 minutes between them the wrong way round.
+    """
+    path = _write_csv(
+        tmp_path,
+        [
+            _default_row({RevolutColumn.DATE: "2026-10-25T00:30:00.000000Z"}),
+            _default_row({RevolutColumn.DATE: "2026-10-25T01:15:00.000000Z"}),
+        ],
+    )
+
+    earlier, later = RevolutParser().load_from_file(path)
+
+    assert earlier.source is not None
+    assert later.source is not None
+    assert earlier.source.timestamp is not None
+    assert later.source.timestamp is not None
+    assert earlier.source.timestamp < later.source.timestamp
+    # And both fell on the same UK day, which is what the tax year counts.
+    assert earlier.date == later.date == date(2026, 10, 25)
+
+
+TOP_UP = {
+    RevolutColumn.DATE: "2021-01-04T10:00:00.000000Z",
+    RevolutColumn.TICKER: "",
+    RevolutColumn.ACTION: "CASH TOP-UP",
+    RevolutColumn.QUANTITY: "",
+    RevolutColumn.PRICE_PER_SHARE: "",
+    RevolutColumn.TOTAL_AMOUNT: "USD 20000",
+}
+OPENING_BUY = {
+    RevolutColumn.DATE: "2021-01-04T14:39:38.000000Z",
+    RevolutColumn.TICKER: "NVDA",
+    RevolutColumn.ACTION: "BUY - MARKET",
+    RevolutColumn.QUANTITY: "10",
+    RevolutColumn.PRICE_PER_SHARE: "USD 100",
+    RevolutColumn.TOTAL_AMOUNT: "USD 1000",
+}
+# NVIDIA's four-for-one split: ten shares became forty on 20 July 2021.
+SPLIT = {
+    RevolutColumn.DATE: "2021-07-20T10:34:52.000000Z",
+    RevolutColumn.TICKER: "NVDA",
+    RevolutColumn.ACTION: "STOCK SPLIT",
+    RevolutColumn.QUANTITY: "30",
+    RevolutColumn.PRICE_PER_SHARE: "",
+    RevolutColumn.TOTAL_AMOUNT: "USD 0",
+}
+
+
+def test_run_with_a_trade_after_a_same_day_split(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> None:
+    """A sale booked after the split is counted in the units it left behind.
+
+    The holding had already been restated when Revolut wrote the row, so the
+    eight shares sold are eight of the forty. Only the exported times say so,
+    and a run that discarded them would refuse the day.
+    """
+    path = _write_csv(
+        tmp_path,
+        [
+            _default_row(TOP_UP),
+            _default_row(OPENING_BUY),
+            _default_row(SPLIT),
+            _default_row(
+                {
+                    RevolutColumn.DATE: "2021-07-20T14:00:00.000000Z",
+                    RevolutColumn.TICKER: "NVDA",
+                    RevolutColumn.ACTION: "SELL - MARKET",
+                    RevolutColumn.QUANTITY: "8",
+                    RevolutColumn.PRICE_PER_SHARE: "USD 25",
+                    RevolutColumn.TOTAL_AMOUNT: "USD 200",
+                }
+            ),
+        ],
+    )
+    cmd = build_cmd(
+        "--year",
+        "2021",
+        "--revolut-file",
+        str(path),
+        "--output",
+        report_path(request),
+    )
+
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    # Ten shares became forty, and eight of those forty were sold.
+    assert "NVDA: 32.00" in result.stdout
+
+
+def test_run_with_a_trade_before_a_same_day_split_is_refused(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> None:
+    """Revolut's split row says when it was booked, not when units changed.
+
+    A US share trades split-adjusted from the opening of the ex-date, which
+    need not be when Revolut posted the adjustment, so a purchase stamped
+    ahead of that row may have been made in either unit system. Nothing in
+    the export settles it, and guessing would rewrite the ratio derived for
+    the whole holding, so the day is refused.
+    """
+    path = _write_csv(
+        tmp_path,
+        [
+            _default_row(TOP_UP),
+            _default_row(OPENING_BUY),
+            _default_row(
+                {
+                    RevolutColumn.DATE: "2021-07-20T09:00:00.000000Z",
+                    RevolutColumn.TICKER: "NVDA",
+                    RevolutColumn.ACTION: "BUY - MARKET",
+                    RevolutColumn.QUANTITY: "2",
+                    RevolutColumn.PRICE_PER_SHARE: "USD 500",
+                    RevolutColumn.TOTAL_AMOUNT: "USD 1000",
+                }
+            ),
+            _default_row(SPLIT),
+        ],
+    )
+    cmd = build_cmd(
+        "--year",
+        "2021",
+        "--revolut-file",
+        str(path),
+        "--output",
+        report_path(request),
+    )
+
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+
+    assert result.returncode != 0
+    assert "cannot be placed either side" in result.stderr
+    assert "the instant on it is when the broker booked the entry" in result.stderr
+    # The export does state its times, so it must not be told to supply them.
+    assert "in one input that states times" not in result.stderr
