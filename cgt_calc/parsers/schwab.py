@@ -1032,8 +1032,14 @@ def _apply_option_assignment(
     assignment: _OptionAssignment,
     used_share_transactions: set[int],
     file: Path,
-) -> BrokerTransaction | None:
-    """Fold written-option premium into the assigned underlying shares."""
+) -> BrokerTransaction:
+    """Return the assigned shares, dated on the assignment itself.
+
+    Schwab posts the underlying trade on its settlement date, which can be
+    several days later and can fall in the next tax year. The disposal or
+    acquisition happens when the option is assigned, so the exported row
+    supplies the money and this supplies the date.
+    """
     transaction = assignment.transaction
     contract = transaction.option_contract
     assert contract is not None
@@ -1049,9 +1055,25 @@ def _apply_option_assignment(
     adjustments = _assignment_adjustments(assignment.allocations)
 
     if share_transaction is not None:
-        share_transaction.capital_adjustments.extend(adjustments)
         used_share_transactions.add(id(share_transaction))
-        return None
+        amount = share_transaction.amount
+        assert amount is not None
+        price = share_transaction.price
+        assert price is not None
+        return BrokerTransaction(
+            date=transaction.date,
+            action=share_transaction.action,
+            symbol=contract.underlying,
+            description=share_transaction.description,
+            quantity=assigned_shares,
+            price=price,
+            fees=share_transaction.fees,
+            amount=amount,
+            currency=share_transaction.currency,
+            broker=share_transaction.broker,
+            source=share_transaction.source,
+            capital_adjustments=adjustments,
+        )
 
     fees = transaction.fees
     gross_amount = assigned_shares * contract.strike
@@ -1072,6 +1094,7 @@ def _apply_option_assignment(
         amount=amount,
         currency=transaction.currency,
         broker=transaction.broker,
+        source=transaction.source,
         capital_adjustments=adjustments,
     )
 
@@ -1136,26 +1159,27 @@ def _reconcile_written_options(
             tax_data.taxable_quantity -= lot.assigned
 
     used_share_transactions: set[int] = set()
-    synthetic_share_transactions = [
-        synthetic
-        for assignment in assignments.values()
-        if (
-            synthetic := _apply_option_assignment(
-                transactions,
-                assignment,
-                used_share_transactions,
-                _row_file(assignment.transaction),
-            )
+    settlements = {
+        id(assignment.transaction): _apply_option_assignment(
+            transactions,
+            assignment,
+            used_share_transactions,
+            _row_file(assignment.transaction),
         )
-        is not None
-    ]
-    reconciled: list[BrokerTransaction] = [
-        transaction
-        for transaction in transactions
-        if transaction.action
-        not in {ActionType.OPTION_EXPIRY, ActionType.OPTION_ASSIGNMENT}
-    ]
-    reconciled.extend(synthetic_share_transactions)
+        for assignment in assignments.values()
+    }
+
+    # The assigned shares take the place of the assignment row, so they keep
+    # the position the outcome had in the history rather than landing after
+    # every other row of the export.
+    reconciled: list[BrokerTransaction] = []
+    for transaction in transactions:
+        if id(transaction) in used_share_transactions:
+            continue
+        if transaction.action is ActionType.OPTION_EXPIRY:
+            continue
+        settlement = settlements.get(id(transaction))
+        reconciled.append(settlement if settlement is not None else transaction)
     return reconciled
 
 

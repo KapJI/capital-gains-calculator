@@ -262,3 +262,35 @@ def test_written_option_is_rendered_as_an_option_grant(tmp_path: Path) -> None:
     assert "Disposal 1: grant of 1" in rendered
     assert "META 2024-05-17 500 call option contract" in rendered
     assert "does not change the Section 104 holding" in rendered
+
+
+def test_later_posted_assignment_share_row_keeps_the_assignment_date() -> None:
+    """Schwab settles the shares days later, in a possibly later tax year."""
+    transactions = _read(
+        "04/07/2025,Sell,META,META PLATFORMS INC,$100.00,100,,$10000.00",
+        "04/04/2025,Assigned,META 04/04/2025 100.00 C,Assignment,,1,,",
+        "04/01/2025,Sell to Open,META 04/04/2025 100.00 C,Open,$1.00,1,$0.65,$99.35",
+        "03/01/2025,Buy,META,META PLATFORMS INC,$90.00,100,,-$9000.00",
+    )
+    sales = [row for row in transactions if row.action is ActionType.SELL]
+
+    assert len(sales) == 1
+    assert sales[0].date == datetime.date(2025, 4, 4)
+    assert sales[0].amount == Decimal("10000.00")
+
+
+def test_assignment_settled_after_5_april_stays_in_its_own_tax_year() -> None:
+    """The disposal belongs to the year the option was assigned in."""
+    report = _report(
+        [
+            "04/07/2025,Sell,META,META PLATFORMS INC,$100.00,100,,$10000.00",
+            "04/04/2025,Assigned,META 04/04/2025 100.00 C,Assignment,,1,,",
+            "04/01/2025,Sell to Open,META 04/04/2025 100.00 C,Open,$1.00,1,$0.65,$99.35",
+            "03/01/2025,Buy,META,META PLATFORMS INC,$90.00,100,,-$9000.00",
+        ]
+    )
+
+    assert report.disposal_count == 1
+    assert report.disposal_proceeds == Decimal("10100.00")
+    assert report.allowable_costs == Decimal("9000.65")
+    assert all(entry.quantity == 0 for entry in report.portfolio)
