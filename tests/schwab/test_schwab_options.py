@@ -374,6 +374,37 @@ def test_contract_not_delivering_100_shares_is_refused(symbol: str) -> None:
         _read(f"05/01/2024,Sell to Open,{symbol},Open,$1.00,1,$0.65,$99.35")
 
 
+@pytest.mark.parametrize(
+    ("row", "message"),
+    [
+        (
+            "05/01/2024,Sell to Open,META 05/17/2024 500.00 C,Open,$1.00,1.5,$0.65,$149.35",
+            "Invalid contract quantity",
+        ),
+        (
+            "05/01/2024,Sell to Open,META 05/17/2024 500.00 C,Open,$1.00,1,-$0.65,$100.65",
+            "Invalid fees",
+        ),
+        (
+            "05/01/2024,Sell to Open,META 05/17/2024 500.00 C,Open,$1.00,1,$0.65,(99.35)",
+            "expected non-negative premium proceeds",
+        ),
+        (
+            "05/17/2024,Expired,META 05/17/2024 500.00 C,Expiration,,1,,$5.00",
+            "expected no price, fees or cash amount",
+        ),
+        (
+            "05/01/2024,Sell to Open,META 05/17/2024 500.00 C,Open,$1.00,1,$0.65,$50.00",
+            "Option premium does not match",
+        ),
+    ],
+)
+def test_malformed_option_row_is_refused(row: str, message: str) -> None:
+    """A row whose cash does not describe the contract stops the import."""
+    with pytest.raises(ParsingError, match=message):
+        _read(row)
+
+
 def test_schwab_options_run_from_csv_to_report(tmp_path: Path) -> None:
     """The whole path: a real export, the CLI, and the rendered report."""
     output = tmp_path / "schwab-options.pdf"
