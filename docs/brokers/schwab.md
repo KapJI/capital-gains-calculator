@@ -222,9 +222,10 @@ transaction on the assignment instead, and uses the exported settlement row's am
 than one exported row could be that settlement, or where the only candidate does not reconcile with
 the strike, quantity and fees, the import stops rather than guess.
 
-Purchased options (`Buy to Open`, `Sell to Close`, `Exercised`), cash-settled index options and
-adjusted contracts that do not deliver 100 shares are not supported. The parser stops with an
-explicit error for those rows instead of treating contracts as shares. Box spreads are not
+Purchased options (`Buy to Open`, `Sell to Close`, `Exercised`) are not supported. Neither are
+cash-settled index options, nor adjusted contracts, whose root carries a numeric suffix such as
+`AAPL1` and which no longer deliver 100 shares. The parser stops with an explicit error for those
+rows instead of treating contracts as shares. Box spreads are not
 recognised as financing: their legs are read as ordinary written and purchased options, and the
 purchased legs stop the import.
 

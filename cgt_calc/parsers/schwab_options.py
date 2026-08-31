@@ -41,16 +41,23 @@ if TYPE_CHECKING:
 
 OPTION_ASSIGNMENT_SHARES: Final = Decimal(100)
 OPTION_ASSIGNMENT_MATCH_DAYS: Final = 3
+# Roots whose options settle in cash rather than delivering shares. A floor,
+# not a claim to recognise every index: it refuses the ones a symbol alone can
+# identify, and anything else that does not deliver 100 shares fails later,
+# where the assignment cannot be reconciled with a stock row.
+CASH_SETTLED_ROOTS: Final = frozenset(
+    {"DJX", "NDX", "OEX", "RUT", "SPX", "SPXW", "VIX", "XSP"}
+)
 
 _HUMAN_OPTION_SYMBOL: Final = re.compile(
-    r"^\s*(?P<underlying>[A-Z][A-Z0-9.\-]{0,9})\s+"
+    r"^\s*(?P<underlying>[A-Z][A-Z.\-]{0,9})\s+"
     r"(?P<expiry>\d{2}/\d{2}/\d{4})\s+"
     r"\$?(?P<strike>\d+(?:\.\d+)?)\s+"
     r"(?P<option_type>[CP])\s*$",
     re.IGNORECASE,
 )
 _OCC_OPTION_SYMBOL: Final = re.compile(
-    r"^\s*(?P<underlying>[A-Z][A-Z0-9.\-]{0,9})\s*"
+    r"^\s*(?P<underlying>[A-Z][A-Z.\-]{0,9})\s+"
     r"(?P<expiry>\d{6})(?P<option_type>[CP])"
     r"(?P<strike>\d{8})\s*$",
     re.IGNORECASE,
@@ -83,6 +90,9 @@ def parse_option_contract(symbol: str) -> OptionContract | None:
             else OptionType.PUT
         )
         underlying = occ_match.group("underlying").upper()
+
+    if underlying in CASH_SETTLED_ROOTS:
+        return None
 
     return OptionContract(
         underlying=TICKER_RENAMES.get(underlying, underlying),

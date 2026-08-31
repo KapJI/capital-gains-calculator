@@ -351,3 +351,20 @@ def test_option_opened_and_closed_in_different_export_files() -> None:
     ]
     assert len(accounts) == 1
     assert None not in accounts
+
+
+@pytest.mark.parametrize(
+    "symbol",
+    [
+        "AAPL1 05/17/2024 100.00 C",
+        "META1  240517C00500000",
+        "SPX 05/17/2024 5000.00 C",
+        "SPXW  240517C05000000",
+    ],
+)
+def test_contract_not_delivering_100_shares_is_refused(symbol: str) -> None:
+    """An adjusted or cash-settled contract is not 100 shares of anything."""
+    assert parse_option_contract(symbol) is None
+
+    with pytest.raises(ParsingError, match="Cannot parse the option contract"):
+        _read(f"05/01/2024,Sell to Open,{symbol},Open,$1.00,1,$0.65,$99.35")
