@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
@@ -22,6 +22,7 @@ from cgt_calc.model import (
     Isin,
     TransactionSource,
 )
+from cgt_calc.util import parse_decimal
 
 from .base_parsers import BaseSingleFileParser
 
@@ -89,13 +90,7 @@ IGNORED_TYPES: Final[frozenset[str]] = frozenset(
 
 def _parse_decimal(row: dict[str, str], column: FreetradeColumn) -> Decimal:
     """Parse Decimal value for column, raising ValueError with context on failure."""
-    value = row[column]
-    try:
-        return Decimal(value)
-    except InvalidOperation as err:
-        raise ValueError(
-            f"Invalid decimal in column '{column.value}': {value!r}"
-        ) from err
+    return parse_decimal(row[column], f"column '{column.value}'")
 
 
 def _parse_optional_decimal(row: dict[str, str], column: FreetradeColumn) -> Decimal:

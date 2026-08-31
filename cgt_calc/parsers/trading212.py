@@ -6,7 +6,7 @@ from collections import defaultdict
 import csv
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from enum import StrEnum
 from itertools import combinations
 import logging
@@ -30,7 +30,7 @@ from cgt_calc.stock_splits import (
     quantity_sign,
     recover_ratio,
 )
-from cgt_calc.util import approx_equal, approx_equal_scaled
+from cgt_calc.util import approx_equal, approx_equal_scaled, parse_decimal
 
 from .base_parsers import BaseDirParser
 
@@ -229,16 +229,7 @@ def decimal_or_none(
     value = row.get(column)
     if value is None or value in {"", "Not available"}:
         return None
-    try:
-        parsed = Decimal(value)
-    except InvalidOperation as err:
-        raise ValueError(f"Invalid decimal in {column.value}: {value!r}") from err
-    # "NaN" and "Infinity" parse as decimals but are not amounts. Refused
-    # here, with the row, rather than at the first arithmetic that touches
-    # them, which raises a bare decimal exception with no context at all.
-    if not parsed.is_finite():
-        raise ValueError(f"Invalid decimal in {column.value}: {value!r}")
-    return parsed
+    return parse_decimal(value, column.value)
 
 
 def datetime_from_str(value: str) -> datetime:

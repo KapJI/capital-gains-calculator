@@ -69,6 +69,11 @@ def test_parse_valid_row() -> None:
         (RequiredTransactionsColumn.QUANTITY, "not-a-number"),
         (RequiredTransactionsColumn.FEES_AND_COMM, "$bogus"),
         (RequiredTransactionsColumn.AMOUNT, "$invalid"),
+        # "NaN" and "Infinity" parse as decimals but are not amounts.
+        (RequiredTransactionsColumn.PRICE, "NaN"),
+        (RequiredTransactionsColumn.QUANTITY, "Infinity"),
+        (RequiredTransactionsColumn.FEES_AND_COMM, "NaN"),
+        (RequiredTransactionsColumn.AMOUNT, "-Infinity"),
     ],
 )
 def test_parse_row_invalid_decimal_raises(

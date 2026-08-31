@@ -398,11 +398,6 @@ def test_invalid_cash_merger_pair() -> None:
         ('"-$100.00"', "-10", "", ""),
         # A positive quantity is not shares leaving the account.
         ('"$100.00"', "10", "", ""),
-        # Non-finite values would silently poison the derived price.
-        ("NaN", "-10", "", ""),
-        ('"$100.00"', "NaN", "", ""),
-        # Non-finite fees would silently poison the combined fees.
-        ('"$100.00"', "-10", "", "NaN"),
         # A price on the adjustment row is not part of the format.
         ('"$100.00"', "-10", "5", ""),
     ],
@@ -426,9 +421,6 @@ def test_cash_merger_pair_with_invalid_values(
     [
         ('"-$100.00"', "-10", ""),
         ('"$100.00"', "10", ""),
-        ("NaN", "-10", ""),
-        ('"$100.00"', "NaN", ""),
-        ('"$100.00"', "-10", "NaN"),
     ],
 )
 def test_full_redemption_pair_with_invalid_values(

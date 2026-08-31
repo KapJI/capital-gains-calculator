@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import datetime
-from decimal import Decimal, InvalidOperation
 from importlib import resources
 from typing import TYPE_CHECKING, Final, TextIO, override
 
@@ -19,6 +18,7 @@ from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import CurrencyCode, Isin, TransactionSource
 from cgt_calc.parsers.base_parsers import BaseSingleFileParser
 from cgt_calc.resources import RESOURCES_PACKAGE
+from cgt_calc.util import parse_decimal
 
 from .model import ERITransaction
 
@@ -59,8 +59,8 @@ class ERIRaw(ERITransaction):
             )
         price_str = row["Excess of reporting income over distribution"]
         try:
-            price = Decimal(price_str)
-        except (InvalidOperation, ValueError) as err:
+            price = parse_decimal(price_str, "ERI data")
+        except ValueError as err:
             raise ParsingError(
                 file, f"Invalid decimal '{price_str}' in ERI data"
             ) from err

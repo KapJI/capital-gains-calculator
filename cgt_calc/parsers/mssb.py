@@ -9,13 +9,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
+from cgt_calc.util import parse_decimal
 
 from .base_parsers import BaseDirParser, StandardCSVParser
 
@@ -91,14 +92,7 @@ STOCK_SPLIT_INFO = [
 def _parse_decimal(row: dict[str, str], column: StrEnum) -> Decimal:
     """Parse a decimal from the given row, annotating errors with column context."""
 
-    value = row[column]
-    cleaned = value.replace(",", "").replace("$", "")
-    try:
-        return Decimal(cleaned)
-    except InvalidOperation as err:
-        raise ValueError(
-            f"Invalid decimal in column '{column.value}': {value!r}"
-        ) from err
+    return parse_decimal(row[column], f"column '{column.value}'", strip=",$")
 
 
 class MSSBParser(

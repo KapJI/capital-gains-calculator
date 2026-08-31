@@ -7,7 +7,7 @@ from collections import OrderedDict, defaultdict
 import csv
 from dataclasses import dataclass, replace
 import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from enum import StrEnum
 import itertools
 import logging
@@ -37,6 +37,7 @@ from cgt_calc.model import (
     TransactionSource,
 )
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
+from cgt_calc.util import parse_decimal
 
 from .base_parsers import BaseSingleFileParser, next_account_token
 
@@ -182,24 +183,17 @@ def action_from_str(label: str, file: Path) -> ActionType:
     raise ParsingError(file, f"Unknown action: '{label}'")
 
 
-def parse_decimal(
+def _parse_decimal(
     row: OrderedDict[str, str],
     column: RequiredTransactionsColumn,
 ) -> Decimal | None:
     """Convert Schwab CSV column into Decimal, allowing optional blanks."""
 
     raw_value = row[column]
-
-    normalized = raw_value.replace("$", "").replace(",", "").strip()
-    if normalized == "":
+    if raw_value.strip(" $,") == "":
         return None
 
-    try:
-        return Decimal(normalized)
-    except InvalidOperation as err:
-        raise ValueError(
-            f"Invalid decimal in column '{column.value}': {raw_value!r}"
-        ) from err
+    return parse_decimal(raw_value, f"column '{column.value}'", strip="$,")
 
 
 class SchwabTransaction(BrokerTransaction):
@@ -246,12 +240,12 @@ class SchwabTransaction(BrokerTransaction):
         ):
             # Withholding on account-level cash interest, not tied to a security.
             action = ActionType.INTEREST_TAX
-        price = parse_decimal(row_dict, RequiredTransactionsColumn.PRICE)
-        quantity = parse_decimal(row_dict, RequiredTransactionsColumn.QUANTITY)
-        fees = parse_decimal(
+        price = _parse_decimal(row_dict, RequiredTransactionsColumn.PRICE)
+        quantity = _parse_decimal(row_dict, RequiredTransactionsColumn.QUANTITY)
+        fees = _parse_decimal(
             row_dict, RequiredTransactionsColumn.FEES_AND_COMM
         ) or Decimal(0)
-        amount = parse_decimal(row_dict, RequiredTransactionsColumn.AMOUNT)
+        amount = _parse_decimal(row_dict, RequiredTransactionsColumn.AMOUNT)
 
         # Handle bonds/notes: CUSIP symbols have price per $100 face value
         price, fees = adjust_cusip_bond_price(symbol, price, quantity, amount, fees)
@@ -339,17 +333,13 @@ def _combine_cash_merger_pair(
     adjustment_quantity = cash_merger_adj.quantity
     if (
         amount is None
-        or not amount.is_finite()
         or amount < 0
         or cash_merger.quantity is not None
         or cash_merger.price is not None
         or adjustment_quantity is None
-        or not adjustment_quantity.is_finite()
         or adjustment_quantity >= 0
         or cash_merger_adj.amount is not None
         or cash_merger_adj.price is not None
-        or not cash_merger.fees.is_finite()
-        or not cash_merger_adj.fees.is_finite()
     ):
         raise ParsingError(
             transactions_file,
@@ -398,17 +388,13 @@ def _combine_full_redemption_pair(
     redemption_quantity = full_redemption.quantity
     if (
         amount is None
-        or not amount.is_finite()
         or amount < 0
         or full_redemption_adj.quantity is not None
         or full_redemption_adj.price is not None
         or redemption_quantity is None
-        or not redemption_quantity.is_finite()
         or redemption_quantity >= 0
         or full_redemption.price is not None
         or full_redemption.amount is not None
-        or not full_redemption_adj.fees.is_finite()
-        or not full_redemption.fees.is_finite()
     ):
         raise ParsingError(
             transactions_file,
