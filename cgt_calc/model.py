@@ -223,10 +223,15 @@ class OptionContract:
 
     @override
     def __str__(self) -> str:
-        """Return a compact, human-readable contract name."""
+        """Name the contract the way a person would say it.
+
+        This is what the report calls the asset, so it says in words what
+        kind of thing it is: a bare "META 2024-05-17 500 call" reads like a
+        share of something.
+        """
         return (
-            f"{self.underlying} {self.expiry.isoformat()} "
-            f"{strip_zeros(self.strike)} {self.option_type.value}"
+            f"{self.underlying} {self.option_type.value} option expiring "
+            f"{self.expiry.isoformat()} at a strike of {strip_zeros(self.strike)}"
         )
 
 

@@ -115,7 +115,7 @@ def test_written_call_bought_to_close_reduces_grant_gain() -> None:
     assert report.allowable_costs == Decimal("11.30")
     assert report.capital_gain == Decimal("18.70")
     entries = report.calculation_log[datetime.date(2024, 5, 1)][
-        "option$META 2024-05-17 500 call"
+        "option$META call option expiring 2024-05-17 at a strike of 500"
     ]
     assert entries[0].rule_type is RuleType.OPTION
     assert entries[0].quantity == Decimal(1)
@@ -261,7 +261,8 @@ def test_written_option_is_rendered_as_an_option_grant(tmp_path: Path) -> None:
 
     rendered = output.with_suffix(".tex").read_text(encoding="utf-8")
     assert "Disposal 1: grant of 1" in rendered
-    assert "META 2024-05-17 500 call option contract" in rendered
+    assert "contract of the META call option" in rendered
+    assert "expiring 2024-05-17 at a strike of 500" in rendered
     assert "does not change the Section 104 holding" in rendered
 
 

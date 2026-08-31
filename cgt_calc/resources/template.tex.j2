@@ -68,7 +68,7 @@
     \BLOCK{ if is_option }
         \subsubsection*{
             Disposal \VAR{ disposal_count.value }: grant of \VAR{ strip_zeros(overall_quantity) }
-            \VAR{ symbol } option contract\BLOCK{ if overall_quantity != 1 }s\BLOCK{ endif }
+            contract\BLOCK{ if overall_quantity != 1 }s\BLOCK{ endif } of the \VAR{ symbol }
             for £\VAR{ "{:,}".format(overall_disposed) }
         }
     \BLOCK{ else }
