@@ -43,7 +43,7 @@ from cgt_calc.model import (
     WrittenOptionTaxData,
 )
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
-from cgt_calc.util import approx_equal, parse_decimal
+from cgt_calc.util import approx_equal, parse_decimal, strip_zeros
 
 from .base_parsers import BaseSingleFileParser, next_account_token
 
@@ -992,6 +992,24 @@ def _assignment_adjustments(
     return adjustments
 
 
+def _settles_assignment(
+    candidate: SchwabTransaction,
+    contract: OptionContract,
+    assigned_shares: Decimal,
+) -> bool:
+    """Whether a candidate row's cash matches delivery at the strike."""
+    amount = candidate.amount
+    if candidate.price != contract.strike or amount is None:
+        return False
+    gross_amount = assigned_shares * contract.strike
+    expected = (
+        gross_amount - candidate.fees
+        if candidate.action is ActionType.SELL
+        else -(gross_amount + candidate.fees)
+    )
+    return approx_equal(amount, expected)
+
+
 def _find_assignment_share_transaction(
     transactions: list[SchwabTransaction],
     assignment: SchwabTransaction,
@@ -1013,18 +1031,35 @@ def _find_assignment_share_transaction(
         and transaction.action is expected_action
         and transaction.symbol == contract.underlying
         and transaction.quantity == assigned_shares
-        and transaction.price == contract.strike
         and assignment.date
         <= transaction.date
         <= assignment.date + datetime.timedelta(days=OPTION_ASSIGNMENT_MATCH_DAYS)
     ]
-    if len(candidates) > 1:
+    settling = [
+        candidate
+        for candidate in candidates
+        if _settles_assignment(candidate, contract, assigned_shares)
+    ]
+    if len(settling) > 1:
         raise ParsingError(
             file,
             f"Cannot identify which {contract.underlying} stock transaction "
             f"belongs to the assignment of {contract} on {assignment.date}",
         )
-    return candidates[0] if candidates else None
+    if not settling and candidates:
+        # Falling through to a synthesized row here would leave this one in
+        # the history as an unrelated trade, disposing of the same shares
+        # twice.
+        raise ParsingError(
+            file,
+            f"A {contract.underlying} stock transaction on {candidates[0].date} "
+            f"looks like the settlement of the assignment of {contract} on "
+            f"{assignment.date}, but its price and amount do not reconcile "
+            f"with delivery of {assigned_shares} shares at "
+            f"{strip_zeros(contract.strike)}. Correct the row, or remove the "
+            "option rows and record the trade by hand.",
+        )
+    return settling[0] if settling else None
 
 
 def _apply_option_assignment(

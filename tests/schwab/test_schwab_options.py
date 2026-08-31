@@ -294,3 +294,30 @@ def test_assignment_settled_after_5_april_stays_in_its_own_tax_year() -> None:
     assert report.disposal_proceeds == Decimal("10100.00")
     assert report.allowable_costs == Decimal("9000.65")
     assert all(entry.quantity == 0 for entry in report.portfolio)
+
+
+def test_two_candidate_share_rows_are_refused() -> None:
+    """Two rows could be the settlement, and guessing would pick one."""
+    with pytest.raises(ParsingError, match="Cannot identify which META"):
+        _read(
+            "05/17/2024,Sell,META,META PLATFORMS INC,$350.00,100,,$35000.00",
+            "05/17/2024,Sell,META,META PLATFORMS INC,$350.00,100,,$35000.00",
+            "05/17/2024,Assigned,META 05/17/2024 350.00 C,Assignment,,1,,",
+            "05/02/2024,Sell to Open,META 05/17/2024 350.00 C,Open,$2.00,1,$0.65,$199.35",
+        )
+
+
+def test_plausible_but_unreconciled_share_row_is_refused() -> None:
+    """A near-match must stop, not be replaced by an invented second row.
+
+    Same symbol, action, quantity and settlement window, but the amount does
+    not add up to the strike. Treating it as an unrelated trade leaves it in
+    the history beside the shares invented for the assignment, disposing of
+    the same 100 shares twice.
+    """
+    with pytest.raises(ParsingError, match="do not reconcile"):
+        _read(
+            "05/17/2024,Sell,META,META PLATFORMS INC,$350.00,100,,$34000.00",
+            "05/17/2024,Assigned,META 05/17/2024 350.00 C,Assignment,,1,,",
+            "05/02/2024,Sell to Open,META 05/17/2024 350.00 C,Open,$2.00,1,$0.65,$199.35",
+        )
