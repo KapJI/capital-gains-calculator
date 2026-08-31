@@ -780,3 +780,27 @@ def test_autoconvert_gbp_dividend_with_foreign_tax_reports_no_treaty(
         "Source country of the GBP dividend is unknown" in record.message
         for record in caplog.records
     )
+
+
+def test_autoconvert_converts_withholding_at_its_dividend_date() -> None:
+    """Withholding posted in a later rate month still converts at the dividend.
+
+    The report states the tax at the rate of the dividend it was taken from,
+    so combining the rows at the date they happened to post would convert the
+    GBP part at one rate and read the total back at another.
+    """
+    tax_date = datetime.date(2024, 7, 1)
+    transactions = [
+        _dividend_at(DIVIDEND_DATE, 100, "A", USD),
+        _tax_in_currency(tax_date, -10, USD, "A"),
+        _tax_in_currency(tax_date, -4, GBP, "A"),
+    ]
+
+    assert _reported(
+        transactions,
+        autoconvert_currency=True,
+        gbp_prices={
+            DIVIDEND_DATE: {USD: Decimal("1.25")},
+            tax_date: {USD: Decimal(2)},
+        },
+    ) == [(DIVIDEND_DATE, Decimal(80), Decimal(-12), True)]

@@ -251,7 +251,7 @@ class IncomeProcessor:
         """
         matched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         unmatched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
-        for (broker, symbol, date), tax in self.state.dividend_tax_list.items():
+        for (broker, symbol, date, _), tax in self.state.dividend_tax_list.items():
             if not tax.amount:
                 continue
             candidates = self._dividends_for_tax(
