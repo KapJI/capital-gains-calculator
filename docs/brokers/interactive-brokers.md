@@ -64,9 +64,10 @@ The importer recognises these literal values from the CSV's `Transaction Type` c
 | `Adjustment`                  | Cash-balance adjustments such as `FX Translations P&L`       |
 | `Forex Trade Component`       | The base-currency net of a currency conversion; balance only |
 
-For a GBP-base account, IBKR reports gross amounts, commissions and net amounts in GBP. When the CSV
-also supplies `Price Currency` and `Exchange Rate`, cgt-calc converts a foreign-currency unit price
-to GBP before calculating the acquisition or disposal.
+For a GBP-base account, IBKR reports gross amounts, commissions and net amounts in GBP, so every row
+is recorded in GBP whatever the security is priced in. `Price Currency` describes the unit price
+alone: when the CSV also supplies an `Exchange Rate`, cgt-calc converts a foreign-currency unit
+price to GBP before calculating the acquisition or disposal.
 
 cgt-calc does not treat a currency conversion as a disposal. It applies the `Forex Trade Component`
 Net Amount to the cash balance and reports no gain or loss on the conversion itself.
@@ -100,6 +101,17 @@ treaty applies.
 
 The CSV says that the account's base currency is not GBP. Changing the text in the file would not
 convert any amounts, so use a GBP-base account export instead.
+
+### `Price is in ... but the Exchange Rate column is missing or empty`
+
+A `Buy` or `Sell` row prices the trade in a currency other than GBP but gives no rate to convert it
+with, while its gross amount, commission and net amount are in GBP. The price cannot be checked
+against the amount, and a guessed rate would put a wrong cost or proceeds in the report, so the
+import stops. Re-export the statement with the `Exchange Rate` column filled in for that row — a
+`Buy` or `Sell` always needs a price, so clearing `Price` and `Price Currency` only trades this
+error for a missing-price one. Other row types are unaffected: only a trade's price feeds the
+calculation, so a dividend, fee or interest row keeps a foreign, unconverted `Price Currency` rather
+than being refused over a price nothing reads.
 
 ### `Couldn't find Transaction History header`
 
