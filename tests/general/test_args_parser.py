@@ -19,6 +19,7 @@ from cgt_calc.args_parser import (
     create_parser,
     get_last_elapsed_tax_year,
     reject_duplicate_stdin,
+    reject_schwab_file_and_dir,
     resolve_reporting_period,
 )
 from cgt_calc.args_validators import (
@@ -210,6 +211,11 @@ def test_output_rejects_whitespace_value() -> None:
             "schwab_equity_award_json",
             "schwab_equity_award.json",
         ),
+        (
+            "--schwab-equity-award-csv",
+            "schwab_equity_award_csv",
+            "schwab_equity_award.csv",
+        ),
         ("--vanguard-file", "vanguard_file", "vanguard.csv"),
     ],
 )
@@ -234,6 +240,7 @@ def test_broker_file_arguments_accept_existing_path(
         ("--schwab-file", "schwab_file"),
         ("--schwab-award-file", "schwab_award_file"),
         ("--schwab-equity-award-json", "schwab_equity_award_json"),
+        ("--schwab-equity-award-csv", "schwab_equity_award_csv"),
         ("--vanguard-file", "vanguard_file"),
     ],
 )
@@ -985,3 +992,27 @@ def test_autoconvert_currency_is_opt_in() -> None:
 
     assert parser.parse_args([]).autoconvert_currency is False
     assert parser.parse_args(["--autoconvert-currency"]).autoconvert_currency is True
+
+
+def test_reject_schwab_file_and_dir(tmp_path: Path) -> None:
+    """Test that using both --schwab-file and --schwab-dir exits with an error."""
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("Date,Action\n", encoding="utf-8")
+    parser = create_parser()
+    args = parser.parse_args(
+        ["--schwab-file", str(csv_file), "--schwab-dir", str(tmp_path)]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        reject_schwab_file_and_dir(parser, args)
+
+    assert exc_info.value.code == 2
+
+
+def test_schwab_file_alone_does_not_raise(tmp_path: Path) -> None:
+    """Test that using --schwab-file alone passes validation."""
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("Date,Action\n", encoding="utf-8")
+    parser = create_parser()
+    args = parser.parse_args(["--schwab-file", str(csv_file)])
+    reject_schwab_file_and_dir(parser, args)

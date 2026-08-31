@@ -5,7 +5,7 @@
 # --dialect gb even when added to .harper-dictionary.txt.
 
 # "Equity Award Center" is Schwab's product name.
-^schwab_equity_award_json\.py:.*`Center`
+^schwab(_equity_award_json)?\.(py|md):.*`Center`
 # NO_COLOR is a standard environment variable (https://no-color.org/).
 ^logging\.py:.*`COLOR`
 # "a share that fell that far" is correct; the FeelFell typo rule misfires.

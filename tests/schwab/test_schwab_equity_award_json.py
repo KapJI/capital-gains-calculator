@@ -1,7 +1,8 @@
-"""Unit tests on schwab_equity_award_json.py."""
+"""Unit tests on schwab_equity_award_json.py supporting both JSON and CSV formats."""
 
 from __future__ import annotations
 
+import csv
 import datetime
 from decimal import Decimal
 import io
@@ -13,7 +14,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers import schwab_equity_award_json
 from tests.utils import build_cmd, report_path, stderr_alerts
@@ -22,6 +23,77 @@ if TYPE_CHECKING:
     from cgt_calc.parsers.schwab_equity_award_json import SchwabAwardTransaction
 
 # ruff: noqa: SLF001 "Private member accessed"
+
+
+HEADER = [
+    "Date",
+    "Action",
+    "Symbol",
+    "Description",
+    "Quantity",
+    "FeesAndCommissions",
+    "DisbursementElection",
+    "Amount",
+    "Type",
+    "Shares",
+    "SalePrice",
+    "SubscriptionDate",
+    "SubscriptionFairMarketValue",
+    "PurchaseDate",
+    "PurchasePrice",
+    "PurchaseFairMarketValue",
+    "DispositionType",
+    "GrantId",
+    "VestDate",
+    "VestFairMarketValue",
+    "GrossProceeds",
+    "AwardDate",
+    "AwardId",
+    "NetSharesDeposited",
+    "SharesWithheld",
+    "SharesSold",
+    "SharesSoldWithheldForTaxes",
+    "TaxWithholdingMethod",
+]
+
+
+def _make_csv_row(
+    date: str = "",
+    action: str = "",
+    symbol: str = "",
+    description: str = "",
+    quantity: str = "",
+    fees: str = "",
+    election: str = "",
+    amount: str = "",
+    **detail_kwargs: str,
+) -> list[str]:
+    """Create a single CSV row with main headers and detail fields."""
+    row = [date, action, symbol, description, quantity, fees, election, amount]
+    row.extend(detail_kwargs.get(col, "") for col in HEADER[8:])
+    return row
+
+
+def _make_csv_text(rows: list[list[str]]) -> str:
+    """Create CSV text content with standard HEADER and given data rows."""
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(HEADER)
+    for r in rows:
+        writer.writerow(r)
+    return buf.getvalue()
+
+
+def _read_csv(content: str) -> list[SchwabAwardTransaction]:
+    """Parse Schwab equity award CSV from a string."""
+    parser = schwab_equity_award_json.SchwabEquityAwardsParser
+    return parser.read_transactions(io.StringIO(content), Path("awards.csv"))
+
+
+def _read_json(content: str) -> list[SchwabAwardTransaction]:
+    """Parse Schwab equity award JSON from a string."""
+    parser = schwab_equity_award_json.SchwabEquityAwardsParser
+    return parser.read_transactions(io.StringIO(content), Path("awards.json"))
 
 
 def test_decimal_from_str() -> None:
@@ -60,10 +132,7 @@ def test_decimal_from_number_or_str_empty_string() -> None:
 
 
 def test_decimal_from_number_or_str_float_custom_suffix() -> None:
-    """Test _decimal_from_number_or_str() on float.
-
-    With a custom suffix.
-    """
+    """Test _decimal_from_number_or_str() on float with custom suffix."""
     assert schwab_equity_award_json._decimal_from_number_or_str(
         {"keyMySuffix": Decimal("67.89")}, "key", "MySuffix"
     ) == Decimal("67.89")
@@ -78,6 +147,8 @@ def test_decimal_from_number_or_str_default() -> None:
 
 def test_schwab_transaction_v1() -> None:
     """Test read_schwab_equity_award_json_transactions() on v1 data."""
+    # Note that the CSV format was different when we had the v1 format,
+    # and we don't support the v1 CSV format. So we only test JSON here.
     transactions = (
         schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
             Path("tests/schwab/data/equity_award/schwab_equity_award_v1.json")
@@ -116,12 +187,11 @@ def test_schwab_transaction_v1() -> None:
     assert transactions[3].fees == Decimal("0.50")
 
 
-def test_schwab_transaction_v2() -> None:
-    """Test read_schwab_equity_award_json_transactions() on v2 data."""
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            Path("tests/schwab/data/equity_award/schwab_equity_award_v2.json")
-        )
+@pytest.mark.parametrize("ext", ["json", "csv"])
+def test_schwab_transaction_v2(ext: str) -> None:
+    """Test reading transactions on v2 JSON and CSV data."""
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        Path(f"tests/schwab/data/equity_award/schwab_equity_award_v2.{ext}")
     )
 
     i = 0
@@ -193,15 +263,11 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[i].broker == "Charles Schwab"
 
 
-def test_schwab_transaction_v2_rounding() -> None:
-    """Test read_schwab_equity_award_json_transactions() on v2_rounding data.
-
-    This tests 13 vesting events with 7 shares each, which are then sold.
-    """
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            Path("tests/schwab/data/equity_award/schwab_equity_award_v2_rounding.json")
-        )
+@pytest.mark.parametrize("ext", ["json", "csv"])
+def test_schwab_transaction_v2_rounding(ext: str) -> None:
+    """Test reading transactions on v2_rounding JSON and CSV data."""
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        Path(f"tests/schwab/data/equity_award/schwab_equity_award_v2_rounding.{ext}")
     )
 
     assert transactions[0].date == datetime.date(2020, 4, 24)
@@ -224,6 +290,37 @@ def test_schwab_transaction_v2_rounding() -> None:
         assert transactions[transaction_id].price == Decimal("123.45")
         assert transactions[transaction_id].fees == Decimal(0)
     assert num_vested == transactions[0].quantity
+
+
+def test_schwab_transaction_example_csv() -> None:
+    """Test reading example CSV exported from Schwab Equity Awards Center."""
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        Path("tests/schwab/data/equity_award/schwab_equity_award_v2.example.csv")
+    )
+    assert len(transactions) == 5
+
+    assert transactions[0].date == datetime.date(2025, 12, 15)
+    assert transactions[0].action == ActionType.DIVIDEND
+    assert transactions[0].amount == Decimal("3.25")
+
+    assert transactions[1].date == datetime.date(2025, 12, 15)
+    assert transactions[1].action == ActionType.DIVIDEND_TAX
+    assert transactions[1].amount == Decimal("-0.49")
+
+    assert transactions[2].date == datetime.date(2025, 12, 25)
+    assert transactions[2].action == ActionType.STOCK_ACTIVITY
+    assert transactions[2].quantity == Decimal("15.484")
+    assert transactions[2].price == Decimal("315.67")
+
+    assert transactions[3].date == datetime.date(2025, 12, 25)
+    assert transactions[3].action == ActionType.STOCK_ACTIVITY
+    assert transactions[3].quantity == Decimal("13.302")
+    assert transactions[3].price == Decimal("315.67")
+
+    assert transactions[4].date == datetime.date(2026, 1, 2)
+    assert transactions[4].action == ActionType.SELL
+    assert transactions[4].quantity == Decimal("13.302")
+    assert transactions[4].amount == Decimal("4255.31")
 
 
 def test_split_multiplier_google_boundary() -> None:
@@ -311,12 +408,16 @@ def test_action_from_str_unknown() -> None:
         schwab_equity_award_json.action_from_str("Dance", Path("awards.json"))
 
 
-def _read_json(
-    content: str,
-) -> list[SchwabAwardTransaction]:
-    """Parse Schwab equity award JSON from a string."""
-    parser = schwab_equity_award_json.SchwabEquityAwardsJSONParser
-    return parser.read_transactions(io.StringIO(content), Path("awards.json"))
+def test_read_transactions_empty_csv() -> None:
+    """Raise on empty CSV file."""
+    with pytest.raises(ParsingError, match="is empty"):
+        _read_csv("")
+
+
+def test_read_transactions_empty_json() -> None:
+    """Raise on empty JSON file."""
+    with pytest.raises(ParsingError, match="is empty"):
+        _read_json("")
 
 
 def test_read_transactions_invalid_json() -> None:
@@ -331,10 +432,31 @@ def test_read_transactions_unknown_top_level_field() -> None:
         _read_json('{"Unknown": []}')
 
 
-def test_read_transactions_transactions_not_a_list() -> None:
-    """Raise when the transactions field is not a list."""
+def test_read_json_transactions_not_a_list() -> None:
+    """Raise when Transactions in JSON is not a list."""
     with pytest.raises(ParsingError, match="is not a list"):
         _read_json('{"Transactions": {}}')
+
+
+def test_read_csv_transactions_missing_columns() -> None:
+    """Raise when required columns are missing in CSV."""
+    with pytest.raises(ParsingError, match="Missing columns in Schwab Equity Awards"):
+        _read_csv("Date,Action,Symbol\n01/01/2023,Dividend,GOOG\n")
+
+
+def test_read_csv_transactions_no_header() -> None:
+    """Raise when a CSV file has no header line."""
+    with pytest.raises(ParsingError, match="Missing columns in Schwab Equity Awards"):
+        _read_csv("01/01/2023,Dividend")
+
+
+def test_read_csv_transactions_unexpected_column_count() -> None:
+    """Raise when a row has an unexpected number of columns in CSV."""
+    with pytest.raises(UnexpectedColumnCountError):
+        _read_csv(
+            "Date,Action,Symbol,Description,Quantity,FeesAndCommissions,Amount\n"
+            "01/01/2022,Sale,GOOG,Sale,10,$0.00\n"
+        )
 
 
 def test_unknown_symbol_warns(caplog: pytest.LogCaptureFixture) -> None:
@@ -478,12 +600,71 @@ def test_v2_sale_quantity_from_lot_shares() -> None:
         "]}]}"
     )
 
-    transactions = _read_json(content)
+    transactions = _read_csv(content)
 
     assert len(transactions) == 1
     transaction = transactions[0]
     assert transaction.quantity == Decimal(10)
     assert transaction.price == Decimal("104.5")
+
+
+def test_v2_sale_with_repeated_parent_headers_does_not_duplicate() -> None:
+    """Multi-lot sale with repeated parent headers in standard Schwab export does not duplicate."""
+    content = _make_csv_text(
+        [
+            _make_csv_row(
+                date="08/31/2023",
+                action="Sale",
+                symbol="GOOG",
+                quantity="14.40",
+                description="Share Sale",
+                fees="$0.02",
+                amount="$1,985.74",
+                Type="RS",
+                Shares="14",
+                SalePrice="$137.90",
+                GrantId="C1234567",
+                VestDate="07/25/2023",
+                VestFairMarketValue="$121.88",
+            ),
+            _make_csv_row(
+                date="08/31/2023",
+                action="Sale",
+                symbol="GOOG",
+                quantity="14.40",
+                description="Share Sale",
+                fees="$0.02",
+                amount="$1,985.74",
+                Type="RS",
+                Shares="0.40",
+                SalePrice="$137.90",
+                GrantId="C1234567",
+                VestDate="07/25/2023",
+                VestFairMarketValue="$121.88",
+            ),
+            _make_csv_row(
+                date="04/27/2023",
+                action="Deposit",
+                symbol="GOOG",
+                quantity="13.6",
+                description="RS",
+                VestDate="04/25/2023",
+                VestFairMarketValue="$106.78",
+                AwardDate="01/01/2019",
+                AwardId="C987654",
+            ),
+        ]
+    )
+
+    transactions = _read_csv(content)
+    assert len(transactions) == 2
+    assert transactions[0].action == ActionType.STOCK_ACTIVITY
+    assert transactions[0].quantity == Decimal("13.6")
+    assert transactions[0].price == Decimal("106.78")
+    assert transactions[1].action == ActionType.SELL
+    assert transactions[1].quantity == Decimal("14.40")
+    assert transactions[1].price == Decimal("137.90")
+    assert transactions[1].fees == Decimal("0.02")
 
 
 def test_unimplemented_action_raises() -> None:
@@ -566,6 +747,30 @@ def test_schwab_json_transactions_not_a_list(tmp_path: Path) -> None:
         schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
             json_path
         )
+
+
+def test_schwab_csv_buy_transaction_fails(tmp_path: Path) -> None:
+    """Ensure loading a CSV with a buy transaction fails."""
+    csv_path = tmp_path / "buy_transaction.csv"
+    csv_path.write_text(
+        _make_csv_text(
+            [
+                _make_csv_row(
+                    date="01/01/2023",
+                    action="Buy",
+                    symbol="GOOG",
+                    description="Bought shares",
+                    quantity="10",
+                )
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ParsingError, match=r"Parsing for action Buy is not implemented!"
+    ):
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(csv_path)
 
 
 def test_schwab_json_buy_transaction_fails(tmp_path: Path) -> None:
@@ -853,6 +1058,117 @@ def test_schwab_json_sale_variations(
         schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
             json_path
         )
+    )
+
+    assert len(transactions) == 1
+    assert transactions[0].action == ActionType.SELL
+    assert transactions[0].symbol == "GOOG"
+    assert transactions[0].quantity == expected_quantity
+    assert transactions[0].price == expected_price
+
+
+@pytest.mark.parametrize(
+    (
+        "quantity_str",
+        "amount_str",
+        "fees_str",
+        "detail_rows",
+        "expected_quantity",
+        "expected_price",
+    ),
+    [
+        pytest.param(
+            "12.549",
+            "$1,254.40",
+            "$0.50",
+            [{"SalePrice": "$100.00"}],
+            Decimal("12.549"),
+            Decimal(100),
+            id="non_integer_quantity",
+        ),
+        pytest.param(
+            "12",
+            "$1,254.40",
+            "$0.50",
+            [
+                {"Shares": "3.549", "SalePrice": "$100.00"},
+                {"Shares": "9", "SalePrice": "$100.00"},
+            ],
+            Decimal("12.549"),
+            Decimal(100),
+            id="integer_quantity_with_fractional_subtransaction_shares",
+        ),
+        pytest.param(
+            "12",
+            "$1,200.00",
+            "",
+            [
+                {"Shares": "3", "SalePrice": "$100.00"},
+                {"Shares": "9", "SalePrice": "$100.00"},
+            ],
+            Decimal(12),
+            Decimal(100),
+            id="integer_quantity_with_integer_subtransaction_shares_exact",
+        ),
+        pytest.param(
+            "12",
+            "$1,254.90",
+            "",
+            [
+                {"Shares": "3", "SalePrice": "$100.00"},
+                {"Shares": "9", "SalePrice": "$100.00"},
+            ],
+            Decimal("12.549"),
+            Decimal(100),
+            id="integer_quantity_with_integer_subtransaction_shares_truncated",
+        ),
+        pytest.param(
+            "10",
+            "$1,000.00",
+            "",
+            [{"SalePrice": "$100.00"}],
+            Decimal(10),
+            Decimal(100),
+            id="integer_quantity_without_subtransaction_shares_exact",
+        ),
+        pytest.param(
+            "10",
+            "$1,054.90",
+            "",
+            [{"SalePrice": "$100.00"}],
+            Decimal("10.549"),
+            Decimal(100),
+            id="integer_quantity_without_subtransaction_shares_truncated",
+        ),
+    ],
+)
+def test_schwab_csv_sale_variations(
+    tmp_path: Path,
+    quantity_str: str,
+    amount_str: str,
+    fees_str: str,
+    detail_rows: list[dict[str, str]],
+    expected_quantity: Decimal,
+    expected_price: Decimal,
+) -> None:
+    """Test Sale parsing variations across integer/non-integer quantities and subtransaction shares."""
+    csv_path = tmp_path / "sale_variation.csv"
+    rows = [
+        _make_csv_row(
+            date="08/31/2023",
+            action="Sale",
+            symbol="GOOG",
+            quantity=quantity_str,
+            description="Share Sale",
+            fees=fees_str,
+            amount=amount_str,
+        )
+    ]
+    rows.extend(_make_csv_row(**d) for d in detail_rows)
+    csv_path.write_text(_make_csv_text(rows), encoding="utf-8")
+
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        csv_path
     )
 
     assert len(transactions) == 1
@@ -1600,14 +1916,15 @@ def test_schwab_json_v1_empty_fees(tmp_path: Path) -> None:
     assert transactions[0].action == ActionType.SELL
 
 
-def test_run_with_schwab_equity_award_json(request: pytest.FixtureRequest) -> None:
-    """Run cgt-calc end-to-end with schwab-equity-award-json file."""
+@pytest.mark.parametrize("ext", ["json", "csv"])
+def test_run_with_schwab_equity_award(request: pytest.FixtureRequest, ext: str) -> None:
+    """Run cgt-calc end-to-end with schwab-equity-award-json and schwab-equity-award-csv."""
     input_file_base = "schwab_equity_award_v2"
     cmd = build_cmd(
         "--year",
         "2023",
-        "--schwab-equity-award-json",
-        f"tests/schwab/data/equity_award/{input_file_base}.json",
+        f"--schwab-equity-award-{ext}",
+        f"tests/schwab/data/equity_award/{input_file_base}.{ext}",
         "--output",
         report_path(request),
     )
@@ -1619,7 +1936,7 @@ def test_run_with_schwab_equity_award_json(request: pytest.FixtureRequest) -> No
             f"stderr:\n{result.stderr}"
         )
     assert stderr_alerts(result.stderr) == [], (
-        f"Run with example file {input_file_base}.json generated errors"
+        f"Run with example file {input_file_base}.{ext} generated errors"
     )
     expected_file = (
         Path("tests")

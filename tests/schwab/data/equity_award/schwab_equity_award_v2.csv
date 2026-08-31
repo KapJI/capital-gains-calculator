@@ -1,0 +1,16 @@
+Date,Action,Symbol,Description,Quantity,FeesAndCommissions,DisbursementElection,Amount,Type,Shares,SalePrice,SubscriptionDate,SubscriptionFairMarketValue,PurchaseDate,PurchasePrice,PurchaseFairMarketValue,DispositionType,GrantId,VestDate,VestFairMarketValue,GrossProceeds,AwardDate,AwardId
+07/12/2024,Tax Reversal,GOOG,Credit,,,,$11.20,,,,,,,,,,,,,,,
+06/17/2024,Tax Withholding,GOOG,Debit,,,,-$22.39,,,,,,,,,,,,,,,
+06/17/2024,Dividend,GOOG,Credit,,,,$74.62,,,,,,,,,,,,,,,
+09/27/2023,Deposit,GOOG,RS,13.6,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,09/25/2023,$131.25,,01/01/2019,C987654
+09/27/2023,Deposit,GOOG,RS,4.911,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,09/25/2023,$131.25,,03/01/2020,C1234567
+09/01/2023,Journal,GOOG,Journal To Account ...123,,,,"-$1,382.75",,,,,,,,,,,,,,,
+08/31/2023,Sale,GOOG,Share Sale,14.40,$0.02,Journal,"$1,985.74",,,,,,,,,,,,,,,
+,,,,,,,,RS,14,$137.90,,,,,,,C1234567,07/25/2023,$121.88,"$1,930.60",,
+,,,,,,,,RS,0.40,$137.90,,,,,,,C1234567,07/25/2023,$121.88,$55.16,,
+04/27/2023,Deposit,GOOG,RS,13.6,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,04/25/2023,$106.78,,01/01/2019,C987654
+04/27/2023,Deposit,GOOG,RS,4.911,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,04/25/2023,$106.78,,03/01/2020,C1234567
