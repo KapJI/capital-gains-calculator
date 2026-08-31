@@ -137,8 +137,6 @@ def _row_key(transaction: SchwabTransaction) -> SchwabRowKey:
     return source.file, source.row
 
 
-
-
 @dataclass
 class _WrittenOptionLot:
     """Unsettled quantity from one Sell to Open row."""
@@ -556,6 +554,4 @@ def reconcile_written_options(
     transactions: list[SchwabTransaction],
 ) -> list[BrokerTransaction]:
     """Resolve Schwab written-option lifecycles for UK capital gains."""
-    return _emit_option_transactions(
-        transactions, _scan_option_activity(transactions)
-    )
+    return _emit_option_transactions(transactions, _scan_option_activity(transactions))

@@ -57,6 +57,7 @@ LOGGER = logging.getLogger(__name__)
 # This is not based on any documented Schwab settlement period - just a practical limit.
 CANCEL_BUY_SEARCH_DAYS: Final = 5
 
+
 class RequiredTransactionsColumn(StrEnum):
     """Column names for Schwab transactions file."""
 
@@ -222,7 +223,6 @@ def _parse_decimal(
         value = f"-{value[1:-1]}"
 
     return parse_decimal(value, f"column '{column.value}'", strip="$,")
-
 
 
 class SchwabTransaction(BrokerTransaction):

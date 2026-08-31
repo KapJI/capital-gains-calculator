@@ -435,13 +435,6 @@ class BrokerTransaction:
     calculation_quantity: Decimal | None = field(
         default=None, compare=False, repr=False
     )
-
-    @property
-    def pool_quantity(self) -> Decimal | None:
-        """The count to pool, in the units in force at the end of the day."""
-        if self.calculation_quantity is not None:
-            return self.calculation_quantity
-        return self.quantity
     # Present on broker rows for exchange-traded equity options.
     option_contract: OptionContract | None = None
     # Present only on a written option's opening row after its lifecycle has
@@ -450,6 +443,13 @@ class BrokerTransaction:
     # Premiums from assigned options are converted on their original dates and
     # folded into the tax basis/proceeds of the underlying share transaction.
     capital_adjustments: list[CapitalAdjustment] = field(default_factory=list)
+
+    @property
+    def pool_quantity(self) -> Decimal | None:
+        """The count to pool, in the units in force at the end of the day."""
+        if self.calculation_quantity is not None:
+            return self.calculation_quantity
+        return self.quantity
 
     def __post_init__(self) -> None:
         """Validate BrokerTransaction data."""
