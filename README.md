@@ -14,7 +14,7 @@ because not every award export or transaction type is supported.
 
 ## 🚀 Quick Start
 
-Install with [uv](https://docs.astral.sh/uv/concepts/tools/#the-uv-tool-interface) (or pipx/pip) and
+Install with [uv](https://docs.astral.sh/uv/getting-started/installation/) (or pipx/pip) and
 generate a report for a tax year:
 
 ```shell
@@ -54,8 +54,8 @@ acquired at different times, gains and losses, a dividend with overseas tax, and
 
 ## 📚 Documentation
 
-Full documentation — installation, per-broker export guides, offshore funds (ERI), configuration,
-and Docker usage — lives at **[cgt-calc.uk](https://cgt-calc.uk/)**.
+Full documentation — installation, per-broker export guides, offshore funds (ERI), extra data and
+options, and Docker usage — lives at **[cgt-calc.uk](https://cgt-calc.uk/)**.
 
 ## 🤝 Contributing
 

@@ -124,6 +124,20 @@ def test_version_is_resolved_lazily(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not hasattr(args, "version")
 
 
+def test_eri_raw_help_describes_data_not_transactions() -> None:
+    """Describe the ERI input as data rather than transaction history."""
+    help_text = " ".join(create_parser().format_help().split())
+
+    assert "custom Excess Reported Income (ERI) data in CSV format" in help_text
+
+
+def test_unrealized_gains_help_identifies_report_end_portfolio() -> None:
+    """Describe which holdings the current-price estimate uses."""
+    help_text = " ".join(create_parser().format_help().split())
+
+    assert "holdings in the report's ending portfolio" in help_text
+
+
 def test_output_and_no_report_mutually_exclusive() -> None:
     """Test that --output and --no-report are mutually exclusive."""
     parser = create_parser()

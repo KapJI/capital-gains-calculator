@@ -54,6 +54,19 @@ the old ticker and saves the answer to `out/spin_offs.csv`.
 If the run cannot ask, it stops and tells you which `dst,src` row to add. Use `--spin-offs-file` to
 select another file for these mappings.
 
+### Estimate unrealized gains
+
+Use `--unrealized-gains` to add current-price estimates to the portfolio and summary printed in the
+terminal. For each holding left at the report's end date, cgt-calc uses the latest usable price
+returned by Yahoo Finance, converts it to GBP and subtracts its Section 104 pooled cost. If no
+usable price is returned, the holding is shown as `unknown`, omitted from the numeric **Unrealized
+gains** total and covered by a warning. Check unknown or unexpected estimates against your broker.
+
+This is a portfolio estimate, not the gain from an actual sale. It does not include selling costs or
+change the report's capital gains, losses or taxable figures. For an older report, the ending
+portfolio may not be what you hold today. See
+[Privacy and data security](privacy.md#privacy-and-data-security) for details of the Yahoo lookup.
+
 ### Bond-fund income
 
 Some offshore bond funds have income that must be reported as interest rather than dividends. After
