@@ -41,7 +41,7 @@ check the ISIN-to-ticker mapping below. Do not assume that missing or unmatched 
 
 Bundled ERI data is indexed by ISIN. If your broker does not supply one, cgt-calc uses its
 ISIN-to-ticker mapping to match the holding. To check or override the mapping, see
-[ISIN to ticker translation](configuration.md#isin-to-ticker-translation).
+[ISIN to ticker translation](extra-data-and-options.md#isin-to-ticker-translation).
 
 ## Unsupported functionality
 

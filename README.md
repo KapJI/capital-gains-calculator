@@ -61,7 +61,7 @@ and Docker usage — lives at **[cgt-calc.uk](https://cgt-calc.uk/)**.
 
 Contributions are welcome! If you find a bug, have feature ideas, or want to add support for more
 brokers, please open an **issue** or **pull request**. See the
-[development guide](https://cgt-calc.uk/development/).
+[development guide](https://cgt-calc.uk/development/contributing/).
 
 ## ⚠️ Disclaimer
 
