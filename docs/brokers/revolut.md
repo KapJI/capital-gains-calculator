@@ -156,8 +156,13 @@ whose columns were reordered or removed would be read incorrectly.
 ### `Reached a negative balance`
 
 Check that the period was set to **All time** so that the top ups, transfers and sales that funded
-later purchases are all present. Do not add a made-up top up or use `--no-balance-check` just to
-silence the error; establish the missing cash or holdings from your Revolut records first.
+later purchases are all present. Do not add a made-up top up to silence the error; establish the
+missing cash or holdings from your Revolut records first.
+
+Revolut can report a cash balance of `-0.01` even when your transaction history is complete. If your
+records account for every transaction and the shortfall is a hundredth of a unit or so, rerun with
+`--no-balance-check`. This disables the check for every input in the run, so compare each amount in
+the terminal's **Final balance** list with your broker records.
 
 ### The portfolio or dividends look wrong
 
