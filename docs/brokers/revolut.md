@@ -111,10 +111,11 @@ transaction stamped at or after 23:00 UTC on 5 April belongs to the following ta
 
 ### Dividends and withholding tax
 
-The CSV can contain a `DIVIDEND` amount and a separate `DIVIDEND TAX (CORRECTION)` amount. cgt-calc
-treats the first as gross dividend income and the second as tax withheld. In the first-pass terminal
-output, the value after `excluding ... taxed at source` comes from the tax-correction rows; it is
-not calculated from the dividend amount.
+cgt-calc cannot tell whether a CSV `DIVIDEND` amount is before or after withholding tax, so it
+treats the amount as gross dividend income. It treats a separate `DIVIDEND TAX (CORRECTION)` amount
+as tax withheld. In the terminal's **Dividends** list printed after **Final balance**, the value
+after `excluding ... taxed at source` comes from the tax-correction rows; it is not calculated from
+the dividend amount.
 
 For each dividend, open **Invest**, then **Portfolio** → **Transactions** → **Dividend**. Revolut
 shows the withholding tax in the transaction details
