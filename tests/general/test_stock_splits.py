@@ -2229,7 +2229,7 @@ def test_a_row_stamped_before_a_lone_booking_instant_is_refused() -> None:
     not merely misstate that row: a single row states a net change, so the
     ratio for the whole holding is derived from what was placed before it.
     """
-    with pytest.raises(CalculationError, match="cannot be placed either side"):
+    with pytest.raises(CalculationError, match="cannot be placed either side") as error:
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
@@ -2244,6 +2244,11 @@ def test_a_row_stamped_before_a_lone_booking_instant_is_refused() -> None:
                 legacy_split(EVENT_DAY, "FOO", "10", source=_stamped(SPLIT_OPENED)),
             ]
         )
+    message = str(error.value)
+    assert "the instant on it is when the broker booked the entry" in message
+    # Both rows state their times, so asking for times would send the reader
+    # after a file that does not exist.
+    assert "in one input that states times" not in message
 
 
 def test_a_row_stamped_after_a_lone_booking_instant_is_left_alone() -> None:

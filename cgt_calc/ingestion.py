@@ -606,7 +606,9 @@ class TransactionIngester:
             placement = relative_to_split(instants, row.source, other.source)
             if placement is None:
                 raise CalculationError(
-                    self._split_chronology_message(symbol, date_index, row, other)
+                    self._split_chronology_message(
+                        symbol, date_index, row, other, instants
+                    )
                 )
             (before_rows if placement == "before" else after_rows).append(other)
 
@@ -1800,14 +1802,34 @@ class TransactionIngester:
         date_index: datetime.date,
         row: BrokerTransaction,
         other: BrokerTransaction,
+        instants: tuple[datetime.datetime, ...],
     ) -> str:
-        """Explain why a same-day row cannot be placed around a reorganisation."""
-        return (
+        """Explain why a same-day row cannot be placed around a reorganisation.
+
+        Times the export does state are not always enough, so the reason has
+        to say which of the two situations this is. Telling someone whose
+        export already states its times to supply times would send them
+        looking for a file that does not exist.
+        """
+        preamble = (
             f"Cannot apply the reorganisation of {symbol} on {date_index}: "
             f"this row is on the same day and cannot be placed either side of "
             f"it, so there is no telling whether its count is stated in the "
             f"units before or after:\n  {other}\n"
             f"The reorganisation is:\n  {row}\n"
+        )
+        stated = other.source is not None and other.source.timestamp is not None
+        if len(instants) == 1 and stated:
+            return preamble + (
+                "Both rows state their times, but the reorganisation is a "
+                "single row, and the instant on it is when the broker booked "
+                "the entry rather than when the units changed: a share trades "
+                "in the new units from the opening of the ex-date, which need "
+                "not be when the broker wrote the row. Anything the export "
+                "booked after that row is in the new units; this row was not. "
+                "Work the day out by hand (consider professional advice)."
+            )
+        return preamble + (
             "The two come from different inputs, or from an export that gives "
             "neither times nor a documented order, or the row falls between "
             "the two halves of the reorganisation. Run again with the day's "
