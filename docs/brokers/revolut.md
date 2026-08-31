@@ -52,15 +52,15 @@ The filename does not matter. `--year 2025` means 6 April 2025 to 5 April 2026. 
 
 The importer recognises these exact values from the CSV's `Type` column:
 
-| Type                             | How cgt-calc handles it                                              |
-| -------------------------------- | -------------------------------------------------------------------- |
-| `BUY - MARKET`, `BUY - LIMIT`    | Share acquisitions                                                   |
-| `SELL - MARKET`, `SELL - LIMIT`  | Share disposals                                                      |
-| `DIVIDEND`                       | Net dividend income; see [Dividends](#dividends-and-withholding-tax) |
-| `DIVIDEND TAX (CORRECTION)`      | Corrections to dividend withholding tax                              |
-| `STOCK SPLIT`                    | Changes the share count without changing the existing pooled cost    |
-| `CUSTODY FEE`                    | Cash leaving the broker balance                                      |
-| `CASH TOP-UP`, `CASH WITHDRAWAL` | Cash added to or removed from the broker balance                     |
+| Type                             | How cgt-calc handles it                                                      |
+| -------------------------------- | ---------------------------------------------------------------------------- |
+| `BUY - MARKET`, `BUY - LIMIT`    | Share acquisitions                                                           |
+| `SELL - MARKET`, `SELL - LIMIT`  | Share disposals                                                              |
+| `DIVIDEND`                       | Reported as dividend income; see [Dividends](#dividends-and-withholding-tax) |
+| `DIVIDEND TAX (CORRECTION)`      | Reported as tax at source                                                    |
+| `STOCK SPLIT`                    | Changes the share count without changing the existing pooled cost            |
+| `CUSTODY FEE`                    | Cash leaving the broker balance                                              |
+| `CASH TOP-UP`, `CASH WITHDRAWAL` | Cash added to or removed from the broker balance                             |
 
 cgt-calc also ignores these two exact `Type` values because moving cash or holdings between Revolut
 entities is not a disposal or acquisition:
@@ -97,28 +97,33 @@ transaction stamped at or after 23:00 UTC on 5 April belongs to the following ta
 - Only the types listed above are mapped. Any other value stops the import with `Unknown action`; do
     not delete a financial transaction merely to make the calculation run, because the missing
     activity could make the resulting holdings and gains incorrect.
-- A Revolut `STOCK SPLIT` row states only the change in that account. cgt-calc stops if you also
-    hold the ticker through another input. It also stops if Revolut booked another transaction for
-    the ticker earlier on the same day, because the export does not say whether that transaction's
-    share count is before or after the split. Follow the error's instructions to provide a complete
-    [`STOCK_SPLIT` row](raw.md#share-reorganisations), or calculate the event outside cgt-calc.
+- A Revolut `STOCK SPLIT` row states only the change in that account. If you also hold the ticker
+    through another input, cgt-calc stops. Follow the error's instructions to provide a complete
+    [`STOCK_SPLIT` row](raw.md#share-reorganisations) for the whole holding, or calculate the event
+    outside cgt-calc.
+- cgt-calc also stops if Revolut booked another transaction for the ticker earlier on the day of a
+    split. The export does not say whether that transaction's share count is before or after the
+    split, and a RAW `STOCK_SPLIT` row cannot resolve this. Work out the day's transactions and
+    split outside cgt-calc.
 - A custody fee reduces the broker balance but is not treated as an allowable cost against a gain.
 - The statement covers the investment account only. Commodities and interest on savings products are
     not part of this export.
 
 ### Dividends and withholding tax
 
-The `DIVIDEND` amount in the Revolut CSV is after withholding tax, but the CSV does not state the
-gross dividend or the original tax deducted. cgt-calc reports the net amount as **Proceeds**. HMRC
-calculates foreign income before direct foreign tax is deducted, so this figure is too low
-([HMRC guidance](https://www.gov.uk/hmrc-internal-manuals/international-manual/intm165030)). A
-`DIVIDEND TAX (CORRECTION)` row records only a later correction.
+The CSV can contain a `DIVIDEND` amount and a separate `DIVIDEND TAX (CORRECTION)` amount. cgt-calc
+treats the first as gross dividend income and the second as tax withheld. In the first-pass terminal
+output, the value after `excluding ... taxed at source` comes from the tax-correction rows; it is
+not calculated from the dividend amount.
 
 For each dividend, open **Invest**, then **Portfolio** → **Transactions** → **Dividend**. Revolut
 shows the withholding tax in the transaction details
 ([Revolut dividend guide](https://help.revolut.com/help/wealth/stocks/corporate-events/receiving-dividends/)).
-Use those details to establish the gross dividend and tax withheld, then adjust the dividend and
-foreign-tax figures outside cgt-calc.
+HMRC calculates foreign income before direct foreign tax is deducted
+([HMRC guidance](https://www.gov.uk/hmrc-internal-manuals/international-manual/intm165030)). Use the
+Revolut details to check that the CSV's `DIVIDEND` amount is the gross dividend and that the
+`taxed at source` figure is the total tax withheld. If either figure differs, adjust the dividend
+and foreign-tax figures outside cgt-calc.
 
 ## Troubleshooting
 
