@@ -24,7 +24,8 @@ from cgt_calc.model import (
     OptionType,
     RuleType,
 )
-from cgt_calc.parsers.schwab import SchwabParser, parse_option_contract
+from cgt_calc.parsers.schwab import SchwabParser
+from cgt_calc.parsers.schwab_options import parse_option_contract
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 HEADER = "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
