@@ -802,7 +802,7 @@ def _read_schwab_awards(
         try:
             price = (
                 parse_decimal(
-                    price_str, f"column '{fair_market_value_price_header}'", strip="$"
+                    price_str, f"column '{fair_market_value_price_header}'", strip="$,"
                 )
                 if price_str != ""
                 else None
