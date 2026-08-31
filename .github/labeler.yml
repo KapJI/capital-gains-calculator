@@ -1,8 +1,10 @@
 # Schema reference: https://github.com/actions/labeler#match-object
 # Options inside `all` are AND-ed. The rules are mutually exclusive, so a pull
-# request gets at most one of them: each excludes the paths claimed by the rules
-# above it. Dependabot labels its own pull requests, so its branches are skipped
-# here. Anything touching Python source is left for a manual type label.
+# request gets at most one of them: each either claims a whole pull request or
+# excludes the paths claimed by the rules above it. Dependabot labels its own
+# pull requests, so its branches are skipped here. Anything touching Python
+# source outside tests/ is left for a manual type label, as is any pull request
+# spanning two of these areas.
 
 dependencies:
   - all:
@@ -26,8 +28,10 @@ testing:
   - all:
       - head-branch: ["^(?!dependabot/)"]
       - changed-files:
-          - any-glob-to-any-file: "tests/**"
-          - all-globs-to-all-files: ["!cgt_calc/**", "!.github/**/*"]
+          # Every changed file has to be a test. Naming the directories to
+          # exclude instead missed scripts/, so a change there was labelled
+          # on the tests that came with it.
+          - any-glob-to-all-files: "tests/**"
 
 documentation:
   - all:
