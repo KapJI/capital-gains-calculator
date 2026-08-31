@@ -62,6 +62,7 @@ class CapitalGainsCalculator:
         *,
         cgt_exempt_tickers: list[str] | None = None,
         balance_check: bool = True,
+        autoconvert_currency: bool = False,
         calc_unrealized_gains: bool = False,
         period_start: datetime.date | None = None,
         period_end: datetime.date | None = None,
@@ -84,6 +85,7 @@ class CapitalGainsCalculator:
         self.spin_off_handler = spin_off_handler
         self.initial_prices = initial_prices
         self.balance_check = balance_check
+        self.autoconvert_currency = autoconvert_currency
         self.calc_unrealized_gains = calc_unrealized_gains
         self.interest_fund_tickers = interest_fund_tickers
         self.cgt_exempt_tickers = frozenset(
@@ -96,6 +98,7 @@ class CapitalGainsCalculator:
             isin_converter,
             interest_fund_tickers,
             self.date_in_tax_year,
+            autoconvert_currency=autoconvert_currency,
         )
         self.ingester = TransactionIngester(
             self.state,
@@ -107,6 +110,7 @@ class CapitalGainsCalculator:
             initial_prices,
             interest_fund_tickers,
             balance_check=balance_check,
+            autoconvert_currency=autoconvert_currency,
             date_in_tax_year=self.date_in_tax_year,
         )
         self.matcher = Matcher(

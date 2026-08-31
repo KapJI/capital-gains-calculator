@@ -47,6 +47,8 @@ class IncomeProcessor:
         isin_converter: IsinConverter,
         interest_fund_tickers: list[str],
         date_in_tax_year: Callable[[datetime.date], bool],
+        *,
+        autoconvert_currency: bool = False,
     ):
         """Create income processor object."""
         self.state = state
@@ -54,6 +56,7 @@ class IncomeProcessor:
         self.isin_converter = isin_converter
         self.interest_fund_tickers = interest_fund_tickers
         self.date_in_tax_year = date_in_tax_year
+        self.autoconvert_currency = autoconvert_currency
         self._attributed_dividend_tax: DividendTaxAttribution | None = None
 
     def _group_by_month(
@@ -255,14 +258,29 @@ class IncomeProcessor:
                 date, self.state.dividend_dates.get((broker, symbol), set())
             )
             if len(candidates) == 1:
-                matched[symbol, candidates[0]] += tax
+                # Dated on the dividend it belongs to, so that is the date
+                # its currency is converted at where two brokers withheld in
+                # different ones.
+                matched[symbol, candidates[0]] = (
+                    self.currency_converter.combine_amounts(
+                        matched[symbol, candidates[0]],
+                        tax,
+                        candidates[0],
+                        autoconvert=self.autoconvert_currency,
+                    )
+                )
                 continue
             # Either nothing is near enough, or two payments are and the
             # export does not say which one this is. Guessing between them
             # puts a wrong figure in the report; leaving it out and saying so
             # does not.
             self._warn_unattributed_dividend_tax(symbol, date, tax, candidates)
-            unmatched[symbol, date] += tax
+            unmatched[symbol, date] = self.currency_converter.combine_amounts(
+                unmatched[symbol, date],
+                tax,
+                date,
+                autoconvert=self.autoconvert_currency,
+            )
         return DividendTaxAttribution(matched, unmatched)
 
     def dividend_tax_attribution(self) -> DividendTaxAttribution:
@@ -292,17 +310,28 @@ class IncomeProcessor:
             currency = foreign_amount.currency
             assert currency is not None, f"Dividend for {symbol} has no currency"
 
-            # The tax is converted at the dividend's rate below, so the two
-            # have to be in one currency whichever way the tax runs and
-            # whatever the holding is. Checking this only for tax deducted
-            # from an ordinary holding let a refund, or any tax on a bond
-            # fund, be converted as though it were in the dividend's
-            # currency.
-            if tax.amount and tax.currency != currency:
-                raise CalculationError(
-                    f"Dividend and withholding tax currencies do not match "
-                    f"for {symbol} on {date}: dividend "
-                    f"{foreign_amount.currency}, tax {tax.currency}"
+            # The payment and the tax taken from it have to be in one currency
+            # whichever way the tax runs and whatever the holding is, because
+            # converting one at the other's rate misstates it. Checking this
+            # only for tax deducted from an ordinary holding let a refund, or
+            # any tax on a bond fund, be converted as though it were in the
+            # dividend's currency. With --autoconvert-currency each is
+            # converted at its own rate instead.
+            tax_currency = tax.currency or currency
+            if tax.amount and tax_currency != currency:
+                if not self.autoconvert_currency:
+                    raise CalculationError(
+                        f"Dividend and withholding tax currencies do not match "
+                        f"for {symbol} on {date}: dividend "
+                        f"{foreign_amount.currency}, tax {tax.currency}"
+                    )
+                LOGGER.debug(
+                    "Converting the %s dividend and its %s tax for %s on %s "
+                    "to GBP separately",
+                    currency,
+                    tax_currency,
+                    symbol,
+                    date,
                 )
 
             treaty = None
@@ -331,14 +360,25 @@ class IncomeProcessor:
                     else:
                         treaty = DIVIDEND_DOUBLE_TAXATION_RULES[country]
                         expected_tax = treaty.country_rate * -foreign_amount.amount
-                        if not approx_equal(expected_tax, tax.amount):
+                        deducted_tax = tax.amount
+                        if tax_currency != currency:
+                            # Autoconverted: the rate the treaty expects is a
+                            # proportion of the payment, so the two sides are
+                            # only comparable once both are in GBP.
+                            expected_tax = self.currency_converter.to_gbp(
+                                expected_tax, currency, date
+                            )
+                            deducted_tax = self.currency_converter.to_gbp(
+                                deducted_tax, tax_currency, date
+                            )
+                        if not approx_equal(expected_tax, deducted_tax):
                             LOGGER.warning(
                                 "Determined double taxation treaty does not match the "
                                 "base taxation rules (expected %.2f base tax for %s "
                                 "but %.2f was deducted) for %s ticker!",
                                 expected_tax,
                                 treaty.country,
-                                tax.amount,
+                                deducted_tax,
                                 symbol,
                             )
                             treaty = None
@@ -346,7 +386,7 @@ class IncomeProcessor:
             amount = self.currency_converter.to_gbp(
                 foreign_amount.amount, currency, date
             )
-            tax_amount = self.currency_converter.to_gbp(tax.amount, currency, date)
+            tax_amount = self.currency_converter.to_gbp(tax.amount, tax_currency, date)
 
             dividend = Dividend(
                 date=date,

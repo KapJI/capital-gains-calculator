@@ -141,6 +141,14 @@ Environment variables:
         help="skip balance verification (useful for partial transaction records)",
     )
     calc_group.add_argument(
+        "--autoconvert-currency",
+        action="store_true",
+        default=False,
+        help="attempt to convert multicurrency dividends (e.g. across different brokers) "
+        "and intelligently infer any applicable double taxation treaty "
+        "where no ISIN is available",
+    )
+    calc_group.add_argument(
         "--unrealized-gains",
         dest="calc_unrealized_gains",
         action="store_true",

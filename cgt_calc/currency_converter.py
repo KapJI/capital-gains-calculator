@@ -16,10 +16,10 @@ from pyrate_limiter.abstracts.rate import Duration
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 from requests.adapters import HTTPAdapter, Retry
 
-from .const import CGT_MODE, RuntimeMode
+from .const import CGT_MODE, UK_CURRENCY, RuntimeMode
 from .dates import is_date
 from .exceptions import ExchangeRateMissingError, ExternalApiError, ParsingError
-from .model import CurrencyCode
+from .model import CurrencyCode, ForeignCurrencyAmount
 from .util import exclusive_lock, open_with_parents
 
 if TYPE_CHECKING:
@@ -303,6 +303,82 @@ class CurrencyConverter:
     def to_gbp_for(self, amount: Decimal, transaction: BrokerTransaction) -> Decimal:
         """Convert amount from transaction currency to GBP."""
         return self.to_gbp(amount, transaction.currency, transaction.date)
+
+    def convert(
+        self,
+        amount: Decimal,
+        source: CurrencyCode,
+        target: CurrencyCode,
+        date: datetime.date,
+    ) -> Decimal:
+        """Convert amount between two currencies at the given date.
+
+        HMRC publishes one rate per currency against GBP, so a rate between
+        two other currencies is the pair of them.
+        """
+        if source == target:
+            return amount
+        gbp = self.to_gbp(amount, source, date)
+        if target == UK_CURRENCY:
+            return gbp
+        return gbp * self.currency_to_gbp_rate(target, date)
+
+    def combined_currency(
+        self,
+        first: ForeignCurrencyAmount,
+        second: ForeignCurrencyAmount,
+        date: datetime.date,
+    ) -> CurrencyCode | None:
+        """Return the currency to state a mix of the two in, None if they agree.
+
+        A foreign currency is kept in preference to GBP: the currency a
+        dividend was paid in is evidence of where it came from, and losing it
+        costs the double taxation treaty that the source country decides.
+        Where both are foreign, the larger of the two by value decides, since
+        the greater part of the payment is the better evidence of its source.
+        Equal parts are settled on the code, so that the answer does not
+        depend on the order the rows happened to be read in.
+        """
+        first_currency = first.currency
+        second_currency = second.currency
+        assert first_currency is not None
+        assert second_currency is not None
+        if first_currency == second_currency:
+            return None
+        if first_currency == UK_CURRENCY:
+            return second_currency
+        if second_currency == UK_CURRENCY:
+            return first_currency
+        first_value = abs(self.to_gbp(first.amount, first_currency, date))
+        second_value = abs(self.to_gbp(second.amount, second_currency, date))
+        if first_value == second_value:
+            return min(first_currency, second_currency)
+        return first_currency if first_value > second_value else second_currency
+
+    def combine_amounts(
+        self,
+        first: ForeignCurrencyAmount,
+        second: ForeignCurrencyAmount,
+        date: datetime.date,
+        *,
+        autoconvert: bool,
+    ) -> ForeignCurrencyAmount:
+        """Add two amounts that belong to the same report row.
+
+        Adding them refuses a mismatch in currency, because a figure the
+        report states in one currency cannot be the sum of two currencies.
+        With `autoconvert`, both are converted at `date` to the currency
+        `combined_currency` picks and the sum is stated in that.
+        """
+        if autoconvert and first.currency is not None and second.currency is not None:
+            target = self.combined_currency(first, second, date)
+            if target is not None:
+                return ForeignCurrencyAmount(
+                    self.convert(first.amount, first.currency, target, date)
+                    + self.convert(second.amount, second.currency, target, date),
+                    target,
+                )
+        return first + second
 
 
 class TestCurrencyConverter(CurrencyConverter):

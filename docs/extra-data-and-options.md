@@ -77,6 +77,19 @@ see the [offshore-fund checklist](offshore-funds.md#what-to-check). It reports t
 interest, so do not use it for a UK fund. If cgt-calc reports a UK bond fund distribution as a
 dividend, adjust the income figures outside cgt-calc.
 
+### Income reported in more than one currency
+
+Dividends & withholding tax reported in different currencies (e.g. across different brokers) cause
+an error (**Cannot combine amounts in different currencies**). Use `--autoconvert-currency` to
+suppress this error, and instead convert the rows at that date's HMRC rate:
+
+```shell
+cgt-calc --year 2024 --revolut-file revolut.csv --trading212-dir trading212/ --autoconvert-currency
+```
+
+The foreign currency is favoured over GBP so that (where no ISIN is available), the currency can be
+used to infer any applicable double taxation treaty.
+
 ### CGT-exempt instruments (advanced)
 
 Most users should not use `--cgt-exempt-tickers`. Pass a comma-separated list only when you have

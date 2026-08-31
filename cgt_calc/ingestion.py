@@ -260,6 +260,7 @@ class TransactionIngester:
         interest_fund_tickers: list[str],
         *,
         balance_check: bool,
+        autoconvert_currency: bool = False,
         date_in_tax_year: Callable[[datetime.date], bool],
     ):
         """Create transaction ingester object."""
@@ -272,6 +273,7 @@ class TransactionIngester:
         self.initial_prices = initial_prices
         self.interest_fund_tickers = interest_fund_tickers
         self.balance_check = balance_check
+        self.autoconvert_currency = autoconvert_currency
         self.date_in_tax_year = date_in_tax_year
 
     def add_acquisition(
@@ -1571,8 +1573,13 @@ class TransactionIngester:
                 symbol = get_symbol_or_fail(transaction)
                 currency = transaction.currency
                 new_balance += amount
-                self.state.dividend_list[symbol, transaction.date] += (
-                    ForeignCurrencyAmount(amount, currency)
+                self.state.dividend_list[symbol, transaction.date] = (
+                    self.currency_converter.combine_amounts(
+                        self.state.dividend_list[symbol, transaction.date],
+                        ForeignCurrencyAmount(amount, currency),
+                        transaction.date,
+                        autoconvert=self.autoconvert_currency,
+                    )
                 )
                 self.state.dividend_dates[transaction.broker, symbol].add(
                     transaction.date
@@ -1584,9 +1591,15 @@ class TransactionIngester:
                 symbol = get_symbol_or_fail(transaction)
                 currency = transaction.currency
                 new_balance += amount
-                self.state.dividend_tax_list[
-                    transaction.broker, symbol, transaction.date
-                ] += ForeignCurrencyAmount(amount, currency)
+                tax_key = (transaction.broker, symbol, transaction.date)
+                self.state.dividend_tax_list[tax_key] = (
+                    self.currency_converter.combine_amounts(
+                        self.state.dividend_tax_list[tax_key],
+                        ForeignCurrencyAmount(amount, currency),
+                        transaction.date,
+                        autoconvert=self.autoconvert_currency,
+                    )
+                )
             # Cash moves and nothing else: a deposit or withdrawal, a
             # correction, or an incoming wire. No shares change hands.
             elif transaction.action in {
