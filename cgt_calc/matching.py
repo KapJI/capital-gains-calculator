@@ -277,7 +277,85 @@ class Matcher:
         )
         assert ctx.disposal_quantity <= ctx.current_quantity
         self._match_same_day(ctx)
+        self._match_bed_and_breakfast(ctx)
+        self._match_section_104(ctx)
 
+        assert round_decimal(ctx.disposal_quantity, 23) == 0, (
+            f"disposal quantity {ctx.disposal_quantity}"
+        )
+        self.state.portfolio[ctx.symbol] = Position(
+            ctx.current_quantity, normalize_amount(ctx.current_amount)
+        )
+        ctx.chargeable_gain = round_decimal(ctx.chargeable_gain, 2)
+        return ctx.chargeable_gain, ctx.calculation_entries
+
+    def _match_same_day(self, ctx: DisposalContext) -> None:
+        """Identify the disposal against the same day's acquisitions."""
+        # Same day rule is first, against the day's real purchases only. Shares
+        # from a split are not an acquisition (TCGA 1992 s127, CG51805) and cost
+        # nothing, so matching them would hand the disposal a nil allowable cost
+        # and, on a day that also has a purchase, spread that purchase's cost
+        # over the free shares as well.
+        same_day_acquisition = self._matchable_acquisition(ctx.date_index, ctx.symbol)
+        if same_day_acquisition.quantity > 0:
+            available_quantity = min(
+                ctx.disposal_quantity, same_day_acquisition.quantity
+            )
+            if available_quantity > 0:
+                fees = ctx.disposal.fees * available_quantity / ctx.disposal.quantity
+
+                # Multiply by available_quantity before divide to avoid rounding errors from division
+                acquisition_cost = normalize_amount(
+                    (available_quantity * same_day_acquisition.amount)
+                    / same_day_acquisition.quantity
+                )
+
+                acquisition_price = acquisition_cost / available_quantity
+                # No gain/no loss: deemed proceeds equal the allowable cost.
+                same_day_amount = (
+                    acquisition_cost
+                    if ctx.no_gain_no_loss
+                    else available_quantity * ctx.disposal_price
+                )
+                same_day_proceeds = same_day_amount + fees
+                same_day_allowable_cost = acquisition_cost + fees
+                same_day_gain = same_day_proceeds - same_day_allowable_cost
+                ctx.chargeable_gain += same_day_gain
+                LOGGER.debug(
+                    "SAME DAY, quantity %s, gain %s, disposal price %s, "
+                    "acquisition price %s",
+                    available_quantity,
+                    same_day_gain,
+                    ctx.disposal_price,
+                    acquisition_price,
+                )
+                ctx.disposal_quantity -= available_quantity
+                ctx.current_quantity -= available_quantity
+                # These shares shouldn't be added to Section 104 holding
+                ctx.current_amount -= acquisition_cost
+                if ctx.current_quantity == 0:
+                    assert round_decimal(ctx.current_amount, 23) == 0, (
+                        f"current amount {ctx.current_amount}"
+                    )
+                ctx.calculation_entries.append(
+                    CalculationEntry(
+                        rule_type=(
+                            RuleType.TRANSFER_TO_SPOUSE
+                            if ctx.no_gain_no_loss
+                            else RuleType.SAME_DAY
+                        ),
+                        quantity=available_quantity,
+                        amount=same_day_amount,
+                        gain=same_day_gain,
+                        allowable_cost=same_day_allowable_cost,
+                        fees=fees,
+                        new_quantity=ctx.current_quantity,
+                        new_pool_cost=ctx.current_amount,
+                    )
+                )
+
+    def _match_bed_and_breakfast(self, ctx: DisposalContext) -> None:
+        """Identify the disposal against the next 30 days' acquisitions."""
         # Bed and breakfast rule next
         if ctx.disposal_quantity > 0:
             eris = []
@@ -554,81 +632,6 @@ class Matcher:
                     # there's no need to keep looking for more B&B days
                     if ctx.disposal_quantity <= 0:
                         break
-        self._match_section_104(ctx)
-
-        assert round_decimal(ctx.disposal_quantity, 23) == 0, (
-            f"disposal quantity {ctx.disposal_quantity}"
-        )
-        self.state.portfolio[ctx.symbol] = Position(
-            ctx.current_quantity, normalize_amount(ctx.current_amount)
-        )
-        ctx.chargeable_gain = round_decimal(ctx.chargeable_gain, 2)
-        return ctx.chargeable_gain, ctx.calculation_entries
-
-    def _match_same_day(self, ctx: DisposalContext) -> None:
-        """Identify the disposal against the same day's acquisitions."""
-        # Same day rule is first, against the day's real purchases only. Shares
-        # from a split are not an acquisition (TCGA 1992 s127, CG51805) and cost
-        # nothing, so matching them would hand the disposal a nil allowable cost
-        # and, on a day that also has a purchase, spread that purchase's cost
-        # over the free shares as well.
-        same_day_acquisition = self._matchable_acquisition(ctx.date_index, ctx.symbol)
-        if same_day_acquisition.quantity > 0:
-            available_quantity = min(
-                ctx.disposal_quantity, same_day_acquisition.quantity
-            )
-            if available_quantity > 0:
-                fees = ctx.disposal.fees * available_quantity / ctx.disposal.quantity
-
-                # Multiply by available_quantity before divide to avoid rounding errors from division
-                acquisition_cost = normalize_amount(
-                    (available_quantity * same_day_acquisition.amount)
-                    / same_day_acquisition.quantity
-                )
-
-                acquisition_price = acquisition_cost / available_quantity
-                # No gain/no loss: deemed proceeds equal the allowable cost.
-                same_day_amount = (
-                    acquisition_cost
-                    if ctx.no_gain_no_loss
-                    else available_quantity * ctx.disposal_price
-                )
-                same_day_proceeds = same_day_amount + fees
-                same_day_allowable_cost = acquisition_cost + fees
-                same_day_gain = same_day_proceeds - same_day_allowable_cost
-                ctx.chargeable_gain += same_day_gain
-                LOGGER.debug(
-                    "SAME DAY, quantity %s, gain %s, disposal price %s, "
-                    "acquisition price %s",
-                    available_quantity,
-                    same_day_gain,
-                    ctx.disposal_price,
-                    acquisition_price,
-                )
-                ctx.disposal_quantity -= available_quantity
-                ctx.current_quantity -= available_quantity
-                # These shares shouldn't be added to Section 104 holding
-                ctx.current_amount -= acquisition_cost
-                if ctx.current_quantity == 0:
-                    assert round_decimal(ctx.current_amount, 23) == 0, (
-                        f"current amount {ctx.current_amount}"
-                    )
-                ctx.calculation_entries.append(
-                    CalculationEntry(
-                        rule_type=(
-                            RuleType.TRANSFER_TO_SPOUSE
-                            if ctx.no_gain_no_loss
-                            else RuleType.SAME_DAY
-                        ),
-                        quantity=available_quantity,
-                        amount=same_day_amount,
-                        gain=same_day_gain,
-                        allowable_cost=same_day_allowable_cost,
-                        fees=fees,
-                        new_quantity=ctx.current_quantity,
-                        new_pool_cost=ctx.current_amount,
-                    )
-                )
 
     def _match_section_104(self, ctx: DisposalContext) -> None:
         """Identify what is left of the disposal against the Section 104 pool."""
