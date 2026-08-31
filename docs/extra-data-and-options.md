@@ -56,9 +56,10 @@ select another file for these mappings.
 
 ### Estimate unrealized gains
 
-Use `--unrealized-gains` to add current-price estimates to the terminal portfolio and summary. For
-each holding left at the report's end date, cgt-calc fetches today's price from Yahoo Finance,
-converts it to GBP and subtracts its Section 104 pooled cost. It warns when a price is unavailable.
+Use `--unrealized-gains` to add current-price estimates to the portfolio and summary printed in the
+terminal. For each holding left at the report's end date, cgt-calc fetches today's price from Yahoo
+Finance, converts it to GBP and subtracts its Section 104 pooled cost. It warns when a price is
+unavailable.
 
 This is a portfolio estimate, not the gain from an actual sale. It does not include selling costs or
 change the report's capital gains, losses or taxable figures. For an older report, the ending
