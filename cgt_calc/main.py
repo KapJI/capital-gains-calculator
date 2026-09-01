@@ -92,6 +92,8 @@ class CapitalGainsCalculator:
             ticker.upper() for ticker in cgt_exempt_tickers or []
         )
         self.state = CalculatorState()
+        self.history = self.state.history
+        self.run = self.state.run
         self.income = IncomeProcessor(
             self.state,
             currency_converter,
@@ -125,27 +127,27 @@ class CapitalGainsCalculator:
     @property
     def portfolio(self) -> dict[str, Position]:
         """Holdings built up so far, by symbol."""
-        return self.state.portfolio
+        return self.run.portfolio
 
     @property
     def bnb_list(self) -> HmrcTransactionLog:
         """Acquisitions reserved by the bed and breakfast rule."""
-        return self.state.bnb_list
+        return self.run.bnb_list
 
     @property
     def splits(self) -> dict[datetime.date, dict[str, SplitTransformation]]:
         """What each share reorganisation does to a holding."""
-        return self.state.splits
+        return self.history.splits
 
     @property
     def eris(self) -> ExcessReportedIncomeLog:
         """Excess Reported Income by date and symbol."""
-        return self.state.eris
+        return self.history.eris
 
     @property
     def calculation_log_yields(self) -> CalculationLog:
         """Calculation log for the interest and dividend report sections."""
-        return self.state.calculation_log_yields
+        return self.run.calculation_log_yields
 
     def date_in_tax_year(self, date: datetime.date) -> bool:
         """Check if date is within current tax year."""
@@ -165,14 +167,14 @@ class CapitalGainsCalculator:
         Runs once per calculator, whether or not it succeeds: a second run
         would accumulate into the history the first one recorded.
         """
-        if self.state.ingestion_started:
+        if self.run.ingestion_started:
             raise RuntimeError(
                 "convert_to_hmrc_transactions() runs once per calculator; build "
                 "a new one to ingest again"
             )
-        self.state.ingestion_started = True
+        self.run.ingestion_started = True
         self.ingester.convert_to_hmrc_transactions(transactions)
-        self.state.ingested = True
+        self.run.ingested = True
 
     def calculate(
         self,
@@ -194,7 +196,7 @@ class CapitalGainsCalculator:
         """Warn for any exempt ticker with no transactions."""
         logged_symbols = {
             sym.upper()
-            for log in (self.state.acquisition_list, self.state.disposal_list)
+            for log in (self.history.acquisition_list, self.history.disposal_list)
             for day in log.values()
             for sym in day
         }
@@ -214,17 +216,17 @@ class CapitalGainsCalculator:
         estimates as it replaces them and accumulates bed and breakfast
         claims as it makes them, so a second run would count both twice.
         """
-        if not self.state.ingested:
+        if not self.run.ingested:
             raise RuntimeError(
                 "convert_to_hmrc_transactions() must complete before "
                 "calculate_capital_gain(); use calculate() to run both in order"
             )
-        if self.state.calculated:
+        if self.run.calculated:
             raise RuntimeError(
                 "calculate_capital_gain() runs once per calculator; build a "
                 "new one to calculate again"
             )
-        self.state.calculated = True
+        self.run.calculated = True
         self._warn_unmatched_cgt_exempt_tickers()
         walked = self.matcher.walk()
 
@@ -244,7 +246,7 @@ class CapitalGainsCalculator:
             self.tax_year,
             [
                 self.make_portfolio_entry(symbol, position.quantity, position.amount)
-                for symbol, position in self.state.portfolio.items()
+                for symbol, position in self.run.portfolio.items()
             ],
             walked.disposal_count,
             round_decimal(walked.disposal_proceeds, 2),
@@ -254,10 +256,10 @@ class CapitalGainsCalculator:
             Decimal(allowance) if allowance is not None else None,
             Decimal(dividend_allowance) if dividend_allowance is not None else None,
             walked.calculation_log,
-            dict(sorted(self.state.calculation_log_yields.items())),
-            round_decimal(self.state.total_uk_interest, 2),
-            round_decimal(self.state.total_foreign_interest, 2),
-            round_decimal(self.state.total_interest_tax, 2),
+            dict(sorted(self.run.calculation_log_yields.items())),
+            round_decimal(self.run.total_uk_interest, 2),
+            round_decimal(self.run.total_foreign_interest, 2),
+            round_decimal(self.run.total_interest_tax, 2),
             show_unrealized_gains=self.calc_unrealized_gains,
             gift_loss=round_decimal(walked.gift_loss, 2),
             period_start=self.period_start,

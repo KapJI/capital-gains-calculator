@@ -88,7 +88,8 @@ class Matcher:
         is_cgt_exempt: Callable[[str], bool],
     ):
         """Create matcher object."""
-        self.state = state
+        self.history = state.history
+        self.run = state.run
         self.tax_year_start_date = tax_year_start_date
         self.tax_year_end_date = tax_year_end_date
         self.interest_fund_tickers = interest_fund_tickers
@@ -97,7 +98,7 @@ class Matcher:
 
     def get_eri(self, symbol: str, date: datetime.date) -> ExcessReportedIncome | None:
         """Return Excess Reported Income at specific date for the input symbol."""
-        return self.state.eris.get(date, {}).get(symbol)
+        return self.history.eris.get(date, {}).get(symbol)
 
     def _disposal_log_prefix(self, date_index: datetime.date, symbol: str) -> str:
         """Name the kind of disposal recorded for a symbol on a day.
@@ -112,10 +113,10 @@ class Matcher:
         if self.is_cgt_exempt(symbol):
             return "exempt"
         key = (date_index, symbol)
-        connected = self.state.gift_disposals.get(key)
+        connected = self.history.gift_disposals.get(key)
         if connected:
             return "gift"
-        if connected is None or key in self.state.sale_days:
+        if connected is None or key in self.history.sale_days:
             return "sell"
         return "gift-unconnected"
 
@@ -125,10 +126,10 @@ class Matcher:
         date_index: datetime.date,
     ) -> list[CalculationEntry]:
         """Process single acquisition."""
-        acquisition = self.state.acquisition_list[date_index][symbol]
+        acquisition = self.history.acquisition_list[date_index][symbol]
         spin_offs_here = [
             spin_off
-            for spin_off in self.state.spin_offs.get(date_index, [])
+            for spin_off in self.history.spin_offs.get(date_index, [])
             if spin_off.dest == symbol
         ]
         spin_off = spin_offs_here[0] if spin_offs_here else None
@@ -153,7 +154,7 @@ class Matcher:
                 events.setdefault(row.source, []).append(row)
             for source_symbol, rows in events.items():
                 first = rows[0]
-                source = self.state.portfolio[
+                source = self.run.portfolio[
                     self._spin_off_pool(date_index, source_symbol, first.dest)
                 ]
                 assert first.source_price is not None
@@ -164,7 +165,7 @@ class Matcher:
                 proportion = source_value / total_value if total_value else Decimal(1)
                 share = round_decimal((1 - proportion) * source.amount, 2)
                 carried += share
-                self.state.spin_off_entries[date_index][source_symbol].append(
+                self.run.spin_off_entries[date_index][source_symbol].append(
                     CalculationEntry(
                         RuleType.SPIN_OFF,
                         quantity=source.quantity,
@@ -180,11 +181,11 @@ class Matcher:
                     )
                 )
                 source.amount -= share
-            acquisition.amount += carried - self.state.spin_off_estimates.pop(
+            acquisition.amount += carried - self.history.spin_off_estimates.pop(
                 (date_index, symbol), Decimal(0)
             )
         modified_amount = acquisition.amount
-        position = self.state.portfolio[symbol]
+        position = self.run.portfolio[symbol]
         calculation_entries = []
         # Management fee transaction can have 0 quantity
         assert acquisition.quantity >= 0
@@ -194,10 +195,8 @@ class Matcher:
         bnb_acquisition = HmrcTransactionData()
         bed_and_breakfast_fees = Decimal(0)
 
-        if acquisition.quantity > 0 and has_key(
-            self.state.bnb_list, date_index, symbol
-        ):
-            bnb_acquisition = self.state.bnb_list[date_index][symbol]
+        if acquisition.quantity > 0 and has_key(self.run.bnb_list, date_index, symbol):
+            bnb_acquisition = self.run.bnb_list[date_index][symbol]
             assert bnb_acquisition.quantity <= acquisition.quantity
             # Multiply by the B&B quantity before dividing to avoid rounding errors from division
             bnb_cost_basis = normalize_amount(
@@ -221,7 +220,7 @@ class Matcher:
                     eris=bnb_acquisition.eris,
                 )
             )
-        self.state.portfolio[symbol] += Position(
+        self.run.portfolio[symbol] += Position(
             acquisition.quantity,
             modified_amount,
         )
@@ -259,9 +258,9 @@ class Matcher:
         ``transfer_to_spouse_list`` (which carry no fees and no proceeds).
         """
         disposal = (
-            self.state.transfer_to_spouse_list
+            self.history.transfer_to_spouse_list
             if no_gain_no_loss
-            else self.state.disposal_list
+            else self.history.disposal_list
         )[date_index][symbol]
         ctx = DisposalContext(
             symbol=symbol,
@@ -270,8 +269,8 @@ class Matcher:
             disposal=disposal,
             disposal_quantity=disposal.quantity,
             disposal_price=disposal.amount / disposal.quantity,
-            current_quantity=self.state.portfolio[symbol].quantity,
-            current_amount=self.state.portfolio[symbol].amount,
+            current_quantity=self.run.portfolio[symbol].quantity,
+            current_amount=self.run.portfolio[symbol].amount,
             chargeable_gain=Decimal(0),
             calculation_entries=[],
         )
@@ -283,7 +282,7 @@ class Matcher:
         assert round_decimal(ctx.disposal_quantity, 23) == 0, (
             f"disposal quantity {ctx.disposal_quantity}"
         )
-        self.state.portfolio[ctx.symbol] = Position(
+        self.run.portfolio[ctx.symbol] = Position(
             ctx.current_quantity, normalize_amount(ctx.current_amount)
         )
         ctx.chargeable_gain = round_decimal(ctx.chargeable_gain, 2)
@@ -385,8 +384,8 @@ class Matcher:
                 # reorganisation of a holding renamed *into* this name is
                 # deliberately not picked up: the shares disposed of here left
                 # before that one arrived, so they were never its shares.
-                renames = self.state.rename_list.get(search_index, {})
-                day_splits = self.state.splits.get(search_index, {})
+                renames = self.history.rename_list.get(search_index, {})
+                day_splits = self.history.splits.get(search_index, {})
                 renamed_symbol = renames.get(effective_symbol, effective_symbol)
                 transformation = day_splits.get(effective_symbol) or day_splits.get(
                     renamed_symbol
@@ -417,29 +416,29 @@ class Matcher:
                 )
                 if acquisition.quantity > 0:
                     bnb_acquisition = (
-                        self.state.bnb_list[search_index][effective_symbol]
-                        if has_key(self.state.bnb_list, search_index, effective_symbol)
+                        self.run.bnb_list[search_index][effective_symbol]
+                        if has_key(self.run.bnb_list, search_index, effective_symbol)
                         else HmrcTransactionData()
                     )
                     assert bnb_acquisition.quantity <= acquisition.quantity
 
                     same_day_disposal = (
-                        self.state.disposal_list[search_index][effective_symbol]
+                        self.history.disposal_list[search_index][effective_symbol]
                         if has_key(
-                            self.state.disposal_list, search_index, effective_symbol
+                            self.history.disposal_list, search_index, effective_symbol
                         )
                         else HmrcTransactionData()
                     )
                     # A same-day transfer to spouse competes for the same-day
                     # acquisition like a same-day sale, so reserve its share too.
                     if has_key(
-                        self.state.transfer_to_spouse_list,
+                        self.history.transfer_to_spouse_list,
                         search_index,
                         effective_symbol,
                     ):
                         same_day_disposal = (
                             same_day_disposal
-                            + self.state.transfer_to_spouse_list[search_index][
+                            + self.history.transfer_to_spouse_list[search_index][
                                 effective_symbol
                             ]
                         )
@@ -460,7 +459,7 @@ class Matcher:
                         continue
                     if any(
                         spin_off.dest == effective_symbol
-                        for spin_off in self.state.spin_offs.get(search_index, [])
+                        for spin_off in self.history.spin_offs.get(search_index, [])
                     ):
                         # What those shares cost is a share of the source's pool
                         # on the day of the spin-off, and the walk has not
@@ -570,7 +569,7 @@ class Matcher:
                         )
                         total_dist_amount += eri_distribution.amount
                         if self.date_in_tax_year(eri.distribution_date):
-                            self.state.eris_distribution[eri.distribution_date][
+                            self.run.eris_distribution[eri.distribution_date][
                                 ctx.symbol
                             ] += eri_distribution
 
@@ -603,7 +602,7 @@ class Matcher:
                             f"current amount {ctx.current_amount}"
                         )
                     add_to_list(
-                        self.state.bnb_list,
+                        self.run.bnb_list,
                         search_index,
                         effective_symbol,
                         consumed_acquisition_units,
@@ -689,15 +688,15 @@ class Matcher:
 
     def process_rename(self, old: str, new: str) -> CalculationEntry:
         """Transfer pool from old ticker to new ticker (no disposal)."""
-        pos = self.state.portfolio.pop(old, Position())
-        self.state.portfolio[new] += pos
+        pos = self.run.portfolio.pop(old, Position())
+        self.run.portfolio[new] += pos
         return CalculationEntry(
             rule_type=RuleType.RENAME,
             quantity=pos.quantity,
             amount=Decimal(0),
             fees=Decimal(0),
-            new_quantity=self.state.portfolio[new].quantity,
-            new_pool_cost=self.state.portfolio[new].amount,
+            new_quantity=self.run.portfolio[new].quantity,
+            new_pool_cost=self.run.portfolio[new].amount,
             allowable_cost=pos.amount,
             renamed_to=new,
         )
@@ -715,9 +714,9 @@ class Matcher:
         exports this was built from, which is enough to leave a disposal of
         the whole holding short of zero.
         """
-        renames = self.state.rename_list.get(date_index, {})
+        renames = self.history.rename_list.get(date_index, {})
         for symbol, transformation in sorted(
-            self.state.splits.get(date_index, {}).items()
+            self.history.splits.get(date_index, {}).items()
         ):
             chained = self._rename_chain_at(symbol, renames)
             if chained is not None:
@@ -729,7 +728,7 @@ class Matcher:
                 raise CalculationError(
                     self._rename_and_split_message(symbol, date_index, *pooled)
                 )
-            position = self.state.portfolio[symbol]
+            position = self.run.portfolio[symbol]
             if position.quantity != transformation.day_open_quantity:
                 raise CalculationError(
                     f"Cannot apply the reorganisation of {symbol} on "
@@ -739,7 +738,7 @@ class Matcher:
                     "the reorganisation was worked out. Please report this: "
                     "the two passes over the history disagree."
                 )
-            self.state.portfolio[symbol] = Position(
+            self.run.portfolio[symbol] = Position(
                 transformation.scaled_day_open_quantity, position.amount
             )
 
@@ -750,12 +749,9 @@ class Matcher:
         the portfolio still holds the day-opening pool; an acquisition later
         today lands before the rename, which is applied at the end of the day.
         """
-        if (
-            symbol in self.state.portfolio
-            and self.state.portfolio[symbol].quantity != 0
-        ):
+        if symbol in self.run.portfolio and self.run.portfolio[symbol].quantity != 0:
             return True
-        return has_key(self.state.acquisition_list, date_index, symbol)
+        return has_key(self.history.acquisition_list, date_index, symbol)
 
     @staticmethod
     def _rename_chain_at(
@@ -837,9 +833,9 @@ class Matcher:
         takes no part in same-day or 30-day identification.
         """
         for symbol, transformation in sorted(
-            self.state.splits.get(date_index, {}).items()
+            self.history.splits.get(date_index, {}).items()
         ):
-            position = self.state.portfolio[symbol]
+            position = self.run.portfolio[symbol]
             quantity = position.quantity + transformation.reconciliation_delta
             if quantity < 0:
                 raise CalculationError(
@@ -847,7 +843,7 @@ class Matcher:
                     f"{date_index}: reconciling to the broker's count leaves "
                     f"{strip_zeros(quantity)} units."
                 )
-            self.state.portfolio[symbol] = Position(quantity, position.amount)
+            self.run.portfolio[symbol] = Position(quantity, position.amount)
             if date_index < tax_year_start_index:
                 continue
             event = transformation.event
@@ -888,11 +884,11 @@ class Matcher:
         holding onward again or pools it with a second one is refused before
         any of this (see ``apply_split_openings``).
         """
-        renames = self.state.rename_list.get(date_index, {})
+        renames = self.history.rename_list.get(date_index, {})
         for symbol, transformation in sorted(
-            self.state.splits.get(date_index, {}).items()
+            self.history.splits.get(date_index, {}).items()
         ):
-            closing = self.state.portfolio[renames.get(symbol, symbol)].quantity
+            closing = self.run.portfolio[renames.get(symbol, symbol)].quantity
             if closing != transformation.expected_day_close:
                 raise CalculationError(
                     f"Cannot apply the reorganisation of {symbol} on "
@@ -977,7 +973,7 @@ class Matcher:
         received by spin-off that day are not a trade; dependency order has
         already put them in its pool.
         """
-        renames = self.state.rename_list.get(date_index, {})
+        renames = self.history.rename_list.get(date_index, {})
         # Follow the day's renames back from the source, a holding renamed
         # twice in a morning being two hops from its pool. Only renames on
         # this chain matter; what happened to other symbols that day does not.
@@ -1007,10 +1003,10 @@ class Matcher:
         holding = sorted(
             name
             for name in names
-            if name in self.state.portfolio
+            if name in self.run.portfolio
             and (
-                self.state.portfolio[name].quantity > 0
-                or self.state.portfolio[name].amount != 0
+                self.run.portfolio[name].quantity > 0
+                or self.run.portfolio[name].amount != 0
             )
         )
         if len(holding) > 1:
@@ -1028,21 +1024,21 @@ class Matcher:
             spun_in = sum(
                 (
                     spin_off.quantity
-                    for spin_off in self.state.spin_offs.get(date_index, [])
+                    for spin_off in self.history.spin_offs.get(date_index, [])
                     if spin_off.dest == name
                 ),
                 Decimal(0),
             )
             if (
-                has_key(self.state.acquisition_list, date_index, name)
-                and self.state.acquisition_list[date_index][name].quantity > spun_in
+                has_key(self.history.acquisition_list, date_index, name)
+                and self.history.acquisition_list[date_index][name].quantity > spun_in
             ):
                 activity.append("bought")
-            if has_key(self.state.disposal_list, date_index, name):
+            if has_key(self.history.disposal_list, date_index, name):
                 activity.append("sold")
-            if has_key(self.state.transfer_to_spouse_list, date_index, name):
+            if has_key(self.history.transfer_to_spouse_list, date_index, name):
                 activity.append("transferred to a spouse")
-            if (date_index, name) in self.state.fee_days:
+            if (date_index, name) in self.history.fee_days:
                 activity.append("charged a fee")
         if activity:
             raise CalculationError(
@@ -1071,7 +1067,7 @@ class Matcher:
         """
         sources: dict[str, list[str]] = defaultdict(list)
         first_event: dict[str, int] = {}
-        for index, spin_off in enumerate(self.state.spin_offs.get(date_index, [])):
+        for index, spin_off in enumerate(self.history.spin_offs.get(date_index, [])):
             sources[spin_off.dest].append(spin_off.source)
             first_event.setdefault(spin_off.dest, index)
 
@@ -1081,7 +1077,7 @@ class Matcher:
             return 1 + max((depth(source) for source in sources[symbol]), default=-1)
 
         return sorted(
-            self.state.acquisition_list[date_index],
+            self.history.acquisition_list[date_index],
             key=lambda symbol: (depth(symbol), first_event.get(symbol, -1)),
         )
 
@@ -1166,9 +1162,9 @@ class Matcher:
         were never acquired (TCGA 1992 s127, CG51805), so they never enter
         ``acquisition_list`` in the first place.
         """
-        if not has_key(self.state.acquisition_list, date_index, symbol):
+        if not has_key(self.history.acquisition_list, date_index, symbol):
             return HmrcTransactionData()
-        return self.state.acquisition_list[date_index][symbol]
+        return self.history.acquisition_list[date_index][symbol]
 
     def _contending_acquisitions(
         self,
@@ -1208,8 +1204,8 @@ class Matcher:
                 # disposal day itself the sale and the transfer are the two
                 # laying claim, so subtracting them would hide the clash.
                 for log in (
-                    self.state.disposal_list,
-                    self.state.transfer_to_spouse_list,
+                    self.history.disposal_list,
+                    self.history.transfer_to_spouse_list,
                 ):
                     if has_key(log, day, ticker):
                         taken += log[day][ticker].quantity
@@ -1220,7 +1216,7 @@ class Matcher:
         for i in range(BED_AND_BREAKFAST_DAYS):
             search_index = date_index + datetime.timedelta(days=i + 1)
             # HMRC treats renames as the same security for B&B purposes.
-            effective_symbol = self.state.rename_list.get(search_index, {}).get(
+            effective_symbol = self.history.rename_list.get(search_index, {}).get(
                 effective_symbol, effective_symbol
             )
             if has_shares_going_spare(
@@ -1236,13 +1232,13 @@ class Matcher:
         contended: list[datetime.date],
     ) -> str:
         """Explain why a same-day sale and transfer cannot be calculated."""
-        sold = self.state.disposal_list[date_index][symbol].quantity
-        transferred = self.state.transfer_to_spouse_list[date_index][symbol].quantity
+        sold = self.history.disposal_list[date_index][symbol].quantity
+        transferred = self.history.transfer_to_spouse_list[date_index][symbol].quantity
         shown = ", ".join(str(date) for date in contended[:MAX_CONTENDED_DATES_SHOWN])
         if len(contended) > MAX_CONTENDED_DATES_SHOWN:
             shown += f" and {len(contended) - MAX_CONTENDED_DATES_SHOWN} more"
-        has_gift = (date_index, symbol) in self.state.gift_disposals
-        has_sale = (date_index, symbol) in self.state.sale_days
+        has_gift = (date_index, symbol) in self.history.gift_disposals
+        has_sale = (date_index, symbol) in self.history.sale_days
         if has_gift and has_sale:
             verb, noun = ("sold or gave away", "disposal")
         elif has_gift:
@@ -1281,13 +1277,13 @@ class Matcher:
         exactly like a disposal (see ``process_disposal``), but with a nil gain,
         so it is kept out of the taxable disposal totals.
         """
-        if date_index not in self.state.transfer_to_spouse_list:
+        if date_index not in self.history.transfer_to_spouse_list:
             return
-        for symbol in self.state.transfer_to_spouse_list[date_index]:
+        for symbol in self.history.transfer_to_spouse_list[date_index]:
             # HMRC does not define how to identify a taxable sale and a no gain/no
             # loss transfer of the same shares on the same day, so refuse the
             # cases where that identification actually changes the answer.
-            if has_key(self.state.disposal_list, date_index, symbol) and (
+            if has_key(self.history.disposal_list, date_index, symbol) and (
                 contended := self._contending_acquisitions(
                     symbol, date_index, bnb_claimed_before_today
                 )
@@ -1308,7 +1304,7 @@ class Matcher:
                 logging.INFO if self.date_in_tax_year(date_index) else logging.DEBUG,
                 "Transferred %s units of %s to spouse on %s "
                 "(no gain/no loss, base cost £%s)",
-                self.state.transfer_to_spouse_list[date_index][symbol].quantity,
+                self.history.transfer_to_spouse_list[date_index][symbol].quantity,
                 symbol,
                 date_index,
                 round_decimal(base_cost, 2),
@@ -1324,8 +1320,8 @@ class Matcher:
         """Process single excess reported income."""
         eri = self.get_eri(symbol, date_index)
         assert eri is not None
-        amount = self.state.portfolio[eri.symbol].amount
-        quantity = self.state.portfolio[eri.symbol].quantity
+        amount = self.run.portfolio[eri.symbol].amount
+        quantity = self.run.portfolio[eri.symbol].quantity
 
         if quantity == 0:
             return None
@@ -1344,10 +1340,10 @@ class Matcher:
             amount,
             new_amount,
         )
-        self.state.portfolio[eri.symbol].amount = new_amount
+        self.run.portfolio[eri.symbol].amount = new_amount
 
         if self.date_in_tax_year(eri.distribution_date):
-            self.state.eris_distribution[eri.distribution_date][symbol] += (
+            self.run.eris_distribution[eri.distribution_date][symbol] += (
                 ExcessReportedIncomeDistribution(
                     price=eri.price,
                     amount=allowable_cost,
@@ -1378,7 +1374,7 @@ class Matcher:
         costs = Decimal(0)
         gains = Decimal(0)
         losses = Decimal(0)
-        for option_name, option in self.state.option_disposal_list.get(
+        for option_name, option in self.history.option_disposal_list.get(
             date_index, {}
         ).items():
             raw_gain = option.proceeds - option.allowable_cost
@@ -1420,8 +1416,8 @@ class Matcher:
 
         # The first pass left its estimates in the portfolio; the walk rebuilds
         # it from nothing.
-        self.state.portfolio.clear()
-        self.state.spin_off_entries.clear()
+        self.run.portfolio.clear()
+        self.run.spin_off_entries.clear()
         calculation_log: CalculationLog = defaultdict(dict)
 
         for date_index in (
@@ -1434,14 +1430,14 @@ class Matcher:
             bnb_claimed_before_today = (
                 {
                     (day, ticker): data.quantity
-                    for day, tickers in self.state.bnb_list.items()
+                    for day, tickers in self.run.bnb_list.items()
                     for ticker, data in tickers.items()
                 }
-                if date_index in self.state.transfer_to_spouse_list
+                if date_index in self.history.transfer_to_spouse_list
                 else {}
             )
             self.apply_split_openings(date_index)
-            if date_index in self.state.acquisition_list:
+            if date_index in self.history.acquisition_list:
                 for symbol in self._acquisition_order(date_index):
                     calculation_entries = self.process_acquisition(
                         symbol,
@@ -1451,7 +1447,7 @@ class Matcher:
                         calculation_log[date_index][f"buy${symbol}"] = (
                             calculation_entries
                         )
-            for source, entries in self.state.spin_off_entries.pop(
+            for source, entries in self.run.spin_off_entries.pop(
                 date_index, {}
             ).items():
                 if date_index >= tax_year_start_index:
@@ -1459,22 +1455,22 @@ class Matcher:
             self.record_split_reconciliations(
                 date_index, tax_year_start_index, calculation_log
             )
-            if date_index in self.state.disposal_list:
-                for symbol in self.state.disposal_list[date_index]:
+            if date_index in self.history.disposal_list:
+                for symbol in self.history.disposal_list[date_index]:
                     transaction_capital_gain, calculation_entries = (
                         self.process_disposal(symbol, date_index)
                     )
                     if date_index >= tax_year_start_index:
-                        transaction_amount = self.state.disposal_list[date_index][
+                        transaction_amount = self.history.disposal_list[date_index][
                             symbol
                         ].amount
-                        transaction_fees = self.state.disposal_list[date_index][
+                        transaction_fees = self.history.disposal_list[date_index][
                             symbol
                         ].fees
                         transaction_disposal_proceeds = (
                             transaction_amount + transaction_fees
                         )
-                        transaction_quantity = self.state.disposal_list[date_index][
+                        transaction_quantity = self.history.disposal_list[date_index][
                             symbol
                         ].quantity
                         calculated_quantity = Decimal(0)
@@ -1545,8 +1541,8 @@ class Matcher:
                 capital_gain += option_gains
                 capital_loss += option_losses
 
-            if date_index in self.state.rename_list:
-                for old, new in self.state.rename_list[date_index].items():
+            if date_index in self.history.rename_list:
+                for old, new in self.history.rename_list[date_index].items():
                     entry = self.process_rename(old, new)
                     if date_index >= tax_year_start_index:
                         calculation_log[date_index][f"rename${old}"] = [entry]
@@ -1561,8 +1557,8 @@ class Matcher:
             self.verify_split_day_closes(date_index)
 
             # Excess Reported incomes should be reported at the end of the day
-            if date_index in self.state.eris:
-                for symbol in self.state.eris[date_index]:
+            if date_index in self.history.eris:
+                for symbol in self.history.eris[date_index]:
                     maybe_entry = self.process_eri(symbol, date_index)
                     if not maybe_entry:
                         continue
@@ -1575,13 +1571,13 @@ class Matcher:
                         ] = [maybe_entry]
 
             # Lastly all the ERI distribution events
-            if date_index in self.state.eris_distribution:
-                for symbol in self.state.eris_distribution[date_index]:
-                    data = self.state.eris_distribution[date_index][symbol]
+            if date_index in self.run.eris_distribution:
+                for symbol in self.run.eris_distribution[date_index]:
+                    data = self.run.eris_distribution[date_index][symbol]
                     is_interest = symbol in self.interest_fund_tickers
                     if is_interest:
-                        self.state.total_foreign_interest += data.amount
-                    self.state.calculation_log_yields[date_index][
+                        self.run.total_foreign_interest += data.amount
+                    self.run.calculation_log_yields[date_index][
                         f"excess-reported-income-distribution${symbol}"
                     ] = [
                         CalculationEntry(

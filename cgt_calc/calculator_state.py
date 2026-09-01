@@ -27,16 +27,14 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class CalculatorState:
-    """What the calculator builds up as it walks the transactions.
+class PreparedHistory:
+    """What the first pass records for the second pass to replay.
 
-    Everything here is written during a run. Configuration and the injected
-    converters and fetchers stay on the calculator itself.
+    Everything here is written while transactions are being read, and read
+    again while they are matched. The three scratch fields
+    (split_day_capacity, holding_sources, gift_prices) are the first pass's
+    own working notes: nothing in the second pass looks at them.
     """
-
-    total_uk_interest: Decimal = Decimal(0)
-    total_foreign_interest: Decimal = Decimal(0)
-    total_interest_tax: Decimal = Decimal(0)
 
     acquisition_list: HmrcTransactionLog = field(default_factory=dict)
     disposal_list: HmrcTransactionLog = field(default_factory=dict)
@@ -49,7 +47,6 @@ class CalculatorState:
     # No gain/no loss transfers to a spouse/civil partner. Kept separate from
     # disposal_list so they never enter the taxable disposal totals.
     transfer_to_spouse_list: HmrcTransactionLog = field(default_factory=dict)
-    bnb_list: HmrcTransactionLog = field(default_factory=dict)
     # What each share reorganisation does to a holding, by date and
     # symbol. Decided once from the chronological source view and
     # replayed by both passes: deciding again in the second pass is how
@@ -104,14 +101,6 @@ class CalculatorState:
         tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
     ] = field(default_factory=lambda: defaultdict(ForeignCurrencyAmount))
 
-    # Log for the report section related only to interests and dividends
-    calculation_log_yields: CalculationLog = field(
-        default_factory=lambda: defaultdict(dict)
-    )
-
-    portfolio: dict[str, Position] = field(
-        default_factory=lambda: defaultdict(Position)
-    )
     spin_offs: dict[datetime.date, list[SpinOff]] = field(
         default_factory=lambda: defaultdict(list)
     )
@@ -121,13 +110,6 @@ class CalculatorState:
     spin_off_estimates: dict[tuple[datetime.date, str], Decimal] = field(
         default_factory=lambda: defaultdict(Decimal)
     )
-    # Whether the first pass has begun, and whether it finished. Ingestion
-    # accumulates into the lists above, so it may only fill this state once,
-    # and a run that failed part way leaves a partial history that must not
-    # be calculated on.
-    ingestion_started: bool = False
-    ingested: bool = False
-    calculated: bool = False
     # Disposals that are gifts at market value rather than sales, and
     # whether the recipient is a connected person. A loss on a gift to a
     # connected person is clogged (TCGA 1992 s18(3)) and reported on its own.
@@ -143,14 +125,61 @@ class CalculatorState:
     # the pool's cost with no shares, so it cannot be told from the pool
     # itself once it is in.
     fee_days: set[tuple[datetime.date, str]] = field(default_factory=set)
+    eris: ExcessReportedIncomeLog = field(default_factory=lambda: defaultdict(dict))
+
+
+@dataclass
+class RunState:
+    """What the second pass builds, and how far the run has got.
+
+    The walk owns everything here. `portfolio` is the exception the split
+    makes visible: the first pass fills it with provisional holdings to
+    check its own rows against, and the walk clears it and rebuilds it.
+    """
+
+    total_uk_interest: Decimal = Decimal(0)
+    total_foreign_interest: Decimal = Decimal(0)
+    total_interest_tax: Decimal = Decimal(0)
+
+    bnb_list: HmrcTransactionLog = field(default_factory=dict)
+
+    # Log for the report section related only to interests and dividends
+    calculation_log_yields: CalculationLog = field(
+        default_factory=lambda: defaultdict(dict)
+    )
+
+    portfolio: dict[str, Position] = field(
+        default_factory=lambda: defaultdict(Position)
+    )
+    # Whether the first pass has begun, and whether it finished. Ingestion
+    # accumulates into the prepared history, so it may only fill this state
+    # once, and a run that failed part way leaves a partial history that must
+    # not be calculated on.
+    ingestion_started: bool = False
+    ingested: bool = False
+    calculated: bool = False
     # The source side of each spin-off, recorded when it is applied and
     # collected into the calculation log by date.
     spin_off_entries: dict[datetime.date, dict[str, list[CalculationEntry]]] = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(list))
     )
-    eris: ExcessReportedIncomeLog = field(default_factory=lambda: defaultdict(dict))
     eris_distribution: ExcessReportedIncomeDistributionLog = field(
         default_factory=lambda: defaultdict(
             lambda: defaultdict(ExcessReportedIncomeDistribution)
         )
     )
+
+
+@dataclass
+class CalculatorState:
+    """What the calculator builds up as it walks the transactions.
+
+    Everything here is written during a run, split by how long each part
+    lives: the first pass fills `history`, the second fills `run`. Keeping
+    them apart is what makes a write that crosses between the passes
+    something you can grep for. Configuration and the injected converters
+    and fetchers stay on the calculator itself.
+    """
+
+    history: PreparedHistory = field(default_factory=PreparedHistory)
+    run: RunState = field(default_factory=RunState)

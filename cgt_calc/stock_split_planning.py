@@ -331,7 +331,7 @@ def _plan_stock_split(
             )
         (before_rows if placement == "before" else after_rows).append(other)
 
-    day_open_quantity = state.portfolio[symbol].quantity
+    day_open_quantity = state.run.portfolio[symbol].quantity
     holding_at_event = day_open_quantity + sum(
         (
             quantity_sign(other.action) * _get_quantity_or_fail(other)
@@ -411,7 +411,7 @@ def _plan_stock_split(
             "units."
         )
 
-    state.splits[date_index][symbol] = SplitTransformation(
+    state.history.splits[date_index][symbol] = SplitTransformation(
         event=event,
         mode=mode,
         ratio=exact_ratio,
@@ -436,14 +436,14 @@ def _plan_stock_split(
     # its own last disposal. A negative reconciliation can leave the count
     # briefly below zero here, ahead of the day's acquisitions, which
     # nothing reads.
-    position = state.portfolio[symbol]
-    state.portfolio[symbol] = Position(
+    position = state.run.portfolio[symbol]
+    state.run.portfolio[symbol] = Position(
         scaled_day_open_quantity + reconciliation_delta, position.amount
     )
     # Everything the day can give up, in the order the replay puts it:
     # the restated opening, then every increase, then the reconciliation.
     # Decreases draw on this rather than on the running count.
-    state.split_day_capacity[symbol, date_index] = (
+    state.history.split_day_capacity[symbol, date_index] = (
         scaled_day_open_quantity
         + _signed_quantity(
             [
@@ -513,7 +513,7 @@ def _stock_split_event(
             f"{strip_zeros(holding_at_event)}."
         )
     if not isinstance(row, RawTransaction):
-        contributors = state.holding_sources.get(symbol, set()) | {
+        contributors = state.history.holding_sources.get(symbol, set()) | {
             source_account(other)
             for other in before_rows
             if quantity_sign(other.action) > 0
