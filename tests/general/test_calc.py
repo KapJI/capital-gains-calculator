@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import datetime
 from decimal import Decimal, localcontext
+from enum import Enum
 import logging
 from pathlib import Path
 import subprocess
@@ -1716,20 +1717,74 @@ def test_multiple_foreign_fee_currencies_on_sell() -> None:
     assert sell.price == Decimal(10)
 
 
-def test_calculate_capital_gain_runs_once() -> None:
-    """A second run would count the first pass's estimates and B&B claims twice."""
+def report_values(obj: object) -> object:
+    """Rebuild a report out of things that compare by value.
+
+    Two reports built by separate runs cannot be compared with ==:
+    `PortfolioEntry` and `CalculationEntry` define no `__eq__`, so the
+    generated comparison falls back to identity on the portfolio and both
+    calculation logs. Rendering to text is not the comparison either -- it
+    leaves out most calculation log entries, drops empty positions and
+    rounds. This walks the whole structure into dicts and lists, so every
+    field of every entry is compared, including the ones only the PDF reads.
+    """
+    if isinstance(obj, Enum):
+        return obj
+    if isinstance(obj, dict):
+        return {key: report_values(value) for key, value in obj.items()}
+    if isinstance(obj, list | tuple):
+        return [report_values(item) for item in obj]
+    attributes = getattr(obj, "__dict__", None)
+    if attributes is None:
+        return obj
+    return {name: report_values(value) for name, value in attributes.items()}
+
+
+def test_calculate_capital_gain_is_repeatable() -> None:
+    """A second run rebuilds the same report from the same prepared history."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    get_report(
-        calculator,
+    calculator.convert_to_hmrc_transactions(
         [
             transaction(
-                datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 1, 10, 0, -10, GBP
-            )
-        ],
+                datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 10, 10, 0, -100, GBP
+            ),
+            transaction(
+                datetime.date(2024, 6, 10), ActionType.SELL, "FOO", 10, 12, 0, 120, GBP
+            ),
+            # Within 30 days of the sale, so the walk records a bed and
+            # breakfast claim as it matches it.
+            transaction(
+                datetime.date(2024, 6, 20), ActionType.BUY, "FOO", 10, 11, 0, -110, GBP
+            ),
+            transaction(
+                datetime.date(2024, 7, 1),
+                ActionType.DIVIDEND,
+                "FOO",
+                None,
+                None,
+                0,
+                5,
+                GBP,
+            ),
+            transaction(
+                datetime.date(2024, 7, 2),
+                ActionType.INTEREST,
+                None,
+                None,
+                None,
+                0,
+                3,
+                GBP,
+            ),
+        ]
     )
+    prepared = copy.deepcopy(calculator.state.history)
 
-    with pytest.raises(RuntimeError, match="runs once per calculator"):
-        calculator.calculate_capital_gain()
+    first = calculator.calculate_capital_gain()
+    second = calculator.calculate_capital_gain()
+
+    assert report_values(second) == report_values(first)
+    assert calculator.state.history == prepared
 
 
 def test_convert_to_hmrc_transactions_runs_once() -> None:

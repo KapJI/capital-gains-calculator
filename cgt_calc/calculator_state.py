@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -157,7 +157,6 @@ class RunState:
     # not be calculated on.
     ingestion_started: bool = False
     ingested: bool = False
-    calculated: bool = False
     # The source side of each spin-off, recorded when it is applied and
     # collected into the calculation log by date.
     spin_off_entries: dict[datetime.date, dict[str, list[CalculationEntry]]] = field(
@@ -175,6 +174,16 @@ class RunState:
     spin_off_corrected_amounts: dict[tuple[datetime.date, str], Decimal] = field(
         default_factory=dict
     )
+
+    def reset(self) -> None:
+        """Forget what the last calculation built, keeping how far ingestion got.
+
+        In place, because the collaborators hold this object, not its fields.
+        """
+        fresh = RunState()
+        for spec in fields(self):
+            if spec.name not in {"ingestion_started", "ingested"}:
+                setattr(self, spec.name, getattr(fresh, spec.name))
 
 
 @dataclass
