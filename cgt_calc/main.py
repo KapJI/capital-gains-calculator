@@ -212,20 +212,17 @@ class CapitalGainsCalculator:
     ) -> CapitalGainsReport:
         """Calculate capital gain and return generated report.
 
-        Runs once per calculator. The walk accumulates bed and breakfast
-        claims as it makes them, so a second run would count them twice.
+        It may be run again, and each run starts from a fresh `RunState` over
+        the same prepared history.
         """
         if not self.run.ingested:
             raise RuntimeError(
                 "convert_to_hmrc_transactions() must complete before "
                 "calculate_capital_gain(); use calculate() to run both in order"
             )
-        if self.run.calculated:
-            raise RuntimeError(
-                "calculate_capital_gain() runs once per calculator; build a "
-                "new one to calculate again"
-            )
-        self.run.calculated = True
+        # The walk and the income processing accumulate into run state, so a
+        # rerun starts from nothing rather than adding to the last run.
+        self.run.reset()
         self._warn_unmatched_cgt_exempt_tickers()
         walked = self.matcher.walk()
 
