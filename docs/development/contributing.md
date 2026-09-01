@@ -32,6 +32,28 @@ uv sync
 This command creates a virtual environment and installs all project and development dependencies
 into it. Run it again after pulling new changes to update dependencies.
 
+## Code layout
+
+The calculation has two passes:
+
+`broker files → parsers → BrokerTransaction → ingestion → matching → CapitalGainsReport → renderers`
+
+- `cgt_calc/parsers/` reads broker exports and converts their rows into `BrokerTransaction` values.
+    Keep broker-specific columns and normalisation here, and keep tax matching outside the parsers.
+- `cgt_calc/ingestion.py` validates transactions and runs the first pass. It records dividends and
+    interest for `income.py` to process, and delegates share-reorganisation planning to
+    `stock_split_planning.py`.
+- `cgt_calc/calculator_state.py` holds the mutable working state shared by both passes.
+- `cgt_calc/matching.py` runs the second pass, applying the same-day, bed-and-breakfast and Section
+    104 matching rules.
+- `cgt_calc/model.py` defines shared values and the report model. `render_text.py` and
+    `render_latex.py` format that report without calculating it.
+- `cgt_calc/main.py` connects the stages behind `CapitalGainsCalculator`. `cgt_calc/cli.py` handles
+    command-line input and output.
+
+Put a change in the module that owns its behaviour. Extract a new module only when one complete
+concern can move behind explicit inputs; do not split a file only to reduce its line count.
+
 ## Code style
 
 All checks in CI must pass before merging changes.

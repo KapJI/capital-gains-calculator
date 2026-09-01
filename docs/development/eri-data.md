@@ -9,7 +9,7 @@ is described in [Providing custom ERI data](../custom-eri-data.md#where-provider
 For most providers you can import reports automatically. Run the
 [`import_eri_reports.py`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/scripts/import_eri_reports.py)
 script pointing to either the file or the folder containing the downloaded ERI reports. The tool
-recognizes the funds provider from the filename and imports the data into the matching resource CSV
+recognises the funds provider from the filename and imports the data into the matching resource CSV
 under
 [`cgt_calc/resources/eri/`](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/resources/eri).
 Vanguard, BlackRock, iShares, Xtrackers and Invesco reports are all supported this way. The script
