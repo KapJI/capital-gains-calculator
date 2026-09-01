@@ -22,6 +22,3 @@ updates:
       interval: weekly
     labels:
       - "dependencies"
-      # Kodiak automerges any PR with this label. GitHub Actions major bumps
-      # are safe to automerge; uv (Python) majors stay manual.
-      - "automerge"
