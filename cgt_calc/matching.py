@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import datetime
 from decimal import Decimal
 from fractions import Fraction
@@ -127,6 +127,7 @@ class Matcher:
     ) -> list[CalculationEntry]:
         """Process single acquisition."""
         acquisition = self.history.acquisition_list[date_index][symbol]
+        acquisition_amount = acquisition.amount
         spin_offs_here = [
             spin_off
             for spin_off in self.history.spin_offs.get(date_index, [])
@@ -138,11 +139,12 @@ class Matcher:
             # original cost is apportioned between the two holdings at the
             # reorganisation itself (CG51976). The first pass could only
             # estimate the source pool, so it recorded an estimate for this
-            # holding; here the pool is authoritative and in GBP. Swap exactly
-            # the estimate out of the day's acquisitions, which may also hold
-            # ordinary purchases of the same symbol, and take the source's
-            # side at the same moment so that what one gives up is what the
-            # other receives.
+            # holding; here the pool is authoritative and in GBP. Record the
+            # corrected figure on the run, exactly the estimate apart, and take
+            # the source's side at the same moment so that what one gives up is
+            # what the other receives. The recorded acquisition is left alone:
+            # it may also hold ordinary purchases of the same symbol, and the
+            # first pass's history stays as written.
             carried = Decimal(0)
             # Several rows for one spin-off, as when the holding is split
             # across brokers, are one reorganisation: the split of value is by
@@ -181,16 +183,17 @@ class Matcher:
                     )
                 )
                 source.amount -= share
-            acquisition.amount += carried - self.history.spin_off_estimates.pop(
+            acquisition_amount += carried - self.history.spin_off_estimates.get(
                 (date_index, symbol), Decimal(0)
             )
-        modified_amount = acquisition.amount
+            self.run.spin_off_corrected_amounts[date_index, symbol] = acquisition_amount
+        modified_amount = acquisition_amount
         position = self.run.portfolio[symbol]
         calculation_entries = []
         # Management fee transaction can have 0 quantity
         assert acquisition.quantity >= 0
         # Stock split can have 0 amount
-        assert acquisition.amount >= 0
+        assert acquisition_amount >= 0
 
         bnb_acquisition = HmrcTransactionData()
         bed_and_breakfast_fees = Decimal(0)
@@ -200,7 +203,7 @@ class Matcher:
             assert bnb_acquisition.quantity <= acquisition.quantity
             # Multiply by the B&B quantity before dividing to avoid rounding errors from division
             bnb_cost_basis = normalize_amount(
-                (bnb_acquisition.quantity * acquisition.amount) / acquisition.quantity
+                (bnb_acquisition.quantity * acquisition_amount) / acquisition.quantity
             )
             modified_amount -= bnb_cost_basis
             modified_amount += bnb_acquisition.amount
@@ -216,7 +219,7 @@ class Matcher:
                     new_quantity=position.quantity + bnb_acquisition.quantity,
                     new_pool_cost=position.amount + bnb_acquisition.amount,
                     fees=bed_and_breakfast_fees,
-                    allowable_cost=acquisition.amount,
+                    allowable_cost=acquisition_amount,
                     eris=bnb_acquisition.eris,
                 )
             )
@@ -236,7 +239,7 @@ class Matcher:
                     new_quantity=position.quantity + acquisition.quantity,
                     new_pool_cost=position.amount + modified_amount,
                     fees=acquisition.fees - bed_and_breakfast_fees,
-                    allowable_cost=acquisition.amount,
+                    allowable_cost=acquisition_amount,
                     spin_off=spin_off,
                 )
             )
@@ -1160,11 +1163,17 @@ class Matcher:
 
         Units a reorganisation restated are not here to be taken out: they
         were never acquired (TCGA 1992 s127, CG51805), so they never enter
-        ``acquisition_list`` in the first place.
+        ``acquisition_list`` in the first place. A spun-off holding's cost is
+        the corrected figure once its day has been walked, in place of the
+        estimate the first pass recorded.
         """
         if not has_key(self.history.acquisition_list, date_index, symbol):
             return HmrcTransactionData()
-        return self.history.acquisition_list[date_index][symbol]
+        record = self.history.acquisition_list[date_index][symbol]
+        corrected = self.run.spin_off_corrected_amounts.get((date_index, symbol))
+        if corrected is not None:
+            return replace(record, amount=corrected)
+        return record
 
     def _contending_acquisitions(
         self,

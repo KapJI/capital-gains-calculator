@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import datetime
 from decimal import Decimal, localcontext
 import logging
@@ -89,7 +90,12 @@ def get_report(
                 rows_in_time_order=True,
             )
     calculator.convert_to_hmrc_transactions(broker_transactions)
-    return calculator.calculate_capital_gain()
+    prepared = copy.deepcopy(calculator.state.history)
+    report = calculator.calculate_capital_gain()
+    assert calculator.state.history == prepared, (
+        "the matching replay wrote into the prepared history"
+    )
+    return report
 
 
 def create_calculator(

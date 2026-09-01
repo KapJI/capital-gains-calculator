@@ -48,8 +48,14 @@ def spin_off(
     foo_units: int,
     rates: dict[datetime.date, dict[CurrencyCode, Decimal]],
     currency: CurrencyCode = GBP,
+    after: list[BrokerTransaction] | None = None,
 ) -> tuple[CapitalGainsCalculator, CapitalGainsReport]:
-    """Run `transactions` then spin `foo_units` of BAR out of FOO."""
+    """Run `transactions` then spin `foo_units` of BAR out of FOO.
+
+    Rows in `after` are listed behind the spin-off, which is what a row on the
+    spin-off day itself needs: the sort keeps the order it is given, and a
+    disposal read before the shares arrive is refused.
+    """
     converter = CurrencyConverter(None, rates)
     handler = SpinOffHandler()
     handler.cache = {"BAR": "FOO"}
@@ -79,6 +85,7 @@ def spin_off(
                     0,
                     currency=currency,
                 ),
+                *(after or []),
             ],
             key=_transaction_sort_key,
         ),
@@ -246,6 +253,27 @@ def test_a_purchase_of_the_new_holding_on_the_day_keeps_its_cost() -> None:
 
     assert calculator.portfolio["BAR"].quantity == Decimal(15)
     assert calculator.portfolio["BAR"].amount == Decimal(60)
+
+
+def test_selling_the_new_holding_on_the_day_uses_the_corrected_cost() -> None:
+    """A same-day sale of BAR is identified against the corrected acquisition.
+
+    Half of FOO sold at a profit first, so the first pass estimated nothing
+    for BAR while the real share is 5. The day's acquisitions are walked
+    before its disposals, so the sale must see the 5, not the estimate.
+    """
+    _, report = spin_off(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(SALE_DAY, ActionType.SELL, "FOO", 5, 20, 0, 100, GBP),
+        ],
+        5,
+        {BUY_DAY: {GBP: FLAT}, SALE_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
+        after=[transaction(SPIN_OFF_DAY, ActionType.SELL, "BAR", 5, 10, 0, 50, GBP)],
+    )
+
+    same_day_sale = report.calculation_log[SPIN_OFF_DAY]["sell$BAR"]
+    assert sum((e.allowable_cost for e in same_day_sale), Decimal(0)) == Decimal(5)
 
 
 def test_selling_the_new_holding_just_before_the_spin_off_is_refused() -> None:

@@ -212,9 +212,8 @@ class CapitalGainsCalculator:
     ) -> CapitalGainsReport:
         """Calculate capital gain and return generated report.
 
-        Runs once per calculator. The walk consumes the first pass's
-        estimates as it replaces them and accumulates bed and breakfast
-        claims as it makes them, so a second run would count both twice.
+        Runs once per calculator. The walk accumulates bed and breakfast
+        claims as it makes them, so a second run would count them twice.
         """
         if not self.run.ingested:
             raise RuntimeError(
