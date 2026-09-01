@@ -121,6 +121,12 @@ class CalculatorState:
     spin_off_estimates: dict[tuple[datetime.date, str], Decimal] = field(
         default_factory=lambda: defaultdict(Decimal)
     )
+    # Whether the first pass has begun, and whether it finished. Ingestion
+    # accumulates into the lists above, so it may only fill this state once,
+    # and a run that failed part way leaves a partial history that must not
+    # be calculated on.
+    ingestion_started: bool = False
+    ingested: bool = False
     calculated: bool = False
     # Disposals that are gifts at market value rather than sales, and
     # whether the recipient is a connected person. A loss on a gift to a
