@@ -1,14 +1,14 @@
 [![PyPI version](https://img.shields.io/pypi/v/cgt-calc?style=flat-square)](https://pypi.org/project/cgt-calc/)
 [![CI](https://img.shields.io/github/actions/workflow/status/cgt-calc/capital-gains-calculator/ci.yml?style=flat-square&label=CI)](https://github.com/cgt-calc/capital-gains-calculator/actions)
 [![codecov](https://img.shields.io/codecov/c/github/cgt-calc/capital-gains-calculator?style=flat-square)](https://app.codecov.io/gh/cgt-calc/capital-gains-calculator)
-[![Documentation](https://img.shields.io/badge/docs-cgt--calc.uk-blue?style=flat-square)](https://cgt-calc.uk/)
 
 # <img src="https://cgt-calc.uk/assets/logo.svg" alt="" width="34" valign="middle"> UK Capital Gains Calculator
 
 Use cgt-calc to calculate **UK capital gains** from your investment transaction history and generate
-a detailed report from a supported broker export. Full documentation lives at
-**[cgt-calc.uk](https://cgt-calc.uk/)**, covering installation, per-broker export guides, offshore
-funds (ERI), extra data and options, and Docker usage.
+a detailed report from a supported broker export.
+
+See the [full documentation](https://cgt-calc.uk/) for installation, broker export guides, offshore
+funds (ERI), extra data and options, and Docker.
 
 Supported sources include **Charles Schwab**, **Freetrade**, **Hargreaves Lansdown**, **Interactive
 Brokers**, **Morgan Stanley**, **Revolut**, **Sharesight**, **Trading 212**, **Vanguard**, or a
