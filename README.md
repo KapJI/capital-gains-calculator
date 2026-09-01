@@ -12,6 +12,9 @@ Brokers**, **Morgan Stanley**, **Revolut**, **Sharesight**, **Trading 212**, **V
 custom **RAW** format. Check your broker's guide before starting, especially for employer shares,
 because not every award export or transaction type is supported.
 
+See the [full documentation](https://cgt-calc.uk/) for installation, broker export guides, offshore
+funds (ERI), extra data and options, and Docker.
+
 ## 🚀 Quick Start
 
 Install with [uv](https://docs.astral.sh/uv/getting-started/installation/) (or pipx/pip) and
@@ -51,11 +54,6 @@ acquired at different times, gains and losses, a dividend with overseas tax, and
 <a href="https://cgt-calc.uk/assets/example_report.pdf">
   <img src="https://cgt-calc.uk/assets/example_report_preview.webp" alt="Preview of the 2025/26 example report" width="600">
 </a>
-
-## 📚 Documentation
-
-Full documentation — installation, per-broker export guides, offshore funds (ERI), extra data and
-options, and Docker usage — lives at **[cgt-calc.uk](https://cgt-calc.uk/)**.
 
 ## 🤝 Contributing
 
