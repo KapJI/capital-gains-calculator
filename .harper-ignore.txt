@@ -43,3 +43,6 @@
 # "True on every one of them" counts the rows one at a time; Harper reads it
 # as the closed compound "everyone".
 ^model\.py:.*Everyone
+# "how many candidates there are" is correct; ThereIsAgreement expects the noun
+# after the verb, but this construction puts it first.
+^trading212\.py:.*ThereIsAgreement
