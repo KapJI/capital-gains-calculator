@@ -168,6 +168,13 @@ class RunState:
             lambda: defaultdict(ExcessReportedIncomeDistribution)
         )
     )
+    # Acquisition cost of a spun-off holding once the source pool is known,
+    # by day and symbol. The first pass could only estimate it; the walk
+    # works out the real figure when it reaches the day and keeps it here
+    # rather than rewriting the recorded acquisition.
+    spin_off_corrected_amounts: dict[tuple[datetime.date, str], Decimal] = field(
+        default_factory=dict
+    )
 
 
 @dataclass
