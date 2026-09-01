@@ -3,10 +3,6 @@
 #
 # The repository labels will be automatically configured using this file and
 # the GitHub Action https://github.com/marketplace/actions/github-labeler.
-- name: automerge
-  description: Automatically merge by Kodiak
-  color: d4c5f9
-
 - name: breaking
   description: Breaking change. Used for major release bump
   color: b60205
