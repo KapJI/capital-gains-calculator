@@ -26,7 +26,7 @@
 # quantifier "a lot of".
 ^schwab_equity_award_json\.py:.*QuantifierNeedsOf
 # "every source row and its ordering" is possessive, not a contraction.
-^ingestion\.py:.*ItsContraction
+^stock_split_planning\.py:.*ItsContraction
 # "the rows that preceded it are already in the units it leaves behind"
 # already agrees; PronounInflectionBe reads the wrong subject.
 ^matching\.py:.*PronounInflectionBe
