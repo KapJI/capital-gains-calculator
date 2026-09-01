@@ -15,7 +15,7 @@ import pytest
 from cgt_calc import render_latex
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import CalculationError, ParsingError
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
@@ -49,7 +49,7 @@ def _read(*rows: str) -> list[BrokerTransaction]:
         return SchwabParser.load_from_file(path)
 
 
-def _report(rows: list[str]) -> CapitalGainsReport:
+def _report(rows: list[str], *, balance_check: bool = False) -> CapitalGainsReport:
     """Calculate a report with one USD equal to one GBP."""
     transactions = _read(*rows)
     dates = {transaction.date for transaction in transactions}
@@ -62,7 +62,7 @@ def _report(rows: list[str]) -> CapitalGainsReport:
         SpinOffHandler(),
         InitialPrices(),
         interest_fund_tickers=[],
-        balance_check=False,
+        balance_check=balance_check,
     )
     calculator.convert_to_hmrc_transactions(transactions)
     return calculator.calculate_capital_gain()
@@ -222,6 +222,113 @@ def test_assigned_written_put_reduces_share_acquisition_cost() -> None:
     assert report.portfolio[0].symbol == "META"
     assert report.portfolio[0].quantity == Decimal(100)
     assert report.portfolio[0].amount == Decimal("4900.65")
+
+
+# Newest first, the way Schwab exports: the put is written on 2 May, assigned
+# on 17 May, and its shares settle on 21 May, the day the account is funded.
+_FUNDED_ASSIGNED_PUT = [
+    "05/21/2024,Buy,META,META PLATFORMS INC,$50.00,100,,-$5000.00",
+    "05/21/2024,MoneyLink Deposit,,,,,,$5000.00",
+    "05/17/2024,Assigned,META 05/17/2024 50.00 P,Assignment,,1,,",
+    "05/02/2024,Sell to Open,META 05/17/2024 50.00 P,Open,$1.00,1,$0.65,$99.35",
+]
+
+_PLAIN_FUNDED_PURCHASE = [
+    "05/21/2024,Buy,META,META PLATFORMS INC,$50.00,100,,-$5000.00",
+    "05/21/2024,MoneyLink Deposit,,,,,,$5000.00",
+]
+
+
+def _passes_balance_check(rows: list[str]) -> bool:
+    """Whether the balance check accepts this history."""
+    try:
+        _report(rows, balance_check=True)
+    except CalculationError:
+        return False
+    return True
+
+
+def test_assignment_leaves_its_settlement_cash_on_the_settlement_date() -> None:
+    """The taxable purchase moves to the assignment date; its cash does not."""
+    transactions = _read(*_FUNDED_ASSIGNED_PUT)
+    purchase = next(row for row in transactions if row.action is ActionType.BUY)
+    settlement = next(
+        row
+        for row in transactions
+        if row.action is ActionType.TRANSFER and row.amount == Decimal("-5000.00")
+    )
+
+    assert purchase.date == datetime.date(2024, 5, 17)
+    assert purchase.affects_cash_balance is False
+    assert settlement.date == datetime.date(2024, 5, 21)
+    assert settlement.affects_cash_balance is True
+    # Quoted verbatim in docs/brokers/schwab.md, so pin the whole string.
+    assert settlement.description == (
+        "Settlement of the META put option expiring 2024-05-17 "
+        "at a strike of 50 assigned on 2024-05-17"
+    )
+
+
+def test_funded_assigned_put_passes_the_balance_check() -> None:
+    """Cash leaves on 21 May, and the account is funded on 21 May."""
+    report = _report(_FUNDED_ASSIGNED_PUT, balance_check=True)
+
+    assert len(report.portfolio) == 1
+    assert report.portfolio[0].quantity == Decimal(100)
+    assert report.portfolio[0].amount == Decimal("4900.65")
+
+
+def test_assigned_put_without_its_funding_deposit_still_errors() -> None:
+    """An account that really cannot pay is still reported, on the pay date."""
+    rows = [row for row in _FUNDED_ASSIGNED_PUT if "MoneyLink" not in row]
+
+    with pytest.raises(
+        CalculationError, match=r"negative balance\(-4900.65\)"
+    ) as error:
+        _report(rows, balance_check=True)
+
+    message = str(error.value)
+    assert "datetime.date(2024, 5, 21)" in message
+    # The taxable purchase moves no cash, so listing it under a running
+    # balance it did not change would only mislead.
+    assert "ActionType.BUY" not in message
+
+
+@pytest.mark.parametrize("deposit_first", [True, False])
+def test_assigned_put_and_plain_purchase_agree_on_the_balance_check(
+    deposit_first: bool,
+) -> None:
+    """An assignment must not be judged more harshly than an ordinary buy.
+
+    The parser reads an export from the bottom up, so the deposit listed
+    below the purchase is the one read first, and only that order is funded
+    in time. The other order fails for both histories alike: that is a
+    same-day ordering limitation of the balance check itself, not something
+    assignment adds.
+    """
+
+    def ordered(rows: list[str]) -> list[str]:
+        return rows if deposit_first else [rows[1], rows[0], *rows[2:]]
+
+    assert _passes_balance_check(ordered(_FUNDED_ASSIGNED_PUT)) is deposit_first
+    assert _passes_balance_check(ordered(_PLAIN_FUNDED_PURCHASE)) is deposit_first
+
+
+def test_assigned_call_leaves_its_proceeds_on_the_settlement_date() -> None:
+    """Proceeds of an assigned call arrive when Schwab actually paid them."""
+    transactions = _read(
+        "05/21/2024,Sell,META,META PLATFORMS INC,$350.00,100,,$35000.00",
+        "05/17/2024,Assigned,META 05/17/2024 350.00 C,Assignment,,1,,",
+        "05/02/2024,Sell to Open,META 05/17/2024 350.00 C,Open,$2.00,1,$0.65,$199.35",
+        "05/01/2024,Buy,META,META PLATFORMS INC,$300.00,100,,-$30000.00",
+    )
+    sale = next(row for row in transactions if row.action is ActionType.SELL)
+    settlement = next(row for row in transactions if row.action is ActionType.TRANSFER)
+
+    assert sale.date == datetime.date(2024, 5, 17)
+    assert sale.affects_cash_balance is False
+    assert settlement.date == datetime.date(2024, 5, 21)
+    assert settlement.amount == Decimal("35000.00")
 
 
 def test_partial_close_and_assignment_split_the_opening_premium() -> None:
