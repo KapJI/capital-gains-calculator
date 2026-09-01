@@ -558,3 +558,32 @@ def test_espp_with_everything_withheld_pools_nothing(tmp_path: Path) -> None:
     # Not an acquisition of zero shares, which the calculator refuses outright,
     # but no acquisition at all.
     assert espp == []
+
+
+def test_the_csv_export_of_this_history_reads_the_same() -> None:
+    """The CSV layout states the same portfolio, splits and all.
+
+    NVDA is the ticker whose acquisitions Schwab restates and whose disposals
+    it does not, so this is where a layout difference would show up as a
+    different share count rather than a parse error.
+    """
+    parser = schwab_equity_award_json.SchwabEquityAwardsParser
+
+    json_rows = parser.load_from_file(FIXTURE)
+    csv_rows = parser.load_from_file(FIXTURE.with_suffix(".csv"))
+
+    def tax_fields(row: BrokerTransaction) -> tuple[object, ...]:
+        return (
+            row.date,
+            row.action,
+            row.symbol,
+            row.description,
+            row.quantity,
+            row.price,
+            row.fees,
+            row.amount,
+        )
+
+    assert [tax_fields(row) for row in csv_rows] == [
+        tax_fields(row) for row in json_rows
+    ]
