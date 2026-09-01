@@ -229,9 +229,6 @@ The money keeps the settlement date. During import, cgt-calc represents the expo
 cash movement on the date Schwab paid or collected the money. This prevents the assignment from
 showing a shortfall before settlement.
 
-Same-day ordering is unchanged. Schwab rows are read from the bottom up, so a funding deposit listed
-above the share row is processed after it and the balance check can still fail.
-
 If a balance-check error includes the generated cash movement, its description is
 `Settlement of the META put option expiring 2024-05-17 at a strike of 50 assigned on 2024-05-17`.
 

@@ -300,18 +300,16 @@ def test_assigned_put_and_plain_purchase_agree_on_the_balance_check(
 ) -> None:
     """An assignment must not be judged more harshly than an ordinary buy.
 
-    The parser reads an export from the bottom up, so the deposit listed
-    below the purchase is the one read first, and only that order is funded
-    in time. The other order fails for both histories alike: that is a
-    same-day ordering limitation of the balance check itself, not something
-    assignment adds.
+    Each pool is judged after its last row of the day, so where the funding
+    deposit sits in the export no longer decides the outcome. Both orders
+    pass, for the assignment and the plain purchase alike.
     """
 
     def ordered(rows: list[str]) -> list[str]:
         return rows if deposit_first else [rows[1], rows[0], *rows[2:]]
 
-    assert _passes_balance_check(ordered(_FUNDED_ASSIGNED_PUT)) is deposit_first
-    assert _passes_balance_check(ordered(_PLAIN_FUNDED_PURCHASE)) is deposit_first
+    assert _passes_balance_check(ordered(_FUNDED_ASSIGNED_PUT))
+    assert _passes_balance_check(ordered(_PLAIN_FUNDED_PURCHASE))
 
 
 def test_assigned_call_leaves_its_proceeds_on_the_settlement_date() -> None:

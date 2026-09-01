@@ -1151,6 +1151,17 @@ class TransactionIngester:
             self.isin_converter.add_from_transaction(transaction)
 
         transactions = self._resolve_gifts(transactions)
+        # Broker exports carry dates but no reliable execution times, so the
+        # order of same-day rows is arbitrary: a purchase listed before the
+        # deposit that funded it is not an overdraft. Cash is still posted
+        # after every row, but each pool is only judged after its last row of
+        # the day. Excess reported income never reaches the check, so an ERI
+        # row landing last would silence the whole day for that pool.
+        day_close = {
+            (transaction.broker, transaction.currency, transaction.date): index
+            for index, transaction in enumerate(transactions)
+            if transaction.action is not ActionType.EXCESS_REPORTED_INCOME
+        }
         # Reorganisations are planned a day at a time, before any of that
         # day's rows is processed: what a row's count means depends on
         # whether a reorganisation followed it that day, and the pool has to
@@ -1275,7 +1286,8 @@ class TransactionIngester:
                 # its own, at the date it really left or reached the account.
                 new_balance = opening_balance
             balance_history.append(new_balance)
-            if self.balance_check and new_balance < 0:
+            key = (transaction.broker, transaction.currency, transaction.date)
+            if self.balance_check and new_balance < 0 and day_close[key] == i:
                 entries = [
                     f"{trx}\nBalance after transaction={balance_after}"
                     for trx, balance_after in zip(
@@ -1298,6 +1310,7 @@ class TransactionIngester:
                     ]
                 msg = f"Reached a negative balance({new_balance})"
                 msg += f" for broker {transaction.broker} ({transaction.currency})"
+                msg += f" at the end of {transaction.date}"
                 msg += " after processing the following transactions:\n"
                 msg += "\n".join(entries) + "\n"
                 msg += "Tip: If your input file is missing deposits/withdrawals use --no-balance-check."
