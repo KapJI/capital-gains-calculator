@@ -65,9 +65,7 @@ class SpinOffHandler:
             return self.cache[symbol]
 
         if not sys.stdin.isatty():
-            raise InteractiveInputRequiredError(
-                symbol, date, self.spin_offs_file
-            )
+            raise InteractiveInputRequiredError(symbol, date, self.spin_offs_file)
 
         while True:
             # This would ideally be fetched from some stock DB but yfinance does not
