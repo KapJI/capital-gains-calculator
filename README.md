@@ -6,9 +6,9 @@
 # <img src="https://cgt-calc.uk/assets/logo.svg" alt="" width="34" valign="middle"> UK Capital Gains Calculator
 
 Use cgt-calc to calculate **UK capital gains** from your investment transaction history and generate
-a detailed report from a supported broker export. Full documentation — installation, per-broker
-export guides, offshore funds (ERI), extra data and options, and Docker usage — lives at
-**[cgt-calc.uk](https://cgt-calc.uk/)**.
+a detailed report from a supported broker export. Full documentation lives at
+**[cgt-calc.uk](https://cgt-calc.uk/)**, covering installation, per-broker export guides, offshore
+funds (ERI), extra data and options, and Docker usage.
 
 Supported sources include **Charles Schwab**, **Freetrade**, **Hargreaves Lansdown**, **Interactive
 Brokers**, **Morgan Stanley**, **Revolut**, **Sharesight**, **Trading 212**, **Vanguard**, or a
