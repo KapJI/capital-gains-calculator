@@ -225,6 +225,16 @@ transaction it looked for, when it is missing, when more than one exported row c
 only candidate does not reconcile with the strike, quantity and fees, or when one contract is
 assigned more than once on a day, which the export gives no way to pair up with its share rows.
 
+The money keeps the settlement date. During import, cgt-calc represents the exported share row as a
+cash movement on the date Schwab paid or collected the money. This prevents the assignment from
+showing a shortfall before settlement.
+
+Same-day ordering is unchanged. Schwab rows are read from the bottom up, so a funding deposit listed
+above the share row is processed after it and the balance check can still fail.
+
+If a balance-check error includes the generated cash movement, its description is
+`Settlement of the META put option expiring 2024-05-17 at a strike of 50 assigned on 2024-05-17`.
+
 Purchased options (`Buy to Open`, `Sell to Close`, `Exercised`) are not supported. Neither are
 cash-settled index options, nor adjusted contracts, whose root carries a numeric suffix such as
 `AAPL1` and which no longer deliver 100 shares. The parser stops with an explicit error for those

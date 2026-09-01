@@ -40,3 +40,6 @@
 # The ISIN in the comment on the exchange-alias table, naming the security
 # whose ticker code the sentence is about.
 ^const\.py:.*`US67066G1040`
+# "True on every one of them" counts the rows one at a time; Harper reads it
+# as the closed compound "everyone".
+^model\.py:.*Everyone

@@ -1164,7 +1164,8 @@ class TransactionIngester:
                     Decimal(0)
                 )  # dummy value, this will get filtered out
                 continue
-            new_balance = balance[transaction.broker, transaction.currency]
+            opening_balance = balance[transaction.broker, transaction.currency]
+            new_balance = opening_balance
             if transaction.action in {
                 ActionType.BUY,
                 ActionType.REINVEST_SHARES,
@@ -1266,6 +1267,10 @@ class TransactionIngester:
                 raise InvalidTransactionError(
                     transaction, f"Action not processed({transaction.action})"
                 )
+            if not transaction.affects_cash_balance:
+                # The shares are pooled here, but the money moves on a row of
+                # its own, at the date it really left or reached the account.
+                new_balance = opening_balance
             balance_history.append(new_balance)
             if self.balance_check and new_balance < 0:
                 entries = [
@@ -1275,10 +1280,12 @@ class TransactionIngester:
                     )
                     # Only same-pool transactions that moved the cash balance
                     # are relevant (skips other currencies, ERI entries,
-                    # renames, splits, etc.)
+                    # renames, splits, and rows whose cash is carried by
+                    # another row)
                     if trx.broker == transaction.broker
                     and trx.currency == transaction.currency
                     and trx.amount
+                    and trx.affects_cash_balance
                 ]
                 omitted = len(entries) - BALANCE_CHECK_CONTEXT_ROWS
                 if omitted > 0:

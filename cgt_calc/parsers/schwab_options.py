@@ -31,6 +31,7 @@ from cgt_calc.model import (
 from cgt_calc.util import approx_equal, strip_zeros
 
 if TYPE_CHECKING:
+    from collections.abc import Container
     from pathlib import Path
 
     from cgt_calc.model import TransactionSource
@@ -346,7 +347,7 @@ def _find_assignment_share_transaction(
     transactions: list[SchwabTransaction],
     assignment: SchwabTransaction,
     assigned_shares: Decimal,
-    used: set[SchwabRowKey],
+    used: Container[SchwabRowKey],
     file: Path,
 ) -> SchwabTransaction:
     """Find Schwab's separate stock row created by an option assignment."""
@@ -415,7 +416,7 @@ def _find_assignment_share_transaction(
 def _apply_option_assignment(
     transactions: list[SchwabTransaction],
     assignment: _OptionAssignment,
-    used_share_transactions: set[SchwabRowKey],
+    settled_share_rows: dict[SchwabRowKey, BrokerTransaction],
     file: Path,
 ) -> BrokerTransaction:
     """Return the assigned shares, dated on the assignment itself.
@@ -424,6 +425,11 @@ def _apply_option_assignment(
     several days later and can fall in the next tax year. The disposal or
     acquisition happens when the option is assigned, so the exported row
     supplies the money and this supplies the date.
+
+    The money itself keeps that later date: the account is funded when it
+    settles, not when the option is assigned, and moving the cash early
+    rejects a funded account. `settled_share_rows` collects the cash-only
+    row each exported settlement becomes, keyed by the row it replaces.
     """
     transaction = assignment.transaction
     contract = transaction.option_contract
@@ -434,14 +440,30 @@ def _apply_option_assignment(
         transactions,
         transaction,
         assigned_shares,
-        used_share_transactions,
+        settled_share_rows,
         file,
     )
-    used_share_transactions.add(_row_key(share_transaction))
     amount = share_transaction.amount
     assert amount is not None
     price = share_transaction.price
     assert price is not None
+    settled_share_rows[_row_key(share_transaction)] = BrokerTransaction(
+        date=share_transaction.date,
+        action=ActionType.TRANSFER,
+        symbol=None,
+        # This row is synthetic, and the negative-balance error prints it
+        # verbatim to someone who never wrote it, so it has to say what it is.
+        description=f"Settlement of the {contract} assigned on {transaction.date}",
+        quantity=None,
+        price=None,
+        # The fee is already deducted from the settlement amount, and the tax
+        # row is what claims it as a cost.
+        fees=Decimal(0),
+        amount=amount,
+        currency=share_transaction.currency,
+        broker=share_transaction.broker,
+        source=share_transaction.source,
+    )
     return BrokerTransaction(
         date=transaction.date,
         action=share_transaction.action,
@@ -455,6 +477,7 @@ def _apply_option_assignment(
         broker=share_transaction.broker,
         source=share_transaction.source,
         capital_adjustments=_assignment_adjustments(assignment.allocations),
+        affects_cash_balance=False,
     )
 
 
@@ -546,12 +569,12 @@ def _emit_option_transactions(
     activity: _OptionActivity,
 ) -> list[BrokerTransaction]:
     """Replace every terminal option row with what it really was."""
-    used_share_transactions: set[SchwabRowKey] = set()
+    settled_share_rows: dict[SchwabRowKey, BrokerTransaction] = {}
     settlements = {
         _row_key(assignment.transaction): _apply_option_assignment(
             transactions,
             assignment,
-            used_share_transactions,
+            settled_share_rows,
             _row_file(assignment.transaction),
         )
         for assignment in activity.assignments.values()
@@ -563,7 +586,10 @@ def _emit_option_transactions(
     reconciled: list[BrokerTransaction] = []
     for transaction in transactions:
         row_key = _row_key(transaction)
-        if row_key in used_share_transactions:
+        settled = settled_share_rows.get(row_key)
+        if settled is not None:
+            # The shares moved to the assignment date; the cash stays here.
+            reconciled.append(settled)
             continue
         if transaction.action is ActionType.OPTION_EXPIRY:
             # An expiry ends the option and moves no cash: the premium is

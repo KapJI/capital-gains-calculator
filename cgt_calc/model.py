@@ -443,6 +443,13 @@ class BrokerTransaction:
     # Premiums from assigned options are converted on their original dates and
     # folded into the tax basis/proceeds of the underlying share transaction.
     capital_adjustments: list[CapitalAdjustment] = field(default_factory=list)
+    # False on a row whose tax event is dated apart from the cash it involves,
+    # which another row carries on the date the money really moved. The row
+    # still acquires or disposes of the shares; it leaves the cash balance,
+    # and the balance check, to that other row. Out of the repr the errors
+    # print: the balance error lists only rows that did move cash, so the
+    # flag reads True on every one of them.
+    affects_cash_balance: bool = field(default=True, repr=False)
 
     @property
     def pool_quantity(self) -> Decimal | None:
