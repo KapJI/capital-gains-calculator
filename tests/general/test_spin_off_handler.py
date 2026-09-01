@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from cgt_calc.const import DEFAULT_SPIN_OFF_FILE
 from cgt_calc.exceptions import InteractiveInputRequiredError
 from cgt_calc.model import Position
 from cgt_calc.spin_off_handler import SpinOffHandler
@@ -47,21 +48,6 @@ def test_non_interactive_run_raises_clear_error(
     assert "dst,src" in message
 
 
-def test_error_names_default_file_when_none_configured(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """With no spin-offs file configured the error explains how to fix it."""
-    handler = SpinOffHandler()
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
-
-    with pytest.raises(InteractiveInputRequiredError) as excinfo:
-        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
-
-    message = str(excinfo.value)
-    assert "--spin-offs-file" in message
-    assert "non-interactive" in message
-
-
 def test_eof_during_prompt_raises_clear_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -94,10 +80,10 @@ def test_recording_spin_off_creates_missing_parent_directories(
     assert content.splitlines() == ["dst,src", "NEW,OLD"]
 
 
-def test_disabled_cache_error_mentions_spin_offs_file_flag(
+def test_disabled_cache_error_asks_for_a_non_empty_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With cache disabled (--spin-offs-file '') the error names the flag."""
+    """With the cache disabled the error asks for a path to put the row in."""
     handler = SpinOffHandler(spin_offs_file=None)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
 
@@ -105,7 +91,7 @@ def test_disabled_cache_error_mentions_spin_offs_file_flag(
         handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
 
     message = str(excinfo.value)
-    assert "--spin-offs-file" in message
-    assert "non-interactive" in message
-    # Must NOT point at a file that won't actually be read
-    assert "spin_offs.csv" not in message
+    assert "non-empty --spin-offs-file" in message
+    assert "'NEW,<source>' row" in message
+    # The disabled cache is never read, so its default path must not be named.
+    assert str(DEFAULT_SPIN_OFF_FILE) not in message

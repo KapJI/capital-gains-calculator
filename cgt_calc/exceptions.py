@@ -303,25 +303,25 @@ class ExternalApiError(CgtError):
 class InteractiveInputRequiredError(CgtError):
     """Raised when a prompt is needed but stdin is not a terminal."""
 
-    def __init__(
-        self, symbol: str, date: datetime.date, spin_offs_file: Path | None
-    ) -> None:
+    def __init__(self, symbol: str, date: datetime.date, spin_offs_file: Path | None):
         """Initialise."""
         if spin_offs_file is None:
-            message = (
-                f"Cannot ask which stock {symbol} was spun off from on {date}: "
-                "standard input is not a terminal (this also applies when piping "
-                f"transactions via '-'). Pass a real --spin-offs-file path for "
-                "non-interactive runs, or provide the mapping interactively."
+            # An empty --spin-offs-file disables the cache, so there is no file
+            # to add the row to: naming one would send the user in a circle.
+            hint = (
+                "Pass a non-empty --spin-offs-file path containing a "
+                f"'{symbol},<source>' row (header 'dst,src') and rerun."
             )
         else:
-            message = (
-                f"Cannot ask which stock {symbol} was spun off from on {date}: "
-                "standard input is not a terminal (this also applies when piping "
-                f"transactions via '-'). Add a '{symbol},<source>' row to "
-                f"{spin_offs_file} (header 'dst,src') and rerun."
+            hint = (
+                f"Add a '{symbol},<source>' row to {spin_offs_file} "
+                "(header 'dst,src') and rerun."
             )
-        super().__init__(message)
+        super().__init__(
+            f"Cannot ask which stock {symbol} was spun off from on {date}: "
+            "standard input is not a terminal (this also applies when piping "
+            f"transactions via '-'). {hint}"
+        )
 
 
 class MarketDataMissingError(CgtError):

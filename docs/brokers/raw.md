@@ -103,7 +103,7 @@ cost, which is the safer way to be wrong.
 For a `SPIN_OFF`, cgt-calc needs to know which holding the new shares came from. It looks the new
 ticker up in [`--spin-offs-file`](../extra-data-and-options.md#spin-off-source-mappings), asks you
 when it is not there, and saves your answer to that file so it only asks once; a run that cannot
-ask, such as one in a script, stops and tells you to add the row yourself. It then looks up a
+ask, such as one in a script, stops and tells you how to supply the row yourself. It then looks up a
 closing price for the new and the old ticker on that date to divide the old holding's pooled cost
 between them, so a price for both has to be available.
 
