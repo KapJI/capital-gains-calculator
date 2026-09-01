@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.const import DEFAULT_SPIN_OFF_FILE
 from cgt_calc.exceptions import InteractiveInputRequiredError
 from cgt_calc.model import Position
 from cgt_calc.spin_off_handler import SpinOffHandler
@@ -51,14 +50,16 @@ def test_non_interactive_run_raises_clear_error(
 def test_error_names_default_file_when_none_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With no spin-offs file configured the error points at the default path."""
+    """With no spin-offs file configured the error explains how to fix it."""
     handler = SpinOffHandler()
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
 
     with pytest.raises(InteractiveInputRequiredError) as excinfo:
         handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
 
-    assert str(DEFAULT_SPIN_OFF_FILE) in str(excinfo.value)
+    message = str(excinfo.value)
+    assert "--spin-offs-file" in message
+    assert "non-interactive" in message
 
 
 def test_eof_during_prompt_raises_clear_error(
@@ -91,3 +92,20 @@ def test_recording_spin_off_creates_missing_parent_directories(
     assert source == "OLD"
     content = spin_offs_file.read_text(encoding="utf8")
     assert content.splitlines() == ["dst,src", "NEW,OLD"]
+
+
+def test_disabled_cache_error_mentions_spin_offs_file_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With cache disabled (--spin-offs-file '') the error names the flag."""
+    handler = SpinOffHandler(spin_offs_file=None)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+
+    with pytest.raises(InteractiveInputRequiredError) as excinfo:
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
+
+    message = str(excinfo.value)
+    assert "--spin-offs-file" in message
+    assert "non-interactive" in message
+    # Must NOT point at a file that won't actually be read
+    assert "spin_offs.csv" not in message
