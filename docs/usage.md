@@ -101,6 +101,12 @@ Avoid `--no-balance-check` unless the relevant broker guide recommends it or you
 check cannot succeed. Disabling it removes one of the checks that can reveal incomplete transaction
 history.
 
+The balance check compares each account's cash balance against zero at the end of every day it has
+rows for, once, rather than after each row. Exports disagree about the order of a day's rows, and
+several write the newest first, so a purchase can appear before the deposit that funded it. Because
+the day is judged as a whole, an account that dips below zero during a day and recovers before the
+day ends is not reported.
+
 A successful run means cgt-calc could parse and calculate the supplied transactions. It does not
 prove that the supplied history was complete or that every part of your tax position is supported.
 

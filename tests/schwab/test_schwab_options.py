@@ -295,7 +295,7 @@ def test_assigned_put_without_its_funding_deposit_still_errors() -> None:
 
 
 @pytest.mark.parametrize("deposit_first", [True, False])
-def test_assigned_put_and_plain_purchase_agree_on_the_balance_check(
+def test_assigned_put_passes_the_balance_check_in_either_export_order(
     deposit_first: bool,
 ) -> None:
     """An assignment must not be judged more harshly than an ordinary buy.

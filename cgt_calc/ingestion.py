@@ -1151,12 +1151,14 @@ class TransactionIngester:
             self.isin_converter.add_from_transaction(transaction)
 
         transactions = self._resolve_gifts(transactions)
-        # Broker exports carry dates but no reliable execution times, so the
-        # order of same-day rows is arbitrary: a purchase listed before the
-        # deposit that funded it is not an overdraft. Cash is still posted
-        # after every row, but each pool is only judged after its last row of
-        # the day. Excess reported income never reaches the check, so an ERI
-        # row landing last would silence the whole day for that pool.
+        # The cash balance is judged once a day is complete rather than after
+        # every row. Within one day the row order is not a record of what
+        # happened first, so a purchase read before the same-day deposit that
+        # funds it is not an overdraft. Cash is still posted after every row;
+        # each pool keeps the index of its own last row of the day, a later
+        # row simply overwriting the earlier one. Excess reported income never
+        # reaches the check, so an ERI row landing last would silence the
+        # whole day for that pool.
         day_close = {
             (transaction.broker, transaction.currency, transaction.date): index
             for index, transaction in enumerate(transactions)
@@ -1310,6 +1312,8 @@ class TransactionIngester:
                     ]
                 msg = f"Reached a negative balance({new_balance})"
                 msg += f" for broker {transaction.broker} ({transaction.currency})"
+                # The row that raises is the day's last, which is often not the
+                # row that spent the money, so the day is what to name here.
                 msg += f" at the end of {transaction.date}"
                 msg += " after processing the following transactions:\n"
                 msg += "\n".join(entries) + "\n"
