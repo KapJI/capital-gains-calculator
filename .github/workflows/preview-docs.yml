@@ -30,8 +30,15 @@ jobs:
     permissions:
       actions: read
       pull-requests: write
-      statuses: write
     steps:
+      - name: Create status token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.MERGE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.MERGE_BOT_PRIVATE_KEY }}
+          permission-statuses: write
+
       - name: Resolve PR
         id: pr
         env:
@@ -52,8 +59,10 @@ jobs:
 
       - name: Set status pending
         if: steps.pr.outputs.number
+        env:
+          STATUS_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+          GH_TOKEN="${STATUS_TOKEN}" gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
             -f state=pending -f context="${STATUS_CONTEXT}" -f description="Deploying preview"
 
       - name: Download PR site
@@ -112,8 +121,9 @@ jobs:
         if: steps.pr.outputs.number && steps.compare.outputs.unchanged == 'true'
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
+          STATUS_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+          GH_TOKEN="${STATUS_TOKEN}" gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
             -f state=success -f context="${STATUS_CONTEXT}" \
             -f description="No rendered changes" \
             -f target_url="https://cgt-calc.uk/"
@@ -153,8 +163,10 @@ jobs:
 
       - name: Report preview ready
         if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
+        env:
+          STATUS_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+          GH_TOKEN="${STATUS_TOKEN}" gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
             -f state=success -f context="${STATUS_CONTEXT}" \
             -f description="Preview ready" \
             -f target_url="${{ steps.facts.outputs.url }}"
@@ -184,8 +196,10 @@ jobs:
 
       - name: Report failure
         if: failure() && steps.pr.outputs.number
+        env:
+          STATUS_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+          GH_TOKEN="${STATUS_TOKEN}" gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
             -f state=failure -f context="${STATUS_CONTEXT}" \
             -f description="Preview failed" \
             -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
