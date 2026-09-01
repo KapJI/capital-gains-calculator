@@ -1,6 +1,6 @@
-[![PyPI version](https://img.shields.io/pypi/v/cgt-calc)](https://pypi.org/project/cgt-calc/)
-[![CI](https://github.com/cgt-calc/capital-gains-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/cgt-calc/capital-gains-calculator/actions)
-[![codecov](https://codecov.io/gh/cgt-calc/capital-gains-calculator/graph/badge.svg)](https://app.codecov.io/gh/cgt-calc/capital-gains-calculator)
+[![PyPI version](https://img.shields.io/pypi/v/cgt-calc?style=flat-square)](https://pypi.org/project/cgt-calc/)
+[![CI](https://img.shields.io/github/actions/workflow/status/cgt-calc/capital-gains-calculator/ci.yml?style=flat-square&label=CI)](https://github.com/cgt-calc/capital-gains-calculator/actions)
+[![codecov](https://img.shields.io/codecov/c/github/cgt-calc/capital-gains-calculator?style=flat-square)](https://app.codecov.io/gh/cgt-calc/capital-gains-calculator)
 
 # <img src="https://cgt-calc.uk/assets/logo.svg" alt="" width="34" valign="middle"> UK Capital Gains Calculator
 
