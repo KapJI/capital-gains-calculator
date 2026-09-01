@@ -14,25 +14,18 @@ To get the data from Schwab:
 
 from __future__ import annotations
 
-import csv
 from dataclasses import InitVar, dataclass
 import datetime
 import decimal
 from decimal import Decimal
 from enum import Enum, auto
-import io
 import json
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
-from cgt_calc.model import (
-    ActionType,
-    BrokerTransaction,
-    CurrencyCode,
-    TransactionSource,
-)
+from cgt_calc.exceptions import ParsingError
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.util import round_decimal
 
 from .base_parsers import BaseSingleFileParser
@@ -223,7 +216,6 @@ class FieldNames:
 ROUND_DIGITS = 6
 
 JsonRowType = Any  # type: ignore[explicit-any]
-CsvRowType = Any  # type: ignore[explicit-any]
 
 
 def action_from_str(label: str, file: Path) -> ActionType:
@@ -411,7 +403,7 @@ def _lot_price(row: JsonRowType, names: FieldNames) -> Decimal | None:
     prices = set()
     for subtransac in row[names.transac_details]:
         details = subtransac.get(OPTIONAL_DETAILS_NAME, subtransac)
-        if not details.get(names.sale_price):
+        if names.sale_price not in details:
             return None
         prices.add(details[names.sale_price])
     if len(prices) != 1:
@@ -502,167 +494,6 @@ def _espp_net_shares(
         )
 
     return deposited * multiplier
-
-
-def _has_details(row_dict: dict[str, str]) -> bool:
-    """Check whether a CSV row contains any sub-transaction detail columns populated.
-
-    Args:
-        row_dict: Dictionary mapping CSV column headers to row cell string values.
-
-    Returns:
-        True if at least one sub-transaction detail column has non-empty content;
-        False otherwise.
-
-    """
-    detail_cols = {
-        "Type",
-        "Shares",
-        "SalePrice",
-        "SubscriptionDate",
-        "SubscriptionFairMarketValue",
-        "PurchaseDate",
-        "PurchasePrice",
-        "PurchaseFairMarketValue",
-        "DispositionType",
-        "GrantId",
-        "VestDate",
-        "VestFairMarketValue",
-        "GrossProceeds",
-        "AwardDate",
-        "AwardId",
-    }
-    return any(bool(row_dict.get(col, "").strip()) for col in detail_cols)
-
-
-def _read_raw_csv(
-    content: str, file_path: Path
-) -> tuple[list[JsonRowType], FieldNames]:
-    """Parse raw CSV export content into structured transaction dictionaries.
-
-    Reconstructs hierarchical transactions and their sub-transaction details
-    from flat CSV rows, grouping detail rows with their parent transactions.
-
-    Args:
-        content: The raw CSV file content as a string.
-        file_path: Path to the CSV file (used for error reporting).
-
-    Returns:
-        A tuple of (list of transaction dictionaries, FieldNames object).
-
-    Raises:
-        ParsingError: If the CSV file is empty, missing required columns, or contains
-            detail rows before any parent transaction.
-        UnexpectedColumnCountError: If any CSV row has a column count different from the header.
-
-    """
-    lines = list(csv.reader(io.StringIO(content)))
-    if not lines:
-        raise ParsingError(
-            file_path,
-            "Charles Schwab Equity Awards CSV file is empty",
-        )
-    header = lines[0]
-    if not any(header):
-        raise ParsingError(
-            file_path,
-            "Charles Schwab Equity Awards CSV file is empty",
-        )
-
-    fields = FieldNames(2)
-    required_columns = {
-        fields.date,
-        fields.action,
-        fields.symbol,
-        fields.description,
-        fields.quantity,
-        fields.fees,
-        fields.amount,
-    }
-    header_set = set(header)
-    missing = required_columns - header_set
-    if missing:
-        raise ParsingError(
-            file_path,
-            f"Missing columns in Schwab Equity Awards file: {missing}",
-            row_index=1,
-        )
-
-    expected_col_count = len(header)
-    transactions_raw: list[JsonRowType] = []
-    current_transac: JsonRowType | None = None
-
-    for row_idx, row in enumerate(lines[1:], start=2):
-        if not any(cell.strip() for cell in row):
-            continue
-        if len(row) != expected_col_count:
-            raise UnexpectedColumnCountError(
-                row, expected_col_count, file_path, row_index=row_idx
-            )
-
-        row_dict = dict(zip(header, row, strict=True))
-        date_val = row_dict.get(fields.date, "").strip()
-        action_val = row_dict.get(fields.action, "").strip()
-        has_detail_fields = _has_details(row_dict)
-
-        is_continuation = False
-        if current_transac is not None:
-            c_action = current_transac.get(fields.action)
-            c_action_str = c_action.strip() if isinstance(c_action, str) else ""
-            c_date = current_transac.get(fields.date)
-            c_date_str = c_date.strip() if isinstance(c_date, str) else ""
-            c_sym = current_transac.get(fields.symbol)
-            c_sym_str = c_sym.strip() if isinstance(c_sym, str) else ""
-            c_desc = current_transac.get(fields.description)
-            c_desc_str = c_desc.strip() if isinstance(c_desc, str) else ""
-            c_qty = current_transac.get(fields.quantity)
-            c_qty_str = c_qty.strip() if isinstance(c_qty, str) else ""
-            c_fees = current_transac.get(fields.fees)
-            c_fees_str = c_fees.strip() if isinstance(c_fees, str) else ""
-            c_amt = current_transac.get(fields.amount)
-            c_amt_str = c_amt.strip() if isinstance(c_amt, str) else ""
-            c_disb = current_transac.get("DisbursementElection")
-            c_disb_str = c_disb.strip() if isinstance(c_disb, str) else ""
-
-            if (not date_val and not action_val) or (
-                c_action_str in {"Sale", "Lapse", "Forced Quick Sell"}
-                and date_val == c_date_str
-                and action_val == c_action_str
-                and row_dict.get(fields.symbol, "").strip() == c_sym_str
-                and row_dict.get(fields.description, "").strip() == c_desc_str
-                and row_dict.get(fields.quantity, "").strip() == c_qty_str
-                and row_dict.get(fields.fees, "").strip() == c_fees_str
-                and row_dict.get(fields.amount, "").strip() == c_amt_str
-                and row_dict.get("DisbursementElection", "").strip() == c_disb_str
-                and has_detail_fields
-            ):
-                is_continuation = True
-
-        if is_continuation:
-            assert current_transac is not None
-            details_list = current_transac[fields.transac_details]
-            assert isinstance(details_list, list)
-            details_list.append(dict(row_dict))
-        else:
-            if not date_val and not action_val:
-                raise ParsingError(
-                    file_path,
-                    "Found detail row before any transaction",
-                    row_index=row_idx,
-                )
-            if current_transac is not None:
-                transactions_raw.append(current_transac)
-            details_list = [dict(row_dict)] if has_detail_fields else []
-            current_transac = {
-                **row_dict,
-                fields.transac_details: details_list,
-                "_row_index": row_idx,
-            }
-
-    if current_transac is not None:
-        transactions_raw.append(current_transac)
-
-    return transactions_raw, fields
 
 
 def _number_error(
@@ -892,7 +723,7 @@ def _sale_lots(
         details = subtransac.get(OPTIONAL_DETAILS_NAME, subtransac)
 
         shares = None
-        if details.get(names.shares):
+        if names.shares in details:
             # Schwab only provides this one as a string:
             shares = _decimal_field(
                 details[names.shares], names.shares, "Sale", date, file
@@ -1139,14 +970,10 @@ class SchwabAwardTransaction(BrokerTransaction):
                 price = _parse_vest_price(details, names, date, file)
                 if amount == Decimal(0):
                     amount = price * quantity
-                award_id = details.get(
-                    names.award_id, details.get("awardName", details.get("GrantId", ""))
-                )
-                award_date = details.get(names.award_date, "")
                 description = (
-                    f"Vest from Award Date {award_date} (ID {award_id})"
-                    if award_id
-                    else f"Vest from Award Date {award_date}"
+                    f"Vest from Award Date "
+                    f"{details[names.award_date]} "
+                    f"(ID {details[names.award_id]})"
                 )
         elif row[names.action] in {"Sale", "Forced Quick Sell"}:
             date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
@@ -1234,8 +1061,6 @@ class SchwabAwardTransaction(BrokerTransaction):
             currency,
             broker,
         )
-        if "_row_index" in row:
-            self.source = TransactionSource(row=row["_row_index"])
 
         history = SPLITS.get(symbol or "")
         if history is None:
@@ -1312,68 +1137,41 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabAwardTransaction])
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[SchwabAwardTransaction]:
-        """Read Schwab Equity Awards transactions from JSON or CSV.
-
-        Args:
-            file: File-like text stream containing JSON or CSV data.
-            file_path: Path to the source file (used for error reporting and format detection).
-
-        Returns:
-            List of parsed Schwab award transactions in chronological order.
-
-        Raises:
-            ParsingError: If the file is empty, has an unexpected top-level format,
-                or cannot be parsed as JSON/CSV.
-            UnexpectedColumnCountError: If a CSV row column count does not match the header.
-
-        """
-        content = file.read()
-        stripped = content.strip()
-        if not stripped:
+        """Read Schwab Equity Awards transactions from JSON."""
+        try:
+            data = json.load(file, parse_float=Decimal, parse_int=Decimal)
+        except json.decoder.JSONDecodeError as exception:
             raise ParsingError(
                 file_path,
-                "Charles Schwab Equity Awards file is empty",
+                "Could not parse content as JSON",
+            ) from exception
+
+        fields: FieldNames | None = None
+        for field_name, schema_version in FIELD_TO_SCHEMA.items():
+            if field_name in data:
+                fields = FieldNames(schema_version)
+                break
+        if fields is None:
+            raise ParsingError(
+                file_path,
+                f"Expected top level field ({', '.join(FIELD_TO_SCHEMA.keys())}) "
+                "not found: the JSON data is not in the expected format",
             )
 
-        if stripped.startswith(("{", "[")) or file_path.suffix.lower() == ".json":
-            try:
-                data = json.loads(content, parse_float=Decimal, parse_int=Decimal)
-            except json.decoder.JSONDecodeError as exception:
-                raise ParsingError(
-                    file_path,
-                    "Could not parse content as JSON",
-                ) from exception
-
-            fields: FieldNames | None = None
-            for field_name, schema_version in FIELD_TO_SCHEMA.items():
-                if field_name in data:
-                    fields = FieldNames(schema_version)
-                    break
-            if fields is None:
-                raise ParsingError(
-                    file_path,
-                    f"Expected top level field ({', '.join(FIELD_TO_SCHEMA.keys())}) "
-                    "not found: the JSON data is not in the expected format",
-                )
-
-            if not isinstance(data[fields.transactions], list):
-                raise ParsingError(
-                    file_path,
-                    f"'{fields.transactions}' is not a list: the JSON data is not "
-                    "in the expected format",
-                )
-
-            raw_transactions = data[fields.transactions]
-        else:
-            raw_transactions, fields = _read_raw_csv(content, file_path)
+        if not isinstance(data[fields.transactions], list):
+            raise ParsingError(
+                file_path,
+                f"'{fields.transactions}' is not a list: the JSON data is not "
+                "in the expected format",
+            )
 
         # Before anything is converted: the split table has to survive the one
         # record that can contradict it.
-        _check_lapse_units(raw_transactions, file_path, fields)
+        _check_lapse_units(data[fields.transactions], file_path, fields)
 
         transactions = [
             _transaction(transac, file_path, fields)
-            for transac in raw_transactions
+            for transac in data[fields.transactions]
             # Journal and Wire Transfer move cash between accounts.
             #
             # Lapse is the payroll side of a vest and duplicates its Deposit,
@@ -1384,7 +1182,7 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabAwardTransaction])
             # Tax Withholding is deliberately not skipped: it is US tax at
             # source on dividends, and it is needed for SA106 and foreign tax
             # credit relief.
-            if transac.get(fields.action) not in {"Journal", "Wire Transfer", "Lapse"}
+            if transac[fields.action] not in {"Journal", "Wire Transfer", "Lapse"}
         ]
 
         # A purchase whose every share went to tax acquired nothing, so it is
@@ -1403,37 +1201,3 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabAwardTransaction])
 
         transactions.reverse()
         return transactions
-
-
-SchwabEquityAwardsParser = SchwabEquityAwardsJSONParser
-
-
-class SchwabEquityAwardsCSVParser(BaseSingleFileParser[SchwabAwardTransaction]):
-    """Parser for Charles Schwab Equity Awards CSV files."""
-
-    arg_name = "schwab-equity-award"
-    pretty_name = "Charles Schwab Equity Awards"
-    format_name = "CSV"
-    full_arg = "schwab-equity-award-csv"
-
-    @classmethod
-    @override
-    def read_transactions(
-        cls, file: TextIO, file_path: Path
-    ) -> list[SchwabAwardTransaction]:
-        """Read Schwab Equity Awards transactions from CSV or JSON.
-
-        Args:
-            file: File-like text stream containing CSV or JSON data.
-            file_path: Path to the source file (used for error reporting and format detection).
-
-        Returns:
-            List of parsed Schwab award transactions in chronological order.
-
-        Raises:
-            ParsingError: If the file is empty, has an unexpected top-level format,
-                or cannot be parsed as CSV/JSON.
-            UnexpectedColumnCountError: If a CSV row column count does not match the header.
-
-        """
-        return SchwabEquityAwardsJSONParser.read_transactions(file, file_path)

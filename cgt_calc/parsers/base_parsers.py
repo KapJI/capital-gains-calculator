@@ -75,9 +75,8 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         """Compute full arg."""
         super().__init_subclass__(**kwargs)
         # compute full_arg once per subclass at class creation time
-        if "full_arg" not in cls.__dict__:
-            suffix = "json" if getattr(cls, "format_name", None) == "JSON" else "file"
-            cls.full_arg = f"{getattr(cls, 'arg_name', None)}-{suffix}"
+        suffix = "json" if getattr(cls, "format_name", None) == "JSON" else "file"
+        cls.full_arg = f"{getattr(cls, 'arg_name', None)}-{suffix}"
 
     @classmethod
     @override

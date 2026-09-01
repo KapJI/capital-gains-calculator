@@ -75,7 +75,6 @@ DictReader's
 dprint
 DWS
 env
-EAC
 ERI
 ESPP
 etc
@@ -87,7 +86,6 @@ expanduser
 f
 FeesAndCommissions
 FIGI
-FieldNames
 FileNotFoundError
 freetrade
 FX
@@ -237,7 +235,6 @@ ty
 tzinfo
 UCITS
 un
-UnexpectedColumnCountError
 unmapped
 unprovable
 UnresolvedRatio

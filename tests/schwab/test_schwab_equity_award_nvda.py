@@ -558,22 +558,3 @@ def test_espp_with_everything_withheld_pools_nothing(tmp_path: Path) -> None:
     # Not an acquisition of zero shares, which the calculator refuses outright,
     # but no acquisition at all.
     assert espp == []
-
-
-def test_nvda_json_matches_csv() -> None:
-    """Verify NVDA JSON fixture produces identical transactions as CSV fixture."""
-    json_path = Path("tests/schwab/data/equity_award/nvda_synthetic.json")
-    csv_path = Path("tests/schwab/data/equity_award/nvda_synthetic.csv")
-    parser = schwab_equity_award_json.SchwabEquityAwardsParser()
-    json_txs = parser.load_from_file(json_path)
-    csv_txs = parser.load_from_file(csv_path)
-
-    assert len(json_txs) == len(csv_txs)
-    for j_t, c_t in zip(json_txs, csv_txs, strict=True):
-        assert j_t.date == c_t.date
-        assert j_t.action == c_t.action
-        assert j_t.symbol == c_t.symbol
-        assert j_t.quantity == c_t.quantity
-        assert j_t.price == c_t.price
-        assert j_t.fees == c_t.fees
-        assert j_t.amount == c_t.amount
