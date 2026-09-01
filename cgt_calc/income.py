@@ -51,7 +51,8 @@ class IncomeProcessor:
         autoconvert_currency: bool = False,
     ):
         """Create income processor object."""
-        self.state = state
+        self.history = state.history
+        self.run = state.run
         self.currency_converter = currency_converter
         self.isin_converter = isin_converter
         self.interest_fund_tickers = interest_fund_tickers
@@ -94,20 +95,20 @@ class IncomeProcessor:
         It groups them by month, using the last date on each month for the report
         and updates the interest totals for the year.
         """
-        monthly_interests = self._group_by_month(self.state.interest_list)
+        monthly_interests = self._group_by_month(self.history.interest_list)
 
         for (broker, currency, date), foreign_amount in monthly_interests.items():
             gbp_amount = self.currency_converter.to_gbp(
                 foreign_amount.amount, currency, date
             )
             if currency == UK_CURRENCY:
-                self.state.total_uk_interest += gbp_amount
+                self.run.total_uk_interest += gbp_amount
                 rule_prefix = "interestUK"
             else:
-                self.state.total_foreign_interest += gbp_amount
+                self.run.total_foreign_interest += gbp_amount
                 rule_prefix = f"interest{currency}"
 
-            self.state.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
+            self.run.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
                 CalculationEntry(
                     rule_type=RuleType.INTEREST,
                     quantity=Decimal(1),
@@ -118,7 +119,7 @@ class IncomeProcessor:
                 )
             ]
 
-        monthly_interest_taxes = self._group_by_month(self.state.interest_tax_list)
+        monthly_interest_taxes = self._group_by_month(self.history.interest_tax_list)
 
         for (broker, currency, date), foreign_amount in monthly_interest_taxes.items():
             gbp_amount = self.currency_converter.to_gbp(
@@ -128,9 +129,9 @@ class IncomeProcessor:
             # positive reversal rows then cancel out across months.
             tax_amount = -gbp_amount
             rule_prefix = f"interestTax{currency}"
-            self.state.total_interest_tax += tax_amount
+            self.run.total_interest_tax += tax_amount
 
-            self.state.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
+            self.run.calculation_log_yields[date][f"{rule_prefix}${broker}"] = [
                 CalculationEntry(
                     rule_type=RuleType.INTEREST_TAX,
                     quantity=Decimal(1),
@@ -251,11 +252,11 @@ class IncomeProcessor:
         """
         matched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
         unmatched: ForeignAmountLog = defaultdict(ForeignCurrencyAmount)
-        for (broker, symbol, date, _), tax in self.state.dividend_tax_list.items():
+        for (broker, symbol, date, _), tax in self.history.dividend_tax_list.items():
             if not tax.amount:
                 continue
             candidates = self._dividends_for_tax(
-                date, self.state.dividend_dates.get((broker, symbol), set())
+                date, self.history.dividend_dates.get((broker, symbol), set())
             )
             if len(candidates) == 1:
                 # Dated on the dividend it belongs to, so that is the date
@@ -298,7 +299,7 @@ class IncomeProcessor:
         It updates the interest total for the year if needed.
         """
         attributed_tax = self.dividend_tax_attribution().matched
-        for (symbol, date), foreign_amount in self.state.dividend_list.items():
+        for (symbol, date), foreign_amount in self.history.dividend_list.items():
             # Dividends outside the computed tax year are not reported, so
             # neither are the warnings raised while resolving their treaty.
             if not self.date_in_tax_year(date):
@@ -400,7 +401,7 @@ class IncomeProcessor:
                 tax_treaty=treaty,
             )
 
-            self.state.calculation_log_yields[date][f"dividend${symbol}"] = [
+            self.run.calculation_log_yields[date][f"dividend${symbol}"] = [
                 CalculationEntry(
                     rule_type=RuleType.DIVIDEND,
                     quantity=Decimal(1),
@@ -413,4 +414,4 @@ class IncomeProcessor:
             ]
 
             if is_interest_fund:
-                self.state.total_foreign_interest += amount
+                self.run.total_foreign_interest += amount

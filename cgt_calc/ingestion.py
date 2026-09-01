@@ -189,6 +189,9 @@ class TransactionIngester:
         date_in_tax_year: Callable[[datetime.date], bool],
     ):
         """Create transaction ingester object."""
+        self.history = state.history
+        self.run = state.run
+        # Kept whole only to hand on to plan_stock_splits().
         self.state = state
         self.income = income
         self.currency_converter = currency_converter
@@ -256,15 +259,15 @@ class TransactionIngester:
             transaction
         )
         quantity = self._pooled_quantity(transaction)
-        self.state.portfolio[symbol] += Position(quantity, amount - source_adjustment)
+        self.run.portfolio[symbol] += Position(quantity, amount - source_adjustment)
 
         gbp_amount = (
             self.currency_converter.to_gbp_for(amount, transaction) - capital_adjustment
         )
         if transaction.action is ActionType.SPIN_OFF:
-            self.state.spin_off_estimates[transaction.date, symbol] += gbp_amount
+            self.history.spin_off_estimates[transaction.date, symbol] += gbp_amount
         add_to_list(
-            self.state.acquisition_list,
+            self.history.acquisition_list,
             transaction.date,
             symbol,
             quantity,
@@ -288,12 +291,12 @@ class TransactionIngester:
         capacity answers instead, which its decreases cannot exceed because
         planning refused a day that closes below zero.
         """
-        capacity = self.state.split_day_capacity.get((symbol, date_index))
+        capacity = self.history.split_day_capacity.get((symbol, date_index))
         if capacity is not None:
             return capacity
-        if symbol not in self.state.portfolio:
+        if symbol not in self.run.portfolio:
             return None
-        return self.state.portfolio[symbol].quantity
+        return self.run.portfolio[symbol].quantity
 
     def _provisional_cost(self, symbol: str, quantity: Decimal) -> Decimal:
         """Cost to take out of the first-pass pool for shares leaving it.
@@ -303,7 +306,7 @@ class TransactionIngester:
         reorganisation day the running count can sit at or below zero here,
         and there is then nothing to apportion.
         """
-        position = self.state.portfolio[symbol]
+        position = self.run.portfolio[symbol]
         if position.quantity <= 0:
             return Decimal(0)
         return normalize_amount(position.amount * quantity / position.quantity)
@@ -320,8 +323,8 @@ class TransactionIngester:
         cleared when a day closes with nothing held, in
         ``_open_transaction_day``.
         """
-        if self.state.portfolio[symbol].quantity == 0:
-            del self.state.portfolio[symbol]
+        if self.run.portfolio[symbol].quantity == 0:
+            del self.run.portfolio[symbol]
 
     def _pooled_quantity(self, transaction: BrokerTransaction) -> Decimal:
         """Return the count to pool, in the units in force at the day's end."""
@@ -393,13 +396,13 @@ class TransactionIngester:
         quantity = self._pooled_quantity(transaction)
 
         ticker = self.spin_off_handler.get_spin_off_source(
-            symbol, transaction.date, self.state.portfolio
+            symbol, transaction.date, self.run.portfolio
         )
         # Nothing to apportion from an empty holding, and no proportion of
         # value to work out either. On a day the source is itself created by
         # a spin-off, this is the first sign the rows are out of order, and
         # it comes before any price is asked for.
-        if self.state.portfolio[ticker].quantity == 0:
+        if self.run.portfolio[ticker].quantity == 0:
             raise CalculationError(
                 f"{ticker} holds no shares on {transaction.date} when {symbol} "
                 f"is spun off from it. If {ticker} is itself spun off that day, "
@@ -414,7 +417,7 @@ class TransactionIngester:
         already_spun_from = next(
             (
                 spin_off
-                for spin_off in self.state.spin_offs[transaction.date]
+                for spin_off in self.history.spin_offs[transaction.date]
                 if spin_off.source == symbol
             ),
             None,
@@ -432,11 +435,11 @@ class TransactionIngester:
         dst_price = self.price_fetcher.get_closing_price(symbol, transaction.date)
         src_price = self.price_fetcher.get_closing_price(ticker, transaction.date)
         dst_amount = quantity * dst_price
-        src_amount = self.state.portfolio[ticker].quantity * src_price
-        original_src_amount = self.state.portfolio[ticker].amount
+        src_amount = self.run.portfolio[ticker].quantity * src_price
+        original_src_amount = self.run.portfolio[ticker].amount
 
         share_of_original_cost = src_amount / (dst_amount + src_amount)
-        self.state.spin_offs[transaction.date].append(
+        self.history.spin_offs[transaction.date].append(
             SpinOff(
                 dest=symbol,
                 source=ticker,
@@ -483,7 +486,7 @@ class TransactionIngester:
         amount = get_amount_or_fail(transaction)
         price = transaction.price
 
-        self.state.portfolio[symbol] -= Position(pooled_quantity, amount)
+        self.run.portfolio[symbol] -= Position(pooled_quantity, amount)
 
         self._drop_empty_holding(symbol)
 
@@ -491,7 +494,7 @@ class TransactionIngester:
             raise PriceMissingError(transaction)
         # A gift to a connected person on the same day is refused (see
         # add_gift); a gift to anyone else folds into this ordinary disposal.
-        if self.state.gift_disposals.get((transaction.date, symbol)):
+        if self.history.gift_disposals.get((transaction.date, symbol)):
             raise CalculationError(
                 self._sale_and_gift_message(symbol, transaction.date)
             )
@@ -508,7 +511,7 @@ class TransactionIngester:
             transaction
         )
         add_to_list(
-            self.state.disposal_list,
+            self.history.disposal_list,
             transaction.date,
             symbol,
             pooled_quantity,
@@ -517,7 +520,7 @@ class TransactionIngester:
             self.currency_converter.to_gbp_for(transaction.fees, transaction)
             + capital_fee_adjustment,
         )
-        self.state.sale_days.add((transaction.date, symbol))
+        self.history.sale_days.add((transaction.date, symbol))
 
     def _capital_adjustments_gbp(
         self, transaction: BrokerTransaction
@@ -592,10 +595,10 @@ class TransactionIngester:
             Decimal(0),
         )
         option_name = str(contract)
-        current = self.state.option_disposal_list[transaction.date].setdefault(
+        current = self.history.option_disposal_list[transaction.date].setdefault(
             option_name, OptionDisposalData()
         )
-        self.state.option_disposal_list[transaction.date][option_name] = (
+        self.history.option_disposal_list[transaction.date][option_name] = (
             current
             + OptionDisposalData(
                 quantity=tax_data.taxable_quantity,
@@ -655,12 +658,12 @@ class TransactionIngester:
         # cost. Reduce the first-pass holding so later same-symbol transactions
         # validate correctly; the actual pool cost is recomputed in the second
         # pass.
-        self.state.portfolio[symbol] -= Position(
+        self.run.portfolio[symbol] -= Position(
             quantity, self._provisional_cost(symbol, quantity)
         )
         self._drop_empty_holding(symbol)
         add_to_list(
-            self.state.transfer_to_spouse_list,
+            self.history.transfer_to_spouse_list,
             transaction.date,
             symbol,
             quantity,
@@ -719,11 +722,11 @@ class TransactionIngester:
         # sale, or such a gift, alongside a gift to a connected person is
         # refused: a loss on the single disposal could not then be split for
         # the s18(3) restriction.
-        if connected and key in self.state.sale_days:
+        if connected and key in self.history.sale_days:
             raise CalculationError(
                 self._sale_and_gift_message(symbol, transaction.date)
             )
-        if self.state.gift_disposals.get(key, connected) != connected:
+        if self.history.gift_disposals.get(key, connected) != connected:
             raise CalculationError(self._mixed_gifts_message(symbol, transaction.date))
         # Connected gifts must also agree on the value per unit. One holding
         # of one class has one market value on a day, so a second value means
@@ -732,13 +735,13 @@ class TransactionIngester:
         # Everything at one value is treated as one gift to one person.
         if connected:
             value = (transaction.price, transaction.currency)
-            if self.state.gift_prices.setdefault(key, value) != value:
+            if self.history.gift_prices.setdefault(key, value) != value:
                 raise CalculationError(
                     self._gift_values_differ_message(symbol, transaction.date)
                 )
         # Reduce the first-pass holding so later same-symbol transactions
         # validate; the pool cost is recomputed in the second pass.
-        self.state.portfolio[symbol] -= Position(
+        self.run.portfolio[symbol] -= Position(
             quantity, self._provisional_cost(symbol, quantity)
         )
         self._drop_empty_holding(symbol)
@@ -746,7 +749,7 @@ class TransactionIngester:
         # that proceeds come to the market value and the fees are allowed as
         # a cost of the disposal.
         add_to_list(
-            self.state.disposal_list,
+            self.history.disposal_list,
             transaction.date,
             symbol,
             quantity,
@@ -755,7 +758,7 @@ class TransactionIngester:
             ),
             self.currency_converter.to_gbp_for(transaction.fees, transaction),
         )
-        self.state.gift_disposals[transaction.date, symbol] = connected
+        self.history.gift_disposals[transaction.date, symbol] = connected
 
     @staticmethod
     def _gift_values_differ_message(symbol: str, date_index: datetime.date) -> str:
@@ -956,7 +959,7 @@ class TransactionIngester:
             if not symbol:
                 continue
 
-            for report_date, report_by_symbol in self.state.eris.items():
+            for report_date, report_by_symbol in self.history.eris.items():
                 if symbol in report_by_symbol and report_date == transaction.date:
                     previous_price = report_by_symbol[symbol].price
                     if approx_equal(previous_price, price, Decimal("0.0001")):
@@ -971,7 +974,7 @@ class TransactionIngester:
                         f"{report_date} of £{previous_price}",
                     )
 
-            self.state.eris[transaction.date][symbol] = ExcessReportedIncome(
+            self.history.eris[transaction.date][symbol] = ExcessReportedIncome(
                 price=price,
                 symbol=symbol,
                 date=transaction.date,
@@ -991,16 +994,16 @@ class TransactionIngester:
                 transaction,
                 "Rename transaction does not identify the old symbol",
             )
-        existing = self.state.rename_list[transaction.date].get(old_symbol)
+        existing = self.history.rename_list[transaction.date].get(old_symbol)
         if existing is not None and existing != new_symbol:
             raise CalculationError(
                 self._two_renames_message(
                     old_symbol, transaction.date, existing, new_symbol
                 )
             )
-        self.state.rename_list[transaction.date][old_symbol] = new_symbol
-        position = self.state.portfolio.pop(old_symbol, Position())
-        self.state.portfolio[new_symbol] += position
+        self.history.rename_list[transaction.date][old_symbol] = new_symbol
+        position = self.run.portfolio.pop(old_symbol, Position())
+        self.run.portfolio[new_symbol] += position
         # The units keep the accounts that put them there; only the name
         # changes. Nothing is forgotten here, whatever the count says. The
         # merged stream's order within a day is not chronology, so a count of
@@ -1009,9 +1012,9 @@ class TransactionIngester:
         # question is settled where every earlier day has closed, in
         # ``_open_transaction_day``, which is the only place a holding's
         # accounts are dropped.
-        moved = self.state.holding_sources.pop(old_symbol, set())
+        moved = self.history.holding_sources.pop(old_symbol, set())
         if moved:
-            self.state.holding_sources[new_symbol] |= moved
+            self.history.holding_sources[new_symbol] |= moved
 
     def add_management_fee(self, transaction: BrokerTransaction) -> Decimal:
         """Record a fee that increases the holding's pooled cost."""
@@ -1031,9 +1034,9 @@ class TransactionIngester:
         transaction.quantity = Decimal(0)
         gbp_fees = self.currency_converter.to_gbp_for(transaction.fees, transaction)
         symbol = get_symbol_or_fail(transaction)
-        self.state.fee_days.add((transaction.date, symbol))
+        self.history.fee_days.add((transaction.date, symbol))
         add_to_list(
-            self.state.acquisition_list,
+            self.history.acquisition_list,
             transaction.date,
             symbol,
             transaction.quantity,
@@ -1100,14 +1103,14 @@ class TransactionIngester:
             # nothing in it, and its sources must not outlive the units either.
             for symbol in [
                 held
-                for held in self.state.holding_sources
-                if held not in self.state.portfolio
-                or self.state.portfolio[held].quantity == 0
+                for held in self.history.holding_sources
+                if held not in self.run.portfolio
+                or self.run.portfolio[held].quantity == 0
             ]:
-                del self.state.holding_sources[symbol]
+                del self.history.holding_sources[symbol]
             plan_stock_splits(self.state, transaction.date, days[transaction.date])
         if quantity_sign(transaction.action) > 0 and transaction.symbol:
-            self.state.holding_sources[transaction.symbol].add(
+            self.history.holding_sources[transaction.symbol].add(
                 source_account(transaction)
             )
 
@@ -1121,9 +1124,9 @@ class TransactionIngester:
         amount = get_amount_or_fail(transaction)
         key = (transaction.broker, transaction.currency, transaction.date)
         if transaction.action is ActionType.INTEREST:
-            log, year_totals = self.state.interest_list, interests
+            log, year_totals = self.history.interest_list, interests
         else:
-            log, year_totals = self.state.interest_tax_list, interest_taxes
+            log, year_totals = self.history.interest_tax_list, interest_taxes
         log[key] += ForeignCurrencyAmount(amount, transaction.currency)
         if self.date_in_tax_year(transaction.date):
             year_totals[transaction.broker, transaction.currency] += amount
@@ -1207,15 +1210,15 @@ class TransactionIngester:
                 symbol = get_symbol_or_fail(transaction)
                 currency = transaction.currency
                 new_balance += amount
-                self.state.dividend_list[symbol, transaction.date] = (
+                self.history.dividend_list[symbol, transaction.date] = (
                     self.currency_converter.combine_amounts(
-                        self.state.dividend_list[symbol, transaction.date],
+                        self.history.dividend_list[symbol, transaction.date],
                         ForeignCurrencyAmount(amount, currency),
                         transaction.date,
                         autoconvert=self.autoconvert_currency,
                     )
                 )
-                self.state.dividend_dates[transaction.broker, symbol].add(
+                self.history.dividend_dates[transaction.broker, symbol].add(
                     transaction.date
                 )
                 if self.date_in_tax_year(transaction.date):
@@ -1226,7 +1229,7 @@ class TransactionIngester:
                 currency = transaction.currency
                 new_balance += amount
                 tax_key = (transaction.broker, symbol, transaction.date, currency)
-                self.state.dividend_tax_list[tax_key] += ForeignCurrencyAmount(
+                self.history.dividend_tax_list[tax_key] += ForeignCurrencyAmount(
                     amount, currency
                 )
             # Cash moves and nothing else: a deposit or withdrawal, a
@@ -1335,9 +1338,9 @@ class TransactionIngester:
         )
         bul = bullet(sys.stdout)
         print(style_text("Final portfolio", colour=Style.BRIGHT, emoji="📊"))
-        if not self.state.portfolio:
+        if not self.run.portfolio:
             print(f"{bul}(none)")
-        for stock, position in sorted(self.state.portfolio.items()):
+        for stock, position in sorted(self.run.portfolio.items()):
             print(f"{bul}{stock}: {position}")
         print()
         print(style_text("Final balance", colour=Style.BRIGHT, emoji="💰"))
