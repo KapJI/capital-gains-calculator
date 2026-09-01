@@ -60,9 +60,9 @@ jobs:
       - name: Set status pending
         if: steps.pr.outputs.number
         env:
-          STATUS_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          GH_TOKEN="${STATUS_TOKEN}" gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
             -f state=pending -f context="${STATUS_CONTEXT}" -f description="Deploying preview"
 
       - name: Download PR site
@@ -120,14 +120,20 @@ jobs:
       - name: Report no change
         if: steps.pr.outputs.number && steps.compare.outputs.unchanged == 'true'
         env:
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
-          STATUS_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          GH_TOKEN="${STATUS_TOKEN}" gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
             -f state=success -f context="${STATUS_CONTEXT}" \
             -f description="No rendered changes" \
             -f target_url="https://cgt-calc.uk/"
-          # An earlier preview comment would now link to stale content — refresh it.
+
+      - name: Refresh the stale preview comment
+        # Keeps GITHUB_TOKEN: an earlier preview comment would now link to stale
+        # content, and github-actions[bot] wrote it, so the same identity edits it.
+        if: steps.pr.outputs.number && steps.compare.outputs.unchanged == 'true'
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
           ID=$(gh api "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" --paginate \
             --jq ".[] | select(.body | startswith(\"${COMMENT_MARKER}\")) | .id" | head -1)
           if [ -n "${ID}" ]; then
@@ -164,9 +170,9 @@ jobs:
       - name: Report preview ready
         if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
         env:
-          STATUS_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          GH_TOKEN="${STATUS_TOKEN}" gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
             -f state=success -f context="${STATUS_CONTEXT}" \
             -f description="Preview ready" \
             -f target_url="${{ steps.facts.outputs.url }}"
@@ -197,9 +203,9 @@ jobs:
       - name: Report failure
         if: failure() && steps.pr.outputs.number
         env:
-          STATUS_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          GH_TOKEN="${STATUS_TOKEN}" gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
+          gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
             -f state=failure -f context="${STATUS_CONTEXT}" \
             -f description="Preview failed" \
             -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
