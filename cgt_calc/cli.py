@@ -63,14 +63,13 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         period_start=args.period_from,
         period_end=args.period_to,
     )
-    # First pass converts broker transactions to HMRC transactions.
-    # This means applying same day rule and collapsing all transactions with
-    # same type within the same day.
-    # It also converts prices to GBP, validates data and calculates dividends,
-    # taxes on dividends and interest.
-    calculator.convert_to_hmrc_transactions(broker_transactions)
+    # First pass converts broker transactions to HMRC transactions,
+    # collapsing all transactions with the same type within the same day.
+    # It also converts prices to GBP, validates the data, plans share
+    # reorganisations, and records dividends, taxes on dividends and interest
+    # for the second pass to process.
     # Second pass calculates capital gain tax for the given tax year.
-    report = calculator.calculate_capital_gain()
+    report = calculator.calculate(broker_transactions)
     # The report string is newline-terminated already; avoid a trailing
     # blank line so piped output stays stable under newline normalisation.
     print(report, end="")

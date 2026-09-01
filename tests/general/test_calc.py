@@ -16,6 +16,7 @@ from cgt_calc.const import BALANCE_CHECK_CONTEXT_ROWS, RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import (
+    AmountMissingError,
     CalculationError,
     InvalidTransactionError,
     IsinMissingError,
@@ -43,6 +44,7 @@ from .calc_test_data import (
     GBP,
     buy_transaction,
     calc_basic_data,
+    sell_transaction,
     split_transaction,
     transaction,
     transfer_transaction,
@@ -1722,3 +1724,62 @@ def test_calculate_capital_gain_runs_once() -> None:
 
     with pytest.raises(RuntimeError, match="runs once per calculator"):
         calculator.calculate_capital_gain()
+
+
+def test_convert_to_hmrc_transactions_runs_once() -> None:
+    """A second ingestion would accumulate into the history already recorded."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        transaction(
+            datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 1, 10, 0, -10, GBP
+        )
+    ]
+    calculator.convert_to_hmrc_transactions(transactions)
+
+    with pytest.raises(RuntimeError, match="runs once per calculator"):
+        calculator.convert_to_hmrc_transactions(transactions)
+
+
+def test_calculate_capital_gain_requires_ingestion() -> None:
+    """Calculating before ingesting used to return an empty report."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(RuntimeError, match="must complete before"):
+        calculator.calculate_capital_gain()
+
+
+def test_failed_ingestion_can_be_neither_retried_nor_calculated() -> None:
+    """A history that stopped part way through is not a history to report on."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        buy_transaction(datetime.date(2024, 5, 1), "FOO", 10, 10, 0, -100),
+        transaction(datetime.date(2024, 5, 2), ActionType.BUY, "BAR", 10, 10, 0, None),
+    ]
+
+    with pytest.raises(AmountMissingError):
+        calculator.convert_to_hmrc_transactions(transactions)
+
+    with pytest.raises(RuntimeError, match="runs once per calculator"):
+        calculator.convert_to_hmrc_transactions(transactions)
+
+    with pytest.raises(RuntimeError, match="must complete before"):
+        calculator.calculate_capital_gain()
+
+
+def test_calculate_matches_the_two_step_sequence() -> None:
+    """calculate() is the two steps in the only order that works."""
+
+    def transactions() -> list[BrokerTransaction]:
+        return [
+            buy_transaction(datetime.date(2024, 5, 1), "FOO", 10, 10, 0, -100),
+            sell_transaction(datetime.date(2024, 6, 3), "FOO", 10, 12, 0, 120),
+            buy_transaction(datetime.date(2024, 6, 10), "FOO", 10, 11, 0, -110),
+        ]
+
+    combined = create_calculator(tax_year=2024, balance_check=False)
+    two_step = create_calculator(tax_year=2024, balance_check=False)
+    two_step.convert_to_hmrc_transactions(transactions())
+
+    assert str(combined.calculate(transactions())) == str(
+        two_step.calculate_capital_gain()
+    )

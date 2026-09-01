@@ -160,8 +160,27 @@ class CapitalGainsCalculator:
         self,
         transactions: list[BrokerTransaction],
     ) -> None:
-        """Convert broker transactions to HMRC transactions."""
+        """Convert broker transactions to HMRC transactions.
+
+        Runs once per calculator, whether or not it succeeds: a second run
+        would accumulate into the history the first one recorded.
+        """
+        if self.state.ingestion_started:
+            raise RuntimeError(
+                "convert_to_hmrc_transactions() runs once per calculator; build "
+                "a new one to ingest again"
+            )
+        self.state.ingestion_started = True
         self.ingester.convert_to_hmrc_transactions(transactions)
+        self.state.ingested = True
+
+    def calculate(
+        self,
+        transactions: list[BrokerTransaction],
+    ) -> CapitalGainsReport:
+        """Convert broker transactions and calculate the capital gain."""
+        self.convert_to_hmrc_transactions(transactions)
+        return self.calculate_capital_gain()
 
     def first_pass_report(self, totals: FirstPassTotals) -> None:
         """Print the results of the first pass."""
@@ -195,6 +214,11 @@ class CapitalGainsCalculator:
         estimates as it replaces them and accumulates bed and breakfast
         claims as it makes them, so a second run would count both twice.
         """
+        if not self.state.ingested:
+            raise RuntimeError(
+                "convert_to_hmrc_transactions() must complete before "
+                "calculate_capital_gain(); use calculate() to run both in order"
+            )
         if self.state.calculated:
             raise RuntimeError(
                 "calculate_capital_gain() runs once per calculator; build a "
