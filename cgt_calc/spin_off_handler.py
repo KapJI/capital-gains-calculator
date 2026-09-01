@@ -7,7 +7,6 @@ import logging
 import sys
 from typing import TYPE_CHECKING, Final
 
-from .const import DEFAULT_SPIN_OFF_FILE
 from .exceptions import InteractiveInputRequiredError, ParsingError
 from .util import open_with_parents
 
@@ -66,9 +65,7 @@ class SpinOffHandler:
             return self.cache[symbol]
 
         if not sys.stdin.isatty():
-            raise InteractiveInputRequiredError(
-                symbol, date, self.spin_offs_file or DEFAULT_SPIN_OFF_FILE
-            )
+            raise InteractiveInputRequiredError(symbol, date, self.spin_offs_file)
 
         while True:
             # This would ideally be fetched from some stock DB but yfinance does not
@@ -80,7 +77,7 @@ class SpinOffHandler:
                 )
             except EOFError as err:
                 raise InteractiveInputRequiredError(
-                    symbol, date, self.spin_offs_file or DEFAULT_SPIN_OFF_FILE
+                    symbol, date, self.spin_offs_file
                 ) from err
             if ticker in portfolio:
                 break

@@ -48,19 +48,6 @@ def test_non_interactive_run_raises_clear_error(
     assert "dst,src" in message
 
 
-def test_error_names_default_file_when_none_configured(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """With no spin-offs file configured the error points at the default path."""
-    handler = SpinOffHandler()
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
-
-    with pytest.raises(InteractiveInputRequiredError) as excinfo:
-        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
-
-    assert str(DEFAULT_SPIN_OFF_FILE) in str(excinfo.value)
-
-
 def test_eof_during_prompt_raises_clear_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -91,3 +78,20 @@ def test_recording_spin_off_creates_missing_parent_directories(
     assert source == "OLD"
     content = spin_offs_file.read_text(encoding="utf8")
     assert content.splitlines() == ["dst,src", "NEW,OLD"]
+
+
+def test_disabled_cache_error_asks_for_a_non_empty_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the cache disabled the error asks for a path to put the row in."""
+    handler = SpinOffHandler(spin_offs_file=None)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+
+    with pytest.raises(InteractiveInputRequiredError) as excinfo:
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
+
+    message = str(excinfo.value)
+    assert "non-empty --spin-offs-file" in message
+    assert "'NEW,<source>' row" in message
+    # The disabled cache is never read, so its default path must not be named.
+    assert str(DEFAULT_SPIN_OFF_FILE) not in message
