@@ -38,7 +38,7 @@ from .transaction_log import add_to_list, has_key
 from .util import normalize_amount, round_decimal, strip_zeros
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
     from .calculator_state import CalculatorState
 
@@ -59,11 +59,29 @@ class WalkResult(NamedTuple):
     calculation_log: CalculationLog
 
 
+class DayIdentity(NamedTuple):
+    """What one holding is called on the day a disposal of it is identified."""
+
+    end_name: str
+    """The name the day's renames leave the holding under."""
+
+    acquired_under: str
+    """The name today's purchases of the holding were recorded under."""
+
+    pool_name: str
+    """The name the holding's Section 104 pool is kept under today."""
+
+    names: frozenset[str]
+    """Every name today's renames give the holding, this one included."""
+
+
 @dataclass
 class DisposalContext:
     """The running state of one disposal as the identification rules consume it."""
 
     symbol: str
+    identity: DayIdentity
+    cost_holder: str
     date_index: datetime.date
     no_gain_no_loss: bool
     disposal: HmrcTransactionData
@@ -95,6 +113,10 @@ class Matcher:
         self.interest_fund_tickers = interest_fund_tickers
         self.date_in_tax_year = date_in_tax_year
         self.is_cgt_exempt = is_cgt_exempt
+        # What each name holds as the day being walked opens, before any of
+        # the day's rows. Only the days that record a rename need it, and only
+        # to tell a holding of a name's own from what the day put there.
+        self._day_open_pools: dict[str, Position] = {}
 
     def get_eri(self, symbol: str, date: datetime.date) -> ExcessReportedIncome | None:
         """Return Excess Reported Income at specific date for the input symbol."""
@@ -265,19 +287,39 @@ class Matcher:
             if no_gain_no_loss
             else self.history.disposal_list
         )[date_index][symbol]
+        # A transfer to a spouse is recorded after the day's renames have been
+        # applied, so the pool is read under the name the day leaves the
+        # holding under rather than the name that opened the day holding it.
+        # Which acquisition the day's purchases make up is the same question
+        # either way.
+        identity = self._day_identity(symbol, date_index, after_renames=no_gain_no_loss)
+        # Where the day's purchases of the holding sit. That is the name they
+        # were recorded under, unless the day's renames have already merged
+        # that pool into the one the holding ends the day under, which they
+        # have by the time a transfer to a spouse is recorded.
+        cost_holder = identity.pool_name if no_gain_no_loss else identity.acquired_under
+        pool = self.run.portfolio[identity.pool_name]
         ctx = DisposalContext(
             symbol=symbol,
+            identity=identity,
+            cost_holder=cost_holder,
             date_index=date_index,
             no_gain_no_loss=no_gain_no_loss,
             disposal=disposal,
             disposal_quantity=disposal.quantity,
             disposal_price=disposal.amount / disposal.quantity,
-            current_quantity=self.run.portfolio[symbol].quantity,
-            current_amount=self.run.portfolio[symbol].amount,
+            current_quantity=pool.quantity,
+            current_amount=pool.amount,
             chargeable_gain=Decimal(0),
             calculation_entries=[],
         )
-        assert ctx.disposal_quantity <= ctx.current_quantity
+        # What there is to identify the disposal against: the Section 104 pool
+        # the holding keeps under one name, and the day's purchases of it,
+        # which a rename today may have put under another.
+        available = ctx.current_quantity
+        if cost_holder != identity.pool_name:
+            available += self.run.portfolio.get(cost_holder, Position()).quantity
+        assert ctx.disposal_quantity <= available
         self._match_same_day(ctx)
         self._match_bed_and_breakfast(ctx)
         self._match_section_104(ctx)
@@ -285,7 +327,7 @@ class Matcher:
         assert round_decimal(ctx.disposal_quantity, 23) == 0, (
             f"disposal quantity {ctx.disposal_quantity}"
         )
-        self.run.portfolio[ctx.symbol] = Position(
+        self.run.portfolio[ctx.identity.pool_name] = Position(
             ctx.current_quantity, normalize_amount(ctx.current_amount)
         )
         ctx.chargeable_gain = round_decimal(ctx.chargeable_gain, 2)
@@ -298,7 +340,12 @@ class Matcher:
         # nothing, so matching them would hand the disposal a nil allowable cost
         # and, on a day that also has a purchase, spread that purchase's cost
         # over the free shares as well.
-        same_day_acquisition = self._matchable_acquisition(ctx.date_index, ctx.symbol)
+        # The day's purchases are one acquisition of this holding (TCGA 1992
+        # s105(1)(a)) whichever of its names today's rows spell them under.
+        acquired_under = ctx.identity.acquired_under
+        same_day_acquisition = self._matchable_acquisition(
+            ctx.date_index, acquired_under
+        )
         if same_day_acquisition.quantity > 0:
             available_quantity = min(
                 ctx.disposal_quantity, same_day_acquisition.quantity
@@ -332,12 +379,22 @@ class Matcher:
                     acquisition_price,
                 )
                 ctx.disposal_quantity -= available_quantity
-                ctx.current_quantity -= available_quantity
-                # These shares shouldn't be added to Section 104 holding
-                ctx.current_amount -= acquisition_cost
-                if ctx.current_quantity == 0:
-                    assert round_decimal(ctx.current_amount, 23) == 0, (
-                        f"current amount {ctx.current_amount}"
+                # These shares shouldn't be added to Section 104 holding. They
+                # went into the pool of the name they were bought under, which
+                # a rename today need not have been the name being disposed of,
+                # so they come back out of that same pool: the two are one
+                # holding by the end of the day either way, and taking the cost
+                # out of the wrong one leaves both wrong until then.
+                if ctx.cost_holder == ctx.identity.pool_name:
+                    ctx.current_quantity -= available_quantity
+                    ctx.current_amount -= acquisition_cost
+                    if ctx.current_quantity == 0:
+                        assert round_decimal(ctx.current_amount, 23) == 0, (
+                            f"current amount {ctx.current_amount}"
+                        )
+                else:
+                    self.run.portfolio[ctx.cost_holder] -= Position(
+                        available_quantity, acquisition_cost
                     )
                 ctx.calculation_entries.append(
                     CalculationEntry(
@@ -372,7 +429,10 @@ class Matcher:
             # very error the exact ratio removed.
             cumulative_ratio = Fraction(1)
             unresolved_splits: list[tuple[datetime.date, StockSplitEvent]] = []
-            effective_symbol = ctx.symbol
+            # A rename recorded on the disposal date itself has taken effect by
+            # the time the following days start, so the walk begins under the
+            # name it leaves the holding under.
+            effective_symbol = ctx.identity.end_name
 
             for i in range(BED_AND_BREAKFAST_DAYS):
                 search_index = ctx.date_index + datetime.timedelta(days=i + 1)
@@ -425,26 +485,9 @@ class Matcher:
                     )
                     assert bnb_acquisition.quantity <= acquisition.quantity
 
-                    same_day_disposal = (
-                        self.history.disposal_list[search_index][effective_symbol]
-                        if has_key(
-                            self.history.disposal_list, search_index, effective_symbol
-                        )
-                        else HmrcTransactionData()
+                    same_day_disposal = self._same_day_claims(
+                        search_index, effective_symbol
                     )
-                    # A same-day transfer to spouse competes for the same-day
-                    # acquisition like a same-day sale, so reserve its share too.
-                    if has_key(
-                        self.history.transfer_to_spouse_list,
-                        search_index,
-                        effective_symbol,
-                    ):
-                        same_day_disposal = (
-                            same_day_disposal
-                            + self.history.transfer_to_spouse_list[search_index][
-                                effective_symbol
-                            ]
-                        )
                     if same_day_disposal.quantity > acquisition.quantity:
                         # If the number of shares disposed of exceeds the number
                         # acquired on the same day the excess shares will be identified
@@ -724,7 +767,9 @@ class Matcher:
             chained = self._rename_chain_at(symbol, renames)
             if chained is not None:
                 raise CalculationError(
-                    self._rename_chain_message(symbol, date_index, *chained)
+                    self._rename_chain_message(
+                        "apply the reorganisation of", symbol, date_index, *chained
+                    )
                 )
             pooled = self._rename_pooling_with(symbol, date_index, renames)
             if pooled is not None:
@@ -774,27 +819,22 @@ class Matcher:
             return None
         return (symbol, next_name), (next_name, renames[next_name])
 
-    def _rename_pooling_with(
-        self,
-        symbol: str,
-        date_index: datetime.date,
-        renames: dict[str, str],
-    ) -> tuple[str, tuple[str, str]] | None:
-        """Return a second holding the day's renames would pool this one with.
+    @staticmethod
+    def _renames_reaching(
+        symbol: str, renames: dict[str, str]
+    ) -> Iterator[tuple[str, tuple[str, str]]]:
+        """Yield every other name the day's renames connect this holding to.
 
-        A rename says the two tickers are one security, so a reorganisation of
-        either restates both. The calculator restates one, and the renames
-        bring whatever else they reach in afterwards, untouched. What they
-        reach is not only the name at the other end of a rename this holding
-        is named in: a holding renamed into the name this one is renamed to,
-        or renamed along to it through names it never held, arrives just the
-        same. So the whole of the day's rename graph connected to this holding
-        is walked, in both directions, and any name on it that holds something
-        of its own is the answer. The ordinary ticker change reaches only
-        empty names, so it passes.
+        A rename says the two tickers are one security, so what a holding is
+        pooled with today is not only the name at the other end of a rename it
+        is itself named in: a holding renamed into the name this one is renamed
+        to, or renamed along to it through names it never held, arrives just
+        the same. So the whole of the day's rename graph connected to this
+        holding is walked, in both directions. The ordinary ticker change
+        reaches one empty name and stops.
 
-        Returns the holding it would be pooled with and the rename that
-        reaches it, taking the renames in the order the input lists them.
+        Each name comes with the rename that reaches it, taking the renames in
+        the order the input lists them.
         """
         reached = {symbol}
         frontier = [symbol]
@@ -810,11 +850,249 @@ class Matcher:
                 )
                 if other is None or other in reached:
                     continue
-                if self._holds_units_today(other, date_index):
-                    return other, (old_name, new_name)
                 reached.add(other)
                 frontier.append(other)
+                yield other, (old_name, new_name)
+
+    def _rename_pooling_with(
+        self,
+        symbol: str,
+        date_index: datetime.date,
+        renames: dict[str, str],
+    ) -> tuple[str, tuple[str, str]] | None:
+        """Return a second holding the day's renames would pool this one with.
+
+        A rename says the two tickers are one security, so a reorganisation of
+        either restates both. The calculator restates one, and the renames
+        bring whatever else they reach in afterwards, untouched, so any name
+        the renames reach that holds something of its own is the answer.
+
+        Returns the holding it would be pooled with and the rename that
+        reaches it.
+        """
+        for other, rename in self._renames_reaching(symbol, renames):
+            if self._holds_units_today(other, date_index):
+                return other, rename
         return None
+
+    def _opened_with(self, symbol: str) -> Position:
+        """Return what this name held as the day opened, before its own rows."""
+        return self._day_open_pools.get(symbol, Position())
+
+    def _shares_already_moved(self, symbol: str, date_index: datetime.date) -> bool:
+        """Whether the day's own earlier rows have moved shares from this name.
+
+        What the name opened the day with, plus what the day bought under it,
+        is what it would still hold if nothing had left it yet.
+
+        A reorganisation recorded today is neither an acquisition nor a
+        disposal (TCGA 1992 s127): it restates the opening holding, and the
+        day's passes then reconcile that to the broker's own count. Both
+        change the count without anything having left, so the day opens on
+        the figure they leave rather than the one the snapshot took.
+        """
+        transformation = self.history.splits.get(date_index, {}).get(symbol)
+        opened_with = (
+            self._opened_with(symbol).quantity
+            if transformation is None
+            else transformation.scaled_day_open_quantity
+            + transformation.reconciliation_delta
+        )
+        return (
+            self.run.portfolio.get(symbol, Position()).quantity
+            != opened_with + self._matchable_acquisition(date_index, symbol).quantity
+        )
+
+    def _holds_cost_without_shares(
+        self, symbol: str, date_index: datetime.date
+    ) -> bool:
+        """Whether this name holds pooled cost that no shares of its own carry.
+
+        A management fee is recorded as cost with no shares, so a name can
+        hold one without holding a holding, and there is nothing under that
+        name for the same-day rule to identify a disposal against. The cost
+        reaches the shares it belongs to only when the day's renames are
+        applied, which is after the day's disposals have priced themselves.
+
+        Asked only of the names that are not holding the pool, and those
+        opened the day with no shares at all. Such a name holds cost with
+        nothing behind it if it brought cost in - which a purchase today
+        masks, by making its quantity positive while pricing only its own
+        shares - or if the day recorded cost but no shares under it.
+        """
+        acquired = self._matchable_acquisition(date_index, symbol)
+        return self._opened_with(symbol).amount != 0 or (
+            acquired.quantity == 0 and acquired.amount != 0
+        )
+
+    def _same_day_claims(
+        self, date_index: datetime.date, symbol: str
+    ) -> HmrcTransactionData:
+        """Return what a day's own disposals take out of its acquisition first.
+
+        The same-day rule comes before the 30-day rule (CG51560), so shares
+        the day's own disposals are identified against are not there for an
+        earlier disposal to claim. A rename recorded that day makes the day's
+        rows one holding whichever of its names they state, so a disposal
+        under either name claims the same purchase and has to be reserved
+        here too. A transfer to a spouse competes for it like a sale.
+        """
+        names = {symbol}
+        names.update(
+            other
+            for other, _ in self._renames_reaching(
+                symbol, self.history.rename_list.get(date_index, {})
+            )
+        )
+        claimed = HmrcTransactionData()
+        for name in sorted(names):
+            for claims in (
+                self.history.disposal_list,
+                self.history.transfer_to_spouse_list,
+            ):
+                if has_key(claims, date_index, name):
+                    claimed = claimed + claims[date_index][name]
+        return claimed
+
+    def _day_identity(
+        self, symbol: str, date_index: datetime.date, *, after_renames: bool = False
+    ) -> DayIdentity:
+        """Resolve which names are this holding on the day it is disposed of.
+
+        A rename is neither a disposal nor an acquisition (TCGA 1992 s127,
+        CG51700): the same shares carry on under another name, and the name
+        changes at the end of the day the rename is recorded on. So the day's
+        rows may state either name and mean the same holding, in whatever
+        order they sit, and identification has to read them as one - otherwise
+        the same facts give a different answer depending on which spelling a
+        row happened to use.
+
+        Refuses the days whose renames leave that identity unsettled, rather
+        than identifying the disposal against the wrong holding or falling
+        back to the Section 104 pool of one name as if the other were a
+        different security.
+
+        ``after_renames`` is for a transfer to a spouse, which a day records
+        once its renames have been applied: the pool is already under the
+        name the day leaves the holding under, so that is the name it is
+        priced from. What the day opened holding still settles the rest, so
+        the refusals that read it are asked here too: the day merges before
+        it transfers whatever order the rows are in, and letting a merge
+        through would decide what the transfer costs, and with it what the
+        recipient is treated as having paid (CG22200). Only which rows have
+        already moved shares out of which name goes unasked. That reads a
+        portfolio the renames have reshuffled, and a transfer contending
+        with another disposal row is settled where the day's transfers are
+        recorded.
+        """
+        renames = self.history.rename_list.get(date_index, {})
+        names = {symbol}
+        names.update(other for other, _ in self._renames_reaching(symbol, renames))
+        end_name = renames.get(symbol, symbol)
+        identity_names = frozenset(names)
+        if len(names) == 1:
+            return DayIdentity(end_name, symbol, symbol, identity_names)
+        for name in sorted(names):
+            chained = self._rename_chain_at(name, renames)
+            if chained is not None:
+                raise CalculationError(
+                    self._rename_chain_message(
+                        "compute the disposal of", symbol, date_index, *chained
+                    )
+                )
+        pooled = sorted(n for n in names if self._opened_with(n).quantity != 0)
+        if len(pooled) > 1:
+            raise CalculationError(
+                f"Cannot compute the disposal of {symbol} on {date_index}: the "
+                f"day's renames pool {' and '.join(pooled)} together, and each "
+                "of them holds shares of its own. A rename says the tickers "
+                "are one security, so the disposal is identified against one "
+                "holding, but the pools only meet at the end of the day and "
+                "the input does not say whether these shares were the same "
+                "holding before that. Which pool the disposal comes out of, "
+                "and at what cost, cannot be established. Work this day out by "
+                "hand (consider professional advice)."
+            )
+        # The holding opens the day with its Section 104 pool under whichever
+        # name held shares, and the refusal above leaves at most one.
+        opening_pool = pooled[0] if pooled else symbol
+        # Only the names the renames reach. Cost under the name that opened
+        # the day holding the pool is cost those shares carry whichever side
+        # of the rename the row sits, so there is nothing there to strand.
+        cost_only = sorted(
+            n
+            for n in names
+            if n != opening_pool and self._holds_cost_without_shares(n, date_index)
+        )
+        if cost_only:
+            raise CalculationError(
+                f"Cannot compute the disposal of {symbol} on {date_index}: the "
+                f"day's renames make {' and '.join(sorted(names))} one "
+                "holding, and pooled cost with no shares of its own is "
+                f"recorded under {' and '.join(cost_only)} - a management fee, "
+                "most likely. That cost belongs to the shares being disposed "
+                "of here, but it only joins their pool when the day's renames "
+                "are applied, so whether this disposal's Section 104 cost "
+                "includes it turns on an order the input does not give. "
+                "Record the fee under the name the shares are held under, or "
+                "work this day out by hand (consider professional advice)."
+            )
+        if after_renames:
+            # A transfer to a spouse is written once the day's renames have
+            # moved the pool, so it prices itself from the name the day ends
+            # with. Which of the day's rows has already moved shares out of
+            # which name is a question about a portfolio that no longer
+            # exists; a transfer contending with another disposal row is
+            # settled where the day's transfers are recorded.
+            return self._acquisition_identity(
+                symbol, date_index, end_name, end_name, identity_names
+            )
+        if any(self._shares_already_moved(n, date_index) for n in names):
+            raise CalculationError(
+                f"Cannot compute the disposal of {symbol} on {date_index}: the "
+                f"day's renames make {' and '.join(sorted(names))} one "
+                "holding, and a disposal recorded under another of those "
+                "names has already been identified against the day's "
+                "purchase. The day's purchases are one acquisition (TCGA 1992 "
+                "s105(1)(a)) and every disposal of the holding that day is "
+                "identified against it, but this tool takes each disposal row "
+                "against the purchase under a single name and cannot share "
+                "one acquisition between rows written under different names "
+                "of the holding. Record the day's sales under one name, or "
+                "work this day out by hand (consider professional advice)."
+            )
+        return self._acquisition_identity(
+            symbol, date_index, end_name, opening_pool, identity_names
+        )
+
+    def _acquisition_identity(
+        self,
+        symbol: str,
+        date_index: datetime.date,
+        end_name: str,
+        pool_name: str,
+        names: frozenset[str],
+    ) -> DayIdentity:
+        """Name the acquisition the day's purchases of this holding make up."""
+        acquired = sorted(
+            name
+            for name in names
+            if self._matchable_acquisition(date_index, name).quantity > 0
+        )
+        if len(acquired) > 1:
+            raise CalculationError(
+                f"Cannot compute the disposal of {symbol} on {date_index}: the "
+                f"day's renames make {' and '.join(acquired)} one holding, and "
+                "shares were bought under each of them today. The day's "
+                "purchases are one acquisition at one blended cost (TCGA 1992 "
+                "s105(1)(a)), and this tool cannot split that cost back across "
+                "the names the shares were bought under. Record the day's "
+                "purchases under one name, or work this day out by hand "
+                "(consider professional advice)."
+            )
+        return DayIdentity(
+            end_name, acquired[0] if acquired else pool_name, pool_name, names
+        )
 
     def record_split_reconciliations(
         self,
@@ -904,14 +1182,15 @@ class Matcher:
 
     @staticmethod
     def _rename_chain_message(
+        action: str,
         symbol: str,
         date_index: datetime.date,
         first: tuple[str, str],
         second: tuple[str, str],
     ) -> str:
-        """Explain why a holding renamed twice in a day cannot be restated."""
+        """Explain why a holding renamed twice in a day cannot be worked out."""
         return (
-            f"Cannot apply the reorganisation of {symbol} on {date_index}: it "
+            f"Cannot {action} {symbol} on {date_index}: it "
             f"is renamed to {first[1]}, and {second[0]} is renamed to "
             f"{second[1]}, the same day. The renames are applied in the order "
             "the input lists them, so where the holding ends up, and what it "
@@ -1177,11 +1456,11 @@ class Matcher:
 
     def _contending_acquisitions(
         self,
-        symbol: str,
+        identity: DayIdentity,
         date_index: datetime.date,
         bnb_claimed_before_today: dict[tuple[datetime.date, str], Decimal],
     ) -> list[datetime.date]:
-        """Dates a same-day sale and transfer of ``symbol`` would both claim.
+        """Dates a same-day sale and transfer of one holding would both claim.
 
         Left to the Section 104 pool alone the two draw at the same average
         cost, so the order between them cannot change either result. They only
@@ -1191,16 +1470,19 @@ class Matcher:
         when there is nothing to argue over.
         """
         dates = []
-        effective_symbol = symbol
+        effective_symbol = identity.end_name
 
         def has_shares_going_spare(
             day: datetime.date, ticker: str, *, is_disposal_day: bool
         ) -> bool:
             # Only what is left over is worth arguing about. Shares from a
             # split are already excluded, and a management fee is recorded as
-            # cost with no shares at all.
+            # cost with no shares at all. Shares that cost nothing are still
+            # worth arguing over: whichever disposal is identified against
+            # them takes a nil allowable cost, and the other one takes a
+            # share of the pool instead.
             acquisition = self._matchable_acquisition(day, ticker)
-            if acquisition.quantity <= 0 or acquisition.amount == 0:
+            if acquisition.quantity <= 0:
                 return False
             # Claims an earlier disposal already made are settled and leave
             # that much less to argue over. What the sale we are contending
@@ -1220,7 +1502,9 @@ class Matcher:
                         taken += log[day][ticker].quantity
             return acquisition.quantity - taken > 0
 
-        if has_shares_going_spare(date_index, symbol, is_disposal_day=True):
+        if has_shares_going_spare(
+            date_index, identity.acquired_under, is_disposal_day=True
+        ):
             dates.append(date_index)
         for i in range(BED_AND_BREAKFAST_DAYS):
             search_index = date_index + datetime.timedelta(days=i + 1)
@@ -1234,30 +1518,102 @@ class Matcher:
                 dates.append(search_index)
         return dates
 
+    @staticmethod
+    def _show_dates(dates: list[datetime.date]) -> str:
+        """Name a few of the dates, and say how many more there are."""
+        shown = ", ".join(str(date) for date in dates[:MAX_CONTENDED_DATES_SHOWN])
+        if len(dates) > MAX_CONTENDED_DATES_SHOWN:
+            shown += f" and {len(dates) - MAX_CONTENDED_DATES_SHOWN} more"
+        return shown
+
+    @staticmethod
+    def _day_rows(
+        log: dict[datetime.date, dict[str, HmrcTransactionData]],
+        date_index: datetime.date,
+        identity: DayIdentity,
+        *,
+        skip: str | None = None,
+    ) -> dict[str, Decimal]:
+        """Return what each of the holding's names records in a day's log."""
+        return {
+            name: log[date_index][name].quantity
+            for name in sorted(identity.names)
+            if name != skip and has_key(log, date_index, name)
+        }
+
+    def _transfers_under_two_names_message(
+        self,
+        identity: DayIdentity,
+        symbol: str,
+        date_index: datetime.date,
+        contended: list[datetime.date],
+    ) -> str:
+        """Explain why two transfer rows cannot share the day's purchase."""
+        elsewhere = self._day_rows(
+            self.history.transfer_to_spouse_list, date_index, identity, skip=symbol
+        )
+        others = ", ".join(
+            f"{strip_zeros(quantity)} of {name}" for name, quantity in elsewhere.items()
+        )
+        transferred = self.history.transfer_to_spouse_list[date_index][symbol].quantity
+        shown = self._show_dates(contended)
+        return (
+            f"On {date_index} you transferred {strip_zeros(transferred)} units "
+            f"of {symbol} to a spouse and {others}, which the day's renames "
+            f"make one holding, and you also acquired "
+            f"{identity.acquired_under} on {shown}.\n"
+            "Every transfer of the holding that day has to be identified "
+            "against those acquisitions under the same-day and 30-day rules "
+            "(TCGA 1992 s105(1)), and only one of the rows can have them. "
+            "This tool identifies each transfer row against the acquisitions "
+            "under a single name, so it cannot share them between rows "
+            "written under different names of the one holding.\n"
+            "What to do: record the day's transfers under one name, which is "
+            "what they are. Failing that, work this day out by hand and "
+            "consider taking professional advice, then leave the affected "
+            "symbol out of the input and add its figures to your return "
+            "yourself."
+        )
+
     def _same_day_sale_and_transfer_message(
         self,
+        identity: DayIdentity,
         symbol: str,
         date_index: datetime.date,
         contended: list[datetime.date],
     ) -> str:
         """Explain why a same-day sale and transfer cannot be calculated."""
-        sold = self.history.disposal_list[date_index][symbol].quantity
+        disposed = self._day_rows(self.history.disposal_list, date_index, identity)
+        sold_under = list(disposed)
+        sold = sum(disposed.values(), Decimal(0))
         transferred = self.history.transfer_to_spouse_list[date_index][symbol].quantity
-        shown = ", ".join(str(date) for date in contended[:MAX_CONTENDED_DATES_SHOWN])
-        if len(contended) > MAX_CONTENDED_DATES_SHOWN:
-            shown += f" and {len(contended) - MAX_CONTENDED_DATES_SHOWN} more"
-        has_gift = (date_index, symbol) in self.history.gift_disposals
-        has_sale = (date_index, symbol) in self.history.sale_days
+        shown = self._show_dates(contended)
+        has_gift = any(
+            (date_index, name) in self.history.gift_disposals for name in sold_under
+        )
+        has_sale = any(
+            (date_index, name) in self.history.sale_days for name in sold_under
+        )
         if has_gift and has_sale:
             verb, noun = ("sold or gave away", "disposal")
         elif has_gift:
             verb, noun = ("gave away", "gift")
         else:
             verb, noun = ("sold", "sale")
+        # The day's renames can put the two rows under different names of the
+        # one holding, and then neither ticker alone tells the whole story.
+        aliases = (
+            ""
+            if sold_under == [symbol]
+            else (
+                f" The {noun} is recorded under {' and '.join(sold_under)}, which "
+                f"the day's renames make one holding with {symbol}."
+            )
+        )
         return (
             f"On {date_index} you {verb} {strip_zeros(sold)} units of {symbol} "
             f"and transferred {strip_zeros(transferred)} to a spouse, and you "
-            f"also acquired {symbol} on {shown}.\n"
+            f"also acquired {identity.acquired_under} on {shown}.{aliases}\n"
             f"Both the {noun} and the transfer have to be identified against those "
             "acquisitions under the same-day and 30-day rules, but they cannot "
             "share them: TCGA 1992 s105(1) treats everything disposed of on one "
@@ -1289,17 +1645,31 @@ class Matcher:
         if date_index not in self.history.transfer_to_spouse_list:
             return
         for symbol in self.history.transfer_to_spouse_list[date_index]:
+            identity = self._day_identity(symbol, date_index, after_renames=True)
             # HMRC does not define how to identify a taxable sale and a no gain/no
             # loss transfer of the same shares on the same day, so refuse the
-            # cases where that identification actually changes the answer.
-            if has_key(self.history.disposal_list, date_index, symbol) and (
+            # cases where that identification actually changes the answer. A
+            # rename today makes the day's names one holding, so the sale need
+            # not state the same ticker as the transfer to be a sale of it.
+            sold = self._day_rows(self.history.disposal_list, date_index, identity)
+            # Transfers of the one holding written under its other names: no
+            # gain either way, so nothing about the tax turns on which row
+            # gets the day's purchase, but only one of them can have it.
+            transferred_elsewhere = self._day_rows(
+                self.history.transfer_to_spouse_list, date_index, identity, skip=symbol
+            )
+            if (sold or transferred_elsewhere) and (
                 contended := self._contending_acquisitions(
-                    symbol, date_index, bnb_claimed_before_today
+                    identity, date_index, bnb_claimed_before_today
                 )
             ):
                 raise CalculationError(
                     self._same_day_sale_and_transfer_message(
-                        symbol, date_index, contended
+                        identity, symbol, date_index, contended
+                    )
+                    if sold
+                    else self._transfers_under_two_names_message(
+                        identity, symbol, date_index, contended
                     )
                 )
             gain, entries = self.process_disposal(
@@ -1443,6 +1813,18 @@ class Matcher:
                     for ticker, data in tickers.items()
                 }
                 if date_index in self.history.transfer_to_spouse_list
+                else {}
+            )
+            # A rename records that two names are one holding, and what each
+            # of them brought into the day is what tells a holding of its own
+            # from what the day's own rows put there (see _day_identity).
+            self._day_open_pools = (
+                {
+                    name: position
+                    for name, position in self.run.portfolio.items()
+                    if position.quantity != 0 or position.amount != 0
+                }
+                if date_index in self.history.rename_list
                 else {}
             )
             self.apply_split_openings(date_index)

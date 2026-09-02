@@ -37,7 +37,7 @@ from .calc_test_data import (
     transaction,
     transfer_to_spouse_transaction,
 )
-from .test_calc import create_calculator, get_report
+from .test_calc import _rename_transaction, create_calculator, get_report
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -1444,3 +1444,344 @@ def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> Non
     assert arrival.quantity == Decimal(3)
     assert recipient.allowable_costs == Decimal(31)
     assert recipient.total_gain() == Decimal(29)
+
+
+def test_transfer_to_spouse_on_the_day_of_a_rename() -> None:
+    """The pool is under the new name by the time a transfer is recorded.
+
+    Transfers are the last thing a day does, after its renames have been
+    applied, so the holding is already where the rename left it and the
+    literal ticker on the row is the one that holds it.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    rename_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                buy_day, ActionType.BUY, "OLD", 100, 10, 0, -1000, CurrencyCode(GBP)
+            ),
+            _rename_transaction(rename_day, "OLD", "NEW"),
+            transfer_to_spouse_transaction(rename_day, "NEW", 30),
+        ],
+    )
+
+    (entry,) = report.calculation_log[rename_day]["transfer-to-spouse$NEW"]
+    assert entry.rule_type is RuleType.TRANSFER_TO_SPOUSE
+    assert entry.quantity == Decimal(30)
+    assert entry.allowable_cost == Decimal(300)
+    assert report.total_gain() == Decimal(0)
+    assert calculator.portfolio["NEW"].quantity == Decimal(70)
+    assert calculator.portfolio["NEW"].amount == Decimal(700)
+
+
+@pytest.mark.parametrize("spelling", ["OLD", "NEW"])
+def test_transfer_to_spouse_matches_the_day_s_purchase_across_a_rename(
+    spelling: str,
+) -> None:
+    """The same-day rule reaches the purchase under the holding's other name.
+
+    A transfer to a spouse is a disposal (TCGA 1992 s58) and is identified
+    like one, so the day's purchase is matched first (s105(1)(a), CG51560).
+    A rename recorded that day means the purchase can be written under either
+    ticker, and the transfer under either, without changing what was
+    transferred.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    rename_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                buy_day, ActionType.BUY, "OLD", 100, 10, 0, -1000, CurrencyCode(GBP)
+            ),
+            transaction(
+                rename_day, ActionType.BUY, "OLD", 50, 15, 0, -750, CurrencyCode(GBP)
+            ),
+            # The first pass reads the day in row order, so a transfer under
+            # the name a rename has yet to create has to follow that rename,
+            # and one under the name it retires has to come first.
+            *(
+                [
+                    _rename_transaction(rename_day, "OLD", "NEW"),
+                    transfer_to_spouse_transaction(rename_day, spelling, 50),
+                ]
+                if spelling == "NEW"
+                else [
+                    transfer_to_spouse_transaction(rename_day, spelling, 50),
+                    _rename_transaction(rename_day, "OLD", "NEW"),
+                ]
+            ),
+        ],
+    )
+
+    (entry,) = report.calculation_log[rename_day][f"transfer-to-spouse${spelling}"]
+    assert entry.rule_type is RuleType.TRANSFER_TO_SPOUSE
+    assert entry.quantity == Decimal(50)
+    # The day's purchase, not a slice of the whole 150-unit pool.
+    assert entry.allowable_cost == Decimal(750)
+    assert report.total_gain() == Decimal(0)
+    assert calculator.portfolio["NEW"].quantity == Decimal(100)
+    assert calculator.portfolio["NEW"].amount == Decimal(1000)
+
+
+def test_a_sale_and_a_transfer_under_two_names_of_one_holding_are_refused() -> None:
+    """A rename does not stop a sale and a transfer contending for a purchase.
+
+    The sale is written under the old ticker and the transfer under the new
+    one, but the day's rename makes them disposals of the same holding, both
+    identified against the same purchase.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    rename_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(CalculationError, match="does not say how to split") as err:
+        get_report(
+            calculator,
+            [
+                transaction(
+                    buy_day, ActionType.BUY, "OLD", 100, 5, 0, -500, CurrencyCode(GBP)
+                ),
+                transaction(
+                    rename_day,
+                    ActionType.BUY,
+                    "NEW",
+                    30,
+                    20,
+                    0,
+                    -600,
+                    CurrencyCode(GBP),
+                ),
+                transaction(
+                    rename_day,
+                    ActionType.SELL,
+                    "OLD",
+                    25,
+                    20,
+                    0,
+                    500,
+                    CurrencyCode(GBP),
+                ),
+                _rename_transaction(rename_day, "OLD", "NEW"),
+                transfer_to_spouse_transaction(rename_day, "NEW", 25),
+            ],
+        )
+
+    message = str(err.value)
+    assert "sold 25 units of NEW and transferred 25" in message
+    assert (
+        "The sale is recorded under OLD, which the day's renames make one "
+        "holding with NEW." in message
+    )
+
+
+def _free_shares(date: datetime.date, symbol: str, quantity: int) -> BrokerTransaction:
+    """Build a purchase of shares that cost nothing."""
+    return BrokerTransaction(
+        date=date,
+        action=ActionType.BUY,
+        symbol=symbol,
+        description=f"free {symbol}",
+        quantity=Decimal(quantity),
+        price=Decimal(0),
+        fees=Decimal(0),
+        amount=Decimal(0),
+        currency=CurrencyCode(GBP),
+        broker="Testing",
+    )
+
+
+def test_a_sale_and_a_transfer_contending_for_free_shares_are_refused() -> None:
+    """Shares that cost nothing are still worth arguing over.
+
+    Whichever of the two is identified against them takes a nil allowable
+    cost and the other takes a share of the pool instead, so which one gets
+    them changes both answers.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    event_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(CalculationError, match="does not say how to split") as err:
+        get_report(
+            calculator,
+            [
+                transaction(
+                    buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, CurrencyCode(GBP)
+                ),
+                _free_shares(event_day, "FOO", 2),
+                transaction(
+                    event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode(GBP)
+                ),
+                transfer_to_spouse_transaction(event_day, "FOO", 2),
+            ],
+        )
+
+    assert "sold 3 units of FOO and transferred 2" in str(err.value)
+
+
+def test_free_shares_are_matched_same_day_when_only_one_disposal_wants_them() -> None:
+    """With nothing to argue over the nil-cost shares are matched as usual."""
+    buy_day = datetime.date(2024, 6, 1)
+    event_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                buy_day, ActionType.BUY, "FOO", 20, 10, 0, -200, CurrencyCode(GBP)
+            ),
+            _free_shares(event_day, "FOO", 2),
+            transaction(
+                event_day, ActionType.SELL, "FOO", 3, 20, 0, 60, CurrencyCode(GBP)
+            ),
+        ],
+    )
+
+    same_day, section_104 = report.calculation_log[event_day]["sell$FOO"]
+    assert same_day.rule_type is RuleType.SAME_DAY
+    assert same_day.quantity == Decimal(2)
+    assert same_day.allowable_cost == Decimal(0)
+    assert section_104.quantity == Decimal(1)
+    assert section_104.allowable_cost == Decimal(10)
+    assert calculator.portfolio["FOO"].quantity == Decimal(19)
+    assert calculator.portfolio["FOO"].amount == Decimal(190)
+
+
+def test_two_transfers_under_two_names_of_one_holding_are_refused() -> None:
+    """Only one transfer row can be identified against the day's purchase.
+
+    Both are no gain/no loss, so nothing about the tax turns on which of them
+    gets the day's purchase, but this tool matches each row against the
+    acquisitions under a single name and cannot share them.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    rename_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(CalculationError, match="cannot share them") as err:
+        get_report(
+            calculator,
+            [
+                transaction(
+                    buy_day, ActionType.BUY, "OLD", 100, 10, 0, -1000, CurrencyCode(GBP)
+                ),
+                transaction(
+                    rename_day,
+                    ActionType.BUY,
+                    "NEW",
+                    30,
+                    20,
+                    0,
+                    -600,
+                    CurrencyCode(GBP),
+                ),
+                transfer_to_spouse_transaction(rename_day, "OLD", 10),
+                _rename_transaction(rename_day, "OLD", "NEW"),
+                transfer_to_spouse_transaction(rename_day, "NEW", 10),
+            ],
+        )
+
+    message = str(err.value)
+    assert (
+        "you transferred 10 units of OLD to a spouse and 10 of NEW, which the "
+        "day's renames make one holding" in message
+    )
+    assert "record the day's transfers under one name" in message
+
+
+def test_a_transfer_on_a_day_two_pools_are_renamed_together_is_refused() -> None:
+    """Whether the transfer took the merged pool's average cannot be told.
+
+    The transfer row sits before the rename row, but a day carries no order
+    the calculator can rely on for this: it applies the day's renames before
+    its transfers either way. Taking 50 of the 100 `OLD` shares costs GBP 500;
+    taking 50 of a merged 200-share pool costs GBP 750, and the recipient
+    carries that figure forward as their own acquisition cost (CG22200). An
+    ordinary sale of the same shares is already refused here.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    rename_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(CalculationError, match="pool NEW and OLD together"):
+        get_report(
+            calculator,
+            [
+                transaction(
+                    buy_day, ActionType.BUY, "OLD", 100, 10, 0, -1000, CurrencyCode(GBP)
+                ),
+                transaction(
+                    buy_day, ActionType.BUY, "NEW", 100, 20, 0, -2000, CurrencyCode(GBP)
+                ),
+                transfer_to_spouse_transaction(rename_day, "OLD", 50),
+                _rename_transaction(rename_day, "OLD", "NEW"),
+            ],
+        )
+
+
+def test_a_transfer_and_a_fee_under_the_other_name_are_refused() -> None:
+    """The same question about cost the rename brings in, not shares."""
+    buy_day = datetime.date(2024, 6, 1)
+    rename_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(CalculationError, match="pooled cost with no shares"):
+        get_report(
+            calculator,
+            [
+                transaction(
+                    buy_day, ActionType.BUY, "OLD", 100, 10, 0, -1000, CurrencyCode(GBP)
+                ),
+                _management_fee(rename_day, "NEW", 500),
+                transfer_to_spouse_transaction(rename_day, "OLD", 50),
+                _rename_transaction(rename_day, "OLD", "NEW"),
+            ],
+        )
+
+
+def test_a_transfer_and_a_fee_under_the_held_name_still_computes() -> None:
+    """A fee on the shares themselves costs the same either side of a rename."""
+    buy_day = datetime.date(2024, 6, 1)
+    rename_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                buy_day, ActionType.BUY, "OLD", 100, 10, 0, -1000, CurrencyCode(GBP)
+            ),
+            _management_fee(rename_day, "OLD", 500),
+            transfer_to_spouse_transaction(rename_day, "OLD", 50),
+            _rename_transaction(rename_day, "OLD", "NEW"),
+        ],
+    )
+
+    (entry,) = report.calculation_log[rename_day]["transfer-to-spouse$OLD"]
+    # 100 shares costing GBP 1,500 all in, so half of them cost GBP 750.
+    assert entry.allowable_cost == Decimal(750)
+    assert calculator.portfolio["NEW"].quantity == Decimal(50)
+    assert calculator.portfolio["NEW"].amount == Decimal(750)
+
+
+def _management_fee(date: datetime.date, symbol: str, amount: int) -> BrokerTransaction:
+    """Build a management fee: pooled cost with no shares."""
+    return BrokerTransaction(
+        date=date,
+        action=ActionType.FEE,
+        symbol=symbol,
+        description="management fee",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(-amount),
+        currency=CurrencyCode(GBP),
+        broker="Testing",
+    )

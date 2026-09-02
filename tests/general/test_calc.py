@@ -33,6 +33,7 @@ from cgt_calc.model import (
     CapitalGainsReport,
     CurrencyCode,
     Isin,
+    Position,
     RuleType,
     TransactionSource,
 )
@@ -867,6 +868,44 @@ def _rename_transaction(date: datetime.date, old: str, new: str) -> BrokerTransa
     )
 
 
+def _gbp_trade(
+    date: datetime.date,
+    action: ActionType,
+    symbol: str,
+    quantity: int,
+    amount: int,
+) -> BrokerTransaction:
+    """Build a whole-pound BUY or SELL of a whole number of shares."""
+    return BrokerTransaction(
+        date=date,
+        action=action,
+        symbol=symbol,
+        description=f"{action.name.lower()} {symbol}",
+        quantity=Decimal(quantity),
+        price=Decimal(amount) / Decimal(quantity),
+        fees=Decimal(0),
+        amount=Decimal(-amount if action is ActionType.BUY else amount),
+        currency=CurrencyCode("GBP"),
+        broker="Test",
+    )
+
+
+def _gbp_fee(date: datetime.date, symbol: str, amount: int) -> BrokerTransaction:
+    """Build a management fee: pooled cost with no shares."""
+    return BrokerTransaction(
+        date=date,
+        action=ActionType.FEE,
+        symbol=symbol,
+        description="management fee",
+        quantity=None,
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(-amount),
+        currency=CurrencyCode("GBP"),
+        broker="Test",
+    )
+
+
 @pytest.mark.parametrize(
     ("isin", "alias", "canonical"),
     [
@@ -1219,6 +1258,418 @@ def test_bed_and_breakfast_matches_across_rename() -> None:
 
     # 100 sold at £8 = £800 proceeds against £900 B&B cost → £100 loss.
     assert report.total_gain() == Decimal(-100)
+
+
+RENAME_DAY = datetime.date(2024, 5, 10)
+
+
+def _rename_day_rows(
+    sale_spelling: str, order: tuple[str, ...]
+) -> list[BrokerTransaction]:
+    """Build the day the pool is renamed, its rows in the order given.
+
+    100 OLD shares costing GBP 1,000 are held. On the day, OLD is renamed to
+    NEW, 50 shares are sold for GBP 1,000, and 50 NEW are bought for GBP 750.
+    """
+    rows = {
+        "rename": _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        "sell": _gbp_trade(RENAME_DAY, ActionType.SELL, sale_spelling, 50, 1000),
+        "buy": _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 50, 750),
+    }
+    return [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        *(rows[name] for name in order),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("sale_spelling", "order"),
+    [
+        ("OLD", ("sell", "rename", "buy")),
+        ("OLD", ("sell", "buy", "rename")),
+        ("OLD", ("buy", "sell", "rename")),
+        ("NEW", ("rename", "sell", "buy")),
+        ("NEW", ("rename", "buy", "sell")),
+        ("NEW", ("buy", "rename", "sell")),
+        ("NEW", ("buy", "sell", "rename")),
+    ],
+)
+def test_same_day_match_carries_the_disposal_date_rename(
+    sale_spelling: str, order: tuple[str, ...]
+) -> None:
+    """A sale is matched with the day's purchase under either of its names.
+
+    The rename takes effect at the end of the day it is recorded on, so the
+    day's rows may state either ticker and mean the same shares. Neither the
+    spelling the sale uses nor where the rename row sits changes what was
+    sold, so all seven readings give the one same-day match.
+
+    The orders left out are the ones the first pass rejects as written: it
+    reads the day's rows in the order the file lists them, so a sale under a
+    name that row order has already renamed away, or not yet bought, is
+    refused there before identification is reached.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(calculator, _rename_day_rows(sale_spelling, order))
+
+    entries = report.calculation_log[RENAME_DAY][f"sell${sale_spelling}"]
+    assert len(entries) == 1
+    assert entries[0].rule_type is RuleType.SAME_DAY
+    assert entries[0].quantity == Decimal(50)
+    assert entries[0].allowable_cost == Decimal(750)
+    assert entries[0].gain == Decimal(250)
+    assert report.total_gain() == Decimal(250)
+    # The 100 shares held from May 1 are untouched, and keep their cost.
+    assert calculator.portfolio["NEW"] == Position(Decimal(100), Decimal(1000))
+
+
+def test_a_sale_under_the_new_name_draws_on_the_pool_under_the_old_one() -> None:
+    """The holding is one pool whichever of the day's names the sale states.
+
+    The rename is applied at the end of the day, so the pool is still under
+    `OLD` while the sale, written `NEW`, is identified. Reading the pool from
+    the row's own ticker finds an empty one.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 50, 1000),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    (entry,) = report.calculation_log[RENAME_DAY]["sell$NEW"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.quantity == Decimal(50)
+    assert entry.allowable_cost == Decimal(500)
+    assert entry.gain == Decimal(500)
+    assert report.total_gain() == Decimal(500)
+    assert calculator.portfolio["NEW"] == Position(Decimal(50), Decimal(500))
+
+
+def test_a_sale_the_day_s_purchase_only_half_covers_takes_the_rest_from_the_pool() -> (
+    None
+):
+    """What the same-day rule does not identify is identified from the pool.
+
+    The purchase and the sale are both written `NEW`; the pool they fall back
+    on is still under `OLD` until the day closes.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 20, 300),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 50, 1000),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    same_day, section_104 = report.calculation_log[RENAME_DAY]["sell$NEW"]
+    assert same_day.rule_type is RuleType.SAME_DAY
+    assert same_day.quantity == Decimal(20)
+    assert same_day.allowable_cost == Decimal(300)
+    assert section_104.rule_type is RuleType.SECTION_104
+    assert section_104.quantity == Decimal(30)
+    assert section_104.allowable_cost == Decimal(300)
+    assert report.total_gain() == Decimal(400)
+    assert calculator.portfolio["NEW"] == Position(Decimal(70), Decimal(700))
+
+
+def test_bed_and_breakfast_carries_the_disposal_date_rename() -> None:
+    """A repurchase under the new name is still a repurchase of what was sold.
+
+    The rename is recorded on the day of the sale, so the 30-day search has
+    to start under the name it leaves the holding under (TCGA 1992 s106A).
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 100, 800),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _gbp_trade(datetime.date(2024, 5, 20), ActionType.BUY, "NEW", 100, 900),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    entries = report.calculation_log[RENAME_DAY]["sell$OLD"]
+    assert len(entries) == 1
+    assert entries[0].rule_type is RuleType.BED_AND_BREAKFAST
+    assert entries[0].bed_and_breakfast_date_index == datetime.date(2024, 5, 20)
+    assert entries[0].allowable_cost == Decimal(900)
+    # 100 sold at £8 = £800 proceeds against £900 of repurchase cost.
+    assert report.total_gain() == Decimal(-100)
+
+
+def test_an_earlier_claim_cannot_take_the_rename_day_disposal_s_shares() -> None:
+    """The day's own disposal has first claim on the day's purchase.
+
+    The same-day rule comes before the 30-day rule (CG51560), so the earlier
+    sale may only be identified against what the rename day's own sale leaves.
+    Reserving that share only under the ticker the purchase was recorded
+    under let both sales be identified against the same 50 shares.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    earlier_sale = datetime.date(2024, 5, 5)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 200, 2000),
+        _gbp_trade(earlier_sale, ActionType.SELL, "OLD", 50, 1000),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 50, 750),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    (earlier_entry,) = report.calculation_log[earlier_sale]["sell$OLD"]
+    assert earlier_entry.rule_type is RuleType.SECTION_104
+    assert earlier_entry.allowable_cost == Decimal(500)
+    assert earlier_entry.gain == Decimal(500)
+    (rename_day_entry,) = report.calculation_log[RENAME_DAY]["sell$OLD"]
+    assert rename_day_entry.rule_type is RuleType.SAME_DAY
+    assert rename_day_entry.allowable_cost == Decimal(750)
+    assert rename_day_entry.gain == Decimal(250)
+    assert report.total_gain() == Decimal(750)
+    assert report.allowable_costs == Decimal(1250)
+    assert calculator.portfolio["NEW"] == Position(Decimal(150), Decimal(1500))
+
+
+def test_a_cost_only_pool_under_a_renamed_name_is_refused() -> None:
+    """A fee recorded under the other name is cost the disposal cannot see.
+
+    A management fee is pooled cost with no shares. Under the name the shares
+    are held in it is part of what they cost; under the name the day's rename
+    connects to them it only joins that pool at the end of the day, after the
+    disposal has priced itself from the shares alone.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_fee(RENAME_DAY, "NEW", 500),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert str(excinfo.value).startswith(
+        f"Cannot compute the disposal of OLD on {RENAME_DAY}: the day's renames "
+        "make NEW and OLD one holding, and pooled cost with no shares of its "
+        "own is recorded under NEW"
+    )
+
+
+def test_carried_cost_under_a_renamed_name_is_refused_behind_a_purchase() -> None:
+    """A purchase under that name does not settle what the name carried in.
+
+    The fee came in a week before the disposal date, so the name holds cost
+    with no shares behind it until the day's purchase lands. Reading the pool
+    after that purchase shows a positive quantity and hides the fee.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_fee(datetime.date(2024, 5, 2), "NEW", 500),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 10, 100),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert str(excinfo.value).startswith(
+        f"Cannot compute the disposal of OLD on {RENAME_DAY}: the day's renames "
+        "make NEW and OLD one holding, and pooled cost with no shares of its "
+        "own is recorded under NEW"
+    )
+
+
+def test_carried_cost_is_refused_under_the_name_the_sale_states() -> None:
+    """The refusal reads the same when the sale states the carrying name.
+
+    The pool is under `OLD` and the fee under `NEW`, but the sale is written
+    `NEW` too. Naming the whole holding keeps the message from saying it is
+    one holding with itself.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_fee(datetime.date(2024, 5, 2), "NEW", 500),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 50, 1000),
+    ]
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert str(excinfo.value).startswith(
+        f"Cannot compute the disposal of NEW on {RENAME_DAY}: the day's renames "
+        "make NEW and OLD one holding, and pooled cost with no shares of its "
+        "own is recorded under NEW"
+    )
+
+
+def test_carried_cost_under_the_held_name_is_part_of_what_it_cost() -> None:
+    """The same two rows under the name the shares are held in are pooled."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_fee(datetime.date(2024, 5, 2), "OLD", 500),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 10, 100),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    same_day, section_104 = report.calculation_log[RENAME_DAY]["sell$OLD"]
+    assert same_day.rule_type is RuleType.SAME_DAY
+    assert same_day.quantity == Decimal(10)
+    assert same_day.allowable_cost == Decimal(100)
+    assert section_104.rule_type is RuleType.SECTION_104
+    assert section_104.quantity == Decimal(40)
+    assert section_104.allowable_cost == Decimal(600)
+    assert report.total_gain() == Decimal(300)
+    assert calculator.portfolio["NEW"] == Position(Decimal(60), Decimal(900))
+
+
+def test_a_cost_only_pool_under_the_held_name_is_part_of_what_it_cost() -> None:
+    """The same fee recorded under the name the shares are held in is pooled."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_fee(RENAME_DAY, "OLD", 500),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    (entry,) = report.calculation_log[RENAME_DAY]["sell$OLD"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.allowable_cost == Decimal(750)
+    assert entry.gain == Decimal(250)
+    assert calculator.portfolio["NEW"] == Position(Decimal(50), Decimal(750))
+
+
+def test_carried_cost_under_the_disposal_s_own_name_needs_no_refusal() -> None:
+    """Cost in the pool the disposal prices from is not stranded by a rename.
+
+    The fee, the purchase and the sale are all recorded under `OLD`, which is
+    the pool the disposal draws on. What the rename does with that pool at the
+    end of the day hides nothing from it.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(datetime.date(2024, 5, 2), ActionType.SELL, "OLD", 100, 1000),
+        _gbp_fee(datetime.date(2024, 5, 3), "OLD", 500),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    (entry,) = report.calculation_log[RENAME_DAY]["sell$OLD"]
+    assert entry.rule_type is RuleType.SAME_DAY
+    assert entry.quantity == Decimal(50)
+    assert entry.allowable_cost == Decimal(500)
+    assert entry.gain == Decimal(500)
+    assert report.total_gain() == Decimal(500)
+    assert report.allowable_costs == Decimal(1500)
+    assert calculator.portfolio["NEW"] == Position(Decimal(50), Decimal(1000))
+
+
+def test_sales_under_two_names_of_one_holding_are_refused() -> None:
+    """One acquisition cannot be shared between two disposal rows.
+
+    Both sales are of the same holding and both are identified against the
+    day's purchase, but each disposal row is matched against that purchase
+    under a single name, so the second row would read the whole purchase
+    again.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 50, 1000),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 25, 500),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 25, 500),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert str(excinfo.value).startswith(
+        f"Cannot compute the disposal of NEW on {RENAME_DAY}: the day's "
+        "renames make NEW and OLD one holding, and a disposal recorded under "
+        "another of those names has already been identified against the day's "
+        "purchase."
+    )
+
+
+def test_a_holding_renamed_twice_on_a_disposal_date_is_refused() -> None:
+    """Where the shares end up depends on which of the two rename rows ran."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "MID"),
+        _rename_transaction(RENAME_DAY, "MID", "NEW"),
+    ]
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert str(excinfo.value).startswith(
+        f"Cannot compute the disposal of OLD on {RENAME_DAY}: it is renamed to "
+        "MID, and MID is renamed to NEW, the same day."
+    )
+
+
+def test_a_rename_pooling_two_holdings_on_a_disposal_date_is_refused() -> None:
+    """Two pools meet only at the end of the day, so neither is the one sold."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "NEW", 30, 600),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert str(excinfo.value).startswith(
+        f"Cannot compute the disposal of OLD on {RENAME_DAY}: the day's renames "
+        "pool NEW and OLD together, and each of them holds shares of its own."
+    )
+
+
+def test_a_day_buying_under_both_names_of_one_holding_is_refused() -> None:
+    """One day's purchases are one acquisition, and it has one cost."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 10, 150),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 10, 250),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 5, 100),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert str(excinfo.value).startswith(
+        f"Cannot compute the disposal of OLD on {RENAME_DAY}: the day's renames "
+        "make NEW and OLD one holding, and shares were bought under each of "
+        "them today."
+    )
 
 
 def test_same_day_vest_ordered_before_sale() -> None:

@@ -25,6 +25,7 @@ from cgt_calc.model import (
     BrokerTransaction,
     CurrencyCode,
     Isin,
+    Position,
     RuleType,
     TransactionSource,
 )
@@ -1456,7 +1457,11 @@ def test_a_sold_out_holding_renamed_the_same_day_frees_its_sources() -> None:
         ]
     )
     assert calculator.portfolio["NEW"].quantity == Decimal(8)
-    assert calculator.portfolio["NEW"].amount == Decimal(80)
+    # The sale and the rename share a day, so the repurchase a week later is
+    # a repurchase of the same security: the 30-day rule identifies four of
+    # the ten shares sold against it, and those four keep the £10 a share
+    # they cost in the pool they left rather than the £20 paid for them.
+    assert calculator.portfolio["NEW"].amount == Decimal(40)
 
 
 def test_a_rename_that_moves_no_units_still_carries_its_accounts() -> None:
@@ -2320,3 +2325,57 @@ def test_a_sale_above_a_same_day_split_keeps_its_share_of_the_pool() -> None:
     assert round_decimal(entry.gain, 2) == Decimal("2443.57")
     assert calculator.portfolio["FOO"].quantity == Decimal(120)
     assert calculator.portfolio["FOO"].amount == Decimal("8614.50")
+
+
+@pytest.mark.parametrize(
+    ("order", "allowable_cost", "gain", "closing"),
+    [
+        (("split", "sell", "rename"), 25, 15, (15, 75)),
+        (("split", "rename", "sell"), 25, 15, (15, 75)),
+        (("rename", "split", "sell"), 25, 15, (15, 75)),
+        (("sell", "split", "rename"), 50, -10, (10, 50)),
+        (("sell", "rename", "split"), 50, -10, (10, 50)),
+        (("rename", "sell", "split"), 50, -10, (10, 50)),
+    ],
+)
+def test_a_reorganisation_is_not_a_disposal_row_of_its_own(
+    order: tuple[str, ...],
+    allowable_cost: int,
+    gain: int,
+    closing: tuple[int, int],
+) -> None:
+    """A restated count is not evidence that a disposal took shares away.
+
+    A sale on the day of a reorganisation and a rename on that day are each
+    fine on their own. Together they meet the identification code's check
+    that no earlier row today has already claimed the day's purchase, and a
+    reorganisation moves the count without anything having left.
+
+    Where the sale sits changes what was sold, not what the rename means: a
+    row before the reorganisation is a sale of units it had not yet restated,
+    which is why those three orders sell five of ten rather than five of
+    twenty. Both readings are what `origin/main` gives for the same rows, and
+    the rename does not touch either.
+    """
+    rows = {
+        "split": paired_split(EVENT_DAY, "OLD", "10", "20", Fraction(2)),
+        "sell": trade(EVENT_DAY, ActionType.SELL, "OLD", "5", "8"),
+        "rename": rename(EVENT_DAY, "OLD", "NEW"),
+    }
+    calculator = create_calculator(tax_year=2023, balance_check=False)
+
+    report = get_report(
+        calculator,
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            *(rows[name] for name in order),
+        ],
+    )
+
+    (entry,) = report.calculation_log[EVENT_DAY]["sell$OLD"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.allowable_cost == Decimal(allowable_cost)
+    assert entry.gain == Decimal(gain)
+    assert calculator.portfolio["NEW"] == Position(
+        Decimal(closing[0]), Decimal(closing[1])
+    )
