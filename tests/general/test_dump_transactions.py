@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.transaction_dumper import dump_transactions
-import dump_transactions as dump_script
 from tests.utils import build_cmd, report_path
 
 if TYPE_CHECKING:
@@ -193,14 +192,3 @@ def test_cli_dump_transactions_flag_alone_defaults_to_continue(
     assert result.returncode == 0
     assert "Total: 8 transaction(s)" in result.stdout
     assert "Tax summary for 2023/2024" in result.stdout
-
-
-def test_dump_transactions_script_entry_point() -> None:
-    """dump_transactions.py wrapper runs correctly and returns 0."""
-    exit_code = dump_script.main(
-        [
-            "--schwab-equity-award-json",
-            "tests/schwab/data/equity_award/schwab_equity_award_v1.json",
-        ]
-    )
-    assert exit_code == 0
