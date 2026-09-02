@@ -211,6 +211,17 @@ Environment variables:
         action="store_true",
         help="save LaTeX source instead of generating a PDF",
     )
+    output_group.add_argument(
+        "--dump-transactions",
+        nargs="?",
+        const="continue",
+        default=None,
+        type=str.lower,
+        choices=["continue", "exit", "only", "normal"],
+        help="dump parsed transactions in chronological order; "
+        "'continue' to proceed with calculations (default if mode omitted), "
+        "or 'exit' / 'only' to exit without calculating",
+    )
 
     # General Options
     general_group = parser.add_argument_group("General")

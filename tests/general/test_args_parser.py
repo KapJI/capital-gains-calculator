@@ -1015,3 +1015,45 @@ def test_autoconvert_currency_is_opt_in() -> None:
 
     assert parser.parse_args([]).autoconvert_currency is False
     assert parser.parse_args(["--autoconvert-currency"]).autoconvert_currency is True
+
+
+def test_dump_transactions_default_none() -> None:
+    """--dump-transactions defaults to None when not specified."""
+    parser = create_parser()
+    assert parser.parse_args([]).dump_transactions is None
+
+
+def test_dump_transactions_flag_defaults_to_continue() -> None:
+    """--dump-transactions defaults to continue when passed without a value."""
+    parser = create_parser()
+    assert parser.parse_args(["--dump-transactions"]).dump_transactions == "continue"
+
+
+@pytest.mark.parametrize(
+    ("arg", "expected"),
+    [
+        ("continue", "continue"),
+        ("normal", "normal"),
+        ("exit", "exit"),
+        ("only", "only"),
+        ("EXIT", "exit"),
+        ("Only", "only"),
+        ("Normal", "normal"),
+        ("CONTINUE", "continue"),
+    ],
+)
+def test_dump_transactions_accepted_modes(arg: str, expected: str) -> None:
+    """--dump-transactions accepts continue, normal, exit, only case-insensitively."""
+    parser = create_parser()
+    args = parser.parse_args(["--dump-transactions", arg])
+    assert args.dump_transactions == expected
+
+
+def test_dump_transactions_rejects_invalid_mode() -> None:
+    """--dump-transactions rejects unknown modes."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--dump-transactions", "invalid"])
+
+    assert exc_info.value.code == 2
