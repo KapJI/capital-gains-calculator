@@ -3,267 +3,198 @@
 \usepackage[a4paper, margin=3cm]{geometry}
 \setlength{\parindent}{0pt} %--don't indent paragraphs
 \begin{document}
-\centerline{\Large\bfseries Capital Gains Tax Calculations for \VAR{ report.title_period }}
-
-\BLOCK{ set total_gain = namespace(value=Decimal(0)) }
-\BLOCK{ set total_loss = namespace(value=Decimal(0)) }
-\BLOCK{ set gift_loss = namespace(value=Decimal(0)) }
-\BLOCK{ set acquisition_count = namespace(value=0) }
-\BLOCK{ set disposal_count = namespace(value=0) }
-\BLOCK{ set dividend_count = namespace(value=0) }
-\BLOCK{ set interest_count = namespace(value=0) }
-\BLOCK{ set interest_tax_count = namespace(value=0) }
-\BLOCK{ set eri_count = namespace(value=0) }
+\centerline{\Large\bfseries Capital Gains Tax Calculations for \VAR{ view.title_period }}
 
 \section*{Capital Gains Events}
 
-\BLOCK{ for date_index, symbol_dict in report.calculation_log.items() }
+\BLOCK{ for day in view.days }
 
-\subsection*{\VAR{ date_index.strftime("%d %B %Y") }}
-\BLOCK{ for symbol, entries in symbol_dict.items() }
-\BLOCK{ if symbol.startswith("sell$") }
-    \BLOCK{ set symbol = symbol[5:] }
-    \BLOCK{ set is_disposal = True }
-\BLOCK{ elif symbol.startswith("buy$") }
-    \BLOCK{ set symbol = symbol[4:] }
-    \BLOCK{ set is_aquisition = True }
-\BLOCK{ elif symbol.startswith("spin-off$") }
-    \BLOCK{ set symbol = symbol[9:] }
-    \BLOCK{ set is_spin_off = True }
-\BLOCK{ elif symbol.startswith("excess-reported-income$") }
-    \BLOCK{ set symbol = symbol[23:] }
-    \BLOCK{ set is_eri = True }
-\BLOCK{ elif symbol.startswith("rename$") }
-    \BLOCK{ set symbol = symbol[7:] }
-    \BLOCK{ set is_rename = True }
-\BLOCK{ elif symbol.startswith("split$") }
-    \BLOCK{ set symbol = symbol[6:] }
-    \BLOCK{ set is_split = True }
-\BLOCK{ elif symbol.startswith("transfer-to-spouse$") }
-    \BLOCK{ set symbol = symbol[19:] }
-    \BLOCK{ set is_transfer_to_spouse = True }
-\BLOCK{ elif symbol.startswith("gift$") }
-    \BLOCK{ set symbol = symbol[5:] }
-    \BLOCK{ set is_disposal = True }
-    \BLOCK{ set is_gift = True }
-    \BLOCK{ set is_clogged = True }
-\BLOCK{ elif symbol.startswith("gift-unconnected$") }
-    \BLOCK{ set symbol = symbol[17:] }
-    \BLOCK{ set is_disposal = True }
-    \BLOCK{ set is_gift = True }
-\BLOCK{ elif symbol.startswith("exempt$") }
-    \BLOCK{ set symbol = symbol[7:] }
-    \BLOCK{ set is_exempt = True }
-\BLOCK{ elif symbol.startswith("option$") }
-    \BLOCK{ set symbol = symbol[7:] }
-    \BLOCK{ set is_disposal = True }
-    \BLOCK{ set is_option = True }
-\BLOCK{ endif }
-\BLOCK{ set overall_quantity = entries|sum(attribute="quantity") }
-\BLOCK{ set overall_fees = round_decimal(entries|sum(attribute="fees"), 2) }
-\BLOCK{ if is_disposal }
-    \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount") + entries|sum(attribute="fees"), 2) }
-    \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
-    \BLOCK{ set disposal_count.value = disposal_count.value + 1 }
-    \BLOCK{ if is_option }
-        \subsubsection*{
-            Disposal \VAR{ disposal_count.value }: grant of \VAR{ strip_zeros(overall_quantity) }
-            contract\BLOCK{ if overall_quantity != 1 }s\BLOCK{ endif } of the \VAR{ symbol }
-            for £\VAR{ "{:,}".format(overall_disposed) }
-        }
+\subsection*{\VAR{ day.date.strftime("%d %B %Y") }}
+\BLOCK{ for event in day.events }
+\BLOCK{ if event.is_disposal }
+    \BLOCK{ if event.kind == "option_grant" }
+\subsubsection*{
+    Disposal \VAR{ event.number }: grant of \VAR{ strip_zeros(event.quantity) }
+    contract\BLOCK{ if event.quantity != 1 }s\BLOCK{ endif } of the \VAR{ event.symbol }
+    for £\VAR{ event.proceeds|money }
+}
     \BLOCK{ else }
-        \subsubsection*{
-            Disposal \VAR{ disposal_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol }
-            \BLOCK{ if is_gift }given away at a market value of\BLOCK{ else }for\BLOCK{ endif } £\VAR{ "{:,}".format(overall_disposed) }
-            (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
-            \BLOCK{ if overall_fees > 0 }
-                , £\VAR{ "{:,}".format(overall_fees) } fees allowed as cost
-            \BLOCK{ endif }
-        }
+\subsubsection*{
+    Disposal \VAR{ event.number }: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol }
+    \BLOCK{ if event.is_gift }given away at a market value of\BLOCK{ else }for\BLOCK{ endif } £\VAR{ event.proceeds|money }
+    (£\VAR{ event.per_unit|money }/unit)%
+    \BLOCK{ if event.fees > 0 }
+    , £\VAR{ event.fees|money } fees allowed as cost
     \BLOCK{ endif }
-    \BLOCK{ if overall_gain > 0 -}
-        Chargeable \textbf{gain} is £\VAR{ "{:,}".format(overall_gain) }\BLOCK{ if is_gift }, before any relief:
-        a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns\BLOCK{ endif }
+}
+    \BLOCK{ endif }
+    \BLOCK{ if event.outcome == "gain" }
+Chargeable \textbf{gain} is £\VAR{ event.gain|money }\BLOCK{ if event.is_gift }, before any relief:
+a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns\BLOCK{ endif }
 
-        \BLOCK{ set total_gain.value = total_gain.value + overall_gain }
-        Capital gain to date is £\VAR{ "{:,}".format(total_gain.value) }
-    \BLOCK{ elif overall_gain == 0 }
-        Neither a gain nor a loss.
-    \BLOCK{ elif is_clogged }
-        \textbf{Clogged loss} of £\VAR{ "{:,}".format(-overall_gain) } on a gift, kept out of the loss total:
-        a loss on a gift to a connected person can only be set against gains on disposals to the same person while still connected (TCGA 1992 s18(3)).
+Capital gain to date is £\VAR{ event.gain_to_date|money }
+    \BLOCK{ elif event.outcome == "nil" }
+Neither a gain nor a loss.
+    \BLOCK{ elif event.outcome == "clogged_loss" }
+\textbf{Clogged loss} of £\VAR{ (-event.gain)|money } on a gift, kept out of the loss total:
+a loss on a gift to a connected person can only be set against gains on disposals to the same person while still connected (TCGA 1992 s18(3)).
 
-        \BLOCK{ set gift_loss.value = gift_loss.value - overall_gain }
-        Losses on gifts to date are £\VAR{ "{:,}".format(gift_loss.value) }
+Losses on gifts to date are £\VAR{ event.gift_loss_to_date|money }
     \BLOCK{ else }
-        Chargeable \textbf{loss} is £\VAR{ "{:,}".format(-overall_gain) }
+Chargeable \textbf{loss} is £\VAR{ (-event.gain)|money }
 
-        \BLOCK{ set total_loss.value = total_loss.value - overall_gain }
-        Capital loss to date is £\VAR{ "{:,}".format(total_loss.value) }
+Capital loss to date is £\VAR{ event.loss_to_date|money }
     \BLOCK{ endif }
-\BLOCK{ elif is_aquisition } % if is_aquisition
-    \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
-    \BLOCK{ if overall_quantity > 0 }
-        \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
-        \subsubsection*{
-            Acquisition \VAR{ acquisition_count.value }: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } for £\VAR{ "{:,}".format(acquisition_cost) }
-            (£\VAR{ "{:,}".format(round_decimal(acquisition_cost/overall_quantity, 2)) }/unit)%
-            \BLOCK{ if overall_fees > 0 }
-                , including £\VAR{ "{:,}".format(overall_fees) } fees
-            \BLOCK{ endif }
-        }
-    \BLOCK{ else }
-        \subsubsection*{Management fee for \VAR{ symbol } of £\VAR{ "{:,}".format(acquisition_cost) }}
-    \BLOCK{ endif}
-\BLOCK{ elif is_spin_off } % if is_spin_off
-    \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
-    \BLOCK{ if overall_quantity > 0 }
-        \BLOCK{ set acquisition_count.value = acquisition_count.value + 1 }
-        \subsubsection*{
-            Spin-off adjustment \VAR{ acquisition_count.value }: \VAR{ entries[0].spin_off.source } cost adjusted because of \VAR{ entries[0].spin_off.dest } shares spinned off
-        }
+\BLOCK{ elif event.kind == "acquisition" }
+\subsubsection*{
+    Acquisition \VAR{ event.number }: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol } for £\VAR{ event.cost|money }
+    (£\VAR{ event.per_unit|money }/unit)%
+    \BLOCK{ if event.fees > 0 }
+    , including £\VAR{ event.fees|money } fees
     \BLOCK{ endif }
-\BLOCK{ elif is_eri } % if is_eri
-    \BLOCK{ set acquisition_cost = round_decimal(entries[0].allowable_cost, 2) }
-    \BLOCK{ if overall_quantity > 0 }
-        \subsubsection*{
-            Excess Reported Income: \VAR{ symbol } cost increased by £\VAR{ "{:,}".format(acquisition_cost) }
-            (£\VAR{ "{:,}".format(round_decimal(entries[0].eris[0].price, 4)) }/unit)%
-        }
+}
+\BLOCK{ elif event.kind == "management_fee" }
+\subsubsection*{Management fee for \VAR{ event.symbol } of £\VAR{ event.cost|money }}
+\BLOCK{ elif event.kind == "spin_off" }
+    \BLOCK{ if event.quantity > 0 }
+\subsubsection*{
+    Spin-off adjustment \VAR{ event.number }: \VAR{ event.spin_off_source } cost adjusted because of \VAR{ event.spin_off_dest } shares spinned off
+}
     \BLOCK{ endif }
-\BLOCK{ elif is_rename } % if is_rename
-    \subsubsection*{
-        \VAR{ symbol } was renamed to \VAR{ entries[0].renamed_to }%
-        \BLOCK{ if entries[0].quantity > 0 }
-            : \VAR{ strip_zeros(entries[0].quantity) } units with pool cost £\VAR{ "{:,}".format(round_decimal(entries[0].allowable_cost, 2)) } transferred
-        \BLOCK{ endif }
-    }
-\BLOCK{ elif is_split } % if is_split
-    \BLOCK{ set split = entries[0].stock_split }
-    \subsubsection*{
-        Share reorganisation: \VAR{ strip_zeros(split.day_open_quantity) } units of \VAR{ symbol } restated as \VAR{ strip_zeros(split.scaled_day_open_quantity) } (ratio \VAR{ split.ratio_description })
-    }
-    Neither a disposal nor an acquisition: the new holding is the same asset, held from the same dates, with the same pooled cost (TCGA 1992 s127).
+\BLOCK{ elif event.kind == "eri" }
+    \BLOCK{ if event.quantity > 0 }
+\subsubsection*{
+    Excess Reported Income: \VAR{ event.symbol } cost increased by £\VAR{ event.cost|money }
+    (£\VAR{ event.eri_unit_price|money }/unit)%
+}
+    \BLOCK{ endif }
+\BLOCK{ elif event.kind == "rename" }
+\subsubsection*{
+    \VAR{ event.symbol } was renamed to \VAR{ event.renamed_to }%
+    \BLOCK{ if event.quantity > 0 }
+    : \VAR{ strip_zeros(event.quantity) } units with pool cost £\VAR{ event.cost|money } transferred
+    \BLOCK{ endif }
+}
+\BLOCK{ elif event.kind == "split" }
+\subsubsection*{
+    Share reorganisation: \VAR{ strip_zeros(event.split.day_open_quantity) } units of \VAR{ event.symbol } restated as \VAR{ strip_zeros(event.split.scaled_day_open_quantity) } (ratio \VAR{ event.split.ratio_description })
+}
+Neither a disposal nor an acquisition: the new holding is the same asset, held from the same dates, with the same pooled cost (TCGA 1992 s127).
 
-    Stated as \VAR{ strip_zeros(split.broker_before_quantity) } units before the event and \VAR{ strip_zeros(split.broker_after_quantity) } after.
-    \BLOCK{ if split.reconciliation_delta != 0 }
+Stated as \VAR{ strip_zeros(event.split.broker_before_quantity) } units before the event and \VAR{ strip_zeros(event.split.broker_after_quantity) } after.
+    \BLOCK{ if event.split.reconciliation_delta != 0 }
 
-        Reconciled to that count by \VAR{ strip_zeros(split.reconciliation_delta) } units, from \VAR{ strip_zeros(split.quantity_before_reconciliation) } to \VAR{ strip_zeros(split.quantity_after_reconciliation) }.
+Reconciled to that count by \VAR{ strip_zeros(event.split.reconciliation_delta) } units, from \VAR{ strip_zeros(event.split.quantity_before_reconciliation) } to \VAR{ strip_zeros(event.split.quantity_after_reconciliation) }.
     \BLOCK{ endif }
 
-    Units in the pool at this point in the day: \VAR{ strip_zeros(entries[0].new_quantity) }%
-    \BLOCK{ if entries[0].new_quantity > 0 },
-        pool cost: £\VAR{ "{:,}".format(round_decimal(entries[0].new_pool_cost, 2)) }
-        (£\VAR{ "{:,}".format(round_decimal(entries[0].new_pool_cost/entries[0].new_quantity, 2)) }/unit)%
+Units in the pool at this point in the day: \VAR{ strip_zeros(event.pool_quantity) }%
+    \BLOCK{ if event.pool_quantity > 0 },
+    pool cost: £\VAR{ event.pool_cost|money }
+    (£\VAR{ event.pool_per_unit|money }/unit)%
     \BLOCK{ endif }.
-\BLOCK{ elif is_transfer_to_spouse } % if is_transfer_to_spouse
-    \subsubsection*{
-        Transferred to spouse: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } (no gain/no loss)
-    }
-    Base cost of £\VAR{ "{:,}".format(round_decimal(entries|sum(attribute="allowable_cost"), 2)) } passes to the recipient.
+\BLOCK{ elif event.kind == "transfer_to_spouse" }
+\subsubsection*{
+    Transferred to spouse: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol } (no gain/no loss)
+}
+Base cost of £\VAR{ event.base_cost_passed|money } passes to the recipient.
 
-    \BLOCK{ set pool = entries[-1] }
-    Number of units left in the pool: \VAR{ strip_zeros(pool.new_quantity) }%
-    \BLOCK{ if pool.new_quantity > 0 },
-        new pool cost: £\VAR{ "{:,}".format(round_decimal(pool.new_pool_cost, 2)) }
-        (£\VAR{ "{:,}".format(round_decimal(pool.new_pool_cost/pool.new_quantity, 2)) }/unit)%
+Number of units left in the pool: \VAR{ strip_zeros(event.pool_quantity) }%
+    \BLOCK{ if event.pool_quantity > 0 },
+    new pool cost: £\VAR{ event.pool_cost|money }
+    (£\VAR{ event.pool_per_unit|money }/unit)%
     \BLOCK{ endif }.
-\BLOCK{ elif is_exempt } % if is_exempt
-    \BLOCK{ set overall_disposed = round_decimal(entries|sum(attribute="amount") + entries|sum(attribute="fees"), 2) }
-    \BLOCK{ set overall_gain = round_decimal(entries|sum(attribute="gain"), 2) }
-    \subsubsection*{
-        Exempt disposal: \VAR{ strip_zeros(overall_quantity) } units of \VAR{ symbol } valued at £\VAR{ "{:,}".format(overall_disposed) }
-        (£\VAR{ "{:,}".format(round_decimal(overall_disposed/overall_quantity, 2)) }/unit)%
-        \BLOCK{ if overall_fees > 0 }
-            , £\VAR{ "{:,}".format(overall_fees) } disposal expenses included in the illustrative calculation
-        \BLOCK{ endif }
-    }
-    The cost and disposal expenses shown below are used for this illustrative calculation only;
-    they are not allowable deductions against other gains.
+\BLOCK{ elif event.kind == "exempt" }
+\subsubsection*{
+    Exempt disposal: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol } valued at £\VAR{ event.proceeds|money }
+    (£\VAR{ event.per_unit|money }/unit)%
+    \BLOCK{ if event.fees > 0 }
+    , £\VAR{ event.fees|money } disposal expenses included in the illustrative calculation
+    \BLOCK{ endif }
+}
+The cost and disposal expenses shown below are used for this illustrative calculation only;
+they are not allowable deductions against other gains.
 
-    \BLOCK{ if overall_gain > 0 -}
-        Gain is £\VAR{ "{:,}".format(overall_gain) }; the gain or loss is disregarded (exempt asset).
-    \BLOCK{ elif overall_gain == 0 }
-        Neither a gain nor a loss; the gain or loss is disregarded (exempt asset).
+    \BLOCK{ if event.outcome == "gain" }
+Gain is £\VAR{ event.gain|money }; the gain or loss is disregarded (exempt asset).
+    \BLOCK{ elif event.outcome == "nil" }
+Neither a gain nor a loss; the gain or loss is disregarded (exempt asset).
     \BLOCK{ else }
-        Loss is £\VAR{ "{:,}".format(-overall_gain) }; the gain or loss is disregarded (exempt asset).
+Loss is £\VAR{ (-event.gain)|money }; the gain or loss is disregarded (exempt asset).
     \BLOCK{ endif }
 \BLOCK{ endif }
 
-\BLOCK{ if not is_rename and not is_transfer_to_spouse and not is_split }
+\BLOCK{ if event.lines }
 \begin{enumerate}
-\BLOCK{ for entry in entries }
-\item \textbf{\VAR{ entry.rule_type.name.replace("_", " ") }}. Quantity: \VAR{ strip_zeros(entry.quantity) },
-\BLOCK{ if is_disposal }
-    \BLOCK{ if entry.quantity < overall_quantity }
-        disposal proceeds: £\VAR{ "{:,}".format(round_decimal(entry.amount + entry.fees, 2)) },
-    \BLOCK{ endif }
+\BLOCK{ for line in event.lines }
+\item \textbf{\VAR{ line.rule }}. Quantity: \VAR{ strip_zeros(line.quantity) },
+    \BLOCK{ if event.is_disposal }
+        \BLOCK{ if line.shows_proceeds }
+    disposal proceeds: £\VAR{ line.proceeds|money },
+        \BLOCK{ endif }
     allowable
-    \BLOCK{ if entry.rule_type.name == "BED_AND_BREAKFAST" }
-        cost on \mbox{\VAR{ entry.bed_and_breakfast_date_index.strftime("%d %b %Y") }:}
-    \BLOCK{ else }
-        cost:
-    \BLOCK{ endif }
-    £\VAR{ "{:,}".format(round_decimal(entry.allowable_cost, 2)) },
-    \BLOCK{ if entry.gain > 0}
-        \mbox{gain: £\VAR{ "{:,}".format(round_decimal(entry.gain, 2)) }.}
-    \BLOCK{ else }
-        \mbox{loss: £\VAR{ "{:,}".format(round_decimal(-entry.gain, 2)) }.}
-    \BLOCK{ endif }
-\BLOCK{ elif is_exempt }
-    \BLOCK{ if entry.quantity < overall_quantity }
-        disposal proceeds: £\VAR{ "{:,}".format(round_decimal(entry.amount + entry.fees, 2)) },
-    \BLOCK{ endif }
+        \BLOCK{ if line.bnb_date }
+    cost on \mbox{\VAR{ line.bnb_date.strftime("%d %b %Y") }:}
+        \BLOCK{ else }
+    cost:
+        \BLOCK{ endif }
+    £\VAR{ line.cost|money },
+        \BLOCK{ if line.is_gain }
+    \mbox{gain: £\VAR{ line.gain|money }.}
+        \BLOCK{ else }
+    \mbox{loss: £\VAR{ (-line.gain)|money }.}
+        \BLOCK{ endif }
+    \BLOCK{ elif event.kind == "exempt" }
+        \BLOCK{ if line.shows_proceeds }
+    disposal proceeds: £\VAR{ line.proceeds|money },
+        \BLOCK{ endif }
     cost used for this illustrative
-    \BLOCK{ if entry.rule_type.name == "BED_AND_BREAKFAST" }
-        calculation on \mbox{\VAR{ entry.bed_and_breakfast_date_index.strftime("%d %b %Y") }:}
+        \BLOCK{ if line.bnb_date }
+    calculation on \mbox{\VAR{ line.bnb_date.strftime("%d %b %Y") }:}
+        \BLOCK{ else }
+    calculation:
+        \BLOCK{ endif }
+    £\VAR{ line.cost|money },
+        \BLOCK{ if line.is_gain }
+    \mbox{disregarded gain: £\VAR{ line.gain|money }.}
+        \BLOCK{ else }
+    \mbox{disregarded loss: £\VAR{ (-line.gain)|money }.}
+        \BLOCK{ endif }
+    \BLOCK{ elif event.kind == "spin_off" }
+    original cost of \VAR{ line.spin_off_source }: £\VAR{ line.amount|money }, after spin-off: £\VAR{ line.new_pool_cost|money }
+    \BLOCK{ elif event.kind == "eri" }
+    original cost of \VAR{ event.symbol }: £\VAR{ line.amount|money }, after income distribution: £\VAR{ line.new_pool_cost|money }%
     \BLOCK{ else }
-        calculation:
+    actual cost: £\VAR{ line.amount|money }.
     \BLOCK{ endif }
-    £\VAR{ "{:,}".format(round_decimal(entry.allowable_cost, 2)) },
-    \BLOCK{ if entry.gain > 0}
-        \mbox{disregarded gain: £\VAR{ "{:,}".format(round_decimal(entry.gain, 2)) }.}
-    \BLOCK{ else }
-        \mbox{disregarded loss: £\VAR{ "{:,}".format(round_decimal(-entry.gain, 2)) }.}
-    \BLOCK{ endif }
-\BLOCK{ elif is_spin_off }
-    original cost of \VAR{ entry.spin_off.source }: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2))}, after spin-off: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2))}
-\BLOCK{ elif is_eri }
-    original cost of \VAR{ symbol }: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2))}, after income distribution: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2))}%
-\BLOCK{ else } % if is_aquisition
-    actual cost: £\VAR{ "{:,}".format(round_decimal(-entry.amount, 2)) }.
-\BLOCK{ endif}
 
-\BLOCK{ if is_option }
+    \BLOCK{ if event.kind == "option_grant" }
     The option grant does not change the Section 104 holding of the underlying shares.
-\BLOCK{ else }
-\BLOCK{ if is_disposal or is_exempt }
+    \BLOCK{ else }
+        \BLOCK{ if event.pool_units_left }
     Number of units left in the pool:
-\BLOCK{ else }
+        \BLOCK{ else }
     Number of units in the pool:
-\BLOCK{ endif }
-\VAR{ strip_zeros(entry.new_quantity) }%
-\BLOCK{ if entry.new_quantity > 0 },
-    new pool cost: £\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost, 2)) }
-    (£\VAR{ "{:,}".format(round_decimal(entry.new_pool_cost/entry.new_quantity, 2)) }/unit)%
-    \BLOCK{ if is_aquisition and entry.spin_off}
+        \BLOCK{ endif }
+    \VAR{ strip_zeros(line.new_quantity) }%
+        \BLOCK{ if line.new_quantity > 0 },
+    new pool cost: £\VAR{ line.new_pool_cost|money }
+    (£\VAR{ line.pool_per_unit|money }/unit)%
+            \BLOCK{ if event.is_acquisition and line.spin_off_source }
 
-    Cost basis calculated based on cost of \VAR{entry.spin_off.source} share pool from which \VAR{ symbol } shares were spinned off%
+    Cost basis calculated based on cost of \VAR{ line.spin_off_source } share pool from which \VAR{ event.symbol } shares were spinned off%
+            \BLOCK{ endif }
+            \BLOCK{ if event.is_acquisition }
+                \BLOCK{ for eri in line.eris }
+
+    Cost basis increased by £\VAR{ eri.cost|money }
+    (£\VAR{ eri.unit_price|money }/unit)%
+    , due to exccess reported income on \mbox{\VAR{ eri.date.strftime("%d %b %Y") }}%
+                \BLOCK{ endfor }
+            \BLOCK{ endif }
+        \BLOCK{ endif }.
     \BLOCK{ endif }
-    \BLOCK{ if is_aquisition }
-        \BLOCK{ for eri in entry.eris }
-            \BLOCK{ set eri_cost = round_decimal(eri.price * entry.quantity, 2) }
-            \BLOCK{ set eri_date = eri.date.strftime("%d %b %Y") }
 
-    Cost basis increased by £\VAR{ "{:,}".format(eri_cost)}
-    (£\VAR{ "{:,}".format(round_decimal(eri.price, 4)) }/unit)%
-    , due to exccess reported income on \mbox{\VAR{ eri_date }}%
-        \BLOCK{ endfor }
-    \BLOCK{ endif }
-\BLOCK{ endif }.
-\BLOCK{ endif }
-
-\BLOCK{ endfor}
+\BLOCK{ endfor }
 \end{enumerate}
 \BLOCK{ endif }
 
@@ -271,107 +202,70 @@
 
 \BLOCK{ endfor }
 
-\BLOCK{ if report.calculation_log_yields }
-    \clearpage
-    \section*{Interest and Dividends Events}
+\BLOCK{ if view.income_days }
+\clearpage
+\section*{Interest and Dividends Events}
 
-    \BLOCK{ for date_index, symbol_dict in report.calculation_log_yields.items() }
+\BLOCK{ for day in view.income_days }
 
-    \subsection*{\VAR{ date_index.strftime("%d %B %Y") }}
-    \BLOCK{ for symbol, entries in symbol_dict.items() }
-    \BLOCK{ if symbol.startswith("dividend$") }
-        \BLOCK{ set symbol = symbol[9:] }
-        \BLOCK{ set is_dividend = True }
-    \BLOCK{ elif symbol.startswith("interestTax") }
-        \BLOCK{ set symbol = symbol.split('$')[0][11:] }
-        \BLOCK{ set is_interest_tax = True }
-        \BLOCK{ if symbol == "GBP" }
-            \BLOCK{ set interest_tax_str = "UK" }
-        \BLOCK{ else }
-            \BLOCK{ set interest_tax_str = "Foreign" }
+\subsection*{\VAR{ day.date.strftime("%d %B %Y") }}
+\BLOCK{ for event in day.events }
+    \BLOCK{ if event.kind == "dividend" }
+\textbf{Dividend \VAR{ event.number }:} \VAR{ event.symbol }\BLOCK{ if event.is_interest } (interest)\BLOCK{ endif } for £\VAR{ event.amount|money }
+        \BLOCK{ if not event.is_interest }
+(tax paid at source: £\VAR{ event.tax_at_source|money })
         \BLOCK{ endif }
-    \BLOCK{ elif symbol.startswith("interestUK$") }
-        \BLOCK{ set symbol = symbol[11:] }
-        \BLOCK{ set is_interest = True }
-        \BLOCK{ set interest_str = "UK" }
-    \BLOCK{ elif symbol.startswith("interest") }
-        \BLOCK{ set symbol = symbol.split('$')[0][8:] }
-        \BLOCK{ set is_interest = True }
-        \BLOCK{ set interest_str = "Foreign" }
-    \BLOCK{ elif symbol.startswith("excess-reported-income-distribution$") }
-        \BLOCK{ set symbol = symbol[36:] }
-        \BLOCK{ set is_eri_tax = True }
-    \BLOCK{ endif }
-    \BLOCK{ if is_dividend }
-        \BLOCK{ set type_str = "" }
-        \BLOCK{ set dividend_count.value = dividend_count.value + 1 }
-        \BLOCK{ if entries[0].dividend.is_interest }
-            \BLOCK{ set type_str = " (interest)" }
+        \BLOCK{ if event.treaty_country is not none }
+, tax treaty amount: £\VAR{ event.treaty_amount|money } (treaty rate for \VAR{ event.treaty_country }: \VAR{ event.treaty_rate }\%)
         \BLOCK{ endif }
-        \textbf{Dividend \VAR{ dividend_count.value }:} \VAR{ symbol + type_str } for £\VAR{ "{:,}".format(round_decimal(entries[0].amount, 2)) }
-        \BLOCK{ if not entries[0].dividend.is_interest }
-            (tax paid at source: £\VAR{ "{:,}".format(round_decimal(-entries[0].dividend.tax_at_source, 2)) })
-        \BLOCK{ endif }
-        \BLOCK{ if entries[0].dividend.tax_treaty }
-            , tax treaty amount: £\VAR{ "{:,}".format(round_decimal(entries[0].dividend.tax_treaty_amount, 2)) } (treaty rate for \VAR{ entries[0].dividend.tax_treaty.country }: \VAR{ round_decimal(100 * entries[0].dividend.tax_treaty.treaty_rate, 2) }\%)
-        \BLOCK{ endif }
-    \BLOCK{ elif is_interest } % if is_interest
-        \BLOCK{ set interest_count.value = interest_count.value + 1 }
-        \textbf{Interest \VAR{ interest_str } \VAR{ interest_count.value }:} \VAR{ symbol } for £\VAR{ "{:,}".format(round_decimal(entries[0].amount, 2)) }
-    \BLOCK{ elif is_interest_tax } % if is_interest_tax
-        \BLOCK{ set interest_tax_count.value = interest_tax_count.value + 1 }
-        \textbf{Interest tax \VAR{ interest_tax_str } \VAR{ interest_tax_count.value }:} \VAR{ symbol } for £\VAR{ "{:,}".format(round_decimal(entries[0].amount, 2)) }
-    \BLOCK{ elif is_eri_tax } % if is_eri_tax
-        \BLOCK{ if entries[0].eris[0].is_interest }
-            \BLOCK{ set type_str = " (interest)" }
-        \BLOCK{ else }
-            \BLOCK{ set type_str = " (dividend)" }
-        \BLOCK{ endif }
-        \BLOCK{ set eri_income = round_decimal(entries[0].amount, 2) }
-        \BLOCK{ set eri_count.value = eri_count.value + 1 }
-        \textbf{Excess Reported Income Distribution \VAR{ eri_count.value }}: \VAR{ symbol + type_str } for £\VAR{ "{:,}".format(eri_income) }
-        (£\VAR{ "{:,}".format(round_decimal(entries[0].eris[0].price, 4)) }/unit)%
+    \BLOCK{ elif event.kind == "interest" }
+\textbf{Interest \VAR{ event.origin } \VAR{ event.number }:} \VAR{ event.symbol } for £\VAR{ event.amount|money }
+    \BLOCK{ elif event.kind == "interest_tax" }
+\textbf{Interest tax \VAR{ event.origin } \VAR{ event.number }:} \VAR{ event.symbol } for £\VAR{ event.amount|money }
+    \BLOCK{ elif event.kind == "eri_distribution" }
+\textbf{Excess Reported Income Distribution \VAR{ event.number }}: \VAR{ event.symbol }\BLOCK{ if event.is_interest } (interest)\BLOCK{ else } (dividend)\BLOCK{ endif } for £\VAR{ event.amount|money }
+(£\VAR{ event.unit_price|money }/unit)%
     \BLOCK{ endif }
 
-    \BLOCK{ endfor }
+\BLOCK{ endfor }
 
-    \BLOCK{ endfor }
+\BLOCK{ endfor }
 \BLOCK{ endif }
 
 \clearpage
 \section*{Overall - Capital Gains}
-\subsection*{Number of acquisitions: \VAR{ acquisition_count.value }}
-\subsection*{Number of disposals: \VAR{ disposal_count.value }}
-\subsection*{Total disposal proceeds: £\VAR{ "{:,}".format(report.disposal_proceeds) }}
-\subsection*{Total capital gain before loss: £\VAR{ "{:,}".format(total_gain.value) }}
-\subsection*{Total capital loss: £\VAR{ "{:,}".format(total_loss.value) }}
-\BLOCK{ if gift_loss.value > 0 }
-\subsection*{Losses on gifts, kept separate: £\VAR{ "{:,}".format(gift_loss.value) }}
+\subsection*{Number of acquisitions: \VAR{ view.summary.acquisition_count }}
+\subsection*{Number of disposals: \VAR{ view.summary.disposal_count }}
+\subsection*{Total disposal proceeds: £\VAR{ view.summary.disposal_proceeds|money }}
+\subsection*{Total capital gain before loss: £\VAR{ view.summary.total_gain|money }}
+\subsection*{Total capital loss: £\VAR{ view.summary.total_loss|money }}
+\BLOCK{ if view.summary.gift_loss > 0 }
+\subsection*{Losses on gifts, kept separate: £\VAR{ view.summary.gift_loss|money }}
 \BLOCK{ endif }
-\BLOCK{ if report.exempt_disposal_count > 0 }
-\subsection*{Number of exempt disposals: \VAR{ report.exempt_disposal_count }}
-\subsection*{Total exempt disposal proceeds: £\VAR{ "{:,}".format(report.exempt_disposal_proceeds) }}
+\BLOCK{ if view.summary.exempt_disposal_count > 0 }
+\subsection*{Number of exempt disposals: \VAR{ view.summary.exempt_disposal_count }}
+\subsection*{Total exempt disposal proceeds: £\VAR{ view.summary.exempt_disposal_proceeds|money }}
 \BLOCK{ endif }
-\subsection*{Total capital gain after loss: £\VAR{ "{:,}".format(total_gain.value - total_loss.value) }}
+\subsection*{Total capital gain after loss: £\VAR{ view.summary.net_gain|money }}
 \vspace{1em}
 Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.
 \vspace{2em}
 \section*{Overall - Dividends and Interests}
-\subsection*{Number of dividend distributions: \VAR{ dividend_count.value }}
-\subsection*{Number of interest transactions: \VAR{ interest_count.value }}
-\subsection*{Number of interest tax transactions: \VAR{ interest_tax_count.value }}
-\subsection*{Number of excess reported income distributions: \VAR{ eri_count.value }}
-\subsection*{Total amount of dividends proceeds: £\VAR{ "{:,}".format(round_decimal(report.total_dividends_amount(), 2)) }}
-\BLOCK{ if report.total_eri_amount(is_interest=False) > 0 }
-\subsubsection*{   (including £\VAR{ "{:,}".format(round_decimal(report.total_eri_amount(is_interest=False), 2))} from excess reported income distributions)}
+\subsection*{Number of dividend distributions: \VAR{ view.income_summary.dividend_count }}
+\subsection*{Number of interest transactions: \VAR{ view.income_summary.interest_count }}
+\subsection*{Number of interest tax transactions: \VAR{ view.income_summary.interest_tax_count }}
+\subsection*{Number of excess reported income distributions: \VAR{ view.income_summary.eri_count }}
+\subsection*{Total amount of dividends proceeds: £\VAR{ view.income_summary.total_dividends|money }}
+\BLOCK{ if view.income_summary.eri_dividends is not none }
+\subsubsection*{   (including £\VAR{ view.income_summary.eri_dividends|money } from excess reported income distributions)}
 \BLOCK{ endif }
-\subsection*{Total amount of dividends tax allowance due to double taxation treaties: £\VAR{ "{:,}".format(round_decimal(report.total_dividend_taxes_in_tax_treaties_amount(), 2)) }}
-\subsection*{Total amount of dividends tax yearly allowance: £\VAR{ "{:,}".format(round_decimal(report.dividend_allowance or Decimal(), 2)) }}
-\subsection*{Total amount of taxable dividends proceeds: £\VAR{ "{:,}".format(round_decimal(report.total_dividend_taxable_gain(), 2)) }}
-\subsection*{Total amount of UK interests proceeds: £\VAR{ "{:,}".format(report.total_uk_interest) }}
-\subsection*{Total amount of foreign interests proceeds: £\VAR{ "{:,}".format(report.total_foreign_interest) }}
-\BLOCK{ if report.total_eri_amount(is_interest=True) > 0 }
-\subsubsection*{   (including £\VAR{ "{:,}".format(round_decimal(report.total_eri_amount(is_interest=True), 2))} from excess reported income distributions)}
+\subsection*{Total amount of dividends tax allowance due to double taxation treaties: £\VAR{ view.income_summary.treaty_allowance|money }}
+\subsection*{Total amount of dividends tax yearly allowance: £\VAR{ view.income_summary.dividend_allowance|money }}
+\subsection*{Total amount of taxable dividends proceeds: £\VAR{ view.income_summary.taxable_dividends|money }}
+\subsection*{Total amount of UK interests proceeds: £\VAR{ view.income_summary.uk_interest|money }}
+\subsection*{Total amount of foreign interests proceeds: £\VAR{ view.income_summary.foreign_interest|money }}
+\BLOCK{ if view.income_summary.eri_interest is not none }
+\subsubsection*{   (including £\VAR{ view.income_summary.eri_interest|money } from excess reported income distributions)}
 \BLOCK{ endif }
-\subsection*{Total amount of interest tax paid: £\VAR{ "{:,}".format(report.total_interest_tax) }}
+\subsection*{Total amount of interest tax paid: £\VAR{ view.income_summary.interest_tax|money }}
 \end{document}
