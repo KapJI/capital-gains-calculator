@@ -1,6 +1,5 @@
 """Render PDF report with LaTeX."""
 
-from decimal import Decimal
 import logging
 from pathlib import Path
 import shutil
@@ -15,7 +14,8 @@ from .const import LATEX_TEMPLATE_RESOURCE, PACKAGE_NAME
 from .exceptions import LatexRenderError, MissingExternalToolError
 from .logging import style_text
 from .model import CapitalGainsReport
-from .util import round_decimal, strip_zeros
+from .report_view import build_report_view
+from .util import strip_zeros
 
 LOGGER = logging.getLogger(__name__)
 
@@ -53,12 +53,11 @@ def render_pdf(
         loader=jinja2.PackageLoader(PACKAGE_NAME, "resources"),
         extensions=["jinja2.ext.loopcontrols"],
     )
+    latex_template_env.filters["money"] = "{:,}".format
     template = latex_template_env.get_template(LATEX_TEMPLATE_RESOURCE)
     output_text = template.render(
-        report=report,
-        round_decimal=round_decimal,
+        view=build_report_view(report),
         strip_zeros=strip_zeros,
-        Decimal=Decimal,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
