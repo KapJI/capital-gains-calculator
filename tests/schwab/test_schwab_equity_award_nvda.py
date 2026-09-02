@@ -28,6 +28,7 @@ from cgt_calc.parsers.schwab_equity_award_json import (
     SchwabAwardTransaction,
     split_multiplier,
 )
+from tests.utils import tax_fields
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -558,3 +559,20 @@ def test_espp_with_everything_withheld_pools_nothing(tmp_path: Path) -> None:
     # Not an acquisition of zero shares, which the calculator refuses outright,
     # but no acquisition at all.
     assert espp == []
+
+
+def test_the_csv_export_of_this_history_reads_the_same() -> None:
+    """The CSV layout states the same portfolio, splits and all.
+
+    NVDA is the ticker whose acquisitions Schwab restates and whose disposals
+    it does not, so this is where a layout difference would show up as a
+    different share count rather than a parse error.
+    """
+    parser = schwab_equity_award_json.SchwabEquityAwardsParser
+
+    json_rows = parser.load_from_file(FIXTURE)
+    csv_rows = parser.load_from_file(FIXTURE.with_suffix(".csv"))
+
+    assert [tax_fields(row) for row in csv_rows] == [
+        tax_fields(row) for row in json_rows
+    ]

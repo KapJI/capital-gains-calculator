@@ -1,10 +1,13 @@
-"""Charles Schwab Equity Award JSON export parser.
+"""Charles Schwab Equity Award transaction export parser.
+
+Schwab states one Equity Awards history in two export layouts, JSON and CSV.
+Both are read here, and which one a file is comes from its contents.
 
 To get the data from Schwab:
 1. Open https://client.schwab.com/app/accounts/history/#/
 2. Make sure Equity Award Center is selected
 3. Select date range 'Previous 4 Years' and click SEARCH
-4. At the top right, click on Export and select type JSON
+4. At the top right, click on Export and select either type
 5. If you have had Equity Awards for more than 4 years, good news:
    Schwab now allows you to export all the data history (which you do need
    to calculate the CGT). In that case:
@@ -14,28 +17,60 @@ To get the data from Schwab:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+import csv
 from dataclasses import InitVar, dataclass
 import datetime
 import decimal
 from decimal import Decimal
 from enum import Enum, auto
+import io
 import json
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
-from cgt_calc.exceptions import ParsingError
-from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CurrencyCode,
+    TransactionSource,
+)
 from cgt_calc.util import round_decimal
 
 from .base_parsers import BaseSingleFileParser
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
     from pathlib import Path
 
 OPTIONAL_DETAILS_NAME: Final = "Details"
 FIELD_TO_SCHEMA: Final = {"transactions": 1, "Transactions": 2}
+
+# The columns a complete Equity Awards CSV states for the transaction itself.
+# A row that blanks all of them continues the transaction above it.
+PARENT_COLUMNS: Final = (
+    "Date",
+    "Action",
+    "Symbol",
+    "Description",
+    "Quantity",
+    "FeesAndCommissions",
+    "DisbursementElection",
+    "Amount",
+)
+
+# What tells a complete export from the award-price CSV, which shares the
+# parent columns above but prices vests instead of listing transactions. The
+# last two columns are the ones only a complete export has.
+COMPLETE_CSV_COLUMNS: Final = frozenset(
+    (*PARENT_COLUMNS, "VestFairMarketValue", "PurchaseFairMarketValue")
+)
+
+# Where the parent row of a CSV transaction was read from. Not a Schwab field,
+# so it is stripped back off before the row is converted.
+CSV_ROW_INDEX: Final = "_cgt_calc_row_index"
 LOGGER = logging.getLogger(__name__)
 
 
@@ -148,7 +183,7 @@ def _detail_counts_multiplier(symbol: str | None, on: datetime.date) -> int:
 
 @dataclass
 class FieldNames:
-    """Names of the fields in the Schwab JSON data, depending on the schema version."""
+    """Names of the fields in a Schwab export, depending on the schema version."""
 
     # Note that the schema version is not an official Schwab one, just something
     # we use internally in this code:
@@ -540,40 +575,46 @@ def _check_lapse_units(
     for row in rows:
         if row.get(names.action) != "Lapse":
             continue
-        symbol = row.get(names.symbol)
-        symbol = TICKER_RENAMES.get(symbol, symbol)
-        if not _restates_acquisitions_only(symbol):
-            continue
+        with _csv_row_errors(row.get(CSV_ROW_INDEX), file_path):
+            _check_one_lapse(row, file_path, names)
 
-        detail_rows = row.get(names.transac_details) or []
-        if not detail_rows:
-            continue
-        details = detail_rows[0].get(OPTIONAL_DETAILS_NAME, detail_rows[0])
 
-        try:
-            deposited = _optional_decimal(details, names.net_shares_deposited)
-            withheld = _optional_decimal(details, names.shares_sold_withheld_for_taxes)
-            quantity = _decimal_from_number_or_str(row, names.quantity)
-        except _UnparseableNumber as err:
-            raise _number_error(err, row, names, file_path) from err
+def _check_one_lapse(row: JsonRowType, file_path: Path, names: FieldNames) -> None:
+    """Check one Lapse row's stated units against the split table."""
+    symbol = row.get(names.symbol)
+    symbol = TICKER_RENAMES.get(symbol, symbol)
+    if not _restates_acquisitions_only(symbol):
+        return
 
-        if deposited is None or withheld is None:
-            continue
+    detail_rows = row.get(names.transac_details) or []
+    if not detail_rows:
+        return
+    details = detail_rows[0].get(OPTIONAL_DETAILS_NAME, detail_rows[0])
 
-        date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
-        multiplier = _detail_counts_multiplier(symbol, date)
-        expected = (deposited + withheld) * multiplier
+    try:
+        deposited = _optional_decimal(details, names.net_shares_deposited)
+        withheld = _optional_decimal(details, names.shares_sold_withheld_for_taxes)
+        quantity = _decimal_from_number_or_str(row, names.quantity)
+    except _UnparseableNumber as err:
+        raise _number_error(err, row, names, file_path) from err
 
-        if quantity != expected:
-            raise ParsingError(
-                file_path,
-                f"The lapse on {row[names.date]} reports {quantity} shares, "
-                f"but {deposited} deposited plus {withheld} withheld at a "
-                f"split multiplier of {multiplier} makes {expected}. Either "
-                "the split table in this file is wrong or a split is missing "
-                "from it; every disposal before that split would be converted "
-                "by the wrong factor",
-            )
+    if deposited is None or withheld is None:
+        return
+
+    date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
+    multiplier = _detail_counts_multiplier(symbol, date)
+    expected = (deposited + withheld) * multiplier
+
+    if quantity != expected:
+        raise ParsingError(
+            file_path,
+            f"The lapse on {row[names.date]} reports {quantity} shares, "
+            f"but {deposited} deposited plus {withheld} withheld at a "
+            f"split multiplier of {multiplier} makes {expected}. Either "
+            "the split table in this file is wrong or a split is missing "
+            "from it; every disposal before that split would be converted "
+            "by the wrong factor",
+        )
 
 
 def _check_disposal_units(
@@ -691,7 +732,7 @@ def _parse_vest_price(
             f"'{vest_fmv_str}'. That figure is what the vested shares cost for "
             "tax, so at zero or less they would enter the pool for nothing and "
             "the whole of the proceeds would be taxed when they are sold. "
-            "Correct it in the JSON from your vest confirmation.",
+            "Correct it in the export from your vest confirmation.",
         )
     return price
 
@@ -737,8 +778,8 @@ def _sale_lots(
                     f"The Sale on {date} states {shares} shares for one of its "
                     f"lots. A lot cannot dispose of a negative number of "
                     f"shares, and this one would take {-shares} off the number "
-                    f"sold. Correct the {names.shares} field in the JSON from "
-                    "your trade confirmation.",
+                    f"sold. Correct the {names.shares} field in the export "
+                    "from your trade confirmation.",
                 )
 
         price_str = details.get(names.sale_price) or None
@@ -752,7 +793,7 @@ def _sale_lots(
                     f"'{price_str}' for one of its lots. A sale has to have a "
                     "positive price, and the number of shares sold is worked "
                     "out from it, so this row cannot be used. Correct it in "
-                    "the JSON from your trade confirmation.",
+                    "the export from your trade confirmation.",
                 )
 
         lots.append((shares, price_str, price))
@@ -795,7 +836,7 @@ def _parse_sale_subtransactions(
                 f"{subtransac_shares_sum} shares, so what a share sold for "
                 f"cannot be worked out. Take the counts from your trade "
                 f"confirmation and correct the {names.shares} fields in the "
-                "JSON.",
+                "export.",
             )
         return subtransac_shares_sum, (amount + fees) / subtransac_shares_sum
 
@@ -821,7 +862,7 @@ def _parse_sale_subtransactions(
             f"export gives no reliable {names.shares} count for each lot, so "
             "the number of shares sold cannot be worked out. Take the counts "
             "from the trade confirmation for that day and split this sale in "
-            "the JSON into one transaction per sale price.",
+            "the export into one transaction per sale price.",
         )
 
     price = next(iter(prices.values()))
@@ -883,7 +924,7 @@ class SchwabAwardTransaction(BrokerTransaction):
     """Represent a single Schwab equity award transaction."""
 
     def __init__(self, row: JsonRowType, file: Path, field_names: FieldNames) -> None:
-        """Create a new SchwabAwardTransaction from a JSON row."""
+        """Create a new SchwabAwardTransaction from a decoded row."""
         names = field_names
         description = row[names.description]
         self.raw_action = row[names.action]
@@ -897,7 +938,7 @@ class SchwabAwardTransaction(BrokerTransaction):
         symbol = TICKER_RENAMES.get(symbol, symbol)
         if symbol not in SPLITS:
             LOGGER.warning(
-                "The Schwab Equity Award JSON parser was only tested for the "
+                "The Schwab Equity Awards parser was only tested for the "
                 "stocks whose splits it knows (%s), but found symbol '%s'. "
                 "Everything else is parsed as usual; what is not applied is "
                 "stock split normalization, which this parser only knows for "
@@ -1124,12 +1165,176 @@ class SchwabAwardTransaction(BrokerTransaction):
             self.price = round_decimal(self.price / multiplier, ROUND_DIGITS)
 
 
-class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabAwardTransaction]):
-    """Parser for Charles Schwab Equity Awards JSON files."""
+def _read_json_transactions(
+    content: str, file_path: Path
+) -> tuple[list[JsonRowType], FieldNames]:
+    """Decode a Schwab Equity Awards JSON export and say which schema it is."""
+    try:
+        data = json.loads(content, parse_float=Decimal, parse_int=Decimal)
+    except json.decoder.JSONDecodeError as exception:
+        raise ParsingError(
+            file_path,
+            "Could not parse content as JSON",
+        ) from exception
+
+    for field_name, schema_version in FIELD_TO_SCHEMA.items():
+        if field_name in data:
+            fields = FieldNames(schema_version)
+            break
+    else:
+        raise ParsingError(
+            file_path,
+            f"Expected top level field ({', '.join(FIELD_TO_SCHEMA.keys())}) "
+            "not found: the JSON data is not in the expected format",
+        )
+
+    if not isinstance(data[fields.transactions], list):
+        raise ParsingError(
+            file_path,
+            f"'{fields.transactions}' is not a list: the JSON data is not "
+            "in the expected format",
+        )
+
+    return data[fields.transactions], fields
+
+
+@contextmanager
+def _csv_row_errors(row_index: int | None, file_path: Path) -> Iterator[None]:
+    """Point whatever a row raises at the CSV line it was stated on.
+
+    A JSON export gives an error nothing better than the file to name, and is
+    left as it is. A CSV one gives the physical row, which is what the user has
+    to look at, so both a `ParsingError` raised without one and a field the CSV
+    can omit entirely are answered with it.
+    """
+    if row_index is None:
+        yield
+        return
+    try:
+        yield
+    except ParsingError as err:
+        err.add_row_context(row_index)
+        raise
+    except KeyError as err:
+        raise ParsingError(
+            file_path,
+            f"{err.args[0]} is missing from this transaction",
+            row_index=row_index,
+        ) from err
+    except ValueError as err:
+        raise ParsingError(file_path, str(err), row_index=row_index) from err
+
+
+def _csv_aware_transaction(
+    row: JsonRowType, file_path: Path, names: FieldNames
+) -> SchwabAwardTransaction:
+    """Build one transaction, keeping the CSV row it was stated on."""
+    row_index = row.pop(CSV_ROW_INDEX, None)
+    if row_index is None:
+        return _transaction(row, file_path, names)
+
+    with _csv_row_errors(row_index, file_path):
+        transaction = _transaction(row, file_path, names)
+    transaction.source = TransactionSource(row=row_index)
+    return transaction
+
+
+def _read_csv_transactions(content: str, file_path: Path) -> list[JsonRowType]:
+    """Decode a complete Equity Awards CSV into the rows the converter reads.
+
+    The layout states one transaction as a parent row followed by a detail row
+    per lot or grant, with the parent columns left blank on the details. Only a
+    row blanking every parent column continues the transaction above it, so a
+    repeated transaction stays two transactions rather than becoming lots of
+    one: nothing in the export says which of those two a repeat is.
+    """
+    reader = csv.reader(io.StringIO(content))
+    header = next(reader, None)
+    if header is None or not COMPLETE_CSV_COLUMNS.issubset(header):
+        raise ParsingError(
+            file_path,
+            "Missing columns in Charles Schwab Equity Awards file: "
+            f"{sorted(COMPLETE_CSV_COLUMNS.difference(header or []))}. A file "
+            "holding Date, Symbol and FairMarketValuePrice is the award-price "
+            "file, which prices a vest in a main history rather than listing "
+            "transactions; pass it with --schwab-award-file.",
+            row_index=1,
+        )
+
+    names = FieldNames()
+    rows: list[JsonRowType] = []
+    # The lots of the transaction being read, and None until one is open.
+    lots: list[JsonRowType] | None = None
+    for row_index, row in enumerate(reader, start=2):
+        if not any(cell.strip() for cell in row):
+            continue
+        if len(row) != len(header):
+            raise UnexpectedColumnCountError(
+                row, len(header), file_path, row_index=row_index
+            )
+
+        values = dict(zip(header, row, strict=True))
+        # Blank parent columns are kept: the converter reads them by name and
+        # already treats an empty field as absent. Blank detail columns are
+        # dropped, because the lot helpers test whether a field is there at
+        # all, and an empty one would be read as a malformed number instead of
+        # a count the export did not state.
+        parent = {name: values.get(name, "").strip() for name in PARENT_COLUMNS}
+        details = {
+            name: value.strip()
+            for name, value in values.items()
+            if name not in PARENT_COLUMNS and value.strip()
+        }
+
+        if any(parent.values()):
+            if not parent["Date"] or not parent["Action"]:
+                raise ParsingError(
+                    file_path,
+                    "A Charles Schwab Equity Awards transaction row needs both "
+                    f"Date and Action, but this one states {parent['Date'] or 'no date'} "
+                    f"and {parent['Action'] or 'no action'}",
+                    row_index=row_index,
+                )
+            if details:
+                raise ParsingError(
+                    file_path,
+                    "This row states a transaction and also holds detail "
+                    "fields. A transaction states its lots on the rows below "
+                    "it, so this file is not the layout cgt-calc reads",
+                    row_index=row_index,
+                )
+            lots = []
+            rows.append(
+                {**parent, names.transac_details: lots, CSV_ROW_INDEX: row_index}
+            )
+            continue
+
+        if lots is None:
+            raise ParsingError(
+                file_path,
+                "Found a detail row before any transaction to attach it to",
+                row_index=row_index,
+            )
+        lots.append({OPTIONAL_DETAILS_NAME: details})
+
+    return rows
+
+
+class SchwabEquityAwardsParser(BaseSingleFileParser[SchwabAwardTransaction]):
+    """Parser for Charles Schwab Equity Awards transaction exports.
+
+    Schwab states one Equity Awards history in two layouts, a JSON export and
+    a CSV one. They carry the same fields under the same names, so only the
+    decoding differs and everything after it is shared.
+    """
 
     arg_name = "schwab-equity-award"
     pretty_name = "Charles Schwab Equity Awards"
     format_name = "JSON"
+    argument_help: ClassVar[str | None] = (
+        "Charles Schwab Equity Awards transaction history, in the JSON or the "
+        "complete CSV export layout"
+    )
     deprecated_flags: ClassVar[list[str]] = ["--schwab_equity_award_json"]
 
     @classmethod
@@ -1137,41 +1342,23 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabAwardTransaction])
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[SchwabAwardTransaction]:
-        """Read Schwab Equity Awards transactions from JSON."""
-        try:
-            data = json.load(file, parse_float=Decimal, parse_int=Decimal)
-        except json.decoder.JSONDecodeError as exception:
-            raise ParsingError(
-                file_path,
-                "Could not parse content as JSON",
-            ) from exception
-
-        fields: FieldNames | None = None
-        for field_name, schema_version in FIELD_TO_SCHEMA.items():
-            if field_name in data:
-                fields = FieldNames(schema_version)
-                break
-        if fields is None:
-            raise ParsingError(
-                file_path,
-                f"Expected top level field ({', '.join(FIELD_TO_SCHEMA.keys())}) "
-                "not found: the JSON data is not in the expected format",
-            )
-
-        if not isinstance(data[fields.transactions], list):
-            raise ParsingError(
-                file_path,
-                f"'{fields.transactions}' is not a list: the JSON data is not "
-                "in the expected format",
-            )
+        """Read Schwab Equity Awards transactions from JSON or CSV."""
+        # The contents choose the layout, not the filename: users rename these
+        # exports, and the name can say JSON where the contents are CSV.
+        content = file.read().lstrip("\ufeff \t\r\n")
+        fields = FieldNames()
+        if content.startswith("{"):
+            rows, fields = _read_json_transactions(content, file_path)
+        else:
+            rows = _read_csv_transactions(content, file_path)
 
         # Before anything is converted: the split table has to survive the one
         # record that can contradict it.
-        _check_lapse_units(data[fields.transactions], file_path, fields)
+        _check_lapse_units(rows, file_path, fields)
 
         transactions = [
-            _transaction(transac, file_path, fields)
-            for transac in data[fields.transactions]
+            _csv_aware_transaction(transac, file_path, fields)
+            for transac in rows
             # Journal and Wire Transfer move cash between accounts.
             #
             # Lapse is the payroll side of a vest and duplicates its Deposit,
@@ -1201,3 +1388,8 @@ class SchwabEquityAwardsJSONParser(BaseSingleFileParser[SchwabAwardTransaction])
 
         transactions.reverse()
         return transactions
+
+
+# The class read only JSON when it was named, and the name is on the option,
+# in the registry and in every existing caller.
+SchwabEquityAwardsJSONParser = SchwabEquityAwardsParser

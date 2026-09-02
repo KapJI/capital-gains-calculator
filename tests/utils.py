@@ -1,9 +1,15 @@
 """Utils for tests."""
 
+from __future__ import annotations
+
 import os
 import sys
+from typing import TYPE_CHECKING
 
-import pytest
+if TYPE_CHECKING:
+    import pytest
+
+    from cgt_calc.model import BrokerTransaction
 
 
 def build_cmd(*args: str, keep_tex: bool = False) -> list[str]:
@@ -29,6 +35,22 @@ def report_path(request: pytest.FixtureRequest) -> str:
     workflow collects them with an `out/test-*` glob.
     """
     return f"out/{request.node.name.replace('_', '-')}/"
+
+
+def tax_fields(transaction: BrokerTransaction) -> tuple[object, ...]:
+    """Return the fields that decide tax, for comparing two readings of one history."""
+    return (
+        transaction.date,
+        transaction.action,
+        transaction.symbol,
+        transaction.description,
+        transaction.quantity,
+        transaction.price,
+        transaction.fees,
+        transaction.amount,
+        transaction.currency,
+        transaction.broker,
+    )
 
 
 def stderr_alerts(stderr: str) -> list[str]:

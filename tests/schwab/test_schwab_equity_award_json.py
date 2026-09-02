@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import datetime
 from decimal import Decimal
 import io
@@ -13,10 +14,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers import schwab_equity_award_json
-from tests.utils import build_cmd, report_path, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts, tax_fields
 
 if TYPE_CHECKING:
     from cgt_calc.parsers.schwab_equity_award_json import SchwabAwardTransaction
@@ -1600,14 +1602,17 @@ def test_schwab_json_v1_empty_fees(tmp_path: Path) -> None:
     assert transactions[0].action == ActionType.SELL
 
 
-def test_run_with_schwab_equity_award_json(request: pytest.FixtureRequest) -> None:
-    """Run cgt-calc end-to-end with schwab-equity-award-json file."""
+@pytest.mark.parametrize("extension", ["json", "csv"])
+def test_run_with_schwab_equity_award_json(
+    request: pytest.FixtureRequest, extension: str
+) -> None:
+    """Run cgt-calc end-to-end on both layouts of one Equity Awards history."""
     input_file_base = "schwab_equity_award_v2"
     cmd = build_cmd(
         "--year",
         "2023",
         "--schwab-equity-award-json",
-        f"tests/schwab/data/equity_award/{input_file_base}.json",
+        f"tests/schwab/data/equity_award/{input_file_base}.{extension}",
         "--output",
         report_path(request),
     )
@@ -1619,7 +1624,7 @@ def test_run_with_schwab_equity_award_json(request: pytest.FixtureRequest) -> No
             f"stderr:\n{result.stderr}"
         )
     assert stderr_alerts(result.stderr) == [], (
-        f"Run with example file {input_file_base}.json generated errors"
+        f"Run with example file {input_file_base}.{extension} generated errors"
     )
     expected_file = (
         Path("tests")
@@ -1635,3 +1640,291 @@ def test_run_with_schwab_equity_award_json(request: pytest.FixtureRequest) -> No
         "if you added new features update the test with:\n"
         f"{cmd_str} > {expected_file}"
     )
+
+
+COMPLETE_CSV_HEADER = [
+    "Date",
+    "Action",
+    "Symbol",
+    "Description",
+    "Quantity",
+    "FeesAndCommissions",
+    "DisbursementElection",
+    "Amount",
+    "Type",
+    "Shares",
+    "SalePrice",
+    "SubscriptionDate",
+    "SubscriptionFairMarketValue",
+    "PurchaseDate",
+    "PurchasePrice",
+    "PurchaseFairMarketValue",
+    "DispositionType",
+    "GrantId",
+    "VestDate",
+    "VestFairMarketValue",
+    "GrossProceeds",
+    "AwardDate",
+    "AwardId",
+    "SharesSoldWithheldForTaxes",
+    "NetSharesDeposited",
+]
+
+EQUITY_AWARD_DATA = Path("tests/schwab/data/equity_award")
+
+
+def _csv_text(rows: list[dict[str, str]]) -> str:
+    """Return a complete Equity Awards CSV holding the given rows."""
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=COMPLETE_CSV_HEADER, lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+
+def _parse(
+    content: str, file_path: Path = Path("awards.csv")
+) -> list[SchwabAwardTransaction]:
+    """Read transactions from export content of either layout."""
+    return schwab_equity_award_json.SchwabEquityAwardsParser.read_transactions(
+        io.StringIO(content), file_path
+    )
+
+
+A_SALE = {
+    "Date": "01/02/2026",
+    "Action": "Sale",
+    "Symbol": "GOOG",
+    "Description": "Share Sale",
+    "Quantity": "1",
+    "Amount": "$10.00",
+}
+ITS_LOT = {"Shares": "1", "SalePrice": "$10.00"}
+
+
+@pytest.mark.parametrize(
+    ("basename", "suffix"),
+    [("schwab_equity_award_v2.csv", ".json"), ("schwab_equity_award_v2.json", ".csv")],
+)
+def test_read_transactions_ignores_the_path_suffix(basename: str, suffix: str) -> None:
+    """The contents choose the parser, so a misnamed file still reads."""
+    content = (EQUITY_AWARD_DATA / basename).read_text(encoding="utf-8")
+
+    assert _parse(content, Path(f"awards{suffix}"))
+
+
+@pytest.mark.parametrize(
+    "basename",
+    ["schwab_equity_award_v2", "schwab_equity_award_v2_rounding"],
+)
+def test_complete_csv_matches_json(basename: str) -> None:
+    """The two layouts of one history produce the same tax figures."""
+    parser = schwab_equity_award_json.SchwabEquityAwardsParser
+
+    json_rows = parser.load_from_file(EQUITY_AWARD_DATA / f"{basename}.json")
+    csv_rows = parser.load_from_file(EQUITY_AWARD_DATA / f"{basename}.csv")
+
+    assert [tax_fields(row) for row in csv_rows] == [
+        tax_fields(row) for row in json_rows
+    ]
+
+
+def test_legacy_price_csv_is_refused() -> None:
+    """The price-only CSV supplements a main history and imports nothing."""
+    content = Path("tests/schwab/data/rsu_settlement/awards.csv").read_text(
+        encoding="utf-8"
+    )
+
+    with pytest.raises(ParsingError, match="award-price file"):
+        _parse(content)
+
+
+def test_csv_detail_row_before_any_transaction_is_rejected() -> None:
+    """A detail row has nothing to attach to until a parent row opens one."""
+    content = _csv_text([ITS_LOT])
+
+    with pytest.raises(ParsingError, match="detail row before") as exc_info:
+        _parse(content)
+
+    assert exc_info.value.row_index == 2
+
+
+def test_csv_parent_row_holding_details_is_rejected() -> None:
+    """One row cannot be both a transaction and one of its own lots."""
+    content = _csv_text([A_SALE | ITS_LOT])
+
+    with pytest.raises(ParsingError, match="also holds detail") as exc_info:
+        _parse(content)
+
+    assert exc_info.value.row_index == 2
+
+
+def test_csv_parent_row_without_an_action_is_rejected() -> None:
+    """A row with some parent fields and no Action is malformed, not a detail."""
+    content = _csv_text([{"Symbol": "GOOG", "Quantity": "1"}])
+
+    with pytest.raises(ParsingError, match="Date and Action") as exc_info:
+        _parse(content)
+
+    assert exc_info.value.row_index == 2
+
+
+def test_csv_row_of_the_wrong_width_is_rejected() -> None:
+    """A short row cannot be zipped onto the header without inventing values."""
+    content = _csv_text([A_SALE, ITS_LOT]).splitlines()
+    content[2] = content[2].rsplit(",", 1)[0]
+
+    with pytest.raises(ParsingError, match="columns") as exc_info:
+        _parse("\n".join(content) + "\n")
+
+    assert exc_info.value.row_index == 3
+
+
+def test_csv_blank_shares_leaves_the_parent_quantity_alone() -> None:
+    """A blank detail field is absent, not a zero that eats the disposal."""
+    content = _csv_text(
+        [
+            A_SALE | {"Quantity": "10", "Amount": "$100.00"},
+            {"SalePrice": "$10.00"},
+        ]
+    )
+
+    assert _parse(content)[0].quantity == Decimal(10)
+
+
+def test_csv_identical_transactions_stay_distinct() -> None:
+    """Two rows describing the same trade twice are two trades."""
+    content = _csv_text([A_SALE, ITS_LOT, dict(A_SALE), dict(ITS_LOT)])
+
+    assert len(_parse(content)) == 2
+
+
+def test_csv_malformed_detail_names_its_parent_row() -> None:
+    """A bad detail is reported against the transaction it belongs to."""
+    content = _csv_text([A_SALE, ITS_LOT | {"SalePrice": "not a price"}])
+
+    with pytest.raises(ParsingError) as exc_info:
+        _parse(content)
+
+    assert exc_info.value.row_index == 2
+    assert "awards.csv" in str(exc_info.value)
+
+
+def test_csv_example_export_reads_its_dividend_tax_deposits_and_sale() -> None:
+    """The sanitised Equity Award Center export reads end to end."""
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser.load_from_file(
+        EQUITY_AWARD_DATA / "schwab_equity_award_v2.example.csv"
+    )
+
+    # Oldest first, and Journal and Wire Transfer are dropped as internal.
+    assert [row.action for row in transactions] == [
+        ActionType.DIVIDEND,
+        ActionType.DIVIDEND_TAX,
+        ActionType.STOCK_ACTIVITY,
+        ActionType.STOCK_ACTIVITY,
+        ActionType.SELL,
+    ]
+    assert transactions[0].amount == Decimal("3.25")
+    assert transactions[2].date == datetime.date(2025, 12, 25)
+    assert transactions[2].price == Decimal("315.67")
+    assert transactions[4].quantity == Decimal("13.302")
+
+
+def test_csv_deposit_missing_its_vest_date_names_the_row() -> None:
+    """A required detail that is absent is reported, not raised as a KeyError."""
+    content = _csv_text(
+        [
+            {
+                "Date": "12/30/2025",
+                "Action": "Deposit",
+                "Symbol": "GOOG",
+                "Description": "RS",
+                "Quantity": "10",
+            },
+            {"VestFairMarketValue": "$315.67", "AwardDate": "03/05/2025"},
+        ]
+    )
+
+    with pytest.raises(ParsingError) as exc_info:
+        _parse(content)
+
+    assert exc_info.value.row_index == 2
+    assert "VestDate is missing from this transaction" in str(exc_info.value)
+
+
+def test_csv_blank_lines_between_transactions_are_ignored() -> None:
+    """Exports padded with empty rows still read."""
+    content = _csv_text([A_SALE, ITS_LOT]).splitlines()
+    padded = [content[0], "", content[1], "," * 22, content[2], ""]
+
+    assert len(_parse("\n".join(padded) + "\n")) == 1
+
+
+NVDA_LAPSE = {
+    "Date": "09/15/2021",
+    "Action": "Lapse",
+    "Symbol": "NVDA",
+    "Description": "Restricted Stock Lapse",
+    "Quantity": "600",
+}
+# 20 withheld plus 40 deposited, at the 10:1 split still to come on
+# 2024-06-10, is the 600 the lapse states. The check only bites once that
+# identity is broken.
+ITS_COUNTS = {
+    "SharesSoldWithheldForTaxes": "20",
+    "NetSharesDeposited": "40",
+    "AwardDate": "08/10/2020",
+    "AwardId": "000001",
+}
+
+
+def test_csv_lapse_agreeing_with_the_split_table_is_accepted() -> None:
+    """The baseline the next test mutates has to reconcile to begin with."""
+    assert _parse(_csv_text([NVDA_LAPSE, ITS_COUNTS])) == []
+
+
+def test_csv_lapse_disagreeing_with_the_split_table_names_its_row() -> None:
+    """The split-table check runs before conversion and still names the row."""
+    content = _csv_text([NVDA_LAPSE | {"Quantity": "599"}, ITS_COUNTS])
+
+    with pytest.raises(ParsingError, match="split table") as exc_info:
+        _parse(content)
+
+    assert exc_info.value.row_index == 2
+
+
+def test_csv_lapse_with_an_unreadable_date_names_its_row() -> None:
+    """A date the split check cannot read is reported, not raised raw."""
+    content = _csv_text([NVDA_LAPSE | {"Date": "31/31/2021"}, ITS_COUNTS])
+
+    with pytest.raises(ParsingError) as exc_info:
+        _parse(content)
+
+    assert exc_info.value.row_index == 2
+    assert "31/31/2021" in str(exc_info.value)
+
+
+def test_csv_transactions_keep_the_row_they_were_stated_on() -> None:
+    """Provenance survives a successful parse, not only a failing one."""
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser.load_from_file(
+        EQUITY_AWARD_DATA / "schwab_equity_award_v2.example.csv"
+    )
+
+    # Oldest first, so the rows count down the file: Dividend is its row 11.
+    assert [row.source.row for row in transactions if row.source] == [11, 10, 8, 6, 3]
+
+
+def test_csv_with_a_byte_order_mark_still_reads() -> None:
+    """Excel writes a BOM, and it must not hide the layout."""
+    content = "\ufeff\n  " + _csv_text([A_SALE, ITS_LOT])
+
+    assert len(_parse(content)) == 1
+
+
+def test_the_option_help_names_both_layouts() -> None:
+    """The option is still --schwab-equity-award-json and says it takes CSV."""
+    help_text = create_parser().format_help()
+
+    assert "--schwab-equity-award-json" in help_text
+    assert "--schwab-equity-award-file" not in help_text
+    assert "JSON or the complete CSV" in " ".join(help_text.split())

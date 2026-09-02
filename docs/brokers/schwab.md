@@ -243,7 +243,19 @@ legs are read as ordinary written and purchased options, and the purchased legs 
 
 ## Equity awards
 
-### Recommended CSV method
+Schwab exports your Equity Awards account in two different shapes, and cgt-calc uses them for
+different things:
+
+- an **award-price CSV**, which prices the vests already listed in your main transaction CSV. It
+    imports no transactions of its own.
+- a **complete transaction export**, which is the award account's own history. It comes as JSON or
+    as CSV, and cgt-calc reads both.
+
+Check the file's heading to see which one you have. `FairMarketValuePrice` and no
+`VestFairMarketValue` means the award-price CSV. `VestFairMarketValue` and `PurchaseFairMarketValue`
+means the complete CSV export.
+
+### Award-price CSV
 
 Use this method when the main transaction CSV contains `Stock Plan Activity` rows with a blank
 `Price`:
@@ -266,47 +278,56 @@ The supported award layout stores one activity across two CSV rows. Keep the fil
 [sanitised example](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/schwab/data/rsu_settlement/awards.csv)
 shows the expected structure.
 
-Some newer Equity Awards CSVs have columns such as `VestFairMarketValue` but no
-`FairMarketValuePrice`. That layout is not yet supported. Renaming the column is not a safe
-workaround because the rest of the row structure also differs.
+If your export has `VestFairMarketValue` instead, it is the complete transaction export described
+below. Do not rename the column: the rest of the row structure differs too.
 
-### Legacy JSON method
+### Complete transaction export
 
-cgt-calc also has a separate importer for older Schwab Equity Awards JSON exports:
+The complete export is the award account's own history rather than a price list, so it is imported
+on its own:
 
 ```shell
 cgt-calc --year 2025 --schwab-equity-award-json schwab_awards.json
+cgt-calc --year 2025 --schwab-equity-award-json schwab_awards.csv
 ```
 
-This is a complete transaction importer, unlike `--schwab-award-file`. Use it only for an actual
-Schwab JSON transaction export that you have checked. Do not import the same vest, sale, dividend or
-cash movement again through `--schwab-file`.
+Both layouts go through the same option and produce the same result. cgt-calc decides which one a
+file is from its contents, so the option name and the file extension do not have to agree.
 
-The JSON importer supports restricted-stock vests, ESPP purchases, sales, forced quick sales,
+The complete CSV states one transaction per row, followed by a row for each lot or grant with the
+transaction columns left blank. Keep the file exactly as Schwab exported it: cgt-calc reads those
+blank columns as the marker that a row continues the transaction above it.
+
+Use either layout only for an actual Schwab transaction export that you have checked. Do not import
+the same vest, sale, dividend or cash movement again through `--schwab-file`. cgt-calc does not yet
+reconcile a main history against a complete award history, so anything present in both is counted
+twice.
+
+The complete importer supports restricted-stock vests, ESPP purchases, sales, forced quick sales,
 dividends, dividend tax and forced cash disbursements. It recognises gifts but stops so that you can
 classify the recipient, as explained below. It skips `Lapse` rows because they repeat the shares
 already recorded by the related vest. For an ESPP purchase it uses the market value on the purchase
 date as the acquisition cost, on the assumption that the discount was taxed as employment income.
 Check that assumption against your payroll and award records.
 
-#### Share splits in legacy JSON exports
+#### Share splits in complete exports
 
-Schwab has sometimes updated old award records inconsistently after a share split. The JSON importer
-contains specific handling for Alphabet (`GOOG` and `GOOGL`) and NVIDIA (`NVDA`). For any other
-ticker it prints a warning because it does not know how Schwab changed the old quantities.
+Schwab has sometimes updated old award records inconsistently after a share split. The complete
+importer contains specific handling for Alphabet (`GOOG` and `GOOGL`) and NVIDIA (`NVDA`). For any
+other ticker it prints a warning because it does not know how Schwab changed the old quantities.
 
-After a new split, download the complete JSON history again and check every pre-split acquisition
-and disposal quantity against a statement. A stale export can mix old and new units without changing
-the cash totals, so the balance check cannot detect the error.
+After a new split, download the complete history again and check every pre-split acquisition and
+disposal quantity against a statement. A stale export can mix old and new units without changing the
+cash totals, so the balance check cannot detect the error.
 
 If cgt-calc warns that a disposal is cheaper by about the split multiplier, compare the named
 disposal's quantity and proceeds with a statement. The warning can mean that Schwab already adjusted
 the quantity for the split, but a real fall in the share price can look the same.
 
-#### Gifts in a legacy JSON export
+#### Gifts in a complete export
 
-A JSON `Gift` row says that shares left the account but not who received them. cgt-calc therefore
-stops and asks you to classify it:
+A `Gift` row says that shares left the account but not who received them. cgt-calc therefore stops
+and asks you to classify it:
 
 - For a spouse or civil partner, follow
     [Transfers to a spouse or civil partner](raw.md#transfers-to-a-spouse-or-civil-partner) and add
@@ -314,8 +335,8 @@ stops and asks you to classify it:
 - For anyone else, follow [Gifts to anyone else](raw.md#gifts-to-anyone-else) and add the suggested
     `GIFT` or `GIFT_UNCONNECTED` row using a verified market value.
 
-The error prints the complete RAW line to copy into a small CSV. The JSON importer can restate an
-old gift for a later split, so the quantity may not match the number of shares shown on the gift
+The error prints the complete RAW line to copy into a small CSV. The complete importer can restate
+an old gift for a later split, so the quantity may not match the number of shares shown on the gift
 date. Where both readings are possible, the error prints two candidate lines: check a statement and
 use the one with the correct quantity.
 
@@ -325,8 +346,8 @@ use the one with the correct quantity.
     unsupported. Despite its name, `Security Transfer` is supported only as an `ACH`-related cash
     movement: it requires an `Amount` and does not move shares. Follow the RAW transfer or gift
     instructions only after establishing what the transfer was and what cost should move with it.
-- The newer Equity Awards CSV layout without `FairMarketValuePrice` is unsupported, as described
-    above.
+- A main history and a complete Equity Awards export are not reconciled against each other. Import
+    one or the other, or make sure no vest, sale, dividend or cash movement appears in both.
 - A cash merger that gives replacement shares as well as cash is not supported. The cash-only
     importer prints a warning for every merger so you remember to check this.
 - All values in Schwab CSV and JSON files are treated as USD. Changing a currency symbol in the CSV
@@ -346,8 +367,19 @@ The named `Stock Plan Activity` has no price in the main CSV. Export the Equity 
 it with `--schwab-award-file`. If you already did, check that it contains the same ticker and a
 `FairMarketValuePrice` dated no more than six days before the activity.
 
-If the file instead uses the newer `VestFairMarketValue` layout, it is not supported. Do not rename
-columns or invent a price merely to bypass the error.
+If the file instead uses the `VestFairMarketValue` layout, it is the complete transaction export,
+and cgt-calc cannot use it to price a vest in your main history. Which way round to work depends on
+what each file holds:
+
+- If the complete export holds everything you need for the year, including any purchases, sales,
+    dividends and cash movements, pass it with `--schwab-equity-award-json` on its own and leave out
+    `--schwab-file`. Check first: anything that happened only in the main account is not in that
+    export and would be left out of the calculation.
+- If the main history holds everything you need, ask Schwab for the award-price CSV as well and pass
+    the two together.
+
+If neither file holds everything, this combination is not supported yet, so do not use both. Do not
+rename columns or invent a price merely to bypass the error.
 
 ### `Missing columns` or a row/column-count error
 
@@ -355,8 +387,9 @@ Make sure `--schwab-file` points to the main transaction-history CSV and `--schw
 points to the supported award-price CSV. A positions export, realised gain/loss report, statement,
 JSON file or spreadsheet converted from PDF has a different layout.
 
-With `--schwab-dir`, this error names the offending file: take it out of the directory (or, if it is
-the Equity Awards CSV, pass it with `--schwab-award-file` instead).
+With `--schwab-dir`, this error names the offending file: take it out of the directory. If it is an
+Equity Awards export, pass it with `--schwab-award-file` when it is the award-price CSV, or with
+`--schwab-equity-award-json` when it is the complete transaction export.
 
 If you combined several history ranges, confirm that there is one header, every data row has the
 same number of fields, and none of the source files used a different export format.
@@ -392,19 +425,19 @@ value or replacement shares means the event is not the supported cash-only shape
 
 ### `The lapse on ... reports ... shares`
 
-This legacy JSON error means the share count on a `Lapse` row disagrees with the related deposited
-and withheld counts after applying the split history currently known to cgt-calc. Download a fresh
-complete JSON export, then compare the named lapse, its vest and the split history with the original
-award statement. cgt-calc stops rather than applying a split factor that may be wrong. If a fresh
-export still fails, cgt-calc may not yet know about a recent split; open a
+This complete-export error means the share count on a `Lapse` row disagrees with the related
+deposited and withheld counts after applying the split history currently known to cgt-calc. Download
+a fresh complete export, then compare the named lapse, its vest and the split history with the
+original award statement. cgt-calc stops rather than applying a split factor that may be wrong. If a
+fresh export still fails, cgt-calc may not yet know about a recent split; open a
 [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the error and a
 sanitised copy of the relevant records.
 
 ### `ESPP purchase on ... bought ... shares but accounts for ...`
 
-This legacy JSON error means the purchased share count does not equal the shares deposited, withheld
-and sold for tax after any known split. Compare those figures with the ESPP confirmation and split
-history. Do not change a quantity merely to make the import continue.
+This complete-export error means the purchased share count does not equal the shares deposited,
+withheld and sold for tax after any known split. Compare those figures with the ESPP confirmation
+and split history. Do not change a quantity merely to make the import continue.
 
 ### An export overlaps another one
 
