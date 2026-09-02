@@ -8,7 +8,9 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: end-of-file-fixer
+        exclude: ^tests/general/data/(latex/.*|test_run_with_example_files_report)\.tex$
       - id: trailing-whitespace
+        exclude: ^tests/general/data/(latex/.*|test_run_with_example_files_report)\.tex$
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.13.1-1
     hooks:
