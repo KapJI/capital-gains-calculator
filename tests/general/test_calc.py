@@ -1979,10 +1979,15 @@ def test_balance_check_reports_an_overdraft_left_at_the_end_of_the_day() -> None
     ],
     ids=["later date", "other broker", "other currency"],
 )
-def test_balance_check_is_not_funded_from_another_pool_day(
+def test_balance_check_is_not_funded_by_a_later_day_or_another_pool(
     date: datetime.date, broker: str, currency: CurrencyCode
 ) -> None:
-    """Only cash in the same broker, currency and day counts as funding."""
+    """Money has to be there already, in the same broker and currency.
+
+    An earlier day's deposit funds later activity, as it always has. A
+    deposit made after the purchase does not, and neither does money at
+    another broker or in another currency.
+    """
     purchase = buy_transaction(
         datetime.date(2024, 5, 1),
         "FOO",
