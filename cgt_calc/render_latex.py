@@ -49,6 +49,7 @@ def render_pdf(
         line_statement_prefix="%%",
         line_comment_prefix="%#",
         trim_blocks=True,
+        lstrip_blocks=True,
         autoescape=False,
         loader=jinja2.PackageLoader(PACKAGE_NAME, "resources"),
         extensions=["jinja2.ext.loopcontrols"],

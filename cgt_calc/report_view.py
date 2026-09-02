@@ -2,10 +2,11 @@
 
 The calculation log names each event with a string key (``sell$FOO``,
 ``excess-reported-income-distribution$FOO``), and the report's figures need
-rounding, counting and adding up before they can be printed. This module is
-the only place that does any of it: it decodes the keys, counts the events,
-keeps the running totals and rounds every figure exactly where the report
-shows it rounded.
+rounding, counting and adding up before they can be printed. This module makes
+every one of those decisions for the detailed report: it decodes the keys,
+counts the events, keeps the running totals and rounds every figure exactly
+where the report shows it rounded. (The terminal summary in ``render_text``
+still reads the gift and spouse-transfer keys for itself.)
 
 A template over the result is loops and substitutions. Every number here is a
 ``Decimal`` already rounded the way the report prints it, so formatting

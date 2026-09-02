@@ -5,135 +5,121 @@
 \begin{document}
 \centerline{\Large\bfseries Capital Gains Tax Calculations for \VAR{ view.title_period }}
 
-
 \section*{Capital Gains Events}
 
 \BLOCK{ for day in view.days }
 
 \subsection*{\VAR{ day.date.strftime("%d %B %Y") }}
 \BLOCK{ for event in day.events }
-\#{ A tag's own indentation reaches the output, so the layout below is part
-    of the report and the .tex goldens pin it. }
-        \BLOCK{ if event.is_disposal }
-                \BLOCK{ if event.kind == "option_grant" }
-            \subsubsection*{
-            Disposal \VAR{ event.number }: grant of \VAR{ strip_zeros(event.quantity) }
-            contract\BLOCK{ if event.quantity != 1 }s\BLOCK{ endif } of the \VAR{ event.symbol }
-            for £\VAR{ event.proceeds|money }
-        }
+\BLOCK{ if event.is_disposal }
+    \BLOCK{ if event.kind == "option_grant" }
+\subsubsection*{
+    Disposal \VAR{ event.number }: grant of \VAR{ strip_zeros(event.quantity) }
+    contract\BLOCK{ if event.quantity != 1 }s\BLOCK{ endif } of the \VAR{ event.symbol }
+    for £\VAR{ event.proceeds|money }
+}
     \BLOCK{ else }
-\#{ A gift's heading is indented further than a sale's, a connected
-    person's further still. }
-\BLOCK{ if event.is_gift }    \BLOCK{ if event.kind == "gift_connected" }    \BLOCK{ endif }\BLOCK{ endif }
-        \subsubsection*{
-            Disposal \VAR{ event.number }: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol }
-            \BLOCK{ if event.is_gift }given away at a market value of\BLOCK{ else }for\BLOCK{ endif } £\VAR{ event.proceeds|money }
-            (£\VAR{ event.per_unit|money }/unit)%
-            \BLOCK{ if event.fees > 0 }
-                , £\VAR{ event.fees|money } fees allowed as cost
-            \BLOCK{ endif }
-        }
+\subsubsection*{
+    Disposal \VAR{ event.number }: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol }
+    \BLOCK{ if event.is_gift }given away at a market value of\BLOCK{ else }for\BLOCK{ endif } £\VAR{ event.proceeds|money }
+    (£\VAR{ event.per_unit|money }/unit)%
+    \BLOCK{ if event.fees > 0 }
+    , £\VAR{ event.fees|money } fees allowed as cost
     \BLOCK{ endif }
-    \BLOCK{ if event.outcome == "gain" -}
-        Chargeable \textbf{gain} is £\VAR{ event.gain|money }\BLOCK{ if event.is_gift }, before any relief:
-        a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns\BLOCK{ endif }
+}
+    \BLOCK{ endif }
+    \BLOCK{ if event.outcome == "gain" }
+Chargeable \textbf{gain} is £\VAR{ event.gain|money }\BLOCK{ if event.is_gift }, before any relief:
+a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns\BLOCK{ endif }
 
-                Capital gain to date is £\VAR{ event.gain_to_date|money }
+Capital gain to date is £\VAR{ event.gain_to_date|money }
     \BLOCK{ elif event.outcome == "nil" }
-        Neither a gain nor a loss.
+Neither a gain nor a loss.
     \BLOCK{ elif event.outcome == "clogged_loss" }
-        \textbf{Clogged loss} of £\VAR{ (-event.gain)|money } on a gift, kept out of the loss total:
-        a loss on a gift to a connected person can only be set against gains on disposals to the same person while still connected (TCGA 1992 s18(3)).
+\textbf{Clogged loss} of £\VAR{ (-event.gain)|money } on a gift, kept out of the loss total:
+a loss on a gift to a connected person can only be set against gains on disposals to the same person while still connected (TCGA 1992 s18(3)).
 
-                Losses on gifts to date are £\VAR{ event.gift_loss_to_date|money }
+Losses on gifts to date are £\VAR{ event.gift_loss_to_date|money }
     \BLOCK{ else }
-        Chargeable \textbf{loss} is £\VAR{ (-event.gain)|money }
+Chargeable \textbf{loss} is £\VAR{ (-event.gain)|money }
 
-                Capital loss to date is £\VAR{ event.loss_to_date|money }
+Capital loss to date is £\VAR{ event.loss_to_date|money }
     \BLOCK{ endif }
 \BLOCK{ elif event.kind == "acquisition" }
- % if is_aquisition
-                        \subsubsection*{
-            Acquisition \VAR{ event.number }: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol } for £\VAR{ event.cost|money }
-            (£\VAR{ event.per_unit|money }/unit)%
-            \BLOCK{ if event.fees > 0 }
-                , including £\VAR{ event.fees|money } fees
-            \BLOCK{ endif }
-        }
-    \BLOCK{ elif event.kind == "management_fee" }
- % if is_aquisition
-                \subsubsection*{Management fee for \VAR{ event.symbol } of £\VAR{ event.cost|money }}
-    \BLOCK{ elif event.kind == "spin_off" }
- % if is_spin_off
+\subsubsection*{
+    Acquisition \VAR{ event.number }: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol } for £\VAR{ event.cost|money }
+    (£\VAR{ event.per_unit|money }/unit)%
+    \BLOCK{ if event.fees > 0 }
+    , including £\VAR{ event.fees|money } fees
+    \BLOCK{ endif }
+}
+\BLOCK{ elif event.kind == "management_fee" }
+\subsubsection*{Management fee for \VAR{ event.symbol } of £\VAR{ event.cost|money }}
+\BLOCK{ elif event.kind == "spin_off" }
     \BLOCK{ if event.quantity > 0 }
-                    \subsubsection*{
-            Spin-off adjustment \VAR{ event.number }: \VAR{ event.spin_off_source } cost adjusted because of \VAR{ event.spin_off_dest } shares spinned off
-        }
+\subsubsection*{
+    Spin-off adjustment \VAR{ event.number }: \VAR{ event.spin_off_source } cost adjusted because of \VAR{ event.spin_off_dest } shares spinned off
+}
     \BLOCK{ endif }
 \BLOCK{ elif event.kind == "eri" }
- % if is_eri
     \BLOCK{ if event.quantity > 0 }
-            \subsubsection*{
-            Excess Reported Income: \VAR{ event.symbol } cost increased by £\VAR{ event.cost|money }
-            (£\VAR{ event.eri_unit_price|money }/unit)%
-        }
+\subsubsection*{
+    Excess Reported Income: \VAR{ event.symbol } cost increased by £\VAR{ event.cost|money }
+    (£\VAR{ event.eri_unit_price|money }/unit)%
+}
     \BLOCK{ endif }
 \BLOCK{ elif event.kind == "rename" }
- % if is_rename
-    \subsubsection*{
-        \VAR{ event.symbol } was renamed to \VAR{ event.renamed_to }%
-        \BLOCK{ if event.quantity > 0 }
-            : \VAR{ strip_zeros(event.quantity) } units with pool cost £\VAR{ event.cost|money } transferred
-        \BLOCK{ endif }
-    }
+\subsubsection*{
+    \VAR{ event.symbol } was renamed to \VAR{ event.renamed_to }%
+    \BLOCK{ if event.quantity > 0 }
+    : \VAR{ strip_zeros(event.quantity) } units with pool cost £\VAR{ event.cost|money } transferred
+    \BLOCK{ endif }
+}
 \BLOCK{ elif event.kind == "split" }
- % if is_split
-        \subsubsection*{
-        Share reorganisation: \VAR{ strip_zeros(event.split.day_open_quantity) } units of \VAR{ event.symbol } restated as \VAR{ strip_zeros(event.split.scaled_day_open_quantity) } (ratio \VAR{ event.split.ratio_description })
-    }
-    Neither a disposal nor an acquisition: the new holding is the same asset, held from the same dates, with the same pooled cost (TCGA 1992 s127).
+\subsubsection*{
+    Share reorganisation: \VAR{ strip_zeros(event.split.day_open_quantity) } units of \VAR{ event.symbol } restated as \VAR{ strip_zeros(event.split.scaled_day_open_quantity) } (ratio \VAR{ event.split.ratio_description })
+}
+Neither a disposal nor an acquisition: the new holding is the same asset, held from the same dates, with the same pooled cost (TCGA 1992 s127).
 
-    Stated as \VAR{ strip_zeros(event.split.broker_before_quantity) } units before the event and \VAR{ strip_zeros(event.split.broker_after_quantity) } after.
+Stated as \VAR{ strip_zeros(event.split.broker_before_quantity) } units before the event and \VAR{ strip_zeros(event.split.broker_after_quantity) } after.
     \BLOCK{ if event.split.reconciliation_delta != 0 }
 
-        Reconciled to that count by \VAR{ strip_zeros(event.split.reconciliation_delta) } units, from \VAR{ strip_zeros(event.split.quantity_before_reconciliation) } to \VAR{ strip_zeros(event.split.quantity_after_reconciliation) }.
+Reconciled to that count by \VAR{ strip_zeros(event.split.reconciliation_delta) } units, from \VAR{ strip_zeros(event.split.quantity_before_reconciliation) } to \VAR{ strip_zeros(event.split.quantity_after_reconciliation) }.
     \BLOCK{ endif }
 
-    Units in the pool at this point in the day: \VAR{ strip_zeros(event.pool_quantity) }%
+Units in the pool at this point in the day: \VAR{ strip_zeros(event.pool_quantity) }%
     \BLOCK{ if event.pool_quantity > 0 },
-        pool cost: £\VAR{ event.pool_cost|money }
-        (£\VAR{ event.pool_per_unit|money }/unit)%
+    pool cost: £\VAR{ event.pool_cost|money }
+    (£\VAR{ event.pool_per_unit|money }/unit)%
     \BLOCK{ endif }.
 \BLOCK{ elif event.kind == "transfer_to_spouse" }
- % if is_transfer_to_spouse
-    \subsubsection*{
-        Transferred to spouse: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol } (no gain/no loss)
-    }
-    Base cost of £\VAR{ event.base_cost_passed|money } passes to the recipient.
+\subsubsection*{
+    Transferred to spouse: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol } (no gain/no loss)
+}
+Base cost of £\VAR{ event.base_cost_passed|money } passes to the recipient.
 
-        Number of units left in the pool: \VAR{ strip_zeros(event.pool_quantity) }%
+Number of units left in the pool: \VAR{ strip_zeros(event.pool_quantity) }%
     \BLOCK{ if event.pool_quantity > 0 },
-        new pool cost: £\VAR{ event.pool_cost|money }
-        (£\VAR{ event.pool_per_unit|money }/unit)%
+    new pool cost: £\VAR{ event.pool_cost|money }
+    (£\VAR{ event.pool_per_unit|money }/unit)%
     \BLOCK{ endif }.
 \BLOCK{ elif event.kind == "exempt" }
- % if is_exempt
-            \subsubsection*{
-        Exempt disposal: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol } valued at £\VAR{ event.proceeds|money }
-        (£\VAR{ event.per_unit|money }/unit)%
-        \BLOCK{ if event.fees > 0 }
-            , £\VAR{ event.fees|money } disposal expenses included in the illustrative calculation
-        \BLOCK{ endif }
-    }
-    The cost and disposal expenses shown below are used for this illustrative calculation only;
-    they are not allowable deductions against other gains.
+\subsubsection*{
+    Exempt disposal: \VAR{ strip_zeros(event.quantity) } units of \VAR{ event.symbol } valued at £\VAR{ event.proceeds|money }
+    (£\VAR{ event.per_unit|money }/unit)%
+    \BLOCK{ if event.fees > 0 }
+    , £\VAR{ event.fees|money } disposal expenses included in the illustrative calculation
+    \BLOCK{ endif }
+}
+The cost and disposal expenses shown below are used for this illustrative calculation only;
+they are not allowable deductions against other gains.
 
-    \BLOCK{ if event.outcome == "gain" -}
-        Gain is £\VAR{ event.gain|money }; the gain or loss is disregarded (exempt asset).
+    \BLOCK{ if event.outcome == "gain" }
+Gain is £\VAR{ event.gain|money }; the gain or loss is disregarded (exempt asset).
     \BLOCK{ elif event.outcome == "nil" }
-        Neither a gain nor a loss; the gain or loss is disregarded (exempt asset).
+Neither a gain nor a loss; the gain or loss is disregarded (exempt asset).
     \BLOCK{ else }
-        Loss is £\VAR{ (-event.gain)|money }; the gain or loss is disregarded (exempt asset).
+Loss is £\VAR{ (-event.gain)|money }; the gain or loss is disregarded (exempt asset).
     \BLOCK{ endif }
 \BLOCK{ endif }
 
@@ -141,76 +127,74 @@
 \begin{enumerate}
 \BLOCK{ for line in event.lines }
 \item \textbf{\VAR{ line.rule }}. Quantity: \VAR{ strip_zeros(line.quantity) },
-\BLOCK{ if event.is_disposal }
-    \BLOCK{ if line.shows_proceeds }
-        disposal proceeds: £\VAR{ line.proceeds|money },
-    \BLOCK{ endif }
+    \BLOCK{ if event.is_disposal }
+        \BLOCK{ if line.shows_proceeds }
+    disposal proceeds: £\VAR{ line.proceeds|money },
+        \BLOCK{ endif }
     allowable
-    \BLOCK{ if line.bnb_date }
-        cost on \mbox{\VAR{ line.bnb_date.strftime("%d %b %Y") }:}
-    \BLOCK{ else }
-        cost:
-    \BLOCK{ endif }
+        \BLOCK{ if line.bnb_date }
+    cost on \mbox{\VAR{ line.bnb_date.strftime("%d %b %Y") }:}
+        \BLOCK{ else }
+    cost:
+        \BLOCK{ endif }
     £\VAR{ line.cost|money },
-    \BLOCK{ if line.is_gain }
-        \mbox{gain: £\VAR{ line.gain|money }.}
-    \BLOCK{ else }
-        \mbox{loss: £\VAR{ (-line.gain)|money }.}
-    \BLOCK{ endif }
-\BLOCK{ elif event.kind == "exempt" }
-    \BLOCK{ if line.shows_proceeds }
-        disposal proceeds: £\VAR{ line.proceeds|money },
-    \BLOCK{ endif }
+        \BLOCK{ if line.is_gain }
+    \mbox{gain: £\VAR{ line.gain|money }.}
+        \BLOCK{ else }
+    \mbox{loss: £\VAR{ (-line.gain)|money }.}
+        \BLOCK{ endif }
+    \BLOCK{ elif event.kind == "exempt" }
+        \BLOCK{ if line.shows_proceeds }
+    disposal proceeds: £\VAR{ line.proceeds|money },
+        \BLOCK{ endif }
     cost used for this illustrative
-    \BLOCK{ if line.bnb_date }
-        calculation on \mbox{\VAR{ line.bnb_date.strftime("%d %b %Y") }:}
-    \BLOCK{ else }
-        calculation:
-    \BLOCK{ endif }
+        \BLOCK{ if line.bnb_date }
+    calculation on \mbox{\VAR{ line.bnb_date.strftime("%d %b %Y") }:}
+        \BLOCK{ else }
+    calculation:
+        \BLOCK{ endif }
     £\VAR{ line.cost|money },
-    \BLOCK{ if line.is_gain }
-        \mbox{disregarded gain: £\VAR{ line.gain|money }.}
-    \BLOCK{ else }
-        \mbox{disregarded loss: £\VAR{ (-line.gain)|money }.}
-    \BLOCK{ endif }
-\BLOCK{ elif event.kind == "spin_off" }
+        \BLOCK{ if line.is_gain }
+    \mbox{disregarded gain: £\VAR{ line.gain|money }.}
+        \BLOCK{ else }
+    \mbox{disregarded loss: £\VAR{ (-line.gain)|money }.}
+        \BLOCK{ endif }
+    \BLOCK{ elif event.kind == "spin_off" }
     original cost of \VAR{ line.spin_off_source }: £\VAR{ line.amount|money }, after spin-off: £\VAR{ line.new_pool_cost|money }
-\BLOCK{ elif event.kind == "eri" }
+    \BLOCK{ elif event.kind == "eri" }
     original cost of \VAR{ event.symbol }: £\VAR{ line.amount|money }, after income distribution: £\VAR{ line.new_pool_cost|money }%
-\BLOCK{ else }
- % if is_aquisition
+    \BLOCK{ else }
     actual cost: £\VAR{ line.amount|money }.
-\BLOCK{ endif}
+    \BLOCK{ endif }
 
-\BLOCK{ if event.kind == "option_grant" }
+    \BLOCK{ if event.kind == "option_grant" }
     The option grant does not change the Section 104 holding of the underlying shares.
-\BLOCK{ else }
-\BLOCK{ if event.pool_units_left }
+    \BLOCK{ else }
+        \BLOCK{ if event.pool_units_left }
     Number of units left in the pool:
-\BLOCK{ else }
+        \BLOCK{ else }
     Number of units in the pool:
-\BLOCK{ endif }
-\VAR{ strip_zeros(line.new_quantity) }%
-\BLOCK{ if line.new_quantity > 0 },
+        \BLOCK{ endif }
+    \VAR{ strip_zeros(line.new_quantity) }%
+        \BLOCK{ if line.new_quantity > 0 },
     new pool cost: £\VAR{ line.new_pool_cost|money }
     (£\VAR{ line.pool_per_unit|money }/unit)%
-    \BLOCK{ if event.is_acquisition and line.spin_off_source }
+            \BLOCK{ if event.is_acquisition and line.spin_off_source }
 
     Cost basis calculated based on cost of \VAR{ line.spin_off_source } share pool from which \VAR{ event.symbol } shares were spinned off%
-    \BLOCK{ endif }
-    \BLOCK{ if event.is_acquisition }
-        \BLOCK{ for eri in line.eris }
-                        \#{ padding this line has always carried }
+            \BLOCK{ endif }
+            \BLOCK{ if event.is_acquisition }
+                \BLOCK{ for eri in line.eris }
 
     Cost basis increased by £\VAR{ eri.cost|money }
     (£\VAR{ eri.unit_price|money }/unit)%
     , due to exccess reported income on \mbox{\VAR{ eri.date.strftime("%d %b %Y") }}%
-        \BLOCK{ endfor }
+                \BLOCK{ endfor }
+            \BLOCK{ endif }
+        \BLOCK{ endif }.
     \BLOCK{ endif }
-\BLOCK{ endif }.
-\BLOCK{ endif }
 
-\BLOCK{ endfor}
+\BLOCK{ endfor }
 \end{enumerate}
 \BLOCK{ endif }
 
@@ -219,38 +203,33 @@
 \BLOCK{ endfor }
 
 \BLOCK{ if view.income_days }
-    \clearpage
-    \section*{Interest and Dividends Events}
+\clearpage
+\section*{Interest and Dividends Events}
 
-    \BLOCK{ for day in view.income_days }
+\BLOCK{ for day in view.income_days }
 
-    \subsection*{\VAR{ day.date.strftime("%d %B %Y") }}
-    \BLOCK{ for event in day.events }
-        \BLOCK{ if event.kind == "dividend" }
-\#{ A dividend paid as interest has always been indented further. }
-\BLOCK{ if event.is_interest }                    \BLOCK{ endif }
-                                                    \textbf{Dividend \VAR{ event.number }:} \VAR{ event.symbol }\BLOCK{ if event.is_interest } (interest)\BLOCK{ endif } for £\VAR{ event.amount|money }
+\subsection*{\VAR{ day.date.strftime("%d %B %Y") }}
+\BLOCK{ for event in day.events }
+    \BLOCK{ if event.kind == "dividend" }
+\textbf{Dividend \VAR{ event.number }:} \VAR{ event.symbol }\BLOCK{ if event.is_interest } (interest)\BLOCK{ endif } for £\VAR{ event.amount|money }
         \BLOCK{ if not event.is_interest }
-            (tax paid at source: £\VAR{ event.tax_at_source|money })
+(tax paid at source: £\VAR{ event.tax_at_source|money })
         \BLOCK{ endif }
         \BLOCK{ if event.treaty_country is not none }
-            , tax treaty amount: £\VAR{ event.treaty_amount|money } (treaty rate for \VAR{ event.treaty_country }: \VAR{ event.treaty_rate }\%)
+, tax treaty amount: £\VAR{ event.treaty_amount|money } (treaty rate for \VAR{ event.treaty_country }: \VAR{ event.treaty_rate }\%)
         \BLOCK{ endif }
     \BLOCK{ elif event.kind == "interest" }
-                             % if is_interest
-                \textbf{Interest \VAR{ event.origin } \VAR{ event.number }:} \VAR{ event.symbol } for £\VAR{ event.amount|money }
+\textbf{Interest \VAR{ event.origin } \VAR{ event.number }:} \VAR{ event.symbol } for £\VAR{ event.amount|money }
     \BLOCK{ elif event.kind == "interest_tax" }
-                                                 % if is_interest_tax
-                \textbf{Interest tax \VAR{ event.origin } \VAR{ event.number }:} \VAR{ event.symbol } for £\VAR{ event.amount|money }
+\textbf{Interest tax \VAR{ event.origin } \VAR{ event.number }:} \VAR{ event.symbol } for £\VAR{ event.amount|money }
     \BLOCK{ elif event.kind == "eri_distribution" }
-                     % if is_eri_tax
-                                                    \textbf{Excess Reported Income Distribution \VAR{ event.number }}: \VAR{ event.symbol }\BLOCK{ if event.is_interest } (interest)\BLOCK{ else } (dividend)\BLOCK{ endif } for £\VAR{ event.amount|money }
-        (£\VAR{ event.unit_price|money }/unit)%
+\textbf{Excess Reported Income Distribution \VAR{ event.number }}: \VAR{ event.symbol }\BLOCK{ if event.is_interest } (interest)\BLOCK{ else } (dividend)\BLOCK{ endif } for £\VAR{ event.amount|money }
+(£\VAR{ event.unit_price|money }/unit)%
     \BLOCK{ endif }
 
-    \BLOCK{ endfor }
+\BLOCK{ endfor }
 
-    \BLOCK{ endfor }
+\BLOCK{ endfor }
 \BLOCK{ endif }
 
 \clearpage
