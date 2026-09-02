@@ -18,10 +18,9 @@ from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers import schwab_equity_award_json
-from tests.utils import build_cmd, report_path, stderr_alerts
+from tests.utils import build_cmd, report_path, stderr_alerts, tax_fields
 
 if TYPE_CHECKING:
-    from cgt_calc.model import BrokerTransaction
     from cgt_calc.parsers.schwab_equity_award_json import SchwabAwardTransaction
 
 # ruff: noqa: SLF001 "Private member accessed"
@@ -1683,28 +1682,12 @@ def _csv_text(rows: list[dict[str, str]]) -> str:
     return output.getvalue()
 
 
-def _read_csv(
+def _parse(
     content: str, file_path: Path = Path("awards.csv")
 ) -> list[SchwabAwardTransaction]:
-    """Parse complete Equity Awards CSV content."""
+    """Read transactions from export content of either layout."""
     return schwab_equity_award_json.SchwabEquityAwardsParser.read_transactions(
         io.StringIO(content), file_path
-    )
-
-
-def _tax_fields(transaction: BrokerTransaction) -> tuple[object, ...]:
-    """Return the fields that decide tax, which both layouts must agree on."""
-    return (
-        transaction.date,
-        transaction.action,
-        transaction.symbol,
-        transaction.description,
-        transaction.quantity,
-        transaction.price,
-        transaction.fees,
-        transaction.amount,
-        transaction.currency,
-        transaction.broker,
     )
 
 
@@ -1727,7 +1710,7 @@ def test_read_transactions_ignores_the_path_suffix(basename: str, suffix: str) -
     """The contents choose the parser, so a misnamed file still reads."""
     content = (EQUITY_AWARD_DATA / basename).read_text(encoding="utf-8")
 
-    assert _read_csv(content, Path(f"awards{suffix}"))
+    assert _parse(content, Path(f"awards{suffix}"))
 
 
 @pytest.mark.parametrize(
@@ -1741,8 +1724,8 @@ def test_complete_csv_matches_json(basename: str) -> None:
     json_rows = parser.load_from_file(EQUITY_AWARD_DATA / f"{basename}.json")
     csv_rows = parser.load_from_file(EQUITY_AWARD_DATA / f"{basename}.csv")
 
-    assert [_tax_fields(row) for row in csv_rows] == [
-        _tax_fields(row) for row in json_rows
+    assert [tax_fields(row) for row in csv_rows] == [
+        tax_fields(row) for row in json_rows
     ]
 
 
@@ -1753,7 +1736,7 @@ def test_legacy_price_csv_is_refused() -> None:
     )
 
     with pytest.raises(ParsingError, match="award-price file"):
-        _read_csv(content)
+        _parse(content)
 
 
 def test_csv_detail_row_before_any_transaction_is_rejected() -> None:
@@ -1761,7 +1744,7 @@ def test_csv_detail_row_before_any_transaction_is_rejected() -> None:
     content = _csv_text([ITS_LOT])
 
     with pytest.raises(ParsingError, match="detail row before") as exc_info:
-        _read_csv(content)
+        _parse(content)
 
     assert exc_info.value.row_index == 2
 
@@ -1771,7 +1754,7 @@ def test_csv_parent_row_holding_details_is_rejected() -> None:
     content = _csv_text([A_SALE | ITS_LOT])
 
     with pytest.raises(ParsingError, match="also holds detail") as exc_info:
-        _read_csv(content)
+        _parse(content)
 
     assert exc_info.value.row_index == 2
 
@@ -1781,7 +1764,7 @@ def test_csv_parent_row_without_an_action_is_rejected() -> None:
     content = _csv_text([{"Symbol": "GOOG", "Quantity": "1"}])
 
     with pytest.raises(ParsingError, match="Date and Action") as exc_info:
-        _read_csv(content)
+        _parse(content)
 
     assert exc_info.value.row_index == 2
 
@@ -1792,7 +1775,7 @@ def test_csv_row_of_the_wrong_width_is_rejected() -> None:
     content[2] = content[2].rsplit(",", 1)[0]
 
     with pytest.raises(ParsingError, match="columns") as exc_info:
-        _read_csv("\n".join(content) + "\n")
+        _parse("\n".join(content) + "\n")
 
     assert exc_info.value.row_index == 3
 
@@ -1806,14 +1789,14 @@ def test_csv_blank_shares_leaves_the_parent_quantity_alone() -> None:
         ]
     )
 
-    assert _read_csv(content)[0].quantity == Decimal(10)
+    assert _parse(content)[0].quantity == Decimal(10)
 
 
 def test_csv_identical_transactions_stay_distinct() -> None:
     """Two rows describing the same trade twice are two trades."""
     content = _csv_text([A_SALE, ITS_LOT, dict(A_SALE), dict(ITS_LOT)])
 
-    assert len(_read_csv(content)) == 2
+    assert len(_parse(content)) == 2
 
 
 def test_csv_malformed_detail_names_its_parent_row() -> None:
@@ -1821,7 +1804,7 @@ def test_csv_malformed_detail_names_its_parent_row() -> None:
     content = _csv_text([A_SALE, ITS_LOT | {"SalePrice": "not a price"}])
 
     with pytest.raises(ParsingError) as exc_info:
-        _read_csv(content)
+        _parse(content)
 
     assert exc_info.value.row_index == 2
     assert "awards.csv" in str(exc_info.value)
@@ -1863,10 +1846,10 @@ def test_csv_deposit_missing_its_vest_date_names_the_row() -> None:
     )
 
     with pytest.raises(ParsingError) as exc_info:
-        _read_csv(content)
+        _parse(content)
 
     assert exc_info.value.row_index == 2
-    assert "VestDate" in str(exc_info.value)
+    assert "VestDate is missing from this transaction" in str(exc_info.value)
 
 
 def test_csv_blank_lines_between_transactions_are_ignored() -> None:
@@ -1874,7 +1857,7 @@ def test_csv_blank_lines_between_transactions_are_ignored() -> None:
     content = _csv_text([A_SALE, ITS_LOT]).splitlines()
     padded = [content[0], "", content[1], "," * 22, content[2], ""]
 
-    assert len(_read_csv("\n".join(padded) + "\n")) == 1
+    assert len(_parse("\n".join(padded) + "\n")) == 1
 
 
 NVDA_LAPSE = {
@@ -1897,7 +1880,7 @@ ITS_COUNTS = {
 
 def test_csv_lapse_agreeing_with_the_split_table_is_accepted() -> None:
     """The baseline the next test mutates has to reconcile to begin with."""
-    assert _read_csv(_csv_text([NVDA_LAPSE, ITS_COUNTS])) == []
+    assert _parse(_csv_text([NVDA_LAPSE, ITS_COUNTS])) == []
 
 
 def test_csv_lapse_disagreeing_with_the_split_table_names_its_row() -> None:
@@ -1905,7 +1888,7 @@ def test_csv_lapse_disagreeing_with_the_split_table_names_its_row() -> None:
     content = _csv_text([NVDA_LAPSE | {"Quantity": "599"}, ITS_COUNTS])
 
     with pytest.raises(ParsingError, match="split table") as exc_info:
-        _read_csv(content)
+        _parse(content)
 
     assert exc_info.value.row_index == 2
 
@@ -1915,7 +1898,7 @@ def test_csv_lapse_with_an_unreadable_date_names_its_row() -> None:
     content = _csv_text([NVDA_LAPSE | {"Date": "31/31/2021"}, ITS_COUNTS])
 
     with pytest.raises(ParsingError) as exc_info:
-        _read_csv(content)
+        _parse(content)
 
     assert exc_info.value.row_index == 2
     assert "31/31/2021" in str(exc_info.value)
@@ -1933,9 +1916,9 @@ def test_csv_transactions_keep_the_row_they_were_stated_on() -> None:
 
 def test_csv_with_a_byte_order_mark_still_reads() -> None:
     """Excel writes a BOM, and it must not hide the layout."""
-    content = "﻿\n  " + _csv_text([A_SALE, ITS_LOT])
+    content = "\ufeff\n  " + _csv_text([A_SALE, ITS_LOT])
 
-    assert len(_read_csv(content)) == 1
+    assert len(_parse(content)) == 1
 
 
 def test_the_option_help_names_both_layouts() -> None:

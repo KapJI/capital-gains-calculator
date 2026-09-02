@@ -28,6 +28,7 @@ from cgt_calc.parsers.schwab_equity_award_json import (
     SchwabAwardTransaction,
     split_multiplier,
 )
+from tests.utils import tax_fields
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -571,18 +572,6 @@ def test_the_csv_export_of_this_history_reads_the_same() -> None:
 
     json_rows = parser.load_from_file(FIXTURE)
     csv_rows = parser.load_from_file(FIXTURE.with_suffix(".csv"))
-
-    def tax_fields(row: BrokerTransaction) -> tuple[object, ...]:
-        return (
-            row.date,
-            row.action,
-            row.symbol,
-            row.description,
-            row.quantity,
-            row.price,
-            row.fees,
-            row.amount,
-        )
 
     assert [tax_fields(row) for row in csv_rows] == [
         tax_fields(row) for row in json_rows

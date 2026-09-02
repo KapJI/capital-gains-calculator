@@ -575,7 +575,7 @@ def _check_lapse_units(
     for row in rows:
         if row.get(names.action) != "Lapse":
             continue
-        with _csv_row_errors(row, file_path):
+        with _csv_row_errors(row.get(CSV_ROW_INDEX), file_path):
             _check_one_lapse(row, file_path, names)
 
 
@@ -1199,7 +1199,7 @@ def _read_json_transactions(
 
 
 @contextmanager
-def _csv_row_errors(row: JsonRowType, file_path: Path) -> Iterator[None]:
+def _csv_row_errors(row_index: int | None, file_path: Path) -> Iterator[None]:
     """Point whatever a row raises at the CSV line it was stated on.
 
     A JSON export gives an error nothing better than the file to name, and is
@@ -1207,7 +1207,6 @@ def _csv_row_errors(row: JsonRowType, file_path: Path) -> Iterator[None]:
     to look at, so both a `ParsingError` raised without one and a field the CSV
     can omit entirely are answered with it.
     """
-    row_index = row.get(CSV_ROW_INDEX)
     if row_index is None:
         yield
         return
@@ -1216,7 +1215,13 @@ def _csv_row_errors(row: JsonRowType, file_path: Path) -> Iterator[None]:
     except ParsingError as err:
         err.add_row_context(row_index)
         raise
-    except (KeyError, ValueError) as err:
+    except KeyError as err:
+        raise ParsingError(
+            file_path,
+            f"{err.args[0]} is missing from this transaction",
+            row_index=row_index,
+        ) from err
+    except ValueError as err:
         raise ParsingError(file_path, str(err), row_index=row_index) from err
 
 
@@ -1228,7 +1233,7 @@ def _csv_aware_transaction(
     if row_index is None:
         return _transaction(row, file_path, names)
 
-    with _csv_row_errors({CSV_ROW_INDEX: row_index}, file_path):
+    with _csv_row_errors(row_index, file_path):
         transaction = _transaction(row, file_path, names)
     transaction.source = TransactionSource(row=row_index)
     return transaction
