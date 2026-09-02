@@ -1950,7 +1950,7 @@ def test_balance_check_accepts_same_day_funding_in_either_order(
     ]
     calculator = create_calculator(tax_year=2024)
 
-    calculator.convert_to_hmrc_transactions(rows if deposit_first else rows[::-1])
+    calculator.prepare_history(rows if deposit_first else rows[::-1])
 
 
 def test_balance_check_reports_an_overdraft_left_at_the_end_of_the_day() -> None:
@@ -1963,7 +1963,7 @@ def test_balance_check_reports_an_overdraft_left_at_the_end_of_the_day() -> None
     calculator = create_calculator(tax_year=2024)
 
     with pytest.raises(CalculationError) as excinfo:
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
 
     message = str(excinfo.value)
     assert "Reached a negative balance(-1000.000000)" in message
@@ -1982,11 +1982,11 @@ def test_balance_check_reports_an_overdraft_left_at_the_end_of_the_day() -> None
 def test_balance_check_is_not_funded_by_a_later_day_or_another_pool(
     date: datetime.date, broker: str, currency: CurrencyCode
 ) -> None:
-    """Money has to be there already, in the same broker and currency.
+    """Funding must be in the same broker and currency by the purchase date.
 
-    An earlier day's deposit funds later activity, as it always has. A
-    deposit made after the purchase does not, and neither does money at
-    another broker or in another currency.
+    A deposit dated on or before the purchase funds it, wherever it sits
+    in the export. A deposit dated after the purchase does not, and
+    neither does money at another broker or in another currency.
     """
     purchase = buy_transaction(
         datetime.date(2024, 5, 1),
@@ -2002,7 +2002,7 @@ def test_balance_check_is_not_funded_by_a_later_day_or_another_pool(
     calculator = create_calculator(tax_year=2024)
 
     with pytest.raises(CalculationError, match=r"negative balance\(-5000"):
-        calculator.convert_to_hmrc_transactions(
+        calculator.prepare_history(
             sorted([deposit, purchase], key=lambda row: row.date)
         )
 
@@ -2021,7 +2021,7 @@ def test_balance_check_is_not_silenced_by_a_trailing_eri_row() -> None:
     calculator = create_calculator(tax_year=2024)
 
     with pytest.raises(CalculationError, match=r"negative balance\(-1"):
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
 
 
 def test_custom_period_narrows_reporting_window() -> None:

@@ -1152,9 +1152,11 @@ class TransactionIngester:
 
         transactions = self._resolve_gifts(transactions)
         # The cash balance is judged once a day is complete rather than after
-        # every row. Within one day the row order is not a record of what
-        # happened first, so a purchase read before the same-day deposit that
-        # funds it is not an overdraft. Cash is still posted after every row;
+        # every row. Within one day the row order is not consistently reliable
+        # for sequencing cash: a RAW file records it deliberately, a broker
+        # export often does not, and several write the newest row first. So a
+        # purchase read before the same-day deposit that funds it is not
+        # evidence of an overdraft. Cash is still posted after every row;
         # each pool keeps the index of its own last row of the day, a later
         # row simply overwriting the earlier one. Excess reported income never
         # reaches the check, so an ERI row landing last would silence the
