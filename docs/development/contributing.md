@@ -43,13 +43,15 @@ The calculation has two passes:
 - `cgt_calc/ingestion.py` validates transactions and runs the first pass. It records dividends and
     interest for `income.py` to process, and delegates share-reorganisation planning to
     `stock_split_planning.py`.
-- `cgt_calc/calculator_state.py` holds the mutable working state shared by both passes.
+- `cgt_calc/calculator_state.py` holds `PreparedHistory`, which the first pass fills and the second
+    pass only reads, and `RunState`, which the second pass builds and which is reset at the start of
+    every calculation.
 - `cgt_calc/matching.py` runs the second pass, applying the same-day, bed-and-breakfast and Section
     104 matching rules.
 - `cgt_calc/model.py` defines shared values and the report model. `render_text.py` and
     `render_latex.py` format that report without calculating it.
-- `cgt_calc/main.py` connects the stages behind `CapitalGainsCalculator`. `cgt_calc/cli.py` handles
-    command-line input and output.
+- `cgt_calc/main.py` connects the stages behind `CapitalGainsCalculator`, whose `calculate()` runs
+    the two passes in order. `cgt_calc/cli.py` handles command-line input and output.
 
 Put a change in the module that owns its behaviour. Extract a new module only when one complete
 concern can move behind explicit inputs; do not split a file only to reduce its line count.

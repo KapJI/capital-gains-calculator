@@ -78,7 +78,7 @@ def _reported(
         autoconvert_currency=autoconvert_currency,
         gbp_prices=gbp_prices,
     )
-    calculator.convert_to_hmrc_transactions(transactions)
+    calculator.prepare_history(transactions)
     calculator.process_dividends()
     rows = []
     for entries in calculator.calculation_log_yields.values():
@@ -110,7 +110,7 @@ def _unattributed_warnings(
     caplog.clear()
     calculator = _calculator(transactions, tax_year)
     with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
         calculator.process_dividends()
     return [
         record.message
@@ -128,7 +128,7 @@ def _summary_dividend_lines(
     # Discard whatever an earlier run in the same test printed.
     capsys.readouterr()
     calculator = _calculator(transactions, tax_year)
-    calculator.convert_to_hmrc_transactions(transactions)
+    calculator.prepare_history(transactions)
     lines = capsys.readouterr().out.splitlines()
     header = next((i for i, line in enumerate(lines) if "Dividends" in line), None)
     if header is None:
@@ -281,7 +281,7 @@ def test_tax_in_another_currency_than_its_dividend_is_refused(
         interest_fund_tickers=tickers,
         balance_check=False,
     )
-    calculator.convert_to_hmrc_transactions(transactions)
+    calculator.prepare_history(transactions)
 
     with pytest.raises(CalculationError, match="currencies do not match"):
         calculator.process_dividends()

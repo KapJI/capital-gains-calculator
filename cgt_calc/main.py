@@ -158,30 +158,30 @@ class CapitalGainsCalculator:
         """Check if symbol is exempt from Capital Gains Tax."""
         return symbol.upper() in self.cgt_exempt_tickers
 
-    def convert_to_hmrc_transactions(
+    def prepare_history(
         self,
         transactions: list[BrokerTransaction],
     ) -> None:
-        """Convert broker transactions to HMRC transactions.
+        """Run the first pass over the broker transactions.
 
         Runs once per calculator, whether or not it succeeds: a second run
         would accumulate into the history the first one recorded.
         """
         if self.run.ingestion_started:
             raise RuntimeError(
-                "convert_to_hmrc_transactions() runs once per calculator; build "
+                "prepare_history() runs once per calculator; build "
                 "a new one to ingest again"
             )
         self.run.ingestion_started = True
-        self.ingester.convert_to_hmrc_transactions(transactions)
+        self.ingester.prepare_history(transactions)
         self.run.ingested = True
 
     def calculate(
         self,
         transactions: list[BrokerTransaction],
     ) -> CapitalGainsReport:
-        """Convert broker transactions and calculate the capital gain."""
-        self.convert_to_hmrc_transactions(transactions)
+        """Run both passes and return the report."""
+        self.prepare_history(transactions)
         return self.calculate_capital_gain()
 
     def first_pass_report(self, totals: FirstPassTotals) -> None:
@@ -217,7 +217,7 @@ class CapitalGainsCalculator:
         """
         if not self.run.ingested:
             raise RuntimeError(
-                "convert_to_hmrc_transactions() must complete before "
+                "prepare_history() must complete before "
                 "calculate_capital_gain(); use calculate() to run both in order"
             )
         # The walk and the income processing accumulate into run state, so a

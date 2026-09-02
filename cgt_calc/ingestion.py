@@ -1132,11 +1132,11 @@ class TransactionIngester:
             year_totals[transaction.broker, transaction.currency] += amount
         return amount
 
-    def convert_to_hmrc_transactions(
+    def prepare_history(
         self,
         transactions: list[BrokerTransaction],
     ) -> None:
-        """Convert broker transactions to HMRC transactions."""
+        """Run the first pass over the broker transactions."""
         # We keep a balance per broker,currency pair
         balance: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(
             lambda: Decimal(0)

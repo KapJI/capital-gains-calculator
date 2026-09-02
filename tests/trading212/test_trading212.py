@@ -1544,7 +1544,7 @@ def test_the_legacy_single_row_stock_split_still_reaches_the_calculator(
     assert split.quantity == Decimal(10)
 
     calculator = create_calculator(tax_year=2025, balance_check=False)
-    calculator.convert_to_hmrc_transactions([buy, split])
+    calculator.prepare_history([buy, split])
     # A reorganisation, so the pool doubles in units and keeps its cost.
     assert calculator.portfolio["FOO"].quantity == Decimal(20)
     assert calculator.portfolio["FOO"].amount == Decimal(100)

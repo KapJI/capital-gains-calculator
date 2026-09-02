@@ -1253,7 +1253,7 @@ def test_reorganisations_hours_apart_are_separate_events(tmp_path: Path) -> None
     ]
     calculator = create_calculator(tax_year=2025, balance_check=False)
     with pytest.raises(CalculationError) as error:
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
     message = str(error.value)
     assert "different or unknown times" in message
     assert "Add a single RAW STOCK_SPLIT row" not in message

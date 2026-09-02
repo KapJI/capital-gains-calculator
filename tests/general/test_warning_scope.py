@@ -79,7 +79,7 @@ def test_treaty_mismatch_warning_scoped_to_tax_year(
     calculator = _calculator(transactions)
 
     with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
         calculator.calculate_capital_gain()
 
     warnings = [
@@ -102,7 +102,7 @@ def test_bed_and_breakfast_in_tax_year_is_logged_at_info(
     calculator = _calculator(transactions)
 
     with caplog.at_level(logging.INFO, logger="cgt_calc.matching"):
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
         calculator.calculate_capital_gain()
 
     bed_and_breakfast = [
@@ -127,7 +127,7 @@ def test_bed_and_breakfast_outside_tax_year_is_logged_at_debug(
     calculator = _calculator(transactions)
 
     with caplog.at_level(logging.DEBUG, logger="cgt_calc.matching"):
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
         calculator.calculate_capital_gain()
 
     bed_and_breakfast = [
