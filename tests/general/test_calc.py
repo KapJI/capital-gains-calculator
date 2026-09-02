@@ -90,7 +90,7 @@ def get_report(
                 index=index,
                 rows_in_time_order=True,
             )
-    calculator.convert_to_hmrc_transactions(broker_transactions)
+    calculator.prepare_history(broker_transactions)
     prepared = copy.deepcopy(calculator.state.history)
     report = calculator.calculate_capital_gain()
     assert calculator.state.history == prepared, (
@@ -287,7 +287,7 @@ def test_eri_duplicate_report_within_tolerance_is_skipped(
         ),
     ]
 
-    calculator.convert_to_hmrc_transactions(transactions)
+    calculator.prepare_history(transactions)
 
     assert "Skipping duplicated ERI transaction" in caplog.text
     assert calculator.eris[date]["VWRL"].price == Decimal("1.00000")
@@ -326,7 +326,7 @@ def test_eri_conflicting_report_raises_invalid_transaction_error() -> None:
     ]
 
     with pytest.raises(InvalidTransactionError, match="conflicting ERI report"):
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
 
 
 @pytest.mark.parametrize(
@@ -359,9 +359,9 @@ def test_eri_missing_required_data_has_a_transaction_error(
     )
 
     with pytest.raises(error):
-        create_calculator(
-            tax_year=2024, balance_check=False
-        ).convert_to_hmrc_transactions([transaction])
+        create_calculator(tax_year=2024, balance_check=False).prepare_history(
+            [transaction]
+        )
 
 
 def test_dividend_and_tax_currency_mismatch_has_a_calculation_error() -> None:
@@ -386,7 +386,7 @@ def test_dividend_and_tax_currency_mismatch_has_a_calculation_error() -> None:
         ]
     ]
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    calculator.convert_to_hmrc_transactions(transactions)
+    calculator.prepare_history(transactions)
 
     with pytest.raises(CalculationError, match="currencies do not match"):
         calculator.calculate_capital_gain()
@@ -419,9 +419,7 @@ def test_invalid_management_fee_has_a_transaction_error(
     )
 
     with pytest.raises(InvalidTransactionError, match=error_match):
-        create_calculator(
-            tax_year=2024, balance_check=False
-        ).convert_to_hmrc_transactions([fee])
+        create_calculator(tax_year=2024, balance_check=False).prepare_history([fee])
 
 
 def test_zero_management_fee_is_accepted() -> None:
@@ -439,9 +437,7 @@ def test_zero_management_fee_is_accepted() -> None:
         broker="Test",
     )
 
-    create_calculator(tax_year=2024, balance_check=False).convert_to_hmrc_transactions(
-        [fee]
-    )
+    create_calculator(tax_year=2024, balance_check=False).prepare_history([fee])
 
 
 @pytest.mark.parametrize(
@@ -1051,7 +1047,7 @@ def test_transaction_ticker_cannot_reassign_a_reference_owned_isin() -> None:
     ]
 
     with pytest.raises(InvalidTransactionError, match="already used for"):
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
 
 
 def test_rename_transfers_pool_to_new_ticker() -> None:
@@ -1099,9 +1095,9 @@ def test_rename_without_old_symbol_has_a_transaction_error(description: str) -> 
     transaction.description = description
 
     with pytest.raises(InvalidTransactionError, match="old symbol"):
-        create_calculator(
-            tax_year=2024, balance_check=False
-        ).convert_to_hmrc_transactions([transaction])
+        create_calculator(tax_year=2024, balance_check=False).prepare_history(
+            [transaction]
+        )
 
 
 def test_section_104_disposal_uses_renamed_pool_cost() -> None:
@@ -1434,7 +1430,7 @@ def test_negative_balance_error_trims_long_history() -> None:
     calculator = create_calculator(tax_year=2024)
 
     with pytest.raises(CalculationError) as excinfo:
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
 
     message = str(excinfo.value)
     assert "... 5 earlier transaction(s) omitted ..." in message
@@ -1448,7 +1444,7 @@ def test_negative_balance_error_shows_short_history_in_full() -> None:
     calculator = create_calculator(tax_year=2024)
 
     with pytest.raises(CalculationError) as excinfo:
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
 
     message = str(excinfo.value)
     assert "Reached a negative balance(-1.000000)" in message
@@ -1482,7 +1478,7 @@ def test_negative_balance_error_shows_only_relevant_transactions() -> None:
     calculator = create_calculator(tax_year=2024)
 
     with pytest.raises(CalculationError) as excinfo:
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
 
     message = str(excinfo.value)
     assert message.count("Balance after transaction=") == 3
@@ -1615,7 +1611,7 @@ def test_foreign_fees_folded_into_gbp_transaction() -> None:
         foreign_fees={CurrencyCode("USD"): Decimal("1.25")},
     )
 
-    calculator.convert_to_hmrc_transactions([buy])
+    calculator.prepare_history([buy])
 
     assert buy.foreign_fees == {}
     assert buy.fees == Decimal(1)
@@ -1652,7 +1648,7 @@ def test_foreign_fees_folded_into_non_gbp_transaction() -> None:
         foreign_fees={CurrencyCode("GBP"): Decimal(1)},
     )
 
-    calculator.convert_to_hmrc_transactions([buy])
+    calculator.prepare_history([buy])
 
     assert buy.foreign_fees == {}
     assert buy.fees == Decimal("1.25")
@@ -1710,7 +1706,7 @@ def test_multiple_foreign_fee_currencies_on_sell() -> None:
         },
     )
 
-    calculator.convert_to_hmrc_transactions([buy, sell])
+    calculator.prepare_history([buy, sell])
 
     assert sell.foreign_fees == {}
     assert sell.fees == Decimal("0.70")
@@ -1743,7 +1739,7 @@ def report_values(obj: object) -> object:
 def test_calculate_capital_gain_is_repeatable() -> None:
     """A second run rebuilds the same report from the same prepared history."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    calculator.convert_to_hmrc_transactions(
+    calculator.prepare_history(
         [
             transaction(
                 datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 10, 10, 0, -100, GBP
@@ -1787,7 +1783,7 @@ def test_calculate_capital_gain_is_repeatable() -> None:
     assert calculator.state.history == prepared
 
 
-def test_convert_to_hmrc_transactions_runs_once() -> None:
+def test_prepare_history_runs_once() -> None:
     """A second ingestion would accumulate into the history already recorded."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
@@ -1795,10 +1791,10 @@ def test_convert_to_hmrc_transactions_runs_once() -> None:
             datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 1, 10, 0, -10, GBP
         )
     ]
-    calculator.convert_to_hmrc_transactions(transactions)
+    calculator.prepare_history(transactions)
 
     with pytest.raises(RuntimeError, match="runs once per calculator"):
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
 
 
 def test_calculate_capital_gain_requires_ingestion() -> None:
@@ -1818,10 +1814,10 @@ def test_failed_ingestion_can_be_neither_retried_nor_calculated() -> None:
     ]
 
     with pytest.raises(AmountMissingError):
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
 
     with pytest.raises(RuntimeError, match="runs once per calculator"):
-        calculator.convert_to_hmrc_transactions(transactions)
+        calculator.prepare_history(transactions)
 
     with pytest.raises(RuntimeError, match="must complete before"):
         calculator.calculate_capital_gain()
@@ -1839,7 +1835,7 @@ def test_calculate_matches_the_two_step_sequence() -> None:
 
     combined = create_calculator(tax_year=2024, balance_check=False)
     two_step = create_calculator(tax_year=2024, balance_check=False)
-    two_step.convert_to_hmrc_transactions(transactions())
+    two_step.prepare_history(transactions())
 
     assert str(combined.calculate(transactions())) == str(
         two_step.calculate_capital_gain()

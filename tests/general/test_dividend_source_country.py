@@ -70,7 +70,7 @@ def _treaty_country(transactions: list[BrokerTransaction]) -> str | None:
         interest_fund_tickers=[],
         balance_check=False,
     )
-    calculator.convert_to_hmrc_transactions(transactions)
+    calculator.prepare_history(transactions)
     report = calculator.calculate_capital_gain()
 
     entries = [

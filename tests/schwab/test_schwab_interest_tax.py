@@ -38,7 +38,7 @@ def test_schwab_interest_tax_without_symbol_is_account_level() -> None:
         interest_fund_tickers=[],
         balance_check=False,
     )
-    calculator.convert_to_hmrc_transactions(list(transactions))
+    calculator.prepare_history(list(transactions))
     report = calculator.calculate_capital_gain()
 
     assert report.total_foreign_interest == Decimal("2.94")

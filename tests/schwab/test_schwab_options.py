@@ -64,7 +64,7 @@ def _report(rows: list[str], *, balance_check: bool = False) -> CapitalGainsRepo
         interest_fund_tickers=[],
         balance_check=balance_check,
     )
-    calculator.convert_to_hmrc_transactions(transactions)
+    calculator.prepare_history(transactions)
     return calculator.calculate_capital_gain()
 
 
@@ -165,7 +165,7 @@ def test_closing_cost_uses_the_close_date_exchange_rate() -> None:
         balance_check=False,
     )
 
-    calculator.convert_to_hmrc_transactions(transactions)
+    calculator.prepare_history(transactions)
     report = calculator.calculate_capital_gain()
 
     assert report.disposal_proceeds == Decimal("15.00")
