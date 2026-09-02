@@ -1854,6 +1854,25 @@ def test_run_with_example_files(request: pytest.FixtureRequest) -> None:
         f"{cmd_str} > {expected_file}"
     )
 
+    # The LaTeX source is pinned too. pdflatex leaves no source behind, so
+    # the one CI job that runs it compiles the PDF instead of checking this.
+    if "--no-pdflatex" in cmd:
+        output = Path(report_path(request))
+        tex_path = output.parent / f"{output.stem}.tex"
+        expected_tex_file = (
+            Path("tests")
+            / "general"
+            / "data"
+            / "test_run_with_example_files_report.tex"
+        )
+        assert tex_path.read_text(encoding="utf-8") == expected_tex_file.read_text(
+            encoding="utf-8"
+        ), (
+            "Run with example files generated an unexpected LaTeX report, "
+            "if the change is intended update the golden with:\n"
+            f"{cmd_str} && cp {tex_path} {expected_tex_file}"
+        )
+
 
 def test_main_returns_failure_on_unexpected_error(
     monkeypatch: pytest.MonkeyPatch,
