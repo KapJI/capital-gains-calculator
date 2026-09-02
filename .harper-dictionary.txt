@@ -105,6 +105,7 @@ IBKR
 IBKR's
 idx
 ingester
+intraday
 InvalidOperation
 InvalidTransactionError
 Invesco

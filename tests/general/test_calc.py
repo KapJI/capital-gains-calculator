@@ -47,6 +47,7 @@ from .calc_test_data import (
     GBP,
     buy_transaction,
     calc_basic_data,
+    eri_transaction,
     sell_transaction,
     split_transaction,
     transaction,
@@ -1935,6 +1936,92 @@ def test_negative_balance_error_shows_only_relevant_transactions() -> None:
     assert message.count("Balance after transaction=") == 3
     assert "currency='EUR'" not in message
     assert "Split of FOO" not in message
+
+
+@pytest.mark.parametrize("deposit_first", [True, False])
+def test_balance_check_accepts_same_day_funding_in_either_order(
+    deposit_first: bool,
+) -> None:
+    """A purchase funded on the day it is made passes whichever row is first."""
+    day = datetime.date(2024, 5, 1)
+    rows = [
+        transfer_transaction(day, 5000.0),
+        buy_transaction(day, "FOO", quantity=100, price=50.0, fees=0.0, amount=-5000.0),
+    ]
+    calculator = create_calculator(tax_year=2024)
+
+    calculator.prepare_history(rows if deposit_first else rows[::-1])
+
+
+def test_balance_check_reports_an_overdraft_left_at_the_end_of_the_day() -> None:
+    """A day that ends short is still reported, and the message names the day."""
+    day = datetime.date(2024, 5, 1)
+    transactions = [
+        transfer_transaction(day, 4000.0),
+        buy_transaction(day, "FOO", quantity=100, price=50.0, fees=0.0, amount=-5000.0),
+    ]
+    calculator = create_calculator(tax_year=2024)
+
+    with pytest.raises(CalculationError) as excinfo:
+        calculator.prepare_history(transactions)
+
+    message = str(excinfo.value)
+    assert "Reached a negative balance(-1000.000000)" in message
+    assert "at the end of 2024-05-01 after processing" in message
+
+
+@pytest.mark.parametrize(
+    ("date", "broker", "currency"),
+    [
+        (datetime.date(2024, 5, 2), "Testing", CurrencyCode("USD")),
+        (datetime.date(2024, 5, 1), "Another broker", CurrencyCode("USD")),
+        (datetime.date(2024, 5, 1), "Testing", CurrencyCode("EUR")),
+    ],
+    ids=["later date", "other broker", "other currency"],
+)
+def test_balance_check_is_not_funded_by_a_later_day_or_another_pool(
+    date: datetime.date, broker: str, currency: CurrencyCode
+) -> None:
+    """Funding must be in the same broker and currency by the purchase date.
+
+    A deposit dated on or before the purchase funds it, wherever it sits
+    in the export. A deposit dated after the purchase does not, and
+    neither does money at another broker or in another currency.
+    """
+    purchase = buy_transaction(
+        datetime.date(2024, 5, 1),
+        "FOO",
+        quantity=100,
+        price=50.0,
+        fees=0.0,
+        amount=-5000.0,
+    )
+    deposit = transaction(
+        date, ActionType.TRANSFER, amount=5000.0, currency=currency, broker=broker
+    )
+    calculator = create_calculator(tax_year=2024)
+
+    with pytest.raises(CalculationError, match=r"negative balance\(-5000"):
+        calculator.prepare_history(
+            sorted([deposit, purchase], key=lambda row: row.date)
+        )
+
+
+def test_balance_check_is_not_silenced_by_a_trailing_eri_row() -> None:
+    """Excess reported income skips the check, so it cannot stand in for day close."""
+    day = datetime.date(2024, 5, 1)
+    isin = Isin("USFOO0000006")
+    transactions = [
+        transfer_transaction(day, 100.0),
+        buy_transaction(
+            day, "FOO", quantity=1, price=101.0, fees=0.0, amount=-101.0, isin=isin
+        ),
+        eri_transaction(day, isin, 2.1),
+    ]
+    calculator = create_calculator(tax_year=2024)
+
+    with pytest.raises(CalculationError, match=r"negative balance\(-1"):
+        calculator.prepare_history(transactions)
 
 
 def test_custom_period_narrows_reporting_window() -> None:

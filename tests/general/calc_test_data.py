@@ -157,6 +157,7 @@ def transaction(
     amount: float | None = None,
     currency: CurrencyCode = USD,
     isin: Isin | None = None,
+    broker: str = "Testing",
 ) -> BrokerTransaction:
     """Create transaction."""
     return BrokerTransaction(
@@ -169,7 +170,7 @@ def transaction(
         fees=round_decimal(Decimal(fees), 6),
         amount=round_decimal(Decimal(amount), 6) if amount else None,
         currency=currency,
-        broker="Testing",
+        broker=broker,
         isin=isin,
     )
 
