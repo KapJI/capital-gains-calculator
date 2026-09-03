@@ -64,6 +64,30 @@ def test_eof_during_prompt_raises_clear_error(
         handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
 
 
+def test_interactive_prompt_uses_clear_spin_off_wording(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The prompt identifies the new and original tickers in clear English."""
+    prompts: list[str] = []
+
+    def enter_source(prompt: str) -> str:
+        prompts.append(prompt)
+        return "OLD"
+
+    handler = SpinOffHandler(tmp_path / "spin_offs.csv")
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", enter_source)
+
+    handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {"OLD": Position()})
+
+    assert prompts == [
+        (
+            "For a spin-off, please enter the original ticker from which the new stock "
+            "(symbol: NEW) was spun off on 2021-05-10: "
+        )
+    ]
+
+
 def test_recording_spin_off_creates_missing_parent_directories(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

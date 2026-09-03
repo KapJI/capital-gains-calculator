@@ -72,8 +72,8 @@ class SpinOffHandler:
             # provide any info on SpinOffs
             try:
                 ticker = input(
-                    "For a spin off, please enter the original ticker from which the "
-                    f"new stock (symbol: {symbol}) was spinned off on {date}: "
+                    "For a spin-off, please enter the original ticker from which the "
+                    f"new stock (symbol: {symbol}) was spun off on {date}: "
                 )
             except EOFError as err:
                 raise InteractiveInputRequiredError(
