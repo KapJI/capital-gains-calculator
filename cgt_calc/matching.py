@@ -1872,9 +1872,13 @@ class Matcher:
                             calculated_proceeds += entry.amount + entry.fees
                             calculated_gain += entry.gain
                         assert transaction_quantity == calculated_quantity
-                        assert round_decimal(
-                            transaction_disposal_proceeds, 10
-                        ) == round_decimal(calculated_proceeds, 10), (
+                        # The difference is what must be inside the tolerance:
+                        # rounded separately, figures that agree to ten places
+                        # can land either side of a step.
+                        proceeds_difference = (
+                            transaction_disposal_proceeds - calculated_proceeds
+                        )
+                        assert round_decimal(proceeds_difference, 10) == 0, (
                             f"{transaction_disposal_proceeds} != {calculated_proceeds}"
                         )
                         assert transaction_capital_gain == round_decimal(

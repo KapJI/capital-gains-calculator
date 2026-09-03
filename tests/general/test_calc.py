@@ -853,6 +853,50 @@ def test_same_day_rule_all_shares_disposed_no_rounding_error() -> None:
     )
 
 
+def test_disposal_proceeds_reconcile_across_a_rounding_step() -> None:
+    """Proceeds that agree to ten places reconcile across a rounding step.
+
+    The walk rebuilds the proceeds through a unit price, so its figure can sit
+    a few ULPs from the recorded one and round the other way.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    quantity = Decimal("0.6245225058")
+    # Built by hand: the transaction helper rounds to six places, and it is the
+    # eleventh that puts the recorded and the rebuilt proceeds either side of a step.
+    transactions = [
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 1),
+            action=ActionType.BUY,
+            symbol="FOO",
+            description="buy FOO",
+            quantity=quantity,
+            price=Decimal(10),
+            fees=Decimal(0),
+            amount=Decimal("-6.245225058"),
+            currency=CurrencyCode("GBP"),
+            broker="Test",
+        ),
+        BrokerTransaction(
+            date=datetime.date(2024, 5, 2),
+            action=ActionType.SELL,
+            symbol="FOO",
+            description="sell FOO",
+            quantity=quantity,
+            price=Decimal("15.06699561"),
+            fees=Decimal(0),
+            amount=Decimal("9.40968379635"),
+            currency=CurrencyCode("GBP"),
+            broker="Test",
+        ),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.disposal_count == 1
+    assert report.disposal_proceeds == Decimal("9.41")
+    assert report.total_gain() == Decimal("3.16")
+
+
 def _rename_transaction(date: datetime.date, old: str, new: str) -> BrokerTransaction:
     """Build a RENAME BrokerTransaction that moves the pool from old to new."""
     return BrokerTransaction(
