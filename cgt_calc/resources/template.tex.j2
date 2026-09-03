@@ -58,7 +58,7 @@ Capital loss to date is £\VAR{ event.loss_to_date|money }
 \BLOCK{ elif event.kind == "spin_off" }
     \BLOCK{ if event.quantity > 0 }
 \subsubsection*{
-    Spin-off adjustment \VAR{ event.number }: \VAR{ event.spin_off_source } cost adjusted because of \VAR{ event.spin_off_dest } shares spinned off
+    Spin-off adjustment \VAR{ event.number }: \VAR{ event.spin_off_source } cost adjusted because of \VAR{ event.spin_off_dest } shares spun off
 }
     \BLOCK{ endif }
 \BLOCK{ elif event.kind == "eri" }
@@ -181,14 +181,14 @@ Loss is £\VAR{ (-event.gain)|money }; the gain or loss is disregarded (exempt a
     (£\VAR{ line.pool_per_unit|money }/unit)%
             \BLOCK{ if event.is_acquisition and line.spin_off_source }
 
-    Cost basis calculated based on cost of \VAR{ line.spin_off_source } share pool from which \VAR{ event.symbol } shares were spinned off%
+    Cost basis calculated based on cost of \VAR{ line.spin_off_source } share pool from which \VAR{ event.symbol } shares were spun off%
             \BLOCK{ endif }
             \BLOCK{ if event.is_acquisition }
                 \BLOCK{ for eri in line.eris }
 
     Cost basis increased by £\VAR{ eri.cost|money }
     (£\VAR{ eri.unit_price|money }/unit)%
-    , due to exccess reported income on \mbox{\VAR{ eri.date.strftime("%d %b %Y") }}%
+    , due to excess reported income on \mbox{\VAR{ eri.date.strftime("%d %b %Y") }}%
                 \BLOCK{ endfor }
             \BLOCK{ endif }
         \BLOCK{ endif }.
