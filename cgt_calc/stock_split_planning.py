@@ -392,8 +392,8 @@ def _plan_stock_split(
             f"of {strip_zeros(holding_at_event)}."
         )
 
-    post_split_delta = _signed_quantity(after_rows)
-    normalised_day_delta = post_split_delta + _signed_quantity(before_rows)
+    post_split_delta = signed_quantity(after_rows)
+    normalised_day_delta = post_split_delta + signed_quantity(before_rows)
     if mode is SplitMode.BROKER_EXACT:
         expected_day_close = event.after_quantity + post_split_delta
         reconciliation_delta = expected_day_close - (
@@ -445,7 +445,7 @@ def _plan_stock_split(
     # Decreases draw on this rather than on the running count.
     state.history.split_day_capacity[symbol, date_index] = (
         scaled_day_open_quantity
-        + _signed_quantity(
+        + signed_quantity(
             [
                 other
                 for other in (*before_rows, *after_rows)
@@ -456,7 +456,7 @@ def _plan_stock_split(
     )
 
 
-def _signed_quantity(transactions: list[BrokerTransaction]) -> Decimal:
+def signed_quantity(transactions: list[BrokerTransaction]) -> Decimal:
     """Net units these rows add to a holding, in their pooled counts."""
     total = Decimal(0)
     for transaction in transactions:

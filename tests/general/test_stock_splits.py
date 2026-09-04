@@ -2033,10 +2033,12 @@ def test_a_holding_renamed_along_into_the_reorganised_one_is_refused() -> None:
 
     Nothing renames straight into the reorganised name, so looking only at the
     renames it is named in finds an empty holding and lets the day through.
-    The three units come along the chain and are never restated.
+    The three units come along the chain and are never restated. The chain is
+    what the day is refused for: it is read for sense as the day opens,
+    before the reorganisation is planned at all.
     """
     with pytest.raises(
-        CalculationError, match="pool it with OLD, which holds shares of its own"
+        CalculationError, match="is renamed to MID, and MID is renamed to NEW"
     ):
         run(
             [
@@ -2379,3 +2381,29 @@ def test_a_reorganisation_is_not_a_disposal_row_of_its_own(
     assert calculator.portfolio["NEW"] == Position(
         Decimal(closing[0]), Decimal(closing[1])
     )
+
+
+def test_a_reorganised_holding_s_rename_day_is_still_read_row_by_row() -> None:
+    """Scaling a pool and renaming it do not commute, so the day keeps its order.
+
+    An ordinary rename day is read as one holding: what its names hold
+    together is what its sales may take, and what the day leaves under a name
+    it retires is gathered into the closing one as it closes. A day that also
+    restates the pool is left out of that, because where the restatement falls
+    among the day's rows is what decides the units it acts on.
+
+    So a purchase written under the old name after the rename row stays there,
+    as it does on `origin/main`, and the following month's sale of the whole
+    holding under the new name finds only the twenty units the rename carried
+    across.
+    """
+    with pytest.raises(InvalidTransactionError, match=r"available balance\(20\.0*\)"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+                legacy_split(EVENT_DAY, "OLD", "10"),
+                rename(EVENT_DAY, "OLD", "NEW"),
+                trade(EVENT_DAY, ActionType.BUY, "OLD", "5", "10"),
+                trade(LATER_DAY, ActionType.SELL, "NEW", "25", "10"),
+            ]
+        )

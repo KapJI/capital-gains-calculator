@@ -710,11 +710,15 @@ def _rename(old: str, new: str) -> BrokerTransaction:
     )
 
 
-def test_a_source_renamed_twice_on_the_day_is_still_apportioned() -> None:
-    """OLD to MID to NEW in one morning: the pool is two renames back.
+@pytest.mark.parametrize("backwards", [False, True], ids=["in order", "backwards"])
+def test_a_source_renamed_twice_on_the_day_is_refused(*, backwards: bool) -> None:
+    """OLD to MID to NEW in one morning, with no saying where it lands.
 
-    Following only one rename found MID's pool, which is empty, and BAR got
-    a cost of nothing.
+    The renames are applied in the order the input lists them, so listed this
+    way round the shares reach NEW and the spin-off apportions from them,
+    while listed the other way they stop at MID and NEW has nothing to spin
+    anything off. A date carries no order to choose by, so the day is refused
+    as it opens rather than answered from the order the file happens to have.
     """
     converter = CurrencyConverter(None, {})
     handler = SpinOffHandler()
@@ -733,20 +737,22 @@ def test_a_source_renamed_twice_on_the_day_is_still_apportioned() -> None:
         interest_fund_tickers=[],
         balance_check=False,
     )
-    get_report(
-        calculator,
-        [
-            transaction(BUY_DAY, ActionType.BUY, "OLD", 10, 10, 0, -100, GBP),
-            _rename("OLD", "MID"),
-            _rename("MID", "NEW"),
-            transaction(
-                SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
-            ),
-        ],
-    )
+    renames = [_rename("OLD", "MID"), _rename("MID", "NEW")]
 
-    assert calculator.portfolio["NEW"].amount == Decimal(90)
-    assert calculator.portfolio["BAR"].amount == Decimal(10)
+    with pytest.raises(
+        CalculationError,
+        match="is renamed to MID, and MID is renamed to NEW, the same day",
+    ):
+        get_report(
+            calculator,
+            [
+                transaction(BUY_DAY, ActionType.BUY, "OLD", 10, 10, 0, -100, GBP),
+                *(reversed(renames) if backwards else renames),
+                transaction(
+                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
+                ),
+            ],
+        )
 
 
 @pytest.mark.parametrize(
@@ -755,7 +761,11 @@ def test_a_source_renamed_twice_on_the_day_is_still_apportioned() -> None:
         pytest.param(
             [("A", "NEW"), ("B", "NEW")], "separate holdings", id="two-into-one"
         ),
-        pytest.param([("NEW", "B"), ("B", "NEW")], "round in a circle", id="circle"),
+        pytest.param(
+            [("NEW", "B"), ("B", "NEW")],
+            "is renamed to NEW, and NEW is renamed to B",
+            id="circle",
+        ),
     ],
 )
 def test_a_rename_graph_with_no_single_pool_is_refused(

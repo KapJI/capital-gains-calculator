@@ -23,6 +23,7 @@ if TYPE_CHECKING:
         OptionDisposalData,
         SpinOff,
     )
+    from .rename_planning import RenameComponent
     from .stock_splits import SplitTransformation
 
 
@@ -31,9 +32,10 @@ class PreparedHistory:
     """What the first pass records for the second pass to replay.
 
     Everything here is written while transactions are being read, and read
-    again while they are matched. The three scratch fields
-    (split_day_capacity, holding_sources, gift_prices) are the first pass's
-    own working notes: nothing in the second pass looks at them.
+    again while they are matched. The four scratch fields
+    (split_day_capacity, holding_sources, gift_prices, rename_components) are
+    the first pass's own working notes: nothing in the second pass looks at
+    them.
     """
 
     acquisition_list: HmrcTransactionLog = field(default_factory=dict)
@@ -77,6 +79,14 @@ class PreparedHistory:
     # Stores old->new mapping when a symbol changes its name.
     rename_list: dict[datetime.date, dict[str, str]] = field(
         default_factory=lambda: defaultdict(dict)
+    )
+    # What a day's renames say is one holding, by date and by each of the
+    # names that holding is spelled under. Only the days and holdings this
+    # pass reads that way: a name a split restates or a spin-off apportions
+    # from is absent, and keeps the pool the RENAME row's own position
+    # leaves it under.
+    rename_components: dict[datetime.date, dict[str, RenameComponent]] = field(
+        default_factory=dict
     )
 
     dividend_list: ForeignAmountLog = field(
