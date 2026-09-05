@@ -6,18 +6,22 @@ import argparse
 import datetime
 
 import shtab
+import tabulate
 
 from .args_validators import (
+    BROKER_TRANSACTION_COLUMNS,
     STDIN_PATH,
     DeprecatedAction,
     VersionAction,
     date_type,
     existing_file_or_stdin_type,
     existing_file_type,
+    maxcolwidths_type,
     optional_cache_file_type,
     output_path_type,
     set_completer,
     ticker_list_type,
+    transaction_columns_type,
     year_type,
 )
 from .const import (
@@ -210,6 +214,63 @@ Environment variables:
         "--no-pdflatex",
         action="store_true",
         help="save LaTeX source instead of generating a PDF",
+    )
+    output_group.add_argument(
+        "--dump-transactions",
+        nargs="?",
+        const="simple",
+        default=None,
+        type=str.lower,
+        choices=[*tabulate.tabulate_formats, "csv"],
+        help=(
+            "dump parsed transactions. Optionally specify a tabulate format or csv (default: %(const)s)"
+        ),
+    )
+    set_completer(
+        output_group.add_argument(
+            "--dump-transactions-output",
+            "--dump-output",
+            dest="dump_transactions_file",
+            metavar="PATH",
+            default=None,
+            help=(
+                "path to save dumped transactions, or '-' for stdout "
+                "(default: parsed_transaction.{ext})"
+            ),
+        ),
+        shtab.FILE,
+    )
+    output_group.add_argument(
+        "--dump-transactions-columns",
+        "--dump-columns",
+        dest="dump_transactions_columns",
+        metavar="COLUMNS",
+        type=transaction_columns_type,
+        default=None,
+        help=(
+            "comma-separated list of columns to include in the dump "
+            f"(valid columns: {', '.join(BROKER_TRANSACTION_COLUMNS)})"
+        ),
+    )
+    output_group.add_argument(
+        "--dump-transactions-exclude-columns",
+        "--dump-exclude-columns",
+        dest="dump_transactions_exclude_columns",
+        metavar="COLUMNS",
+        type=transaction_columns_type,
+        default=None,
+        help="comma-separated list of columns to exclude from the transaction dump",
+    )
+    output_group.add_argument(
+        "--dump-transactions-maxcolwidths",
+        "--dump-transactions-max-col-width",
+        "--dump-max-col-width",
+        "--dump-maxcolwidths",
+        dest="dump_transactions_maxcolwidths",
+        metavar="WIDTHS",
+        type=maxcolwidths_type,
+        default=None,
+        help="limit column width(s) of transaction dump. Provide either a single number (for all columns) or a coma separated list of number (max width of each column). For example, to limit the 3rd column to 10 chars, use ',,10'",
     )
 
     # General Options

@@ -22,6 +22,7 @@ from cgt_calc.args_parser import (
     resolve_reporting_period,
 )
 from cgt_calc.args_validators import (
+    BROKER_TRANSACTION_COLUMNS,
     STDIN_PATH,
     existing_directory_type,
     existing_file_or_stdin_type,
@@ -985,3 +986,159 @@ def test_autoconvert_currency_is_opt_in() -> None:
 
     assert parser.parse_args([]).autoconvert_currency is False
     assert parser.parse_args(["--autoconvert-currency"]).autoconvert_currency is True
+
+
+@pytest.mark.parametrize(
+    ("arg", "expected"),
+    [
+        ("simple", "simple"),
+        ("grid", "grid"),
+        ("tsv", "tsv"),
+        ("csv", "csv"),
+        ("html", "html"),
+        ("github", "github"),
+        ("latex", "latex"),
+        ("CSV", "csv"),
+        ("TSV", "tsv"),
+        ("HTML", "html"),
+        ("Grid", "grid"),
+    ],
+)
+def test_dump_transactions_accepted_formats(arg: str, expected: str) -> None:
+    """--dump-transactions accepts valid table formats case-insensitively."""
+    parser = create_parser()
+    args = parser.parse_args(["--dump-transactions", arg])
+    assert args.dump_transactions == expected
+
+
+def test_dump_transactions_rejects_invalid_format() -> None:
+    """--dump-transactions rejects unknown formats."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--dump-transactions", "invalid_format_xyz"])
+
+    assert exc_info.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "--dump-transactions-output",
+        "--dump-output",
+    ],
+)
+def test_dump_transactions_file_aliases(flag: str) -> None:
+    """All aliases for --dump-transactions-output populate the destination."""
+    parser = create_parser()
+    args = parser.parse_args([flag, "output.tsv"])
+    assert args.dump_transactions_file == "output.tsv"
+
+
+def test_dump_transactions_output_stdout_dash() -> None:
+    """--dump-transactions-output accepts '-' for stdout."""
+    parser = create_parser()
+    args = parser.parse_args(["--dump-transactions-output", "-"])
+    assert args.dump_transactions_file == "-"
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "--dump-transactions-columns",
+        "--dump-columns",
+    ],
+)
+def test_dump_transactions_columns_aliases(flag: str) -> None:
+    """All aliases for --dump-transactions-columns parse comma-separated columns."""
+    parser = create_parser()
+    args = parser.parse_args([flag, "date,action,symbol,amount"])
+    assert args.dump_transactions_columns == ["date", "action", "symbol", "amount"]
+
+
+def test_dump_transactions_columns_empty_rejected() -> None:
+    """--dump-transactions-columns rejects empty argument."""
+    parser = create_parser()
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--dump-transactions-columns", "   "])
+    assert exc_info.value.code == 2
+
+
+def test_dump_transactions_columns_rejects_unknown_field() -> None:
+    """--dump-transactions-columns rejects columns not in BrokerTransaction."""
+    parser = create_parser()
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--dump-transactions-columns", "date,not_a_field,amount"])
+    assert exc_info.value.code == 2
+
+
+def test_dump_transactions_columns_case_insensitive() -> None:
+    """--dump-transactions-columns normalizes column names case-insensitively."""
+    parser = create_parser()
+    args = parser.parse_args(["--dump-transactions-columns", "DATE,Action,SYMBOL"])
+    assert args.dump_transactions_columns == ["date", "action", "symbol"]
+
+
+def test_dump_transactions_columns_help_includes_columns() -> None:
+    """Help message for --dump-transactions-columns includes all valid columns."""
+    help_text = " ".join(create_parser().format_help().split())
+    assert "--dump-transactions-columns" in help_text
+    for col in BROKER_TRANSACTION_COLUMNS:
+        assert col in help_text
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "--dump-transactions-exclude-columns",
+        "--dump-exclude-columns",
+    ],
+)
+def test_dump_transactions_exclude_columns_aliases(flag: str) -> None:
+    """All aliases for --dump-transactions-exclude-columns parse comma-separated columns."""
+    parser = create_parser()
+    args = parser.parse_args([flag, "source,foreign_fees"])
+    assert args.dump_transactions_exclude_columns == ["source", "foreign_fees"]
+
+
+def test_dump_transactions_exclude_columns_rejects_unknown_field() -> None:
+    """--dump-transactions-exclude-columns rejects columns not in BrokerTransaction."""
+    parser = create_parser()
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--dump-transactions-exclude-columns", "invalid_field"])
+    assert exc_info.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "--dump-transactions-maxcolwidths",
+        "--dump-transactions-max-col-width",
+        "--dump-max-col-width",
+        "--dump-maxcolwidths",
+    ],
+)
+def test_dump_transactions_maxcolwidths_aliases(flag: str) -> None:
+    """All aliases for --dump-transactions-maxcolwidths parse single integer."""
+    parser = create_parser()
+    args = parser.parse_args([flag, "20"])
+    assert args.dump_transactions_maxcolwidths == 20
+
+
+@pytest.mark.parametrize("none_value", ["", "none"])
+def test_dump_transactions_maxcolwidths_sequence(none_value: str) -> None:
+    """--dump-transactions-maxcolwidths parses comma-separated sequence of integers and None."""
+    parser = create_parser()
+    args = parser.parse_args(
+        ["--dump-transactions-maxcolwidths", f"10,{none_value},25"]
+    )
+    assert args.dump_transactions_maxcolwidths == [10, None, 25]
+
+
+@pytest.mark.parametrize("invalid", ["0", "-5", "abc", "10,invalid"])
+def test_dump_transactions_maxcolwidths_invalid(invalid: str) -> None:
+    """--dump-transactions-maxcolwidths rejects invalid width values."""
+    parser = create_parser()
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--dump-transactions-maxcolwidths", invalid])
+    assert exc_info.value.code == 2

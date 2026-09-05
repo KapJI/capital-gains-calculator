@@ -27,6 +27,7 @@ from .model import (
     PortfolioEntry,
     Position,
 )
+from .transaction_dumper import dump_transactions
 from .util import round_decimal
 
 if TYPE_CHECKING:
@@ -42,7 +43,13 @@ if TYPE_CHECKING:
 
 # The CLI entry points live in cgt_calc.cli now; re-exported here so
 # existing imports and `python -m cgt_calc.main` keep working.
-__all__ = ["CapitalGainsCalculator", "calculate_cgt", "init", "main"]
+__all__ = [
+    "CapitalGainsCalculator",
+    "calculate_cgt",
+    "dump_transactions",
+    "init",
+    "main",
+]
 
 LOGGER = logging.getLogger(__name__)
 

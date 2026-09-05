@@ -24,6 +24,7 @@ from .isin_converter import IsinConverter
 from .logging import setup_logging, style_text
 from .parsers.broker_registry import BrokerRegistry
 from .spin_off_handler import SpinOffHandler
+from .transaction_dumper import dump_transactions
 
 if TYPE_CHECKING:
     import argparse
@@ -43,6 +44,33 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     # Read data from input files
     isin_converter = IsinConverter(isin_translation_file)
     broker_transactions = BrokerRegistry.load_all_transactions(args, isin_converter)
+
+    if (
+        args.dump_transactions
+        or args.dump_transactions_file
+        or args.dump_transactions_columns
+        or args.dump_transactions_exclude_columns
+        or args.dump_transactions_maxcolwidths
+    ):
+        tablefmt = args.dump_transactions
+        dest_path = dump_transactions(
+            broker_transactions,
+            tablefmt=tablefmt,
+            output_file=args.dump_transactions_file,
+            columns=args.dump_transactions_columns,
+            exclude_columns=args.dump_transactions_exclude_columns,
+            maxcolwidths=args.dump_transactions_maxcolwidths,
+        )
+        if dest_path is not None:
+            LOGGER.info(
+                style_text(
+                    f"Dumped transactions saved to {dest_path}",
+                    colour=Fore.GREEN,
+                    emoji="📄",
+                    stream=sys.stderr,
+                )
+            )
+
     currency_converter = CurrencyConverter.create(args.exchange_rates_file)
     price_fetcher = CurrentPriceFetcher(currency_converter)
     initial_prices = InitialPrices(args.initial_prices_file)

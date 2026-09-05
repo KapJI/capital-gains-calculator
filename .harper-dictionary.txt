@@ -100,6 +100,7 @@ GSU
 hashable
 HL
 Hmrc
+html
 I/O
 IBKR
 IBKR's
@@ -127,6 +128,7 @@ lychee
 markdown
 matchable
 matchings
+maxcolwidths
 md
 MiKTeX
 MMM
@@ -226,14 +228,17 @@ StockSplitTransaction
 str
 subrow
 tablefinder
+tablefmt
 TCGA
 toml
+tsv
 Trading212Column
 tranche's
 TransactionDetails
 transferor
 transferor's
 txn
+txt
 ty
 tzinfo
 UCITS

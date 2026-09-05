@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import datetime
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from .const import INTERNAL_START_DATE
+from .model import BrokerTransaction
 from .version import DISTRIBUTION_NAME, get_version
 
 STDIN_PATH = Path("-")
@@ -51,6 +53,70 @@ def date_type(value: str) -> datetime.date:
 def ticker_list_type(value: str) -> list[str]:
     """Split comma-separated tickers and convert to uppercase list."""
     return [ticker.strip().upper() for ticker in value.split(",") if ticker.strip()]
+
+
+BROKER_TRANSACTION_COLUMNS: list[str] = [
+    field.name for field in dataclasses.fields(BrokerTransaction)
+]
+
+
+def transaction_columns_type(value: str) -> list[str]:
+    """Validate and split comma-separated BrokerTransaction column names."""
+    items = [item.strip() for item in value.split(",") if item.strip()]
+    if not items:
+        raise argparse.ArgumentTypeError("list of columns must not be empty")
+
+    valid_fields = {col.lower(): col for col in BROKER_TRANSACTION_COLUMNS}
+    invalid_cols = [col for col in items if col.lower() not in valid_fields]
+    if invalid_cols:
+        invalid_str = ", ".join(f"'{c}'" for c in invalid_cols)
+        valid_str = ", ".join(BROKER_TRANSACTION_COLUMNS)
+        raise argparse.ArgumentTypeError(
+            f"unknown column(s) for BrokerTransaction: {invalid_str}. "
+            f"Valid columns are: {valid_str}"
+        )
+    return [valid_fields[col.lower()] for col in items]
+
+
+def maxcolwidths_type(value: str) -> int | list[int | None]:
+    """Validate and convert maxcolwidths argument.
+
+    It can be either a single positive integer (to apply to all columns),
+    or a coma-separated list of positive integers (max width of each column).
+    """
+    items = [item.strip() for item in value.split(",")]
+    if len(items) == 1:
+        try:
+            val = int(items[0])
+        except ValueError as err:
+            raise argparse.ArgumentTypeError(
+                f"maxcolwidths must be a positive integer or comma-separated integers: '{value}'"
+            ) from err
+        else:
+            if val <= 0:
+                raise argparse.ArgumentTypeError(
+                    f"maxcolwidths must be a positive integer: '{value}'"
+                )
+            return val
+
+    parsed: list[int | None] = []
+    for item in items:
+        if not item or item.lower() == "none":
+            parsed.append(None)
+        else:
+            try:
+                val = int(item)
+            except ValueError as err:
+                raise argparse.ArgumentTypeError(
+                    f"maxcolwidths values must be positive integers or 'none': '{item}'"
+                ) from err
+            else:
+                if val <= 0:
+                    raise argparse.ArgumentTypeError(
+                        f"maxcolwidths values must be positive integers or 'none': '{item}'"
+                    )
+                parsed.append(val)
+    return parsed
 
 
 def output_path_type(value: str) -> Path:
