@@ -32,6 +32,7 @@ from .model import (
     CurrencyCode,
     ExcessReportedIncome,
     ForeignCurrencyAmount,
+    HmrcTransactionData,
     OptionDisposalData,
     Position,
     SpinOff,
@@ -45,7 +46,7 @@ from .rename_planning import (
 )
 from .stock_split_planning import plan_stock_splits, source_account
 from .stock_splits import quantity_sign
-from .transaction_log import add_to_list
+from .transaction_log import add_to_list, day_acquisitions
 from .util import approx_equal, normalize_amount, round_decimal
 
 if TYPE_CHECKING:
@@ -267,17 +268,23 @@ class TransactionIngester:
         gbp_amount = (
             self.currency_converter.to_gbp_for(amount, transaction) - capital_adjustment
         )
-        if transaction.action is ActionType.SPIN_OFF:
-            self.history.spin_off_estimates[transaction.date, symbol] += gbp_amount
-        add_to_list(
-            self.history.acquisition_list,
-            transaction.date,
-            symbol,
+        added = HmrcTransactionData(
             quantity,
             gbp_amount,
             self.currency_converter.to_gbp_for(transaction.fees, transaction)
             + capital_fee_adjustment,
         )
+        record = day_acquisitions(
+            self.history.acquisition_list, transaction.date, symbol
+        )
+        if transaction.action is ActionType.SPIN_OFF:
+            # Shares a reorganisation creates are not acquired (TCGA 1992
+            # s127), and what they cost is a share of the source pool this
+            # pass can only estimate. Kept apart from what the day genuinely
+            # acquired, rather than added in for the walk to take back out.
+            record.reorganised += added
+        else:
+            record.purchased += added
 
     def _available_units(
         self, symbol: str, date_index: datetime.date
@@ -1041,14 +1048,11 @@ class TransactionIngester:
         gbp_fees = self.currency_converter.to_gbp_for(transaction.fees, transaction)
         symbol = get_symbol_or_fail(transaction)
         self.history.fee_days.add((transaction.date, symbol))
-        add_to_list(
-            self.history.acquisition_list,
-            transaction.date,
-            symbol,
-            transaction.quantity,
-            gbp_fees,
-            gbp_fees,
-        )
+        # Cost with no shares behind it. `fee_days` still records that a fee
+        # row was read at all, which a fee of nothing leaves no figure for.
+        day_acquisitions(
+            self.history.acquisition_list, transaction.date, symbol
+        ).cost_only += HmrcTransactionData(transaction.quantity, gbp_fees, gbp_fees)
         return amount
 
     def _convert_foreign_fees(self, transaction: BrokerTransaction) -> None:
