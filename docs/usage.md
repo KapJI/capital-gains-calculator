@@ -113,10 +113,14 @@ calculation reads them, which is not always the order they happened: some broker
 row first, and cgt-calc deliberately places some of a day’s rows before others.
 
 The file shows the transactions after cgt-calc has read and prepared your broker exports, and before
-the capital gains calculation. Any income cgt-calc adds for offshore funds you hold is already
-included. It also includes whatever duplicate handling the parser for your broker supports; the
-export itself removes nothing, so follow the [instructions for your broker](brokers/index.md) and do
-not assume overlapping exports are safe.
+the capital gains calculation. It reflects whatever duplicate handling the parser for your broker
+supports; the export itself removes nothing, so follow the
+[instructions for your broker](brokers/index.md) and do not assume overlapping exports are safe.
+
+Any excess reported income (ERI) records loaded for funds you hold are included as well. They appear
+with the action `EXCESS_REPORTED_INCOME` and an `isin` in place of a `symbol`, and carry only a
+per-unit `price`: the `quantity` and `amount` are worked out during the calculation, so those
+columns are empty here. See the [offshore funds guide](offshore-funds.md).
 
 The calculation has not run yet. Currency conversion, its own checks, share split and other
 reorganisation planning, and the tax calculation all come later, so ticker names and quantities can
