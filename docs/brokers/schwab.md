@@ -293,24 +293,30 @@ cgt-calc --year 2025 --schwab-award-file schwab_awards.json
 cgt-calc --year 2025 --schwab-award-file schwab_awards.csv
 ```
 
-`--schwab-award-file` takes every award export cgt-calc reads, the award-price CSV above included.
-It decides which one a file is from its contents, so the option name and the file extension do not
-have to agree, and both complete layouts produce the same result.
+cgt-calc identifies the format from the file's contents, so both layouts produce the same result.
 
 The complete CSV states one transaction per row, followed by a row for each lot or grant with the
 transaction columns left blank. Keep the file exactly as Schwab exported it: cgt-calc reads those
 blank columns as the marker that a row continues the transaction above it.
 
-Use either layout only for an actual Schwab transaction export that you have checked. Do not import
-the same vest, sale, dividend or cash movement again through `--schwab-file`. cgt-calc does not yet
-reconcile a main history against a complete award history, so anything present in both is counted
-twice. Passing a complete export with `--schwab-award-file` alongside `--schwab-file` or
-`--schwab-dir` is refused for that reason.
+Use either layout only for a transaction history Schwab exported. Open the file first and confirm
+its rows are dated transactions with actions such as `Deposit`, `Sale` or `Dividend`, rather than a
+summary of your holdings or outstanding grants. Do not import the same vest, sale, dividend or cash
+movement again through `--schwab-file`. cgt-calc does not yet reconcile a main history against a
+complete award history, so anything present in both is counted twice. Passing a complete export with
+`--schwab-award-file` alongside `--schwab-file` or `--schwab-dir` is refused for that reason.
+
+The complete importer supports restricted-stock vests, ESPP purchases, sales, forced quick sales,
+dividends, dividend tax and forced cash disbursements. It recognises gifts but stops so that you can
+classify the recipient, as explained below. It skips `Lapse` rows because they repeat the shares
+already recorded by the related vest. For an ESPP purchase it uses the market value on the purchase
+date as the acquisition cost, on the assumption that the discount was taxed as employment income.
+Check that assumption against your payroll and award records.
 
 #### Combining a main history with a complete export
 
-If you do need both, the older `--schwab-equity-award-json` still accepts that combination and keeps
-working:
+If you need a main history and a complete award export in one run, the older
+`--schwab-equity-award-json` still accepts that combination and keeps working:
 
 ```shell
 cgt-calc --year 2025 --schwab-file schwab_transactions.csv \
@@ -321,13 +327,6 @@ Nothing checks the two files against each other, so make sure no transaction app
 option only adds transactions; it does not price vests. The main history therefore has to import on
 its own, and a `Stock Plan Activity` it cannot price still needs the award-price CSV passed with
 `--schwab-award-file` as well.
-
-The complete importer supports restricted-stock vests, ESPP purchases, sales, forced quick sales,
-dividends, dividend tax and forced cash disbursements. It recognises gifts but stops so that you can
-classify the recipient, as explained below. It skips `Lapse` rows because they repeat the shares
-already recorded by the related vest. For an ESPP purchase it uses the market value on the purchase
-date as the acquisition cost, on the assumption that the discount was taxed as employment income.
-Check that assumption against your payroll and award records.
 
 #### Share splits in complete exports
 
@@ -398,8 +397,10 @@ what each file holds:
     the two together: the main history with `--schwab-file`, the award-price CSV with
     `--schwab-award-file`.
 
-If neither file holds everything, this combination is not supported yet, so do not use both. Do not
-rename columns or invent a price merely to bypass the error.
+If neither file holds everything, cgt-calc cannot reconcile the two for you, but
+[Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export)
+describes the one route that still works and what you have to check yourself. Do not rename columns
+or invent a price merely to bypass the error.
 
 ### `Missing columns` or a row/column-count error
 
