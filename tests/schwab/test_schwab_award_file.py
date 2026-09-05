@@ -264,7 +264,9 @@ def test_the_award_file_is_announced_once(
         _load(schwab_award_file=str(fixture))
 
     assert caplog.text.count("Parsing ") == 1
-    assert str(fixture) in caplog.text
+    # parsing_msg prints forward slashes on every platform, so compare against
+    # that form rather than str(), which is backslashed on Windows.
+    assert fixture.as_posix() in caplog.text
 
 
 def test_a_complete_export_clears_the_prices_of_the_run_before() -> None:
