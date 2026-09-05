@@ -84,6 +84,70 @@ To save the LaTeX source without creating a PDF, use `--no-pdflatex`. The source
 `--output` path with a `.tex` extension (by default, `out/calculations.tex`). For example,
 `--output reports/2024-25.pdf` writes `reports/2024-25.tex`.
 
+## Inspect parsed transactions
+
+Use `--dump-transactions` followed by a filename to save the transactions cgt-calc read from your
+exports to a CSV file, then carry on with the normal calculation:
+
+```shell
+cgt-calc --year 2024 --schwab-file transactions.csv --dump-transactions parsed-transactions.csv
+```
+
+This helps when you want to compare two exports of the same account, or see what a broker file
+actually produced before reading the report.
+
+cgt-calc saves the file before any calculation starts, and confirms it on **stderr**:
+
+```text
+Saved 123 parsed transactions to parsed-transactions.csv
+```
+
+That message means the file is complete. It is not the message that ends a run, which begins
+`Done!`, so a saved file does not show that the calculation succeeded. If the calculation fails, the
+file is kept for you to inspect and the command still exits with an error.
+
+### What the file contains
+
+One row per transaction, under a header naming every column. The rows are in the order the
+calculation reads them, which is not always the order they happened: some brokers export the newest
+row first, and cgt-calc deliberately places some of a day’s rows before others.
+
+Every transaction cgt-calc loaded is exported, including dates outside the reporting period.
+`--year`, `--from` and `--to` still choose the period the report covers.
+
+Because the calculation has not run yet, ticker names and quantities can differ from the final
+report. The file reflects whatever duplicate handling the parser for your broker supports and
+removes nothing itself, so follow the [instructions for your broker](brokers/index.md) and do not
+assume overlapping exports are safe.
+
+Numbers are exact rather than rounded for display. `price`, `fees` and `amount` are in the row’s
+`currency`, and fees charged in another currency stay in `foreign_fees` under their own currency.
+
+Columns holding several named values, such as `foreign_fees` and `source`, use JSON, which keeps
+names and values together in one cell: `{"EUR":"2.50"}` is a fee of 2.50 euros. An empty column
+means the value was unset or empty text, which look the same outside JSON.
+
+Excess reported income (ERI) records loaded for funds you hold appear with the action
+`EXCESS_REPORTED_INCOME` and an `isin` in place of a `symbol`. They carry only a per-unit `price`,
+so `quantity` and `amount` stay empty until the calculation works them out. See the
+[offshore funds guide](offshore-funds.md).
+
+The file is a snapshot for inspection, not an input format: its columns are not the seven columns of
+the [RAW format](brokers/raw.md), and it cannot be passed back with `--raw-file`. `source` names the
+input file each transaction came from, and includes a row number when the parser records one, so the
+export can contain paths from your own machine. Read it before you send it to anyone, and see the
+[privacy notes](privacy.md).
+
+### Where it is written
+
+`--dump-transactions` always creates a new file. cgt-calc refuses to overwrite an existing file,
+refuses a path whose directory does not exist, and refuses a path the same run would write later,
+such as the report or one of the cache files. If writing fails partway through, it stops with an
+error naming the path; remove the partly written file, or choose another name, before trying again.
+
+Nothing else about the run changes. `--output`, `--no-report` and `--no-pdflatex` still do what they
+normally do, and the usual checks on your input still apply.
+
 ## Check the result
 
 Before relying on the figures:
@@ -137,7 +201,9 @@ the calculation. Follow HMRC's
 required records and retention period.
 
 Run `cgt-calc --help` for the complete list of available options. Use `--verbose` when you need more
-detail while investigating a warning or error.
+detail while investigating a warning or error, and
+[`--dump-transactions`](#inspect-parsed-transactions) to see the transactions the calculation
+started from.
 
 ## Report part of a tax year (advanced)
 
