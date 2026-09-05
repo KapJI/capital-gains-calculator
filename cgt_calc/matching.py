@@ -1491,15 +1491,12 @@ class Matcher:
             taken = bnb_claimed_before_today.get((day, ticker), Decimal(0))
             if not is_disposal_day:
                 # Whatever that later day disposes of under the same-day rule
-                # is spoken for before either of ours can reach it. On the
-                # disposal day itself the sale and the transfer are the two
-                # laying claim, so subtracting them would hide the clash.
-                for log in (
-                    self.history.disposal_list,
-                    self.history.transfer_to_spouse_list,
-                ):
-                    if has_key(log, day, ticker):
-                        taken += log[day][ticker].quantity
+                # is spoken for before either of ours can reach it, under
+                # whichever of the holding's names that day's rows spell it -
+                # the same claim the 30-day walk reserves. On the disposal day
+                # itself the sale and the transfer are the two laying claim, so
+                # subtracting them would hide the clash.
+                taken += self._same_day_claims(day, ticker).quantity
             return acquisition.quantity - taken > 0
 
         if has_shares_going_spare(
