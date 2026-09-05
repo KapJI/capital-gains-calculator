@@ -1927,4 +1927,13 @@ def test_the_option_help_names_both_layouts() -> None:
 
     assert "--schwab-equity-award-json" in help_text
     assert "--schwab-equity-award-file" not in help_text
-    assert "JSON or the complete CSV" in " ".join(help_text.split())
+    assert "JSON or complete CSV" in " ".join(help_text.split())
+
+
+def test_the_option_help_points_at_the_canonical_one() -> None:
+    """It stays registered, and its help says which option to prefer."""
+    help_text = " ".join(create_parser().format_help().split())
+
+    assert "Prefer --schwab-award-file" in help_text
+    # And why it is still here: the combination the canonical option refuses.
+    assert "combine the history with --schwab-file or --schwab-dir" in help_text

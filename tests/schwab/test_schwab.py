@@ -65,6 +65,29 @@ def test_award_rows_overlapping_in_a_column_are_reported(tmp_path: Path) -> None
     assert exc_info.value.row_index == 2
 
 
+def test_an_empty_award_file_is_reported(tmp_path: Path) -> None:
+    """Reading a path directly still names the empty file.
+
+    The CLI classifies the contents first and never reaches this, but
+    _read_schwab_awards is called with a path too, and the guard is what keeps
+    an empty file from surfacing as IndexError on the header lookup.
+    """
+    award_file = tmp_path / "awards.csv"
+    award_file.write_text("")
+
+    with pytest.raises(ParsingError, match="Award CSV file is empty"):
+        _read_schwab_awards(award_file)
+
+
+def test_an_award_file_without_the_price_column_is_reported(tmp_path: Path) -> None:
+    """And a header lacking FairMarketValuePrice, rather than a KeyError."""
+    award_file = tmp_path / "awards.csv"
+    award_file.write_text("Date,Symbol,Quantity\n08/15/2023,BAR,400\n")
+
+    with pytest.raises(ParsingError, match="Missing columns in Schwab Award file"):
+        _read_schwab_awards(award_file)
+
+
 @pytest.mark.parametrize("price", ["NaN", "$Infinity", "$not-a-number"])
 def test_award_price_that_is_not_a_finite_amount_is_reported(
     tmp_path: Path, price: str
