@@ -11,11 +11,7 @@ from typing import TYPE_CHECKING
 
 from colorama import Fore, Style
 
-from .const import (
-    BALANCE_CHECK_CONTEXT_ROWS,
-    ERI_TAX_DATE_DELTA,
-    RENAME_DESCRIPTION_PREFIX,
-)
+from .const import BALANCE_CHECK_CONTEXT_ROWS, ERI_TAX_DATE_DELTA
 from .exceptions import (
     AmountMissingError,
     CalculatedAmountDiscrepancyError,
@@ -39,6 +35,13 @@ from .model import (
     OptionDisposalData,
     Position,
     SpinOff,
+)
+from .rename_planning import (
+    plan_renames,
+    reconcile_rename_day,
+    rename_day_units,
+    rename_pair,
+    two_renames_message,
 )
 from .stock_split_planning import plan_stock_splits, source_account
 from .stock_splits import quantity_sign
@@ -290,10 +293,19 @@ class TransactionIngester:
         below zero until the day's purchases land — so the day's whole
         capacity answers instead, which its decreases cannot exceed because
         planning refused a day that closes below zero.
+
+        A day that renames the holding answers the same way, for a reason of
+        the same shape: the pool moves where the RENAME row sits, so the name
+        a row states holds the shares only on one side of it. What the whole
+        holding can give up, across every name the day's renames connect, is
+        what its decreases draw on there.
         """
         capacity = self.history.split_day_capacity.get((symbol, date_index))
         if capacity is not None:
             return capacity
+        renamed = rename_day_units(self.history, date_index, symbol)
+        if renamed is not None:
+            return renamed
         if symbol not in self.run.portfolio:
             return None
         return self.run.portfolio[symbol].quantity
@@ -983,23 +995,17 @@ class TransactionIngester:
             )
 
     def add_rename(self, transaction: BrokerTransaction) -> None:
-        """Apply a ticker rename during the first calculation pass."""
-        new_symbol = get_symbol_or_fail(transaction)
-        old_symbol = transaction.description[len(RENAME_DESCRIPTION_PREFIX) :]
-        if (
-            not transaction.description.startswith(RENAME_DESCRIPTION_PREFIX)
-            or not old_symbol
-        ):
-            raise InvalidTransactionError(
-                transaction,
-                "Rename transaction does not identify the old symbol",
-            )
+        """Apply a ticker rename during the first calculation pass.
+
+        Where the pool moves, which is what the day's other rows read. Which
+        names the day makes one holding is settled before any of them runs,
+        by ``plan_renames``.
+        """
+        old_symbol, new_symbol = rename_pair(transaction)
         existing = self.history.rename_list[transaction.date].get(old_symbol)
         if existing is not None and existing != new_symbol:
             raise CalculationError(
-                self._two_renames_message(
-                    old_symbol, transaction.date, existing, new_symbol
-                )
+                two_renames_message(old_symbol, transaction.date, existing, new_symbol)
             )
         self.history.rename_list[transaction.date][old_symbol] = new_symbol
         position = self.run.portfolio.pop(old_symbol, Position())
@@ -1109,6 +1115,7 @@ class TransactionIngester:
             ]:
                 del self.history.holding_sources[symbol]
             plan_stock_splits(self.state, transaction.date, days[transaction.date])
+            plan_renames(self.state, transaction.date, days[transaction.date])
         if quantity_sign(transaction.action) > 0 and transaction.symbol:
             self.history.holding_sources[transaction.symbol].add(
                 source_account(transaction)
@@ -1172,6 +1179,17 @@ class TransactionIngester:
         # be in the day's closing units before the first of them is pooled.
         days = self._group_by_date(transactions)
         planned: set[datetime.date] = set()
+        # A rename moves the pool where its row sits, so a purchase or sale
+        # of the same holding written under the name the day is retiring is
+        # left behind under it. Each date's last row gathers those in, once
+        # every row that could add to them has been read. Excess reported
+        # income is left out because its rows leave the loop early, and it
+        # adds nothing to a holding for this to collect.
+        day_last_row = {
+            transaction.date: index
+            for index, transaction in enumerate(transactions)
+            if transaction.action is not ActionType.EXCESS_REPORTED_INCOME
+        }
 
         for i, transaction in enumerate(transactions):
             self._open_transaction_day(transaction, days, planned)
@@ -1322,6 +1340,8 @@ class TransactionIngester:
                 msg += "Tip: If your input file is missing deposits/withdrawals use --no-balance-check."
                 raise CalculationError(msg)
             balance[transaction.broker, transaction.currency] = new_balance
+            if day_last_row[transaction.date] == i:
+                reconcile_rename_day(self.state, transaction.date)
 
         # Withholding belongs to the year of the dividend it was taken from,
         # which is not always the year it was posted in, so the summary reads
@@ -1399,20 +1419,3 @@ class TransactionIngester:
             for (broker, currency), amount in totals.interest_taxes.items():
                 print(f"{bul}{broker}: {round_decimal(-amount, 2)} ({currency})")
         print()
-
-    @staticmethod
-    def _two_renames_message(
-        old_symbol: str,
-        date_index: datetime.date,
-        first: str,
-        second: str,
-    ) -> str:
-        """Explain why one ticker cannot be renamed to two names in a day."""
-        return (
-            f"{old_symbol} is renamed to both {first} and {second} on "
-            f"{date_index}. The holding goes to one name or the other, and a "
-            "date carries no order to choose by, so which one cannot be "
-            "established and the pool would be replayed under a name it never "
-            "reached. Leave the row that does not belong out, or work this "
-            "day out by hand (consider professional advice)."
-        )

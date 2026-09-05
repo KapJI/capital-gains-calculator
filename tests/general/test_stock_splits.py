@@ -2033,10 +2033,11 @@ def test_a_holding_renamed_along_into_the_reorganised_one_is_refused() -> None:
 
     Nothing renames straight into the reorganised name, so looking only at the
     renames it is named in finds an empty holding and lets the day through.
-    The three units come along the chain and are never restated.
+    The three units come along the chain and are never restated. The chain is
+    refused before the day's transaction rows are processed.
     """
     with pytest.raises(
-        CalculationError, match="pool it with OLD, which holds shares of its own"
+        CalculationError, match="is renamed to MID, and MID is renamed to NEW"
     ):
         run(
             [
@@ -2379,3 +2380,21 @@ def test_a_reorganisation_is_not_a_disposal_row_of_its_own(
     assert calculator.portfolio["NEW"] == Position(
         Decimal(closing[0]), Decimal(closing[1])
     )
+
+
+def test_a_reorganised_holding_s_rename_day_is_still_read_row_by_row() -> None:
+    """A split day keeps the existing row-position handling of renames.
+
+    The later purchase stays under OLD, so selling 25 NEW exceeds the 20
+    shares carried across by the rename.
+    """
+    with pytest.raises(InvalidTransactionError, match=r"available balance\(20\.0*\)"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+                legacy_split(EVENT_DAY, "OLD", "10"),
+                rename(EVENT_DAY, "OLD", "NEW"),
+                trade(EVENT_DAY, ActionType.BUY, "OLD", "5", "10"),
+                trade(LATER_DAY, ActionType.SELL, "NEW", "25", "10"),
+            ]
+        )

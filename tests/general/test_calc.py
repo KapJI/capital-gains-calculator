@@ -6,6 +6,7 @@ import copy
 import datetime
 from decimal import Decimal, localcontext
 from enum import Enum
+import itertools
 import logging
 from pathlib import Path
 import subprocess
@@ -39,7 +40,12 @@ from cgt_calc.model import (
 )
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.eri.model import ERITransaction
+from cgt_calc.rename_planning import RENAME_DAY_UNSUPPORTED_ACTIONS
 from cgt_calc.spin_off_handler import SpinOffHandler
+from cgt_calc.stock_splits import (
+    QUANTITY_DECREASING_ACTIONS,
+    QUANTITY_INCREASING_ACTIONS,
+)
 from cgt_calc.util import round_decimal
 from tests.utils import build_cmd, report_path
 
@@ -1140,6 +1146,17 @@ def test_rename_without_old_symbol_has_a_transaction_error(description: str) -> 
         )
 
 
+def test_rename_without_a_new_symbol_has_a_transaction_error() -> None:
+    """A rename row that cannot name its destination is invalid input."""
+    transaction = _rename_transaction(datetime.date(2024, 5, 10), "OLD", "NEW")
+    transaction.symbol = None
+
+    with pytest.raises(InvalidTransactionError, match="Symbol missing"):
+        create_calculator(tax_year=2024, balance_check=False).prepare_history(
+            [transaction]
+        )
+
+
 def test_section_104_disposal_uses_renamed_pool_cost() -> None:
     """After a rename, S104 disposal under NEW uses the pool cost carried from OLD."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
@@ -1265,16 +1282,18 @@ RENAME_DAY = datetime.date(2024, 5, 10)
 
 
 def _rename_day_rows(
-    sale_spelling: str, order: tuple[str, ...]
+    sale_spelling: str, order: tuple[str, ...], sale_quantity: int
 ) -> list[BrokerTransaction]:
-    """Build the day the pool is renamed, its rows in the order given.
-
-    100 OLD shares costing GBP 1,000 are held. On the day, OLD is renamed to
-    NEW, 50 shares are sold for GBP 1,000, and 50 NEW are bought for GBP 750.
-    """
+    """Open with 100 OLD at GBP 10; buy 50 NEW at GBP 15 and sell at GBP 20."""
     rows = {
         "rename": _rename_transaction(RENAME_DAY, "OLD", "NEW"),
-        "sell": _gbp_trade(RENAME_DAY, ActionType.SELL, sale_spelling, 50, 1000),
+        "sell": _gbp_trade(
+            RENAME_DAY,
+            ActionType.SELL,
+            sale_spelling,
+            sale_quantity,
+            sale_quantity * 20,
+        ),
         "buy": _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 50, 750),
     }
     return [
@@ -1284,45 +1303,51 @@ def _rename_day_rows(
 
 
 @pytest.mark.parametrize(
-    ("sale_spelling", "order"),
-    [
-        ("OLD", ("sell", "rename", "buy")),
-        ("OLD", ("sell", "buy", "rename")),
-        ("OLD", ("buy", "sell", "rename")),
-        ("NEW", ("rename", "sell", "buy")),
-        ("NEW", ("rename", "buy", "sell")),
-        ("NEW", ("buy", "rename", "sell")),
-        ("NEW", ("buy", "sell", "rename")),
-    ],
+    ("sale_quantity", "allowable_cost", "gain", "closing_quantity"),
+    [(50, 750, 250, 100), (120, 1450, 950, 30)],
+    ids=["same-day match", "purchase needed for capacity"],
+)
+@pytest.mark.parametrize("sale_spelling", ["OLD", "NEW"])
+@pytest.mark.parametrize(
+    "order",
+    list(itertools.permutations(("rename", "sell", "buy"))),
+    ids=",".join,
 )
 def test_same_day_match_carries_the_disposal_date_rename(
-    sale_spelling: str, order: tuple[str, ...]
+    sale_spelling: str,
+    order: tuple[str, ...],
+    sale_quantity: int,
+    allowable_cost: int,
+    gain: int,
+    closing_quantity: int,
 ) -> None:
     """A sale is matched with the day's purchase under either of its names.
 
-    The rename takes effect at the end of the day it is recorded on, so the
-    day's rows may state either ticker and mean the same shares. Neither the
-    spelling the sale uses nor where the rename row sits changes what was
-    sold, so all seven readings give the one same-day match.
-
-    The orders left out are the ones the first pass rejects as written: it
-    reads the day's rows in the order the file lists them, so a sale under a
-    name that row order has already renamed away, or not yet bought, is
-    refused there before identification is reached.
+    Selling 120 requires the day's purchase to count towards capacity even
+    when the sale is read first. Each case must agree across all row orders.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
-    report = get_report(calculator, _rename_day_rows(sale_spelling, order))
+    report = get_report(
+        calculator, _rename_day_rows(sale_spelling, order, sale_quantity)
+    )
 
     entries = report.calculation_log[RENAME_DAY][f"sell${sale_spelling}"]
-    assert len(entries) == 1
+    assert len(entries) == (1 if sale_quantity == 50 else 2)
     assert entries[0].rule_type is RuleType.SAME_DAY
     assert entries[0].quantity == Decimal(50)
     assert entries[0].allowable_cost == Decimal(750)
     assert entries[0].gain == Decimal(250)
-    assert report.total_gain() == Decimal(250)
-    # The 100 shares held from May 1 are untouched, and keep their cost.
-    assert calculator.portfolio["NEW"] == Position(Decimal(100), Decimal(1000))
+    if sale_quantity == 120:
+        assert entries[1].rule_type is RuleType.SECTION_104
+        assert entries[1].quantity == Decimal(70)
+        assert entries[1].allowable_cost == Decimal(700)
+        assert entries[1].gain == Decimal(700)
+    assert report.allowable_costs == Decimal(allowable_cost)
+    assert report.total_gain() == Decimal(gain)
+    assert calculator.portfolio["NEW"] == Position(
+        Decimal(closing_quantity), Decimal(closing_quantity * 10)
+    )
 
 
 def test_a_sale_under_the_new_name_draws_on_the_pool_under_the_old_one() -> None:
@@ -1615,7 +1640,11 @@ def test_sales_under_two_names_of_one_holding_are_refused() -> None:
 
 
 def test_a_holding_renamed_twice_on_a_disposal_date_is_refused() -> None:
-    """Where the shares end up depends on which of the two rename rows ran."""
+    """Where the shares end up depends on which of the two rename rows ran.
+
+    Refused as the day opens, before any of its rows is read, because a
+    holding renamed twice has no one name for the day to close under.
+    """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
         _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
@@ -1628,7 +1657,7 @@ def test_a_holding_renamed_twice_on_a_disposal_date_is_refused() -> None:
         get_report(calculator, transactions)
 
     assert str(excinfo.value).startswith(
-        f"Cannot compute the disposal of OLD on {RENAME_DAY}: it is renamed to "
+        f"Cannot apply the renames of OLD on {RENAME_DAY}: it is renamed to "
         "MID, and MID is renamed to NEW, the same day."
     )
 
@@ -1671,6 +1700,253 @@ def test_a_day_buying_under_both_names_of_one_holding_is_refused() -> None:
         "make NEW and OLD one holding, and shares were bought under each of "
         "them today."
     )
+
+
+@pytest.mark.parametrize("rename_first", [True, False], ids=["rename first", "last"])
+def test_a_rename_day_refuses_more_units_than_the_whole_holding_has(
+    *, rename_first: bool
+) -> None:
+    """Selling 60 under one alias leaves only 40 available under the other.
+
+    The second sale must be refused whether the rename is read first or last.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    rename = _rename_transaction(RENAME_DAY, "OLD", "NEW")
+    sales = [
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 60, 900),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 60, 900),
+    ]
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        *([rename, *sales] if rename_first else [*sales, rename]),
+    ]
+
+    with pytest.raises(
+        InvalidTransactionError, match=r"more than the available balance\(40\)"
+    ):
+        get_report(calculator, transactions)
+
+
+def test_a_purchase_under_the_retired_name_is_there_to_sell_later() -> None:
+    """A purchase under the retired ticker is available under NEW on a later day."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 50, 750),
+        _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 150, 3000),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(1250)
+    assert calculator.portfolio["NEW"] == Position()
+
+
+def test_the_first_pass_leaves_a_rename_day_under_the_closing_ticker() -> None:
+    """Reconciliation carries both shares and their source accounts to NEW."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    opening = _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000)
+    opening.source = TransactionSource(account="Account A")
+    purchase = _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 50, 750)
+    purchase.source = TransactionSource(account="Account B")
+
+    calculator.prepare_history(
+        [
+            opening,
+            _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+            purchase,
+        ]
+    )
+
+    assert dict(calculator.portfolio) == {"NEW": Position(Decimal(150), Decimal(1750))}
+    assert dict(calculator.state.history.holding_sources) == {
+        "NEW": {"Account A", "Account B"}
+    }
+
+
+@pytest.mark.parametrize("backwards", [False, True], ids=["in order", "backwards"])
+def test_a_day_whose_only_rows_are_a_rename_chain_is_refused(
+    *, backwards: bool
+) -> None:
+    """Refuse a chain in either order even when no disposal invokes the matcher."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    renames = [
+        _rename_transaction(RENAME_DAY, "OLD", "MID"),
+        _rename_transaction(RENAME_DAY, "MID", "NEW"),
+    ]
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        *(reversed(renames) if backwards else renames),
+    ]
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert str(excinfo.value).startswith(
+        f"Cannot apply the renames of OLD on {RENAME_DAY}: it is renamed to "
+        "MID, and MID is renamed to NEW, the same day."
+    )
+
+
+def test_every_action_says_what_a_rename_day_does_with_it() -> None:
+    """Every action must explicitly support planning, trigger fallback, or do neither.
+
+    Adding an action without classifying it must fail this test.
+    """
+    read_as_one_holding = {ActionType.BUY, ActionType.SELL, ActionType.RENAME}
+    touch_no_holding = {
+        ActionType.ADJUSTMENT,
+        ActionType.CANCEL_BUY,
+        ActionType.CAPITAL_GAIN,
+        ActionType.DIVIDEND,
+        ActionType.DIVIDEND_TAX,
+        ActionType.INTEREST,
+        ActionType.INTEREST_TAX,
+        ActionType.OPTION_ASSIGNMENT,
+        ActionType.OPTION_CLOSE,
+        ActionType.OPTION_EXPIRY,
+        ActionType.OPTION_GRANT,
+        ActionType.REINVEST_DIVIDENDS,
+        ActionType.TRANSFER,
+        ActionType.WIRE_FUNDS_RECEIVED,
+    }
+    readings = [read_as_one_holding, touch_no_holding, RENAME_DAY_UNSUPPORTED_ACTIONS]
+
+    assert set().union(*readings) == set(ActionType)
+    assert sum(len(reading) for reading in readings) == len(ActionType)
+    # Two of the unsupported rows carry no units at all, so a check on what
+    # moves a share count would not notice either of them going missing.
+    assert {ActionType.FEE, ActionType.EXCESS_REPORTED_INCOME} <= (
+        RENAME_DAY_UNSUPPORTED_ACTIONS
+    )
+    # Nothing that moves a share count is read as part of the whole holding
+    # but an ordinary purchase or sale.
+    assert (QUANTITY_INCREASING_ACTIONS | QUANTITY_DECREASING_ACTIONS) - {
+        ActionType.BUY,
+        ActionType.SELL,
+    } <= RENAME_DAY_UNSUPPORTED_ACTIONS
+
+
+def test_two_holdings_renamed_on_one_day_are_told_apart() -> None:
+    """Sales under two retired tickers draw on their respective holdings."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    buy_day = datetime.date(2024, 5, 1)
+    transactions = [
+        _gbp_trade(buy_day, ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(buy_day, ActionType.BUY, "FOO", 100, 2000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _rename_transaction(RENAME_DAY, "FOO", "BAR"),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 60, 900),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "FOO", 60, 1500),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(600)
+    assert calculator.portfolio["NEW"] == Position(Decimal(40), Decimal(400))
+    assert calculator.portfolio["BAR"] == Position(Decimal(40), Decimal(800))
+
+
+def test_one_renamed_holding_cannot_borrow_the_other_s_shares() -> None:
+    """A sale exceeding its holding's capacity cannot use another holding's shares."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    buy_day = datetime.date(2024, 5, 1)
+    transactions = [
+        _gbp_trade(buy_day, ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(buy_day, ActionType.BUY, "FOO", 50, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _rename_transaction(RENAME_DAY, "FOO", "BAR"),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 60, 900),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "FOO", 60, 900),
+    ]
+
+    with pytest.raises(
+        InvalidTransactionError, match=r"more than the available balance\(50\)"
+    ):
+        get_report(calculator, transactions)
+
+
+def test_a_holding_renamed_to_two_names_on_a_trading_day_is_refused() -> None:
+    """The holding goes to one name or the other, and the day says neither."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "AAA"),
+        _rename_transaction(RENAME_DAY, "OLD", "BBB"),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
+    ]
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert str(excinfo.value).startswith(
+        f"OLD is renamed to both AAA and BBB on {RENAME_DAY}."
+    )
+
+
+@pytest.mark.parametrize("backwards", [False, True], ids=["in order", "backwards"])
+@pytest.mark.parametrize("third_row", ["fee", "excess reported income"])
+def test_a_rename_chain_is_refused_whatever_else_the_day_holds(
+    third_row: str, *, backwards: bool
+) -> None:
+    """Fees and ERI trigger different fallback paths.
+
+    Neither may bypass rename-chain validation, in either row order.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[ERI_ISIN] = {"OLD"}
+    renames = [
+        _rename_transaction(RENAME_DAY, "OLD", "MID"),
+        _rename_transaction(RENAME_DAY, "MID", "NEW"),
+    ]
+    extra: BrokerTransaction = (
+        _gbp_fee(RENAME_DAY, "OLD", 5)
+        if third_row == "fee"
+        else ERITransaction(
+            date=RENAME_DAY,
+            isin=ERI_ISIN,
+            price=Decimal(1),
+            currency=CurrencyCode("GBP"),
+        )
+    )
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        extra,
+        *(reversed(renames) if backwards else renames),
+        _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 100, 1500),
+    ]
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert str(excinfo.value).startswith(
+        f"Cannot apply the renames of OLD on {RENAME_DAY}: it is renamed to "
+        "MID, and MID is renamed to NEW, the same day."
+    )
+
+
+def test_a_rename_day_carrying_excess_reported_income_is_read_row_by_row() -> None:
+    """An ERI day preserves the existing refusal of a sale before its ticker exists.
+
+    ERI names an ISIN, so ticker-based filtering cannot exclude affected holdings.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[ERI_ISIN] = {"OLD"}
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 50, 1000),
+        ERITransaction(
+            date=RENAME_DAY,
+            isin=ERI_ISIN,
+            price=Decimal(1),
+            currency=CurrencyCode("GBP"),
+        ),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    with pytest.raises(InvalidTransactionError, match="not owned symbol"):
+        get_report(calculator, transactions)
 
 
 def test_same_day_vest_ordered_before_sale() -> None:
