@@ -47,11 +47,11 @@ it does not search subdirectories.
 
 Two rules to get right:
 
-- **Do not put the Equity Awards CSV in this directory.** It is also a `.csv`, so cgt-calc would
-    read it as transaction history and stop with `Missing columns in Schwab transaction file`. Keep
-    it elsewhere and pass it with `--schwab-award-file`. A complete transaction export is a separate
-    case: cgt-calc cannot yet combine one with a main history, as [Equity awards](#equity-awards)
-    explains.
+- **Do not put an Equity Awards CSV in this directory.** It is also a `.csv`, so cgt-calc would read
+    it as transaction history and stop with `Missing columns in Schwab transaction file`. Keep it
+    elsewhere. Pass an award-price CSV with `--schwab-award-file`. For a complete transaction
+    export, follow
+    [Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export).
 - **Do not put exports from two different Schwab accounts in one directory.** The CSV does not say
     which account a row belongs to, so cgt-calc cannot separate them. Combining several accounts is
     not supported.
