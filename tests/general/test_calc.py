@@ -24,6 +24,7 @@ from cgt_calc.exceptions import (
     InvalidTransactionError,
     IsinMissingError,
     PriceMissingError,
+    QuantityNotPositiveError,
 )
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
@@ -1725,6 +1726,50 @@ def test_a_rename_day_refuses_more_units_than_the_whole_holding_has(
         InvalidTransactionError, match=r"more than the available balance\(40\)"
     ):
         get_report(calculator, transactions)
+
+
+def _malformed_purchase(
+    date: datetime.date, symbol: str, quantity: str
+) -> BrokerTransaction:
+    """Build a purchase whose stated count is not a positive number."""
+    return BrokerTransaction(
+        date=date,
+        action=ActionType.BUY,
+        symbol=symbol,
+        description=f"malformed buy {symbol}",
+        quantity=Decimal(quantity),
+        price=Decimal(20),
+        fees=Decimal(0),
+        amount=Decimal(-1000),
+        currency=CurrencyCode("GBP"),
+        broker="Test",
+    )
+
+
+@pytest.mark.parametrize("quantity", ["-50", "0"], ids=["negative", "zero"])
+@pytest.mark.parametrize("buy_first", [True, False], ids=["buy first", "sale first"])
+def test_a_malformed_purchase_on_a_rename_day_blames_its_own_row(
+    *, quantity: str, buy_first: bool
+) -> None:
+    """The row with the impossible count is named, not the sale it shrinks.
+
+    A rename day works out what the whole holding can give up before any of
+    its rows is read, so a count of less than nothing there takes shares off
+    that total and the sale of the whole holding is the row refused for it.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    sale = _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 100, 2000)
+    malformed = _malformed_purchase(RENAME_DAY, "NEW", quantity)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        *([malformed, sale] if buy_first else [sale, malformed]),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    with pytest.raises(QuantityNotPositiveError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert "symbol='NEW'" in str(excinfo.value)
 
 
 def test_a_purchase_under_the_retired_name_is_there_to_sell_later() -> None:

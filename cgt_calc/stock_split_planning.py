@@ -12,6 +12,7 @@ from .exceptions import (
     CalculationError,
     InvalidTransactionError,
     QuantityMissingError,
+    QuantityNotPositiveError,
     SymbolMissingError,
 )
 from .model import ActionType, Position
@@ -49,6 +50,25 @@ def _get_quantity_or_fail(transaction: BrokerTransaction) -> Decimal:
     quantity = transaction.quantity
     if quantity is None:
         raise QuantityMissingError(transaction)
+    return quantity
+
+
+def _stated_quantity(transaction: BrokerTransaction) -> Decimal:
+    """Return a trade row's stated count, refusing one that is not positive.
+
+    A day is planned before any of its rows has been processed, so a row
+    stating nothing, or a count of zero or less, has to be refused where the
+    plan reads it. Left to the row's own processing it would first shape the
+    plan, and whichever valid row is then measured against that plan is the
+    one the calculator blames.
+
+    Only rows that move a share count are read this way. A reorganisation
+    row states its own delta, which a consolidation states as a negative
+    number.
+    """
+    quantity = _get_quantity_or_fail(transaction)
+    if quantity <= 0:
+        raise QuantityNotPositiveError(transaction)
     return quantity
 
 
@@ -334,7 +354,7 @@ def _plan_stock_split(
     day_open_quantity = state.run.portfolio[symbol].quantity
     holding_at_event = day_open_quantity + sum(
         (
-            quantity_sign(other.action) * _get_quantity_or_fail(other)
+            quantity_sign(other.action) * _stated_quantity(other)
             for other in before_rows
         ),
         Decimal(0),
@@ -460,10 +480,14 @@ def signed_quantity(transactions: list[BrokerTransaction]) -> Decimal:
     """Net units these rows add to a holding, in their pooled counts."""
     total = Decimal(0)
     for transaction in transactions:
-        quantity = transaction.pool_quantity
-        if quantity is None:
-            raise QuantityMissingError(transaction)
-        total += quantity_sign(transaction.action) * quantity
+        stated = _stated_quantity(transaction)
+        # ``BrokerTransaction.pool_quantity``, now that the stated count is
+        # known to be there: a same-day reorganisation restates a row into the
+        # units the day ends in, and that is the count the pool moves by.
+        restated = transaction.calculation_quantity
+        total += quantity_sign(transaction.action) * (
+            stated if restated is None else restated
+        )
     return total
 
 

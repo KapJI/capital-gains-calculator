@@ -37,7 +37,7 @@ from .calc_test_data import (
     transaction,
     transfer_to_spouse_transaction,
 )
-from .test_calc import _rename_transaction, create_calculator, get_report
+from .test_calc import _gbp_trade, _rename_transaction, create_calculator, get_report
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -1578,6 +1578,93 @@ def test_a_sale_and_a_transfer_under_two_names_of_one_holding_are_refused() -> N
         "The sale is recorded under OLD, which the day's renames make one "
         "holding with NEW." in message
     )
+
+
+CONTENTION_BUY_DAY = datetime.date(2024, 6, 1)
+CONTENTION_DAY = datetime.date(2024, 6, 10)
+CONTENTION_LATER_DAY = datetime.date(2024, 6, 20)
+
+
+def _contention_history(
+    later_day_rows: list[BrokerTransaction],
+) -> list[BrokerTransaction]:
+    """Build a sale and a transfer of one holding, then a later rename day."""
+    return [
+        _gbp_trade(CONTENTION_BUY_DAY, ActionType.BUY, "X", 100, 500),
+        _gbp_trade(CONTENTION_DAY, ActionType.SELL, "X", 25, 500),
+        transfer_to_spouse_transaction(CONTENTION_DAY, "X", 25),
+        *later_day_rows,
+        _rename_transaction(CONTENTION_LATER_DAY, "X", "Z"),
+    ]
+
+
+def test_a_later_day_s_own_sale_leaves_nothing_to_contend_over() -> None:
+    """A later day's purchase its own sale has taken is not in dispute.
+
+    The 20 June purchase is written under the new ticker and the sale of it
+    under the retired one, which the day's rename makes one holding. That
+    sale takes the whole purchase under the same-day rule, so neither the
+    sale nor the transfer of 10 June can be identified against it and there
+    is nothing for them to argue over.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(
+        calculator,
+        _contention_history(
+            [
+                _gbp_trade(CONTENTION_LATER_DAY, ActionType.BUY, "Z", 30, 600),
+                _gbp_trade(CONTENTION_LATER_DAY, ActionType.SELL, "X", 30, 600),
+            ]
+        ),
+    )
+
+    (sale,) = report.calculation_log[CONTENTION_DAY]["sell$X"]
+    (transfer,) = report.calculation_log[CONTENTION_DAY]["transfer-to-spouse$X"]
+    # Both price from the pool at its 5 a share average, which is what neither
+    # of them reaching the 20 a share purchase of 20 June looks like.
+    assert sale.rule_type is RuleType.SECTION_104
+    assert sale.allowable_cost == Decimal(125)
+    assert transfer.allowable_cost == Decimal(125)
+    assert report.total_gain() == Decimal(375)
+
+
+def test_a_later_day_s_sale_leaves_the_rest_of_its_purchase_to_contend_over() -> None:
+    """What that day's own sale does not take is still in dispute."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(CalculationError, match="does not say how to split") as err:
+        get_report(
+            calculator,
+            _contention_history(
+                [
+                    _gbp_trade(CONTENTION_LATER_DAY, ActionType.BUY, "Z", 60, 1200),
+                    _gbp_trade(CONTENTION_LATER_DAY, ActionType.SELL, "X", 30, 600),
+                ]
+            ),
+        )
+
+    assert str(CONTENTION_LATER_DAY) in str(err.value)
+
+
+def test_a_later_day_s_transfer_to_a_spouse_reserves_its_purchase_too() -> None:
+    """A transfer claims a later day's purchase exactly as a sale does."""
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(
+        calculator,
+        _contention_history(
+            [
+                _gbp_trade(CONTENTION_LATER_DAY, ActionType.BUY, "Z", 30, 600),
+                transfer_to_spouse_transaction(CONTENTION_LATER_DAY, "X", 30),
+            ]
+        ),
+    )
+
+    # The whole 20 a share purchase, not a share of the 5 a share pool.
+    (later,) = report.calculation_log[CONTENTION_LATER_DAY]["transfer-to-spouse$X"]
+    assert later.allowable_cost == Decimal(600)
+    assert report.total_gain() == Decimal(375)
 
 
 def _free_shares(date: datetime.date, symbol: str, quantity: int) -> BrokerTransaction:

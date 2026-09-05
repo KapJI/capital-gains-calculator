@@ -19,7 +19,11 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
-from cgt_calc.exceptions import CalculationError, InvalidTransactionError
+from cgt_calc.exceptions import (
+    CalculationError,
+    InvalidTransactionError,
+    QuantityNotPositiveError,
+)
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -268,6 +272,58 @@ def test_a_consolidation_reduces_the_units_and_keeps_the_cost() -> None:
     )
     assert calculator.portfolio["FOO"].quantity == Decimal(1)
     assert calculator.portfolio["FOO"].amount == Decimal(700)
+
+
+def _malformed_purchase(date: datetime.date, symbol: str) -> BrokerTransaction:
+    """Build a purchase stating a negative count."""
+    return BrokerTransaction(
+        date=date,
+        action=ActionType.BUY,
+        symbol=symbol,
+        description=f"malformed buy {symbol}",
+        quantity=Decimal(-50),
+        price=Decimal(20),
+        fees=Decimal(0),
+        amount=Decimal(-1000),
+        currency=GBP,
+        broker="Testing",
+    )
+
+
+def test_a_malformed_purchase_after_a_reorganisation_blames_its_own_row() -> None:
+    """The row with the impossible count is named, not the reorganisation.
+
+    A consolidation's own delta is allowed to be negative, which
+    ``test_a_consolidation_reduces_the_units_and_keeps_the_cost`` covers. A
+    purchase's is not, and the day's plan reads it before any row is
+    processed.
+    """
+    with pytest.raises(QuantityNotPositiveError) as excinfo:
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "100", "5"),
+                legacy_split(EVENT_DAY, "FOO", "100"),
+                _malformed_purchase(EVENT_DAY, "FOO"),
+                trade(EVENT_DAY, ActionType.SELL, "FOO", "200", "10"),
+            ]
+        )
+
+    assert "malformed buy FOO" in str(excinfo.value)
+
+
+def test_a_malformed_purchase_before_a_reorganisation_blames_its_own_row() -> None:
+    """The same row, read where the plan works out what the event acts on."""
+    with pytest.raises(QuantityNotPositiveError) as excinfo:
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "40", "5"),
+                trade(EVENT_DAY, ActionType.SELL, "FOO", "10", "10"),
+                _malformed_purchase(EVENT_DAY, "FOO"),
+                legacy_split(EVENT_DAY, "FOO", "100"),
+            ]
+        )
+
+    assert "malformed buy FOO" in str(excinfo.value)
 
 
 def test_a_later_part_disposal_takes_its_share_of_the_unchanged_cost() -> None:
