@@ -173,6 +173,34 @@ class HmrcTransactionData:
 
 
 @dataclass
+class DayAcquisitions:
+    """What a day put into one holding, kept apart by how it got there.
+
+    `purchased` is what the same-day and 30-day rules may identify a disposal
+    against: a purchase, a vest, or shares arriving from a spouse.
+
+    `reorganised` is what a spin-off created. That is not an acquisition
+    (TCGA 1992 s127, CG51805), and its amount is only the first pass's
+    estimate of the share of the source pool that carries across, which the
+    walk replaces with the real figure once it reaches the day. A
+    reorganisation an export states as a share count leaves nothing here at
+    all: it restates a holding rather than adding to one.
+
+    `cost_only` is pooled cost with no shares behind it, which is a management
+    fee.
+    """
+
+    purchased: HmrcTransactionData = field(default_factory=HmrcTransactionData)
+    reorganised: HmrcTransactionData = field(default_factory=HmrcTransactionData)
+    cost_only: HmrcTransactionData = field(default_factory=HmrcTransactionData)
+
+    @property
+    def total(self) -> HmrcTransactionData:
+        """Everything the day put in, which is what the pool moves by."""
+        return self.purchased + self.reorganised + self.cost_only
+
+
+@dataclass
 class ForeignCurrencyAmount:
     """Represent a decimal amount in foreign currency."""
 
@@ -290,6 +318,7 @@ class CapitalAdjustment:
 
 
 HmrcTransactionLog = dict[datetime.date, dict[str, HmrcTransactionData]]
+AcquisitionLog = dict[datetime.date, dict[str, DayAcquisitions]]
 ForeignAmountLog = dict[tuple[str, datetime.date], ForeignCurrencyAmount]
 ExcessReportedIncomeLog = dict[datetime.date, dict[str, ExcessReportedIncome]]
 ExcessReportedIncomeDistributionLog = dict[
