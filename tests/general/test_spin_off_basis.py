@@ -712,14 +712,7 @@ def _rename(old: str, new: str) -> BrokerTransaction:
 
 @pytest.mark.parametrize("backwards", [False, True], ids=["in order", "backwards"])
 def test_a_source_renamed_twice_on_the_day_is_refused(*, backwards: bool) -> None:
-    """OLD to MID to NEW in one morning, with no saying where it lands.
-
-    The renames are applied in the order the input lists them, so listed this
-    way round the shares reach NEW and the spin-off apportions from them,
-    while listed the other way they stop at MID and NEW has nothing to spin
-    anything off. A date carries no order to choose by, so the day is refused
-    as it opens rather than answered from the order the file happens to have.
-    """
+    """A spin-off must not bypass chain validation in either rename row order."""
     converter = CurrencyConverter(None, {})
     handler = SpinOffHandler()
     handler.cache = {"BAR": "NEW"}

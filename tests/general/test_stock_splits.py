@@ -2034,8 +2034,7 @@ def test_a_holding_renamed_along_into_the_reorganised_one_is_refused() -> None:
     Nothing renames straight into the reorganised name, so looking only at the
     renames it is named in finds an empty holding and lets the day through.
     The three units come along the chain and are never restated. The chain is
-    what the day is refused for: it is read for sense as the day opens,
-    before the reorganisation is planned at all.
+    refused before the day's transaction rows are processed.
     """
     with pytest.raises(
         CalculationError, match="is renamed to MID, and MID is renamed to NEW"
@@ -2384,18 +2383,10 @@ def test_a_reorganisation_is_not_a_disposal_row_of_its_own(
 
 
 def test_a_reorganised_holding_s_rename_day_is_still_read_row_by_row() -> None:
-    """Scaling a pool and renaming it do not commute, so the day keeps its order.
+    """A split day keeps the existing row-position handling of renames.
 
-    An ordinary rename day is read as one holding: what its names hold
-    together is what its sales may take, and what the day leaves under a name
-    it retires is gathered into the closing one as it closes. A day that also
-    restates the pool is left out of that, because where the restatement falls
-    among the day's rows is what decides the units it acts on.
-
-    So a purchase written under the old name after the rename row stays there,
-    as it does on `origin/main`, and the following month's sale of the whole
-    holding under the new name finds only the twenty units the rename carried
-    across.
+    The later purchase stays under OLD, so selling 25 NEW exceeds the 20
+    shares carried across by the rename.
     """
     with pytest.raises(InvalidTransactionError, match=r"available balance\(20\.0*\)"):
         run(

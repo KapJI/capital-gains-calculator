@@ -48,5 +48,3 @@
 # "how many candidates there are" is correct; ThereIsAgreement expects the noun
 # after the verb, but this construction puts it first.
 ^trading212\.py:.*ThereIsAgreement
-# "giving them new tax semantics" - Harper reads "new" as "knew".
-^rename_planning\.py:.*PronounKnew

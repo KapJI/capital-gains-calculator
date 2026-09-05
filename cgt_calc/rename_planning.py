@@ -1,22 +1,16 @@
 """First pass: reading a day's ticker renames as one holding.
 
-A rename is neither a disposal nor an acquisition (TCGA 1992 s127, CG51700):
-the same shares carry on under another name. Input carries dates but not
-times, so a date's rows say nothing about when in the day the name changed,
-and a purchase or sale recorded that day means the same shares whichever of
-the two tickers it states.
+A ticker change leaves the same shares under another name. Same-date broker
+rows do not consistently establish where the rename falls relative to trades,
+so ordinary purchases and sales are checked against the whole holding.
 
-The pool itself still moves where the RENAME row sits, which is what a
-price-sensitive corporate action reads. What is planned here is the day's
-alias graph: how many units the whole holding can give up, so that a decrease
-is checked against the holding rather than against the name its row happens to
-use, and which name the day ends under, so that anything left behind under the
-others is gathered in when it closes.
+The provisional pool still moves at the RENAME row. Day-open planning computes
+capacity across the connected tickers; day-close reconciliation gathers any
+remaining positions under the closing ticker. Acquisition and disposal logs
+keep the ticker from the source row for the matching pass.
 
-Only ordinary purchases and disposals are read this way. A holding a split
-restates, a spin-off apportions cost out of, or excess reported income adds
-cost to keeps the behaviour it has: those operations do not commute with a
-rename, and giving them new tax semantics is not this module's business.
+Other holding actions keep their existing processing because they may depend
+on the pool's position or cost when processed.
 """
 
 from __future__ import annotations
@@ -62,12 +56,7 @@ RENAME_DAY_UNSUPPORTED_ACTIONS: Final = frozenset(
         ActionType.FULL_REDEMPTION,
     }
 )
-"""What a rename component may not contain if this planning is to read it.
-
-Everything that moves a holding's units or its pooled cost, other than an
-ordinary purchase or sale. A component containing one of these is left to the
-row-position pool, unchanged, rather than given the day-wide reading below.
-"""
+"""Actions that keep their component on the existing row-position path."""
 
 
 UNNAMED_HOLDING_ACTIONS: Final = frozenset(
@@ -120,12 +109,7 @@ def plan_renames(
     date_index: datetime.date,
     day_transactions: list[BrokerTransaction],
 ) -> None:
-    """Record what each of the day's renamed holdings is and what it holds.
-
-    Runs before any of the day's rows are processed, the way reorganisations
-    are planned, so the graph saying which names are one holding exists before
-    a row states one of them.
-    """
+    """Validate the day's renames and compute capacity for eligible components."""
     pairs = [
         rename_pair(transaction)
         for transaction in day_transactions
@@ -133,21 +117,15 @@ def plan_renames(
     ]
     if not pairs:
         return
-    # Every component is read for sense first, whatever else the day holds.
-    # A holding renamed twice, or renamed to two names, ends up wherever the
-    # input's order of those rows puts it, and neither this planning nor the
-    # row-position pool it may fall back to can answer that. So the refusals
-    # come before anything decides which reading the day gets.
+    # Validate every component before choosing a fallback. Excluded actions
+    # must not bypass chain or conflict checks.
     components = [
         (names, _one_hop_renames(names, pairs, date_index))
         for names in _components(pairs)
     ]
     for _, renames in components:
         _refuse_rename_chain(renames, date_index)
-    # A day carrying a row that changes a pool without naming it cannot be
-    # read as a whole: a decrease this planning lets through under one name
-    # rather than another changes what that pool holds by the time the row
-    # is read, and no component can be told to expect it.
+    # These rows cannot be assigned to components by ticker alone.
     if any(
         transaction.action in UNNAMED_HOLDING_ACTIONS
         for transaction in day_transactions
@@ -181,16 +159,10 @@ def plan_renames(
 def rename_day_units(
     history: PreparedHistory, date_index: datetime.date, symbol: str
 ) -> Decimal | None:
-    """Return what a decrease of this holding may still take today.
+    """Return capacity minus today's disposals under every connected ticker.
 
-    The whole holding's capacity, less what the day's disposals have already
-    taken out of it under any of its names. Everything disposed of on one day
-    is one disposal (TCGA 1992 s105(1)), and the day's renames make these
-    names one holding, so a sale written under either name draws on the same
-    shares and they cannot be sold twice.
-
-    None when the day plans no such holding here, or when it has nothing to
-    give: a day that never held the shares is left to say so as it always has.
+    Return None for an unplanned or empty holding so the existing checks
+    report sales of shares that were never held.
     """
     component = history.rename_components.get(date_index, {}).get(symbol)
     if component is None or component.capacity == 0:
@@ -207,14 +179,10 @@ def rename_day_units(
 
 
 def reconcile_rename_day(state: CalculatorState, date_index: datetime.date) -> None:
-    """Gather what the day left under a renamed name into the closing one.
+    """Move positions left under retired tickers into the closing ticker.
 
-    The rename has already moved the pool, where its row sat. What is left
-    under a name it moved away from is what the rows after it recorded there:
-    an ordinary purchase or sale of the same holding, written under the name
-    the day is retiring. Gathering it in is not a second tax event, and no
-    rename is recorded for it - the units and their cost are the same units
-    and cost under the name the day ends on (TCGA 1992 s127, CG51700).
+    This only reconciles provisional bookkeeping; it records no second rename
+    and does not change the acquisition or disposal logs.
     """
     for name, component in state.history.rename_components.get(date_index, {}).items():
         if name == component.closing_name:
@@ -311,14 +279,9 @@ def _one_hop_renames(
 
 
 def _refuse_rename_chain(renames: dict[str, str], date_index: datetime.date) -> None:
-    """Refuse a holding this component's renames move twice in one day.
+    """Refuse chains and cycles, whose result would depend on rename row order.
 
-    A name that is renamed onward from the name it was just renamed to ends
-    up wherever the input's order of those two rows puts it, and swapping the
-    rows moves it somewhere else. A date carries no order, so neither reading
-    is established. A cycle is the same thing joined up, and the same test
-    catches it. The names are taken in order so that one day is always
-    refused by naming the same pair.
+    Sort names so either row order produces the same diagnostic.
     """
     for name in sorted({*renames, *renames.values()}):
         onward = renames.get(name)
