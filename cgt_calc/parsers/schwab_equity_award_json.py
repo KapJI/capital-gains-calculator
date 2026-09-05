@@ -1332,8 +1332,9 @@ class SchwabEquityAwardsParser(BaseSingleFileParser[SchwabAwardTransaction]):
     pretty_name = "Charles Schwab Equity Awards"
     format_name = "JSON"
     argument_help: ClassVar[str | None] = (
-        "Charles Schwab Equity Awards transaction history, in the JSON or the "
-        "complete CSV export layout"
+        "Charles Schwab Equity Awards transaction history, JSON or complete "
+        "CSV. Prefer --schwab-award-file; this option remains the way to "
+        "combine the history with --schwab-file or --schwab-dir"
     )
     deprecated_flags: ClassVar[list[str]] = ["--schwab_equity_award_json"]
 

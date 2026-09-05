@@ -86,6 +86,7 @@ ETFs
 ETNs
 expanduser
 f
+FairMarketValuePrice
 FeesAndCommissions
 FIGI
 FileNotFoundError
@@ -105,6 +106,7 @@ I/O
 IBKR
 IBKR's
 idx
+IndexError
 ingester
 intraday
 InvalidOperation
@@ -117,6 +119,7 @@ ISIN
 IsinConverter
 ISINs
 json
+KeyError
 Lansdown
 len
 LF

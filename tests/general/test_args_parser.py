@@ -804,8 +804,6 @@ def test_raw_file_stdin() -> None:
     [
         "--initial-prices-file",
         "--initial-prices",
-        "--schwab-award-file",
-        "--schwab-award",
     ],
 )
 def test_options_without_a_stdin_consumer_reject_stdin(
@@ -860,6 +858,38 @@ def test_reject_duplicate_stdin_allows_a_single_option() -> None:
     reject_duplicate_stdin(parser, args)
 
     assert args.raw_file == STDIN_PATH
+
+
+def test_schwab_award_file_help_names_every_layout_it_takes() -> None:
+    """The canonical option's help says it takes either kind of export."""
+    help_text = " ".join(create_parser().format_help().split())
+
+    assert (
+        "--schwab-award-file PATH Charles Schwab Equity Awards export: the "
+        "award-price CSV that prices vests in the main history, or the "
+        "complete transaction history as JSON or CSV" in help_text
+    )
+
+
+@pytest.mark.parametrize("option", ["--schwab-award-file", "--schwab-award"])
+def test_schwab_award_file_accepts_stdin(option: str) -> None:
+    """The canonical award option reads a piped export, as its alias does."""
+    parser = create_parser()
+
+    args = parser.parse_args([option, "-"])
+
+    assert args.schwab_award_file == STDIN_PATH
+
+
+def test_reject_duplicate_stdin_covers_the_award_file() -> None:
+    """Changing the option type is all the existing stdin check needs."""
+    parser = create_parser()
+    args = parser.parse_args(["--schwab-award-file", "-", "--raw-file", "-"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        reject_duplicate_stdin(parser, args)
+
+    assert exc_info.value.code == 2
 
 
 def test_reject_duplicate_stdin_allows_an_option_and_its_alias() -> None:

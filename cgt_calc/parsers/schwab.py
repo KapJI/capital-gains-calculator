@@ -9,16 +9,19 @@ from dataclasses import dataclass, replace
 import datetime
 from decimal import Decimal
 from enum import StrEnum
+import io
 import itertools
 import logging
+import sys
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 import shtab
 
 from cgt_calc.args_validators import (
+    STDIN_PATH,
     DeprecatedAction,
     existing_directory_type,
-    existing_file_type,
+    existing_file_or_stdin_type,
     set_completer,
 )
 from cgt_calc.const import TICKER_RENAMES
@@ -37,6 +40,10 @@ from cgt_calc.model import (
     TransactionSource,
 )
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
+from cgt_calc.parsers.schwab_equity_award_json import (
+    COMPLETE_CSV_COLUMNS,
+    SchwabEquityAwardsParser,
+)
 from cgt_calc.parsers.schwab_options import (
     parse_option_contract,
     reconcile_written_options,
@@ -768,11 +775,25 @@ def _read_schwab_awards(
     if schwab_award_transactions_file is None:
         return AwardPrices(award_prices={})
 
-    initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
-
     with schwab_award_transactions_file.open(encoding="utf-8") as csv_file:
         parsing_msg(schwab_award_transactions_file)
         lines = list(csv.reader(csv_file))
+    return _award_prices_from_lines(lines, schwab_award_transactions_file)
+
+
+def _award_prices_from_lines(
+    lines: list[list[str]],
+    schwab_award_transactions_file: Path,
+) -> AwardPrices:
+    """Read initial stock prices from the rows of an award-price CSV.
+
+    The guards below stay with the rows they protect rather than with the
+    reading: ``_read_schwab_awards`` is called directly with a path as well as
+    through the CLI, and an empty file or a wrong header has to name itself
+    either way instead of surfacing as IndexError or KeyError.
+    """
+    initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
+
     if not lines:
         raise ParsingError(
             schwab_award_transactions_file, "Charles Schwab Award CSV file is empty"
@@ -868,6 +889,33 @@ def _read_schwab_awards(
     return AwardPrices(award_prices=dict(initial_prices))
 
 
+def _is_complete_award_export(content: str, file_path: Path) -> bool:
+    """Say which Equity Awards export the award input holds.
+
+    The contents decide, not the filename: users rename these exports, and
+    ``--schwab-award-file`` takes either kind. The header alone decides, so a
+    file holding nothing but a header is still routed to the reader that owns
+    its layout and reports the shortage in that layout's own terms.
+    """
+    if content.startswith("{"):
+        return True
+    header = next(csv.reader(io.StringIO(content)), [])
+    # The complete layout is tested first because a real one also carries
+    # FairMarketValuePrice; only the last two columns are unique to it.
+    if COMPLETE_CSV_COLUMNS.issubset(header):
+        return True
+    if {column.value for column in RequiredAwardColumn}.issubset(header):
+        return False
+    raise ParsingError(
+        file_path,
+        "This is not a Schwab Equity Awards export cgt-calc reads. The "
+        "award-price CSV holds Date, Symbol and FairMarketValuePrice; the "
+        "complete CSV holds VestFairMarketValue and PurchaseFairMarketValue; "
+        "the JSON export starts with '{'.",
+        row_index=1,
+    )
+
+
 class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
     """Parser for Charles Schwab transaction files."""
 
@@ -889,10 +937,12 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         set_completer(
             arg_group.add_argument(
                 "--schwab-award-file",
-                type=existing_file_type,
+                type=existing_file_or_stdin_type,
                 default=None,
                 metavar="PATH",
-                help="Charles Schwab Equity Awards transaction history in CSV format",
+                help="Charles Schwab Equity Awards export: the award-price CSV "
+                "that prices vests in the main history, or the complete "
+                "transaction history as JSON or CSV",
             ),
             shtab.FILE,
         )
@@ -900,7 +950,7 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
             "--schwab-award",
             action=DeprecatedAction,
             dest="schwab_award_file",
-            type=existing_file_type,
+            type=existing_file_or_stdin_type,
             help=argparse.SUPPRESS,
         )
         # Schwab keeps both forms: `--schwab-file` predates the directory
@@ -932,15 +982,76 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 "--schwab-file and --schwab-dir cannot be used together. Pass "
                 "the directory holding every export, or the single file."
             )
-        award_path = args.schwab_award_file
-        cls.awards_prices = _read_schwab_awards(award_path)
+        award_transactions = cls._load_award_file(args)
         if args.schwab_dir:
             # list is invariant, so widen explicitly rather than return list[T].
             transactions: list[BrokerTransaction] = list(
                 cls.load_from_dir(args.schwab_dir)
             )
             return transactions
-        return super().load_from_args(args)
+        # A complete award export cannot be combined with a main history, so
+        # at most one of these two holds anything. The registry then reports
+        # them under this parser's name, so a canonical complete import says
+        # "Charles Schwab" where the old option said "Charles Schwab Equity
+        # Awards". Only that progress line: each transaction still records the
+        # parser that read it.
+        return award_transactions + super().load_from_args(args)
+
+    @classmethod
+    def _load_award_file(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
+        """Read --schwab-award-file and route it by what it holds.
+
+        An award-price CSV supplies `awards_prices` and imports nothing; a
+        complete export imports its own history and prices no vests. Either
+        way `awards_prices` is assigned, because it is class-level state and
+        leaving it would price this run's vests from the last run's file.
+        """
+        cls.awards_prices = AwardPrices(award_prices={})
+        award_path = args.schwab_award_file
+        if award_path is None:
+            return []
+        # Read once and classify the text: stdin cannot be reopened, and the
+        # reader that owns the layout is handed this same content.
+        if award_path == STDIN_PATH:
+            parsing_msg("stdin")
+            content = sys.stdin.read()
+        else:
+            with award_path.open(encoding=cls.encoding) as award_file:
+                parsing_msg(award_path)
+                content = award_file.read()
+        # The same leading noise a complete export already tolerates. It is
+        # applied before classification, so a price CSV led by a byte-order
+        # mark or a blank line is now read too.
+        content = content.lstrip("\ufeff \t\r\n")
+        if not _is_complete_award_export(content, award_path):
+            cls.awards_prices = _award_prices_from_lines(
+                list(csv.reader(io.StringIO(content))), award_path
+            )
+            return []
+        if args.schwab_equity_award_json:
+            raise CgtError(
+                "A complete Equity Awards export was given to both "
+                "--schwab-award-file and --schwab-equity-award-json. Accepting "
+                "both could duplicate transactions: cgt-calc cannot tell two "
+                "exports of one history from two exports of different periods. "
+                "Pass the history once, through --schwab-award-file."
+            )
+        if args.schwab_file or args.schwab_dir:
+            raise CgtError(
+                "--schwab-award-file holds a complete Equity Awards history, "
+                "and combining one with a main history is not supported yet. "
+                "Pass the complete export on its own, or pass it with "
+                "--schwab-equity-award-json and make sure no transaction "
+                "appears in both files. That option only adds transactions, it "
+                "does not price vests, so the main history has to import on "
+                "its own: if it holds a vest cgt-calc cannot price, pass the "
+                "award-price CSV with --schwab-award-file as well."
+            )
+        return list(
+            SchwabEquityAwardsParser.load_from_stream(
+                io.StringIO(content), award_path, show_parsing_msg=False
+            )
+        )
 
     @classmethod
     @override

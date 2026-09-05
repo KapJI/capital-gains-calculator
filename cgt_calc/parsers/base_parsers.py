@@ -128,6 +128,40 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         load passes its own token so every file in it shares one boundary; a
         file loaded on its own is a boundary of its own.
         """
+        if file_path == STDIN_PATH:
+            return cls.load_from_stream(
+                sys.stdin,
+                STDIN_PATH,
+                warn_on_empty=warn_on_empty,
+                show_parsing_msg=show_parsing_msg,
+                account=account,
+            )
+        with file_path.open(encoding=cls.encoding) as file:
+            return cls.load_from_stream(
+                file,
+                file_path,
+                warn_on_empty=warn_on_empty,
+                show_parsing_msg=show_parsing_msg,
+                account=account,
+            )
+
+    @classmethod
+    def load_from_stream(
+        cls,
+        file: TextIO,
+        file_path: Path,
+        *,
+        warn_on_empty: bool = True,
+        show_parsing_msg: bool = True,
+        account: str | None = None,
+    ) -> list[T]:
+        """Load broker data from a stream someone else opened.
+
+        ``file_path`` is what the stream holds, used to report rows and to
+        record where each transaction came from. Callers that have already
+        read the input, to decide which parser owns it, hand the text back
+        here rather than reopening a path or a stdin that is now exhausted.
+        """
         # A file passed on its own is a boundary of its own, and nothing
         # follows it, so it finalizes here. A directory load supplies its own
         # token and finalizes once over every file instead.
@@ -135,15 +169,9 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         boundary = (
             account if account is not None else next_account_token(cls.pretty_name)
         )
-        if file_path == STDIN_PATH:
-            if show_parsing_msg:
-                parsing_msg("stdin")
-            transactions = cls.read_transactions(sys.stdin, STDIN_PATH)
-        else:
-            with file_path.open(encoding=cls.encoding) as file:
-                if show_parsing_msg:
-                    parsing_msg(file_path)
-                transactions = cls.read_transactions(file, file_path)
+        if show_parsing_msg:
+            parsing_msg("stdin" if file_path == STDIN_PATH else file_path)
+        transactions = cls.read_transactions(file, file_path)
         if not transactions and warn_on_empty:
             LOGGER.warning("No transactions detected in file %s", file_path)
         cls.stamp_source(transactions, file_path, boundary)
