@@ -62,10 +62,24 @@ def _jsonable(value: object) -> object:
             field.name: _jsonable(getattr(value, field.name)) for field in fields(value)
         }
     if isinstance(value, dict):
-        return {str(key): _jsonable(item) for key, item in value.items()}
+        return {_json_key(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, list | tuple):
         return [_jsonable(item) for item in value]
-    raise TypeError(f"Cannot export a {type(value).__name__} to CSV")
+    raise TypeError(f"Cannot export {type(value).__name__} to CSV")
+
+
+def _json_key(key: object) -> str:
+    """Render a mapping key, which JSON can only hold as text.
+
+    Keys go through the same rules as values instead of through str(), which
+    would turn anything that is not already text into a Python repr. That is
+    how a memory address reaches a file whose whole point is that two exports
+    of one history compare cleanly.
+    """
+    rendered = _jsonable(key)
+    if not isinstance(rendered, str):
+        raise TypeError(f"Cannot export {type(key).__name__} as a CSV field name")
+    return rendered
 
 
 def _csv_field(value: object) -> str:

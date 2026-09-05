@@ -384,6 +384,63 @@ def test_an_unexportable_value_is_refused() -> None:
         _dump_to_string([transaction])
 
 
+def test_no_python_repr_reaches_the_file() -> None:
+    """No column leaks a Python object literal, whichever column it is.
+
+    Checking the whole export rather than named cells covers a column no
+    assertion here thought to look at, which is what a repr fallback would
+    quietly fill.
+    """
+    text = _dump_to_string([_rich()])
+
+    for leak in (
+        "Decimal(",
+        "datetime.date(",
+        "datetime.datetime(",
+        "PosixPath(",
+        "WindowsPath(",
+        "ActionType.",
+        "OptionType.",
+        " object at 0x",
+    ):
+        assert leak not in text, f"{leak!r} leaked into the export"
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        # JSON names values with text, and these have no text form the
+        # export can choose on the author's behalf.
+        7,
+        ("GOOG", datetime.date(2023, 1, 1)),
+    ],
+)
+def test_a_key_that_is_not_text_is_refused(key: object) -> None:
+    """A mapping key is held to the same rules as a value.
+
+    str() on a key would put a Python repr, and for an arbitrary object a
+    memory address, into a file that is meant to compare cleanly.
+    """
+    transaction = _minimal()
+    transaction.foreign_fees = {key: Decimal(1)}  # type: ignore[dict-item]  # ty: ignore[invalid-assignment]
+
+    with pytest.raises(TypeError, match="Cannot export"):
+        _dump_to_string([transaction])
+
+
+def test_keys_with_a_text_form_are_kept() -> None:
+    """A key the rules can render becomes that text, not its repr."""
+    transaction = _minimal()
+    transaction.foreign_fees = {  # ty: ignore[invalid-assignment]
+        datetime.date(2023, 1, 1): Decimal(1),  # type: ignore[dict-item]
+        CurrencyCode("USD"): Decimal(2),
+    }
+
+    (row,) = _read_rows(_dump_to_string([transaction]))
+
+    assert json.loads(row["foreign_fees"]) == {"2023-01-01": "1", "USD": "2"}
+
+
 def test_the_stream_stays_open_for_the_caller() -> None:
     """The exporter never closes a stream it was handed."""
     stream = io.StringIO(newline="")
