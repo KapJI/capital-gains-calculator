@@ -141,12 +141,38 @@ def _read_rows(text: str) -> list[dict[str, str]]:
     return list(csv.DictReader(io.StringIO(text, newline="")))
 
 
-def test_header_is_every_parsed_field() -> None:
-    """The export covers the model, excluding only calculation_quantity.
+def test_header_is_the_reviewed_schema() -> None:
+    """The header is pinned to the columns that were reviewed.
 
-    A new BrokerTransaction field fails here until someone decides whether it
-    belongs in the snapshot.
+    The exporter reads its columns from BrokerTransaction, so a field added
+    later is exported instead of quietly missing. This records the schema as
+    it stands, so adding one still has to be looked at: the new column needs a
+    serialisation rule, a place in the order, and a line in the documentation.
     """
+    assert DUMP_FIELDS == (
+        "date",
+        "action",
+        "symbol",
+        "description",
+        "quantity",
+        "price",
+        "fees",
+        "amount",
+        "currency",
+        "broker",
+        "isin",
+        "foreign_fees",
+        "ambiguous_quantity",
+        "option_contract",
+        "written_option_tax",
+        "capital_adjustments",
+        "affects_cash_balance",
+        "source",
+    )
+
+
+def test_only_calculation_quantity_is_left_out() -> None:
+    """Every model field is exported but the one the calculator fills in later."""
     model_fields = {field.name for field in fields(BrokerTransaction)}
 
     assert set(DUMP_FIELDS) == model_fields - {"calculation_quantity"}

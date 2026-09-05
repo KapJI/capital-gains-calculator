@@ -11,39 +11,33 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
+from .model import BrokerTransaction
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import TextIO
 
-    from .model import BrokerTransaction
-
 __all__ = ["DUMP_FIELDS", "dump_transactions"]
 
-# Every BrokerTransaction field as it stands once parsing is done, in the
-# order the dataclass declares them, except:
-#  * `source` is last, because its file and row provenance is what differs
-#    when two exports describe the same transactions;
+# The columns come from BrokerTransaction itself, so a field added to the
+# model is exported rather than quietly missing from a file users are told
+# holds every parsed value. Two deliberate departures from its declared order:
 #  * `calculation_quantity` is left out, because the calculator sets it while
-#    planning share reorganisations, long after this snapshot is taken.
+#    planning share reorganisations, long after this snapshot is taken;
+#  * `source` is moved last, because its file and row provenance is what
+#    differs when two exports describe the same transactions.
+# A test pins the resulting header, so a new field still has to be looked at,
+# and _jsonable refuses a type it does not know rather than guessing.
+_EXCLUDED_FIELDS: Final = frozenset({"calculation_quantity"})
+_TRAILING_FIELDS: Final = ("source",)
+
 DUMP_FIELDS: Final = (
-    "date",
-    "action",
-    "symbol",
-    "description",
-    "quantity",
-    "price",
-    "fees",
-    "amount",
-    "currency",
-    "broker",
-    "isin",
-    "foreign_fees",
-    "ambiguous_quantity",
-    "option_contract",
-    "written_option_tax",
-    "capital_adjustments",
-    "affects_cash_balance",
-    "source",
+    tuple(
+        field.name
+        for field in fields(BrokerTransaction)
+        if field.name not in _EXCLUDED_FIELDS and field.name not in _TRAILING_FIELDS
+    )
+    + _TRAILING_FIELDS
 )
 
 

@@ -121,6 +121,7 @@ ISINs
 isoformat
 json
 KeyError
+jsonable
 Lansdown
 latex
 len
