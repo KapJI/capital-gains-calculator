@@ -211,16 +211,15 @@ Environment variables:
         action="store_true",
         help="save LaTeX source instead of generating a PDF",
     )
-    output_group.add_argument(
-        "--dump-transactions",
-        nargs="?",
-        const="continue",
-        default=None,
-        type=str.lower,
-        choices=["continue", "exit", "only", "normal"],
-        help="dump parsed transactions in chronological order; "
-        "'continue' to proceed with calculations (default if mode omitted), "
-        "or 'exit' / 'only' to exit without calculating",
+    set_completer(
+        output_group.add_argument(
+            "--dump-transactions",
+            type=output_path_type,
+            metavar="PATH",
+            default=None,
+            help="write parsed transactions as CSV to a new file, then continue calculating",
+        ),
+        shtab.FILE,
     )
 
     # General Options
