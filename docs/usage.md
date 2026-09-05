@@ -86,8 +86,8 @@ To save the LaTeX source without creating a PDF, use `--no-pdflatex`. The source
 
 ## Inspect parsed transactions
 
-Use `--dump-transactions` with a path to save the transactions cgt-calc read from your exports, then
-carry on with the normal calculation:
+Use `--dump-transactions` followed by a filename to save the transactions cgt-calc read from your
+exports to a CSV file, then carry on with the normal calculation:
 
 ```shell
 cgt-calc --year 2024 --schwab-file transactions.csv --dump-transactions parsed-transactions.csv
@@ -112,19 +112,25 @@ One row per transaction, under a header naming every column. The rows are in the
 calculation reads them, which is not always the order they happened: some brokers export the newest
 row first, and cgt-calc deliberately places some of a day’s rows before others.
 
-The rows are what the broker parsers produced. Broker-specific reconciliation, removal of rows
-repeated across overlapping exports, Excess Reported Income filtering and that ordering have all
-been applied. Currency conversion, the calculation’s own checks, share split and other
-reorganisation planning, and the tax calculation have not, because they all come later. Ticker names
-and quantities can therefore differ from the ones in the final report.
+The file shows the transactions after cgt-calc has read and prepared your broker exports, and before
+the capital gains calculation. Any income cgt-calc adds for offshore funds you hold is already
+included. It also includes whatever duplicate handling the parser for your broker supports; the
+export itself removes nothing, so follow the [instructions for your broker](brokers/index.md) and do
+not assume overlapping exports are safe.
+
+The calculation has not run yet. Currency conversion, its own checks, share split and other
+reorganisation planning, and the tax calculation all come later, so ticker names and quantities can
+differ from the ones in the final report.
 
 Numbers are exact rather than rounded for display. `price`, `fees` and `amount` are in the row’s
 `currency`. Fees charged in another currency stay in `foreign_fees` under their own currency, and
-each nested amount keeps the currency recorded with it.
+every amount recorded inside a column keeps the currency stored with it.
 
-Columns holding more than one value (`foreign_fees`, `option_contract`, `written_option_tax`,
-`capital_adjustments` and `source`) contain JSON. An empty column means the value was either not set
-or empty text; the two look the same. Inside the JSON columns they stay apart, as `null` and `""`.
+Some columns hold several named values at once (`foreign_fees`, `option_contract`,
+`written_option_tax`, `capital_adjustments` and `source`). These use JSON, which keeps the names and
+their values together in one cell, such as `{"EUR":"2.50"}` for a fee of 2.50 euros. An empty column
+means the value was either not set or empty text; the two look the same. Inside a JSON column they
+stay apart, as `null` and `""`.
 
 Every transaction cgt-calc loaded is exported, including dates outside the reporting period.
 `--year`, `--from` and `--to` still choose the period the report covers.
@@ -132,10 +138,11 @@ Every transaction cgt-calc loaded is exported, including dates outside the repor
 The file is a snapshot for inspection, not an input format. Its columns are not the seven columns of
 the [RAW format](brokers/raw.md), and it cannot be passed back with `--raw-file`.
 
-`source` records the file and row each transaction came from, so the export can contain paths from
-your own machine next to your transaction details. Read it before you send it to anyone. Saving it
-writes only to the path you gave; the calculation that follows behaves as it always does, including
-any data it fetches, as described in the [privacy notes](privacy.md).
+The `source` column identifies the input file each transaction came from, and includes a row number
+when the parser records one. It can therefore contain paths from your own machine next to your
+transaction details. Read it before you send it to anyone. Saving the file writes only to the name
+you gave; the calculation that follows behaves as it always does, including any data it fetches, as
+described in the [privacy notes](privacy.md).
 
 ### Where it is written
 
