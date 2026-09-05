@@ -29,6 +29,8 @@ EQUITY_AWARD = Path("tests") / "schwab" / "data" / "equity_award"
 RSU = Path("tests") / "schwab" / "data" / "rsu_settlement"
 COMPLETE_JSON = EQUITY_AWARD / "schwab_equity_award_v2.json"
 COMPLETE_CSV = EQUITY_AWARD / "schwab_equity_award_v2.csv"
+# A complete CSV that also carries the award-price CSV's own columns.
+AMBIGUOUS_COMPLETE_CSV = EQUITY_AWARD / "nvda_synthetic.csv"
 PRICE_CSV = RSU / "awards.csv"
 MAIN_HISTORY = RSU / "transactions.csv"
 
@@ -77,6 +79,19 @@ def test_a_complete_json_export_is_imported(tmp_path: Path) -> None:
 def test_a_complete_csv_export_is_imported(tmp_path: Path) -> None:
     """The complete CSV history does too, under a JSON name."""
     transactions = _load(schwab_award_file=_renamed(tmp_path, COMPLETE_CSV, "a.json"))
+
+    assert transactions
+    assert not SchwabParser.awards_prices
+
+
+def test_a_complete_export_carrying_the_price_column_is_still_complete() -> None:
+    """The complete layout has to be tested before the price layout.
+
+    A real complete CSV also states FairMarketValuePrice, so checking the
+    price columns first would route this file to the price reader: it would
+    import none of its transactions and offer prices no vest asked for.
+    """
+    transactions = _load(schwab_award_file=str(AMBIGUOUS_COMPLETE_CSV))
 
     assert transactions
     assert not SchwabParser.awards_prices

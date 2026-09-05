@@ -49,7 +49,9 @@ Two rules to get right:
 
 - **Do not put the Equity Awards CSV in this directory.** It is also a `.csv`, so cgt-calc would
     read it as transaction history and stop with `Missing columns in Schwab transaction file`. Keep
-    it elsewhere and pass it with `--schwab-award-file`.
+    it elsewhere and pass it with `--schwab-award-file`. A complete transaction export is a separate
+    case: cgt-calc cannot yet combine one with a main history, as [Equity awards](#equity-awards)
+    explains.
 - **Do not put exports from two different Schwab accounts in one directory.** The CSV does not say
     which account a row belongs to, so cgt-calc cannot separate them. Combining several accounts is
     not supported.
@@ -393,7 +395,8 @@ what each file holds:
     `--schwab-file`. Check first: anything that happened only in the main account is not in that
     export and would be left out of the calculation.
 - If the main history holds everything you need, ask Schwab for the award-price CSV as well and pass
-    the two together, both through `--schwab-award-file`.
+    the two together: the main history with `--schwab-file`, the award-price CSV with
+    `--schwab-award-file`.
 
 If neither file holds everything, this combination is not supported yet, so do not use both. Do not
 rename columns or invent a price merely to bypass the error.
@@ -407,10 +410,13 @@ gain/loss report, statement or spreadsheet converted from PDF has a different la
 export looks like: “This is not a Schwab Equity Awards export cgt-calc reads.” Check the file's
 heading against that message. The award-price CSV holds `Date`, `Symbol` and `FairMarketValuePrice`;
 the complete CSV holds `VestFairMarketValue` and `PurchaseFairMarketValue`; the JSON export starts
-with `{`. Any Equity Awards export goes to `--schwab-award-file`, whichever of the three it is.
+with `{`. Whichever of the three it is, it goes to `--schwab-award-file` rather than
+`--schwab-file`.
 
-With `--schwab-dir`, this error names the offending file: take it out of the directory. If it is an
-Equity Awards export, pass it with `--schwab-award-file` instead.
+With `--schwab-dir`, this error names the offending file: take it out of the directory. If it is the
+award-price CSV, pass it with `--schwab-award-file` instead. If it is a complete transaction export,
+`--schwab-award-file` will not take it alongside `--schwab-dir`: see
+[Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export).
 
 If you combined several history ranges, confirm that there is one header, every data row has the
 same number of fields, and none of the source files used a different export format.
