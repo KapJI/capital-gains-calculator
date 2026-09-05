@@ -409,17 +409,20 @@ def test_no_python_repr_reaches_the_file() -> None:
 @pytest.mark.parametrize(
     "key",
     [
-        # JSON names values with text, and these have no text form the
-        # export can choose on the author's behalf.
+        # JSON names entries with text, and none of these is text.
         7,
+        datetime.date(2023, 1, 1),
+        OptionType.CALL,
         ("GOOG", datetime.date(2023, 1, 1)),
     ],
 )
 def test_a_key_that_is_not_text_is_refused(key: object) -> None:
-    """A mapping key is held to the same rules as a value.
+    """A mapping keyed by anything but text is refused, not guessed at.
 
     str() on a key would put a Python repr, and for an arbitrary object a
-    memory address, into a file that is meant to compare cleanly.
+    memory address, into a file that is meant to compare cleanly. Converting
+    it under the value rules would not be safe either, since two keys can
+    share one text form.
     """
     transaction = _minimal()
     transaction.foreign_fees = {key: Decimal(1)}  # type: ignore[dict-item]  # ty: ignore[invalid-assignment]
@@ -428,17 +431,34 @@ def test_a_key_that_is_not_text_is_refused(key: object) -> None:
         _dump_to_string([transaction])
 
 
-def test_keys_with_a_text_form_are_kept() -> None:
-    """A key the rules can render becomes that text, not its repr."""
+def test_two_keys_cannot_collapse_into_one() -> None:
+    """No entry disappears because two keys share a text form.
+
+    OptionType.CALL and "CALL" would both name a "CALL" entry, and one of the
+    two would quietly vanish. Refusing the key that is not already text is
+    what keeps that from happening.
+    """
     transaction = _minimal()
     transaction.foreign_fees = {  # ty: ignore[invalid-assignment]
-        datetime.date(2023, 1, 1): Decimal(1),  # type: ignore[dict-item]
-        CurrencyCode("USD"): Decimal(2),
+        OptionType.CALL: Decimal(1),  # type: ignore[dict-item]
+        "CALL": Decimal(2),  # type: ignore[dict-item]
+    }
+
+    with pytest.raises(TypeError, match="Cannot export"):
+        _dump_to_string([transaction])
+
+
+def test_text_keys_are_kept_as_they_are() -> None:
+    """A currency-keyed mapping exports under its own names."""
+    transaction = _minimal()
+    transaction.foreign_fees = {
+        CurrencyCode("PLN"): Decimal("0.30"),
+        CurrencyCode("EUR"): Decimal(2),
     }
 
     (row,) = _read_rows(_dump_to_string([transaction]))
 
-    assert json.loads(row["foreign_fees"]) == {"2023-01-01": "1", "USD": "2"}
+    assert json.loads(row["foreign_fees"]) == {"EUR": "2", "PLN": "0.30"}
 
 
 def test_the_stream_stays_open_for_the_caller() -> None:

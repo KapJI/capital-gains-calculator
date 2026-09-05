@@ -69,17 +69,23 @@ def _jsonable(value: object) -> object:
 
 
 def _json_key(key: object) -> str:
-    """Render a mapping key, which JSON can only hold as text.
+    """Return a mapping key, which JSON can only hold as text.
 
-    Keys go through the same rules as values instead of through str(), which
-    would turn anything that is not already text into a Python repr. That is
-    how a memory address reaches a file whose whole point is that two exports
-    of one history compare cleanly.
+    Only a key that is already text is accepted. str() on anything else would
+    turn it into a Python repr, and for an arbitrary object that includes its
+    memory address, in a file whose whole point is that two exports of one
+    history compare cleanly.
+
+    Converting other types instead would not be safe either: the conversion is
+    not one-to-one, so OptionType.CALL and the string "CALL" would both become
+    "CALL" and one of the two entries would quietly vanish. Distinct text keys
+    cannot collide, because a mapping already holds only one of any two equal
+    strings. A mapping keyed by something else needs a decision about how to
+    name its entries, so it is refused until someone makes it.
     """
-    rendered = _jsonable(key)
-    if not isinstance(rendered, str):
+    if not isinstance(key, str):
         raise TypeError(f"Cannot export {type(key).__name__} as a CSV field name")
-    return rendered
+    return key
 
 
 def _csv_field(value: object) -> str:

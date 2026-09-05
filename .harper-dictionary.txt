@@ -154,6 +154,7 @@ OCC
 OCI
 OpenFIGI
 OPRA
+OptionType
 OSError
 OTGLY
 ParsingError
