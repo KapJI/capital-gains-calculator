@@ -68,6 +68,7 @@ CSVs
 CurrencyConverter
 currentPrice
 cusip
+DayAcquisitions
 dataclass
 dest
 dataclasses

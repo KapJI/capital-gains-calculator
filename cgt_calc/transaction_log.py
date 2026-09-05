@@ -4,20 +4,41 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .model import ExcessReportedIncome, HmrcTransactionData, HmrcTransactionLog
+from .model import (
+    DayAcquisitions,
+    ExcessReportedIncome,
+    HmrcTransactionData,
+    HmrcTransactionLog,
+)
 
 if TYPE_CHECKING:
     import datetime
     from decimal import Decimal
 
+    from .model import AcquisitionLog
 
-def has_key(
-    transactions: HmrcTransactionLog,
+
+def has_key[T](
+    transactions: dict[datetime.date, dict[str, T]],
     date_index: datetime.date,
     symbol: str,
 ) -> bool:
-    """Check if transaction log has entry for date_index and symbol."""
+    """Check if transaction log has entry for date_index and symbol.
+
+    Generic over what a log records, so that the acquisition log, whose
+    entries keep a day's purchases apart from what a reorganisation or a fee
+    put in, is asked the same way as the rest.
+    """
     return date_index in transactions and symbol in transactions[date_index]
+
+
+def day_acquisitions(
+    current_list: AcquisitionLog,
+    date_index: datetime.date,
+    symbol: str,
+) -> DayAcquisitions:
+    """Return what a day has put into a holding, starting an empty record."""
+    return current_list.setdefault(date_index, {}).setdefault(symbol, DayAcquisitions())
 
 
 def add_to_list(

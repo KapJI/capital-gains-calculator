@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     import datetime
 
     from .model import (
+        AcquisitionLog,
         CalculationEntry,
         CalculationLog,
         CurrencyCode,
@@ -38,7 +39,10 @@ class PreparedHistory:
     them.
     """
 
-    acquisition_list: HmrcTransactionLog = field(default_factory=dict)
+    # What each day added to a holding, kept apart by how it got there so
+    # that matching can ask for the day's genuine acquisitions without
+    # reconstructing them from a total (see `DayAcquisitions`).
+    acquisition_list: AcquisitionLog = field(default_factory=dict)
     disposal_list: HmrcTransactionLog = field(default_factory=dict)
     # Grants of written options, by date and contract name. Kept apart from
     # disposal_list: a grant disposes of the option the grant creates, not of
@@ -113,12 +117,6 @@ class PreparedHistory:
 
     spin_offs: dict[datetime.date, list[SpinOff]] = field(
         default_factory=lambda: defaultdict(list)
-    )
-    # What the first pass recorded for each spun-off holding, by date and
-    # symbol. It is only an estimate, and the second pass swaps exactly
-    # this much out of the day's acquisitions for the real figure.
-    spin_off_estimates: dict[tuple[datetime.date, str], Decimal] = field(
-        default_factory=lambda: defaultdict(Decimal)
     )
     # Disposals that are gifts at market value rather than sales, and
     # whether the recipient is a connected person. A loss on a gift to a

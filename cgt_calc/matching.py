@@ -148,7 +148,8 @@ class Matcher:
         date_index: datetime.date,
     ) -> list[CalculationEntry]:
         """Process single acquisition."""
-        acquisition = self.history.acquisition_list[date_index][symbol]
+        record = self.history.acquisition_list[date_index][symbol]
+        acquisition = record.total
         acquisition_amount = acquisition.amount
         spin_offs_here = [
             spin_off
@@ -162,11 +163,11 @@ class Matcher:
             # reorganisation itself (CG51976). The first pass could only
             # estimate the source pool, so it recorded an estimate for this
             # holding; here the pool is authoritative and in GBP. Record the
-            # corrected figure on the run, exactly the estimate apart, and take
-            # the source's side at the same moment so that what one gives up is
-            # what the other receives. The recorded acquisition is left alone:
-            # it may also hold ordinary purchases of the same symbol, and the
-            # first pass's history stays as written.
+            # corrected figure on the run and take the source's side at the
+            # same moment, so that what one gives up is what the other
+            # receives. The recorded acquisition is left alone: it may also
+            # hold ordinary purchases of the same symbol, and the first pass's
+            # history stays as written.
             carried = Decimal(0)
             # Several rows for one spin-off, as when the holding is split
             # across brokers, are one reorganisation: the split of value is by
@@ -205,16 +206,18 @@ class Matcher:
                     )
                 )
                 source.amount -= share
-            acquisition_amount += carried - self.history.spin_off_estimates.get(
-                (date_index, symbol), Decimal(0)
+            # The estimate is not used at all: the real share of the source
+            # pool goes in beside what the day genuinely put into the holding.
+            acquisition_amount = (
+                record.purchased.amount + record.cost_only.amount + carried
             )
             self.run.spin_off_corrected_amounts[date_index, symbol] = acquisition_amount
         modified_amount = acquisition_amount
         position = self.run.portfolio[symbol]
         calculation_entries = []
-        # Management fee transaction can have 0 quantity
+        # A management fee is cost with no shares, and a fee of nothing is
+        # neither, so a day can record either without the other.
         assert acquisition.quantity >= 0
-        # Stock split can have 0 amount
         assert acquisition_amount >= 0
 
         bnb_acquisition = HmrcTransactionData()
@@ -1303,17 +1306,10 @@ class Matcher:
         pool = holding[0] if holding else source
         activity = []
         for name in names:
-            spun_in = sum(
-                (
-                    spin_off.quantity
-                    for spin_off in self.history.spin_offs.get(date_index, [])
-                    if spin_off.dest == name
-                ),
-                Decimal(0),
-            )
             if (
                 has_key(self.history.acquisition_list, date_index, name)
-                and self.history.acquisition_list[date_index][name].quantity > spun_in
+                and self.history.acquisition_list[date_index][name].purchased.quantity
+                > 0
             ):
                 activity.append("bought")
             if has_key(self.history.disposal_list, date_index, name):
@@ -1440,19 +1436,22 @@ class Matcher:
     ) -> HmrcTransactionData:
         """Return the acquisitions a disposal could be identified with.
 
-        Units a reorganisation restated are not here to be taken out: they
-        were never acquired (TCGA 1992 s127, CG51805), so they never enter
-        ``acquisition_list`` in the first place. A spun-off holding's cost is
-        the corrected figure once its day has been walked, in place of the
+        Units a reorganisation restated in place are not here to be taken out:
+        they were never acquired (TCGA 1992 s127, CG51805), so they never
+        enter ``acquisition_list`` in the first place. Shares a spin-off
+        created do enter it, and still answer here along with everything else
+        the day put in; which of them a disposal may be identified against is
+        a separate question this does not yet ask. A spun-off holding's cost
+        is the corrected figure once its day has been walked, in place of the
         estimate the first pass recorded.
         """
         if not has_key(self.history.acquisition_list, date_index, symbol):
             return HmrcTransactionData()
-        record = self.history.acquisition_list[date_index][symbol]
+        acquisition = self.history.acquisition_list[date_index][symbol].total
         corrected = self.run.spin_off_corrected_amounts.get((date_index, symbol))
         if corrected is not None:
-            return replace(record, amount=corrected)
-        return record
+            return replace(acquisition, amount=corrected)
+        return acquisition
 
     def _contending_acquisitions(
         self,
